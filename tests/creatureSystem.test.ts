@@ -327,6 +327,44 @@ describe('CreatureSystem: hasar, ölüm ve leş', () => {
   });
 });
 
+describe('CreatureSystem: spawnAt ve yaralı kaçış (5.12)', () => {
+  const quiet = () => context({ terrain: fakeTerrain({ half: 3000, cover: 'urban' }) });
+
+  it('spawnAt belirtilen noktada canlı doğurur (kimlik aday kimlikleriyle çakışmaz); arazi yoksa null', () => {
+    const { system } = setup();
+    expect(system.spawnAt('wolf', 0, -50)).toBeNull(); // henüz güncellenmedi: ızgara yok
+    system.update(DT, quiet());
+    const id = system.spawnAt('wolf', 10, -50, 1);
+    expect(id).not.toBeNull();
+    const v = system.views().find((x) => x.id === id)!;
+    expect(v).toMatchObject({ kind: 'wolf', x: 10, z: -50, dead: false });
+    expect(v.yaw).toBeCloseTo(1);
+    expect(system.spawnAt('wolf', 99999, 0)).toBeNull(); // bölge dışı
+    const other = system.spawnAt('wolf', 10, -50)!;
+    expect(other).not.toBe(id);
+  });
+
+  it('yaralı kaçan karaca sağlam olandan yavaştır ve oyuncu yetişebilir', () => {
+    const speedOf = (damage: number) => {
+      const { system } = setup();
+      const ctx = quiet();
+      system.update(DT, ctx);
+      const id = system.spawnAt('roe_deer', 0, -20, 0)!;
+      if (damage > 0) system.damage(id, damage, { x: 0, z: 0 });
+      else ctx.fires = [{ x: 0, z: -18 }]; // sağlam karaca: ateşten kaçar (aynı kaçış hızı)
+      run(system, 1.5, ctx);
+      const v = system.views().find((x) => x.id === id)!;
+      expect(v.state).toBe('flee');
+      return v.speed;
+    };
+    const healthy = speedOf(0);
+    const hurt = speedOf(28);
+    expect(healthy).toBeCloseTo(SPECIES.roe_deer.runSpeed, 0);
+    expect(hurt).toBeLessThan(healthy);
+    expect(hurt).toBeLessThan(7); // oyuncunun koşu hızı
+  });
+});
+
 describe('CreatureSystem: saldırı olayı', () => {
   it('kışkırtılan domuz oyuncuya saldırır: `creature:attacked` ham hasarla, bekleme aralığıyla', () => {
     const { system, log } = setup();

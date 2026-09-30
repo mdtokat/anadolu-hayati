@@ -13,6 +13,7 @@ import {
 import type {
   CreatureContext,
   CreatureId,
+  CreatureKind,
   CreatureState,
   CreatureStats,
   CreatureTerrain,
@@ -23,6 +24,7 @@ import {
   activityWeight,
   candidatesForCell,
   cellKey,
+  cellOf,
   cellsNear,
   epochOf,
   isHiddenFrom,
@@ -32,7 +34,13 @@ import {
   type Candidate,
   type SpawnGrid,
 } from './spawn';
-import { SPECIES, decodeCreatureId, type SpeciesDef } from './species';
+import {
+  MAX_CREATURES_PER_CELL,
+  SPECIES,
+  creatureId,
+  decodeCreatureId,
+  type SpeciesDef,
+} from './species';
 
 /** Bir canlının simülasyon kaydı: beyin + hareket/takılma/çizim durumu. */
 interface Entry {
@@ -201,6 +209,28 @@ export class CreatureSystem {
     }
     this.syncViews();
     return { killed };
+  }
+
+  /**
+   * Belirli bir noktada canlı doğurur (test, dev demosu ve denge ölçümleri için; normal akış `spawnPass`'tir).
+   * Kimlik hücrenin en yüksek dizinlerinden verilir (aday kimlikleriyle çakışmaz); hücre dolduysa ya da arazi yoksa
+   * null. Doğan canlı normal canlı gibi simüle edilir ve uzaklaşınca kaldırılır.
+   */
+  spawnAt(kind: CreatureKind, x: number, z: number, yaw = 0): CreatureId | null {
+    const grid = this.grid;
+    const terrain = this.gridTerrain;
+    if (!grid || !terrain) return null;
+    const cell = cellOf(grid, x, z);
+    if (!cell) return null;
+    const key = cellKey(grid, cell.cx, cell.cy);
+    for (let index = MAX_CREATURES_PER_CELL - 1; index >= MAX_CREATURES_PER_CELL / 2; index--) {
+      const id = creatureId(key, index);
+      if (this.records.has(id)) continue;
+      this.spawn({ id, kind, x, z, yaw, u: 0, cell: key, epoch: epochOf(this.time) }, terrain);
+      this.syncViews();
+      return id;
+    }
+    return null;
   }
 
   /** Kesilen leşi kaldırır; leş yoksa/canlıysa false. */
@@ -466,7 +496,14 @@ export class CreatureSystem {
       }
     }
 
-    this.move(rec, stepDt, result.intent.speed, terrain);
+    // Yaralı kaçan canlı yavaşlar (sağlık oranına göre): avcı yetişip işini bitirebilir.
+    let slow = 1;
+    if (rec.brain.state === 'flee' && rec.brain.health < rec.brain.maxHealth) {
+      const fraction = rec.brain.health / rec.brain.maxHealth;
+      slow = CREATURES.woundedSpeedFloor + (1 - CREATURES.woundedSpeedFloor) * fraction;
+      rec.brain.speed *= slow;
+    }
+    this.move(rec, stepDt, result.intent.speed * slow, terrain);
     this.watchStuck(rec, stepDt, terrain);
   }
 

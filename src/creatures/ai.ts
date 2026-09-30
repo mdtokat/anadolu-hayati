@@ -44,6 +44,8 @@ export interface Brain {
   alarm: number;
   /** Oyuncuyu algılamadan geçen süre (sn): alert/stalk/chase'te. */
   lostTime: number;
+  /** Kovalama/saldırı döngüsünde geçen toplam süre (sn): saldırı durumu sıfırlamaz, kovalama sonsuza uzamasın. */
+  pursuitTime: number;
   homeX: number;
   homeZ: number;
   /** Dolaşma hedefi; null = yok/vardı. */
@@ -123,6 +125,8 @@ const BORED_FACTOR = 3;
 const STALK_DROP_FACTOR = 1.4;
 /** Dolaşma hedefine bu kadar yaklaşınca varılmış sayılır (oyun m). */
 const ARRIVE_DIST = 1.5;
+/** Atılan canlı hedefe bu kadar (oyun m) yaklaşınca durur (üst üste binmesin). */
+const LUNGE_STOP_DIST = 0.9;
 /** Zamanlı durumların süre aralıkları (sn). */
 const IDLE_SECONDS: readonly [number, number] = [3, 8];
 const GRAZE_SECONDS: readonly [number, number] = [6, 14];
@@ -243,7 +247,7 @@ export const TRANSITIONS: readonly Transition[] = [
     when: ({ c, s, sp }) =>
       s.player === null ||
       s.player.dist > sp.loseDist ||
-      c.stateTime >= sp.chaseSeconds ||
+      c.pursuitTime >= sp.chaseSeconds ||
       (!s.player.noticed && c.lostTime >= LOST_SECONDS),
   },
   {
@@ -371,6 +375,7 @@ export function createBrain(
     noticed: false,
     alarm: 0,
     lostTime: 0,
+    pursuitTime: 0,
     homeX: x,
     homeZ: z,
     target: null,
@@ -453,6 +458,7 @@ export function stepCreature(c: Brain, senses: Senses, dt: number, rng: Random):
   next.stateTime += dt;
   next.alarm = Math.max(0, next.alarm - dt);
   if (next.state !== 'attack') next.cooldown = Math.max(0, next.cooldown - dt);
+  next.pursuitTime = next.state === 'chase' || next.state === 'attack' ? next.pursuitTime + dt : 0;
   const tracking = ENGAGED.includes(next.state);
   if (tracking) {
     next.lostTime = senses.player?.noticed ? 0 : next.lostTime + dt;
@@ -537,6 +543,14 @@ export function stepCreature(c: Brain, senses: Senses, dt: number, rng: Random):
       break;
     case 'attack': {
       heading = toPlayer;
+      // Hazırlıkta hedefe atılır (lunge); çok yakınsa ya da vuruştan sonra yerinde durur.
+      if (
+        next.stateTime < sp.attackWindup &&
+        senses.player &&
+        senses.player.dist > LUNGE_STOP_DIST
+      ) {
+        speed = sp.runSpeed * CREATURES.attackLungeSpeedFactor;
+      }
       const duration = sp.attackWindup + sp.attackRecover;
       next.attackPhase = Math.min(next.stateTime / duration, 1);
       if (!next.struck && next.stateTime >= sp.attackWindup) {

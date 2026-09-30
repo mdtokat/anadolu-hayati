@@ -566,6 +566,10 @@ export const CREATURES = {
   minAlignedSpeed: 0.25,
   /** Vuruş anında oyuncu saldırı menzilinin bu katı içindeyse isabet eder (oyun m çarpanı). */
   attackReachSlack: 1.25,
+  /** Saldırı hazırlığında (windup) canlı hedefe bu oranda koşu hızıyla atılır: koşan oyuncu vuruştan kaçamaz ama aynı hızdaysa uzaklaşabilir. */
+  attackLungeSpeedFactor: 0.8,
+  /** Yaralı canlının kaçış hızı: sağlık oranı 0'da tam hızın bu kadarı, 1'de tam hız (yaralı hayvan yakalanabilir). */
+  woundedSpeedFloor: 0.45,
 } as const;
 
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */

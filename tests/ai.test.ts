@@ -7,6 +7,7 @@ import {
   type Brain,
   type Senses,
 } from '../src/creatures/ai';
+import { CREATURES } from '../src/config';
 import type { CreatureKind, CreatureState } from '../src/creatures/kinds';
 import type { PlayerSense } from '../src/creatures/perception';
 import { SPECIES } from '../src/creatures/species';
@@ -77,7 +78,7 @@ const SCENARIOS: Record<string, Scenario> = {
   threat_close_flee: {
     kind: 'roe_deer',
     from: 'wander',
-    senses: senses({ threat: { x: 0, z: -30, dist: 30 } }),
+    senses: senses({ threat: { x: 0, z: -1.5, dist: 1.5 } }),
     to: 'flee',
   },
   threat_alert: {
@@ -131,7 +132,7 @@ const SCENARIOS: Record<string, Scenario> = {
   chase_lost: {
     kind: 'wild_boar',
     from: 'chase',
-    brain: { stateTime: 11 },
+    brain: { pursuitTime: 15 },
     senses: senses({ player: ps(20) }),
     to: 'wander',
   },
@@ -254,7 +255,7 @@ describe('AI geçiş tablosu', () => {
     const rng = createRandom(3);
     const healthy = brainIn('wolf', 'chase', { stateTime: 1 });
     expect(stepCreature(healthy, senses({ player: ps(10) }), DT, rng).next.state).toBe('chase');
-    const hurt = brainIn('wolf', 'chase', { stateTime: 1, health: 20 });
+    const hurt = brainIn('wolf', 'chase', { stateTime: 1, health: 8 });
     expect(stepCreature(hurt, senses({ player: ps(10) }), DT, rng).next.state).toBe('flee');
   });
 
@@ -327,6 +328,44 @@ describe('saldırı', () => {
       brain = step.next;
     }
     expect(strikes).toBe(0);
+  });
+});
+
+describe('atılma ve kovalama süresi (5.12)', () => {
+  it('saldırı hazırlığında hedefe atılır, sonra yerinde durur; çok yakınsa atılmaz', () => {
+    const sp = SPECIES.wolf;
+    const rng = createRandom(4);
+    let brain = brainIn('wolf', 'attack', { stateTime: 0 });
+    const first = stepCreature(brain, senses({ player: ps(1.5) }), DT, rng);
+    expect(first.intent.speed).toBeCloseTo(sp.runSpeed * CREATURES.attackLungeSpeedFactor);
+    // Hazırlık bitince durur.
+    brain = brainIn('wolf', 'attack', { stateTime: sp.attackWindup + 0.05 });
+    expect(stepCreature(brain, senses({ player: ps(1.5) }), DT, rng).intent.speed).toBe(0);
+    // Zaten yanındaysa atılmaz.
+    brain = brainIn('wolf', 'attack', { stateTime: 0 });
+    expect(stepCreature(brain, senses({ player: ps(0.5) }), DT, rng).intent.speed).toBe(0);
+  });
+
+  it('kovalama süresi saldırılarla sıfırlanmaz: toplam süre dolunca bırakır', () => {
+    const rng = createRandom(4);
+    let brain = brainIn('wolf', 'chase', { cooldown: 0, stateTime: 0 });
+    let gaveUp = false;
+    // Oyuncu hep 1 m yakında ve koşuyor (saldırı-kovalama döngüsü); toplam süre chaseSeconds'ı aşınca bırakmalı.
+    for (let i = 0; i < 60 * 40; i++) {
+      const step = stepCreature(
+        brain,
+        senses({ player: ps(1, { noticed: true }), darkness: 1 }),
+        DT,
+        rng,
+      );
+      brain = step.next;
+      if (brain.state === 'wander') {
+        gaveUp = true;
+        break;
+      }
+    }
+    expect(gaveUp).toBe(true);
+    expect(brain.pursuitTime).toBeLessThan(SPECIES.wolf.chaseSeconds + 1);
   });
 });
 

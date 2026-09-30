@@ -96,19 +96,19 @@ describe('oyuncu algısı', () => {
   it('duyma: koşan uzaktan, dinlenen neredeyse hiç duyulmaz', () => {
     const behind = (dist: number, a: 'rest' | 'walk' | 'run') =>
       perceivePlayer(deer, at, player(0, dist, a), 0);
-    expect(behind(90, 'run').heard).toBe(true);
-    expect(behind(90, 'walk').heard).toBe(false);
-    expect(behind(90, 'rest').heard).toBe(false);
+    expect(behind(35, 'run').heard).toBe(true);
+    expect(behind(35, 'walk').heard).toBe(false);
+    expect(behind(35, 'rest').heard).toBe(false);
     expect(behind(deer.perception.hearRange * CREATURES.noise.rest * 0.9, 'rest').heard).toBe(true);
   });
 
   it('noticed = görüldü veya duyuldu; zayıflık aktarılır', () => {
-    const sense = perceivePlayer(deer, at, { ...player(0, 90, 'run'), weakness: 0.7 }, 0);
+    const sense = perceivePlayer(deer, at, { ...player(0, 35, 'run'), weakness: 0.7 }, 0);
     expect(sense.visible).toBe(false);
     expect(sense.heard).toBe(true);
     expect(sense.noticed).toBe(true);
     expect(sense.weakness).toBe(0.7);
-    expect(sense.dist).toBeCloseTo(90);
+    expect(sense.dist).toBeCloseTo(35);
   });
 });
 
