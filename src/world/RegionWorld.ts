@@ -1,5 +1,12 @@
 import { Scene } from 'three';
-import { CHUNK, REGION_PLAYER, REGION_SCENE, TELEPORTS, VERTICAL_SCALE } from '../config';
+import {
+  CHUNK,
+  FRESH_WATER,
+  REGION_PLAYER,
+  REGION_SCENE,
+  TELEPORTS,
+  VERTICAL_SCALE,
+} from '../config';
 import type { RegionData } from '../data/region';
 import { createBoundsWalls } from '../physics/bounds';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
@@ -8,6 +15,7 @@ import type { SkyPosition } from '../survival/astronomy';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
+import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
 import type { GameWorld, LocationInfo } from './GameWorld';
 import { latLonToGame } from './geo';
 import { ProvinceBorders } from './ProvinceBorders';
@@ -16,6 +24,7 @@ import { RegionHeightSource } from './RegionHeightSource';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial } from './TerrainMaterial';
 import { Water } from './Water';
+import { FreshWaterIndex, type WaterHit } from './waterIndex';
 
 /**
  * Gerçek bölge dünyası: chunk'lanmış LOD'lu arazi mesh'leri, yakın chunk'lar için Rapier
@@ -36,6 +45,7 @@ export class RegionWorld implements GameWorld {
   private readonly walls: RAPIER.Collider[];
   private readonly water: Water;
   private readonly borders: ProvinceBorders;
+  private readonly freshWater: FreshWaterIndex | null;
 
   constructor(
     readonly region: RegionData,
@@ -56,6 +66,10 @@ export class RegionWorld implements GameWorld {
     this.scene.add(this.water.mesh);
     this.borders = new ProvinceBorders(region.provinces, (x, z) => this.source.heightAt(x, z));
     this.scene.add(this.borders.object);
+
+    this.freshWater = region.features
+      ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
+      : null;
 
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
@@ -82,6 +96,19 @@ export class RegionWorld implements GameWorld {
 
   setSun(sun: SkyPosition): void {
     this.environment.setSun(sun);
+  }
+
+  freshWaterNear(x: number, z: number): WaterHit | null {
+    return this.freshWater?.nearest(x, z) ?? null;
+  }
+
+  respawnPoint(deathIndex: number): Vec3 | null {
+    return pickRespawnPoint(
+      this.region.provinces,
+      this.source,
+      this.maxSlopeDeg,
+      respawnRandom(deathIndex),
+    );
   }
 
   prepare(x: number, z: number): void {

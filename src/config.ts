@@ -123,6 +123,8 @@ export const INPUT = {
     toggleCamera: ['KeyV'],
     /** İl sınırı çizgilerini aç/kapa. */
     toggleBorders: ['KeyB'],
+    /** Etkileşim (basılı tutulur): tatlı su kaynağından su içme. */
+    interact: ['KeyE'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -514,4 +516,17 @@ export const SKY = {
   domeRadius: 4000,
   /** Işık yönü uzaklığı (oyun m); yalnızca yön önemlidir. */
   lightDistance: 100,
+} as const;
+
+/** Hayatta kalma HUD'u: gösterge uyarı eşikleri. */
+export const SURVIVAL_HUD = {
+  /** Gösterge bu seviyenin altına inince "düşük" (sarı) uyarısı. */
+  lowBelow: 35,
+  /** Gösterge bu seviyenin altına inince "kritik" (kırmızı, yanıp söner). */
+  criticalBelow: 15,
+  /** Vücut ısısı uyarıları: bu eşiklerin dışında "soğuk/sıcak" (°C); ölümcül eşikler SURVIVAL'da. */
+  coldBelowC: 36,
+  hotAboveC: 38.2,
+  /** HUD'un yenilenme aralığı (ms). */
+  refreshIntervalMs: 100,
 } as const;

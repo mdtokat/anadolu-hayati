@@ -47,7 +47,7 @@
   transform: translateY(-50%);
 }
 
-/* Hayatta kalma göstergeleri için ayrılmış alan (Faz 3'te doldurulacak) */
+/* Hayatta kalma göstergeleri (sol alt) */
 .hud-gauges {
   position: absolute;
   left: 16px;
@@ -55,6 +55,95 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 190px;
+}
+.hud-gauges[hidden] {
+  display: none;
+}
+.hud-gauge {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.hud-gauge-label {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.hud-gauge-track {
+  height: 9px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+}
+.hud-gauge-fill {
+  height: 100%;
+  width: 100%;
+  background: #58b368;
+}
+.hud-gauge[data-state='low'] .hud-gauge-fill {
+  background: #e0b13a;
+}
+.hud-gauge[data-state='critical'] .hud-gauge-fill {
+  background: #d9483b;
+  animation: hud-blink 0.8s steps(2, jump-none) infinite;
+}
+.hud-body-temp {
+  margin-top: 2px;
+  font-size: 12px;
+}
+.hud-body-temp[data-state='cold'] {
+  color: #8cc8ff;
+}
+.hud-body-temp[data-state='hot'] {
+  color: #ffb070;
+}
+.hud-body-temp[data-state='critical'] {
+  color: #ff6a5c;
+  font-weight: 600;
+}
+@keyframes hud-blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Saat, gün ve ortam sıcaklığı (sağ üst, konumun altında) */
+.hud-clock {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+.hud-clock[hidden] {
+  display: none;
+}
+
+/* Ekran ortası uyarıları ve etkileşim ipucu */
+.hud-warnings {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffd27a;
+}
+.hud-prompt {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  font-size: 15px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+}
+.hud-prompt[hidden] {
+  display: none;
 }
 
 /* Konum: il adı ve rakım (sağ üst) */
@@ -184,4 +273,55 @@
 .pause-menu-credits a {
   color: inherit;
   font-weight: 600;
+}
+
+/* Ölüm ekranı (duraklatma menüsünün üstünde) */
+.death-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: grid;
+  place-items: center;
+  background: rgba(60, 5, 5, 0.72);
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  color: #fff;
+}
+.death-screen[hidden] {
+  display: none;
+}
+.death-screen-panel {
+  min-width: 300px;
+  padding: 28px 40px;
+  text-align: center;
+  background: rgba(25, 10, 10, 0.92);
+  border: 1px solid rgba(255, 120, 100, 0.35);
+  border-radius: 12px;
+}
+.death-screen-panel h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+  color: #ff7a6a;
+}
+.death-screen-cause {
+  margin: 0;
+  font-size: 20px;
+}
+.death-screen-detail {
+  margin: 4px 0 20px;
+  opacity: 0.8;
+}
+.death-screen-panel button {
+  padding: 10px 28px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: #a83a2c;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.death-screen-panel button:hover {
+  background: #c14535;
 }

@@ -9,6 +9,9 @@ describe('CREDITS', () => {
     expect(all).toMatch(/Airbus/);
     expect(all).toMatch(/geoBoundaries/);
     expect(all).toMatch(/CC BY 4\.0/);
+    expect(all).toMatch(/OpenStreetMap/);
+    expect(all).toMatch(/ODbL/);
+    expect(all).toMatch(/Overture/);
   });
 
   it('her atıfın başlığı, metni ve https bağlantısı vardır', () => {

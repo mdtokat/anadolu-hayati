@@ -1,6 +1,6 @@
 /**
  * Veri atıfları: kullanılan veri kaynaklarının lisansları atıf şart koşar; menüde gösterilir
- * (README.md ile tutarlı olmalı). OpenStreetMap (ODbL) Faz 4'te veri kullanılınca eklenecek.
+ * (README.md ile tutarlı olmalı).
  */
 export interface Credit {
   /** Kısa başlık (ne için kullanıldığı). */
@@ -21,5 +21,10 @@ export const CREDITS: readonly Credit[] = [
     label: 'İl sınırları',
     text: 'geoBoundaries — Runfola, D. et al. (2020), CC BY 4.0.',
     url: 'https://www.geoboundaries.org/',
+  },
+  {
+    label: 'Akarsu ve göller',
+    text: '© OpenStreetMap katkıcıları, ODbL 1.0; Overture Maps Foundation dağıtımından (base/water) türetilmiştir.',
+    url: 'https://www.openstreetmap.org/copyright',
   },
 ];

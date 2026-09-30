@@ -60,12 +60,13 @@ Bölge tanımı `tools/regions.yaml`'dadır. Koordinat ve veri formatı sözleş
 
 ## Veri Kaynakları ve Atıflar
 
-Oyun aşağıdaki açık verileri kullanacaktır (veri hattı Faz 2'de eklenir). Atıflar oyunun içinde de gösterilecektir.
+Oyun aşağıdaki açık verileri kullanır. Atıflar oyunun içinde (duraklatma menüsü) de gösterilir.
 
 | Veri         | Kaynak                                                                                | Lisans / Atıf                                |
 | ------------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Yükseklik    | [Copernicus GLO-30 DEM](https://registry.opendata.aws/copernicus-dem/) (AWS Open Data) | Copernicus lisansı — atıf zorunlu            |
 | İl sınırları | [geoBoundaries](https://www.geoboundaries.org/) (TUR, ADM1)                           | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| Orman, nehir, yol | [OpenStreetMap](https://www.openstreetmap.org/copyright) (Geofabrik Türkiye extract) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
+| Akarsu, göl (tatlı su) | [OpenStreetMap](https://www.openstreetmap.org/copyright), [Overture Maps](https://overturemaps.org/) `base/water` dağıtımı üzerinden | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
+| Orman, yol (Faz 4) | [OpenStreetMap](https://www.openstreetmap.org/copyright) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
 
 Yükseklik verisi: _Contains modified Copernicus DEM GLO-30 data (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA; all rights reserved)._
