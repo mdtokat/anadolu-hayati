@@ -98,7 +98,7 @@ export class Game {
   /** Canlıların simülasyonu (saf mantık; Faz 5, Hesap A). */
   readonly creatures = new CreatureSystem(this.events);
   /** Oyuncu tarafı savaş ve av mantığı (saf mantık; Faz 5, Hesap B). */
-  readonly combat = new CombatSystem(this.events, this.inventory, this.creatures);
+  readonly combat = new CombatSystem(this.events, this.inventory, this.creatures, this.survival);
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;

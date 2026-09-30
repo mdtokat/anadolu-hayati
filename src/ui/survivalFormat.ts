@@ -71,6 +71,7 @@ const DEATH_TEXT: Record<DeathCause, string> = {
   starvation: 'Açlıktan öldün.',
   hypothermia: 'Donarak öldün.',
   hyperthermia: 'Sıcak çarpmasından öldün.',
+  mauled: 'Hayvan saldırısında öldün.',
 };
 
 export function deathCauseText(cause: DeathCause): string {

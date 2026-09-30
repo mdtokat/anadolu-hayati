@@ -3,6 +3,7 @@ import type { GameEvents } from '../core/events';
 import { ambientTemperature } from './climate';
 import { CLOCK, SURVIVAL } from '../config';
 import { applyEdible } from '../items/consume';
+import type { CreatureKind } from '../creatures/kinds';
 import type { EdibleEffect, ItemId } from '../items/itemDefs';
 import { GameClock, type ClockOptions } from './clock';
 import {
@@ -25,6 +26,11 @@ export interface SurvivalContext {
   /** Barınak altında mı? Yoksa `false`. */
   sheltered?: boolean;
 }
+
+/** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */
+export type DamageSource = 'creature';
+
+const DAMAGE_DEATH_CAUSE: Readonly<Record<DamageSource, DeathCause>> = { creature: 'mauled' };
 
 export interface DeathInfo {
   cause: DeathCause;
@@ -105,11 +111,27 @@ export class SurvivalSystem {
     );
     this.vitals = step.state;
 
-    if (step.dead && step.cause) {
-      this.finishDrinking();
-      this.death = { cause: step.cause, survivedSeconds: this.aliveSeconds, day: this.clock.day };
-      this.events?.emit('player:died', { ...this.death });
-    }
+    if (step.dead && step.cause) this.die(step.cause);
+  }
+
+  /**
+   * Dışarıdan gelen hasarı (savunma uygulanmış) canı düşürür, `player:damaged` yayınlar; can 0'a inerse
+   * kaynağın ölüm nedeniyle öldürür. Ölüyse ya da `amount` ≤ 0 ise hiçbir şey yapmaz. Gerçekte düşen canı
+   * döner (kalan candan fazlası sayılmaz).
+   */
+  applyDamage(amount: number, source: DamageSource, sourceKind?: CreatureKind): number {
+    if (this.death || !(amount > 0)) return 0;
+    const dealt = Math.min(amount, this.vitals.health);
+    this.vitals = { ...this.vitals, health: this.vitals.health - dealt };
+    this.events?.emit('player:damaged', { amount: dealt, cause: source, sourceKind });
+    if (this.vitals.health <= 0) this.die(DAMAGE_DEATH_CAUSE[source]);
+    return dealt;
+  }
+
+  private die(cause: DeathCause): void {
+    this.finishDrinking();
+    this.death = { cause, survivedSeconds: this.aliveSeconds, day: this.clock.day };
+    this.events?.emit('player:died', { ...this.death });
   }
 
   /** Tüm göstergeleri doldurup yeniden doğurur; saat ve gün sayısı korunur. */

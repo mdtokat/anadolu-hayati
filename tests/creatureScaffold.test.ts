@@ -11,6 +11,7 @@ import {
   type CreatureView,
 } from '../src/creatures/kinds';
 import { Inventory } from '../src/items/Inventory';
+import { SurvivalSystem } from '../src/survival/SurvivalSystem';
 import { formatDebugInfo } from '../src/ui/hudFormat';
 import { CreatureLayer } from '../src/world/CreatureLayer';
 
@@ -66,7 +67,12 @@ describe('Faz 5 iskeleti: sözleşme', () => {
 
   it('CombatSystem iskeleti kurulup güncellenebilir', () => {
     const events = new EventBus<GameEvents>();
-    const combat = new CombatSystem(events, new Inventory(), new CreatureSystem(events));
+    const combat = new CombatSystem(
+      events,
+      new Inventory(),
+      new CreatureSystem(events),
+      new SurvivalSystem(events),
+    );
     combat.update(1 / 60);
     combat.dispose();
   });

@@ -923,6 +923,8 @@ export const COMBAT = {
   },
   /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
   defense: { hide_vest: 0.2 },
+  /** Giysilerin toplam savunması bu orana kırpılır (hasar asla tamamen sıfırlanmasın). */
+  maxDefense: 0.6,
 } as const;
 
 /** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir (5.8). */
