@@ -60,6 +60,7 @@ Yeni bir bağımlılık eklemeden önce gerekçesini belirt ve kullanıcıya sor
 ├─ CLAUDE.md                # Bu dosya
 ├─ ROADMAP.md               # Faz planı ve kabul kriterleri
 ├─ README.md                # Oyuncuya/geliştiriciye kısa tanıtım + veri atıfları
+├─ docs/                    # Ayrıntılı plan/tasarım belgeleri (ör. faz-4-paralel-plan.md)
 ├─ index.html
 ├─ package.json / tsconfig.json / vite.config.ts
 ├─ src/

@@ -102,20 +102,24 @@ Kabul kriterleri:
 ---
 
 ## Faz 4 — Toplama ve Üretim
-**Branch:** `faz-4-toplama-uretim`
+**Branch:** `faz-4-toplama-uretim` _(alt görevler ayrı branch/PR'larla `main`'e girer; 4.3 ve 4.4 paralel yürütülür: bkz. [docs/faz-4-paralel-plan.md](docs/faz-4-paralel-plan.md))_
 **Amaç:** Dünyayla etkileşim ve ilerleme hissi.
 
-Görevler:
-- [ ] Veri hattı: OSM'den orman, yerleşim verisi → `features.json` _(su katmanı Faz 3'te eklendi; aynı dosyaya yeni katmanlar eklenir)_
-- [ ] OSM orman poligonlarına göre seed'li ağaç yerleştirme (instanced mesh)
-- [ ] Kaya, çalı, yenebilir bitki yerleştirme (biyoma göre)
-- [ ] Toplama etkileşimi (bakılan nesneye `E`)
-- [ ] Envanter sistemi (ağırlık/slot limiti)
-- [ ] Crafting: taş balta, ateş, basit barınak, su kabı
-- [ ] Ateşin sıcaklık etkisi, barınağın uyku/yorgunluk etkisi
+Görevler (numaralar alt görev sırasıdır):
+- [x] **4.1** Veri hattı: orman/yerleşim arazi örtüsü → `landcover.bin` _(OSM Overpass bu ortamdan erişilemediğinden kaynak Overture `base/land_cover` = ESA WorldCover 2021; "yerleşim" = `urban` sınıfı)_
+- [x] **4.2** Zemin renklendirmesi arazi örtüsü sınıfına göre (orman, çalı, çayır, tarım, çıplak, yerleşim…)
+- [ ] **4.3** Arazi örtüsüne göre seed'li ağaç yerleştirme (instanced mesh)
+- [ ] **4.3** Kaya, çalı, yenebilir bitki yerleştirme (sınıfa/rakıma göre)
+- [ ] **4.4** Eşya tanımları ve envanter sistemi (ağırlık/slot limiti; saf mantık) + yemek yeme
+- [ ] **4.5** Crafting mantığı: taş balta, ateş, basit barınak, su kabı tarifleri
+- [ ] **4.6** Toplama etkileşimi (bakılan nesneye `E`)
+- [ ] **4.7** Envanter ve üretim arayüzü
+- [ ] **4.8** Yerleştirme: ateş ve barınak kurma
+- [ ] **4.9** Ateşin sıcaklık etkisi, barınağın uyku/yorgunluk etkisi
+- [ ] **4.10** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
 
 Kabul kriterleri:
-- [ ] Ormanlar gerçek orman alanlarıyla örtüşüyor
+- [ ] Ormanlar gerçek orman alanlarıyla örtüşüyor _(4.3; arazi örtüsü sınıflarına göre sayısal testle)_
 - [ ] Oyuncu sıfırdan ateş ve barınak kurabiliyor
 - [ ] Envanter ve crafting mantığı için birim testler var
 
