@@ -4,6 +4,7 @@ import { initialVitals } from '../src/survival/vitals';
 import {
   bodyTempLabel,
   bodyTempLevel,
+  exposureLabel,
   deathCauseText,
   formatDay,
   formatSurvivedTime,
@@ -103,5 +104,14 @@ describe('ölüm ekranı yazıları', () => {
   it('gün numarası 1’den gösterilir', () => {
     expect(formatDay(0)).toBe('1. gün');
     expect(formatDay(3)).toBe('4. gün');
+  });
+});
+
+describe('exposureLabel', () => {
+  it('etki yoksa boş; ateş, barınak ya da ikisi birden', () => {
+    expect(exposureLabel(0, false)).toBe('');
+    expect(exposureLabel(2.5, false)).toBe('Ateş başında');
+    expect(exposureLabel(0, true)).toBe('Barınakta');
+    expect(exposureLabel(2.5, true)).toBe('Ateş başında · Barınakta');
   });
 });

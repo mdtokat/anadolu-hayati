@@ -45,6 +45,14 @@ export function bodyTempLabel(bodyTempC: number): string {
   }
 }
 
+/** Ateş ısısı ve barınak için kısa durum yazısı ("Ateş başında · Barınakta"); etki yoksa boş. */
+export function exposureLabel(warmthC: number, sheltered: boolean): string {
+  const parts: string[] = [];
+  if (warmthC > 0) parts.push('Ateş başında');
+  if (sheltered) parts.push('Barınakta');
+  return parts.join(' · ');
+}
+
 /** Ekranın ortasında gösterilecek uyarılar (en acil olan önce). */
 export function warnings(state: VitalsState): string[] {
   const list: string[] = [];
