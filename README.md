@@ -2,7 +2,7 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı; **Faz 2 — Gerçek Arazi** ile birleşti; **Faz 3 — Hayatta Kalma Çekirdeği** kodu hazır: gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0–3** tamamlandı; **Faz 4 — Toplama ve Üretim** kodu hazır: gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Arazi örtüsüne göre ormanlar, çalılar ve kayalar yerleşir; dal, taş, yemiş ve mantar toplayıp taş balta, kamp ateşi ve sundurma üretir, kurar ve ateşe yakıt atarsın. Ateşin ısıtması ve barınağın dinlendirmesi (4.9) yolda. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
 **Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
 
@@ -14,7 +14,10 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | W A S D (veya ok tuşları) | Yürü |
 | Shift | Koş |
 | Boşluk | Zıpla |
-| E (basılı tut) | Tatlı su kenarında su iç |
+| E (basılı tut) | Bakılan nesneyi topla (dal, taş, yemiş, mantar; baltayla ağaç kes) / ateşe yakıt at / tatlı su kenarında su iç |
+| I veya Tab | Envanter ve üretim paneli (oyun donar) |
+| F | Hızlı yemek (tokluğu en çok artıran yiyecek) |
+| C / G | Kamp ateşi / sundurma yerleştirme hayaleti (aynı tuş iptal eder); sol tık kurar |
 | Fare | Etrafa bak |
 | V | Birinci / üçüncü şahıs kamera |
 | B | İl sınırı çizgilerini aç/kapa |

@@ -12,6 +12,7 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['E', 'Nesne topla / su iç (basılı tut)'],
   ['I / Tab', 'Envanter ve üretim'],
   ['F', 'Hızlı yemek'],
+  ['C / G', 'Ateş / sundurma kur (sol tık onaylar)'],
   ['B', 'İl sınırlarını aç/kapa'],
   ['Esc', 'Duraklat'],
 ];
