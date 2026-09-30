@@ -547,3 +547,17 @@ export const SURVIVAL_HUD = {
   /** HUD'un yenilenme aralığı (ms). */
   refreshIntervalMs: 100,
 } as const;
+
+/** Envanter sınırları (Faz 4.4). Eşya içerikleri (ağırlık, yığın, etki) `items/itemDefs.ts` tablosundadır. */
+export const INVENTORY = {
+  /** Slot sayısı. */
+  slots: 20,
+  /** Taşınabilecek toplam ağırlık (gram; tam sayı, kayan nokta hatası olmasın). */
+  maxWeightG: 25_000,
+} as const;
+
+/** Yemek yeme kuralları (Faz 4.4). */
+export const FOOD = {
+  /** Yemek için tokluğun 100'den en az bu kadar düşük olması gerekir (tok olan yemek yiyemez). */
+  eatMinDeficit: 5,
+} as const;
