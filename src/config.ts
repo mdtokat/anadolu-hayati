@@ -113,3 +113,19 @@ export const TERRAIN_TEST = {
   /** Bu eğimden (normal.y) dik yüzeyler kaya rengine döner. */
   rockNormalY: 0.75,
 } as const;
+
+/** Girdi ayarları. Tuşlar `KeyboardEvent.code` değerleridir (klavye düzeninden bağımsız fiziksel tuş). */
+export const INPUT = {
+  bindings: {
+    forward: ['KeyW', 'ArrowUp'],
+    backward: ['KeyS', 'ArrowDown'],
+    left: ['KeyA', 'ArrowLeft'],
+    right: ['KeyD', 'ArrowRight'],
+    run: ['ShiftLeft', 'ShiftRight'],
+    jump: ['Space'],
+    /** Birinci / üçüncü şahıs kamera geçişi. */
+    toggleCamera: ['KeyV'],
+  },
+  /** Fare hassasiyeti: piksel başına radyan. */
+  mouseSensitivity: 0.0022,
+} as const;
