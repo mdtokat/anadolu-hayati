@@ -6,10 +6,12 @@ const loading = document.getElementById('loading');
 
 // Fizik motoru (WASM) yüklenirken "Yükleniyor…" gösterilir; sahne siyah kalmaz.
 // ?world=test → Faz 1 test arenası (karakter kontrolü regresyonu); varsayılan gerçek bölge.
-const world =
-  new URLSearchParams(window.location.search).get('world') === 'test' ? 'test' : 'region';
+const query = new URLSearchParams(window.location.search);
+const world = query.get('world') === 'test' ? 'test' : 'region';
+// ?creatures=demo (yalnızca dev) → canlı simülasyonu yerine sahte canlı demosu (görsel doğrulama).
+const creatureDemo = import.meta.env.DEV && query.get('creatures') === 'demo';
 
-Game.create(container, { world })
+Game.create(container, { world, creatureDemo })
   .then((game) => {
     loading?.remove();
     game.start();

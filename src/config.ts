@@ -954,8 +954,13 @@ export const COOKING = {
   seconds: 8,
 } as const;
 
-/** Canlıların yer tutucu/geçici görünümü (Faz 5, Hesap B'nin bloğu; 5.10'da gerçek modellerle değişir). */
+/**
+ * Canlıların görünümü (Faz 5, Hesap B'nin bloğu). Modeller `world/creatureGeometry.ts`'te, gerçek boyutta ve
+ * düşük poligonlu kutu parçalardan kurulur (doku yok; renk örnek rengidir). Buradaki değerler poz/animasyon ve
+ * renk ayarıdır.
+ */
 export const CREATURE_LOOK = {
+  /** Tür gövde renkleri (parçalar bunun tonlarıdır). */
   colors: {
     roe_deer: 0xb5793f,
     wild_boar: 0x4a3a30,
@@ -964,6 +969,25 @@ export const CREATURE_LOOK = {
   },
   /** Vurulma parlamasında karıştırılan renk. */
   hitColor: 0xff3b30,
-  /** Leş (yan yatık) yer tutucusunun boy çarpanı. */
+  /** Leş (yan yatık) karardıkça: renk bu oranda koyulaşır (0–1). */
+  deadDarken: 0.3,
+  /** Leşin boy çarpanı: leş kesme/bakış hedefi yüksekliği (yan yatan gövde alçaktır). */
   deadHeightFactor: 0.35,
+  /** Yürüme/koşma animasyonu. */
+  gait: {
+    /** Bacak sallanma genliği (radyan) tam hızda. */
+    amplitude: 0.55,
+    /** Bu yatay hızda (oyun m/sn) genlik tamdır; altında orantılı azalır. */
+    fullSpeed: 4,
+    /** Adım sırasında gövdenin zıplama payı (oyun m). */
+    bob: 0.03,
+    /** Kuyruk sallanma genliği (radyan). */
+    tailWag: 0.3,
+  },
+  /** Baş pozları (radyan; pozitif = baş yukarı): otlarken, tetikteyken, saldırırken, leşte. */
+  head: { graze: -0.7, alert: 0.2, attack: -0.55, dead: -0.4 },
+  /** Saldırı hamlesinde gövdenin öne atılma payı (gövde uzunluğu oranı). */
+  lunge: 0.3,
+  /** Karelerarası zaman sıçramasını sınırlar: animasyon fazı bu süreden (sn) fazla ilerlemez. */
+  maxFrameSeconds: 0.1,
 } as const;

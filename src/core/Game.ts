@@ -54,6 +54,7 @@ import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
 import { CreatureLayer } from '../world/CreatureLayer';
+import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { RegionWorld } from '../world/RegionWorld';
@@ -70,6 +71,8 @@ export type WorldKind = 'region' | 'test';
 
 export interface GameOptions {
   world?: WorldKind;
+  /** Yalnızca dev: canlı simülasyonu yerine sahte canlı demosu çizilir (`?creatures=demo`; görsel doğrulama). */
+  creatureDemo?: boolean;
 }
 
 /** Konum HUD'unun güncelleme aralığı (ms). */
@@ -133,6 +136,7 @@ export class Game {
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
+  private demoAnchor: { x: number; z: number } | null = null;
   private lastLocationUpdate = -Infinity;
   private lastSurvivalHudUpdate = -Infinity;
   /** Ayak konumundaki ateş ısısı ve barınak etkisi (her sabit adımda yenilenir). */
@@ -144,6 +148,7 @@ export class Game {
     private readonly container: HTMLElement,
     private readonly physics: PhysicsWorld,
     world: GameWorld,
+    private readonly creatureDemo = false,
   ) {
     this.world = world;
     this.renderer = new WebGLRenderer({ antialias: true });
@@ -263,7 +268,7 @@ export class Game {
       region !== null
         ? new RegionWorld(region, physics)
         : new TestScene(physics, new ProceduralHeightSource());
-    return new Game(container, physics, world);
+    return new Game(container, physics, world, options.creatureDemo === true);
   }
 
   /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
@@ -512,7 +517,7 @@ export class Game {
     this.playerModel.update(feet, this.playerCamera.yaw);
     this.structureLayer.update(now / 1000, feet.x, feet.z);
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
-    this.creatureLayer.update(this.creatures.views());
+    this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
@@ -532,6 +537,15 @@ export class Game {
         }),
       );
     }
+  }
+
+  /** Çizilecek canlılar: demo açıksa sahte görünümler (oyuncunun ilk konumu merkez), yoksa simülasyon. */
+  private visibleCreatures(feet: { x: number; z: number }): ReadonlyArray<CreatureView> {
+    if (!this.creatureDemo) return this.creatures.views();
+    this.demoAnchor ??= { x: feet.x, z: feet.z };
+    return demoViews(performance.now() / 1000, this.demoAnchor, (x, z) =>
+      this.world.terrain.heightAt(x, z),
+    );
   }
 
   /** Konum satırı (il adı, rakım): pahalı olmasın diye saniyede birkaç kez güncellenir. */
