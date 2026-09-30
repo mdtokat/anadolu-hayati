@@ -14,10 +14,9 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 > Her faz bitiminde bu bölüm güncellenmelidir.
 
-- **Aktif faz:** Faz 0 — Kurulum (kod tamam; yalnızca GitHub Pages yayın doğrulaması bekliyor)
-- **Tamamlanan fazlar:** —
+- **Aktif faz:** Faz 1 — Oynanabilir Prototip (henüz başlanmadı; branch: `faz-1-prototip`)
+- **Tamamlanan fazlar:** Faz 0 — Kurulum (PR #1 ile main'e birleşti; Pages yayını doğrulandı: https://mdtokat.github.io/anadolu-hayati/)
 - **Bilinen sorunlar / notlar:**
-  - Faz 0'ın son kabul kriteri ("GitHub Pages linkinde sahne görünüyor") PR main'e birleşip `pages.yml` çalıştıktan sonra doğrulanacak. Bunun için depoda **Settings → Pages → Source: GitHub Actions** seçili olmalı.
   - TypeScript **6.0.3'e sabit**: `typescript-eslint` 8.71 `typescript <6.1.0` istiyor; 7.x'e geçiş `typescript-eslint` uyumu gelene kadar ertelendi.
   - Prettier yalnızca kod/config dosyalarını biçimlendirir; `*.md` belgeleri elle yazılır (`.prettierignore`).
   - `vite preview` de üretim `base` değerini (`/anadolu-hayati/`) kullanır; yerelde önizleme adresi `http://localhost:4173/anadolu-hayati/`.
