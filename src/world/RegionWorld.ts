@@ -1,4 +1,4 @@
-import { Scene } from 'three';
+import { Scene, type MeshStandardMaterial } from 'three';
 import {
   CHUNK,
   FRESH_WATER,
@@ -40,7 +40,7 @@ export class RegionWorld implements GameWorld {
   readonly maxSlopeDeg = REGION_PLAYER.maxSlopeDeg;
 
   private readonly environment: Environment;
-  private readonly material = createTerrainMaterial();
+  private readonly material: MeshStandardMaterial;
   private readonly chunks: ChunkManager;
   private readonly colliders: ChunkColliders;
   private readonly walls: RAPIER.Collider[];
@@ -55,6 +55,14 @@ export class RegionWorld implements GameWorld {
   ) {
     this.source = RegionHeightSource.fromRegion(region);
     this.terrain = this.source;
+    this.material = createTerrainMaterial(
+      region.landcover && {
+        classes: region.landcover,
+        width: this.source.width,
+        height: this.source.height,
+        cell: this.source.cell,
+      },
+    );
     this.environment = new Environment(this.scene, {
       near: REGION_SCENE.fogNear,
       far: REGION_SCENE.fogFar,
