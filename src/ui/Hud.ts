@@ -53,6 +53,10 @@ export class Hud {
   private readonly clock = document.createElement('div');
   private readonly warningList = document.createElement('div');
   private readonly prompt = document.createElement('div');
+  private readonly progress = document.createElement('div');
+  private readonly progressFill = document.createElement('div');
+  private readonly toasts = document.createElement('div');
+  private readonly toastTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(parent: HTMLElement, showDebug: boolean) {
     this.root.className = 'hud';
@@ -71,6 +75,11 @@ export class Hud {
     this.warningList.className = 'hud-warnings';
     this.prompt.className = 'hud-prompt';
     this.prompt.hidden = true;
+    this.progress.className = 'hud-progress';
+    this.progress.hidden = true;
+    this.progressFill.className = 'hud-progress-fill';
+    this.progress.append(this.progressFill);
+    this.toasts.className = 'hud-toasts';
     this.gauges.hidden = true; // hayatta kalma verisi gelene kadar (test arenasında da) görünmez
     this.clock.hidden = true;
     this.root.append(
@@ -80,6 +89,8 @@ export class Hud {
       this.clock,
       this.warningList,
       this.prompt,
+      this.progress,
+      this.toasts,
     );
 
     if (showDebug) {
@@ -154,6 +165,27 @@ export class Hud {
     if (text !== null) setText(this.prompt, text);
   }
 
+  /** İpucunun altında ilerleme çubuğu (0–1); `null` gizler. */
+  setProgress(fraction: number | null): void {
+    this.progress.hidden = fraction === null;
+    if (fraction === null) return;
+    const width = `${(Math.min(Math.max(fraction, 0), 1) * 100).toFixed(1)}%`;
+    if (this.progressFill.style.width !== width) this.progressFill.style.width = width;
+  }
+
+  /** Kısa süreli bildirim (ör. "+3 Fındık"); `durationMs` sonra kendiliğinden kalkar. */
+  notify(text: string, durationMs: number): void {
+    const toast = document.createElement('div');
+    toast.className = 'hud-toast';
+    toast.textContent = text;
+    this.toasts.append(toast);
+    const timer = setTimeout(() => {
+      toast.remove();
+      this.toastTimers.delete(timer);
+    }, durationMs);
+    this.toastTimers.add(timer);
+  }
+
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
   }
@@ -173,6 +205,8 @@ export class Hud {
   }
 
   dispose(): void {
+    for (const timer of this.toastTimers) clearTimeout(timer);
+    this.toastTimers.clear();
     this.root.remove();
   }
 }
