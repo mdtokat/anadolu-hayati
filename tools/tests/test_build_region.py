@@ -206,3 +206,53 @@ def test_build_without_water_has_no_features(built):
     out, meta = built
     assert "features" not in meta
     assert not (out / "features.json").exists()
+
+
+def test_build_writes_landcover_bin_and_meta(tmp_path):
+    """build(landcover_path=…): landcover.bin heightmap ile aynı ızgarada, sınıf tablosu meta'da."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    import shapely
+
+    import landcover
+
+    size = round(1 / PIXEL)
+    lons = LON0 + (np.arange(size) + 0.5) * PIXEL
+    lats = LAT0 - (np.arange(size) + 0.5) * PIXEL
+    data = elevation_at(lons[None, :], lats[:, None]).astype(np.float32)
+    dem = tmp_path / "tile.tif"
+    with rasterio.open(
+        dem, "w", driver="GTiff", height=size, width=size, count=1, dtype="float32",
+        crs="EPSG:4326", transform=from_origin(LON0, LAT0, PIXEL, PIXEL),
+    ) as dst:
+        dst.write(data, 1)
+    boundaries = tmp_path / "b.geojson"
+    write_boundaries(boundaries)
+
+    # Hedef ilin (32.3–32.6 D) batı yarısı orman, doğu yarısı çayır
+    forest = shapely.box(32.0, 41.0, 32.45, 42.0)
+    grass = shapely.box(32.45, 41.0, 33.0, 42.0)
+    table = pa.table({
+        "subtype": ["forest", "grass"],
+        "geometry": [shapely.to_wkb(forest), shapely.to_wkb(grass)],
+    })
+    landcover_path = tmp_path / "lc.parquet"
+    pq.write_table(table, landcover_path)
+
+    out = tmp_path / "out"
+    meta = build_region.build("test", REGION, [dem], boundaries, out, landcover_path=landcover_path)
+    assert meta["landcover"] == {"file": "landcover.bin", "classes": landcover.CLASSES}
+    assert "ESA WorldCover 2021 (Overture Maps)" in meta["sources"]
+    assert json.loads((out / "meta.json").read_text(encoding="utf-8"))["landcover"]["file"] == "landcover.bin"
+
+    classes = np.frombuffer((out / "landcover.bin").read_bytes(), dtype=np.uint8)
+    assert classes.size == meta["gridWidth"] * meta["gridHeight"]
+    grid = classes.reshape(meta["gridHeight"], meta["gridWidth"])
+    assert grid[:, 0].tolist().count(landcover.CLASS_INDEX["forest"]) == meta["gridHeight"]  # batı kenarı orman
+    assert grid[:, -1].tolist().count(landcover.CLASS_INDEX["grass"]) == meta["gridHeight"]  # doğu kenarı çayır
+
+
+def test_build_without_landcover_has_no_landcover(built):
+    out, meta = built
+    assert "landcover" not in meta
+    assert not (out / "landcover.bin").exists()

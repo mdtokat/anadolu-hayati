@@ -20,7 +20,7 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
   - **Bölge verisi commit'li** (`public/data/regions/zonguldak-bartin-karabuk/`, ~3,7 MB). Yeniden üretmek için `tools/` komutlarını çalıştır (bkz. Komutlar). Testler (`tests/region*.test.ts` vb.) bu gerçek dosyalara bağlıdır.
   - **Eğim ölçeği:** Yatay 1:50, dikey 1:15 olduğundan gerçek yamaçlar oyunda ×3,3 dikleşir; 100 m ızgarada kara alanının yalnızca ~%64'ü 45°'nin altındadır (60° ile ~%93). Bu yüzden gerçek bölgede `REGION_PLAYER.maxSlopeDeg = 60` (Faz 1 arenasında 45°). Dik yamaçta yatay hız cos²θ ile düşer (55°'de ≈ 2,3 m/s); yeni bir hız modeli yazılmadı, "his" elle doğrulanmalı. `VERTICAL_SCALE` yalnızca `config.ts`'dedir, veri gerçek metredir.
   - **Deniz:** Heightmap'te deniz 0 m'dir (sözleşme). Oyunda `RegionHeightSource` deniz hücrelerini kıyıdan uzaklığa göre çalışma zamanında çukurlaştırır (`SEABED`); dolayısıyla deniz altında `elevationAt` negatiftir, HUD rakımı 0'a sıkıştırır. Su düzlemi `WATER.level = 0,02` yüksekliğindedir. Yüzme/boğulma yok (denizde de arazi gibi yürünür; ileri bir faza ertelendi).
-  - **Orman örtüsü yok:** Zemin renklendirmesi rakım ve eğime bağlı prosedürel bir karışımdır; orman poligonları OSM ile Faz 4'te gelecek. Copernicus GLO-30 bir yüzey modelidir (DSM); ağaç yükseklikleri araziye karışmıştır.
+  - **Arazi örtüsü (Faz 4):** Zemin rengi `landcover.bin` sınıfından gelir (orman, çalı, çayır, tarım, çıplak, yerleşim, kar, sulak alan; renkler `TERRAIN_LOOK.cover`). Sınıf ağırlıkları iki RGBA dokuda (hücre merkezi, lineer filtre) shader'a verilir; sınıfsız yer (deniz, veri yok) eski rakım/eğim renginde kalır; ormanlık/çalılık yerde kaya rengi `rockCoverDamp` kadar zayıflar (×3,3 dikleşen yamaçlar gri kayaya dönmesin). Sınıflar 100 m hücre çözünürlüğündedir (oyunda 2 m); ESA WorldCover 10 m'dir, ince orman kenarları kaybolur. Copernicus GLO-30 bir yüzey modelidir (DSM); ağaç yükseklikleri araziye karışmıştır. `landcover.bin` yoksa shader eski renkte çalışır.
   - **Chunk/LOD:** 128×128 hücrelik chunk'lar (bölgede 13×10), LOD0–3, dört kenarda etek. LOD mesafeleri `CHUNK.lodDistances = [130, 350, 900]`; Faz 2'de en kötü durumda 95 draw call, ~411 bin üçgen; Faz 3 sonrası (gökyüzü kubbesi + 2 su mesh'i) 98 draw call, ~538 bin üçgen ölçüldü (headless yazılımsal WebGL; gerçek FPS ölçülmedi). Fark, kırpılmayan tatlı su mesh'lerinden gelir (~127 bin üçgen); performans sorunu olursa suyu chunk başına bölmek ilk hamle. Performans sorunu olursa önce bu eşikleri ve `RENDER.maxPixelRatio`'yu ayarla. Collider'lar yalnızca oyuncuya 160 m içindeki chunk'lar için vardır.
   - **İl sınırı çizgisi** araziye LOD0 yüksekliğinden yapıştırılır; uzak (kaba) LOD'larda yer yer arazinin altında kalabilir.
   - **Dev araçları** (üretimde yok): `window.__game` (`survival`, `player`, `world`…), 1–5 tuşlarıyla ışınlanma (`TELEPORTS`), `[` / `]` ile saati ±1 saat sarma, `K` ile canı ve suyu sıfırlama (ölüm ekranı), FPS ve debug HUD'u. `?world=test` Faz 1 test arenasını açar (karakter kontrolü regresyonu için).
@@ -148,6 +148,8 @@ Her bölge `public/data/regions/<bolge-id>/` altında şu dosyalardan oluşur. �
 ```
 Deniz dahil değildir (deniz heightmap'in 0 m seviyesidir); yüzme havuzu, atık su, hendek/drenaj elenir. Kaynak: Overture Maps `base/water` (OSM türevi, **ODbL-1.0**); `features.json` da ODbL kapsamındadır ve © OpenStreetMap katkıcıları atfı gerekir.
 
+**`landcover.bin`** (Faz 4) — Arazi örtüsü sınıfları: hücre başına 1 bayt (`Uint8Array`), `heightmap.bin` ile **aynı ızgara ve sıra** (`gridWidth × gridHeight`, satır 0 kuzeyde). Değer, `meta.json` içindeki `landcover.classes` listesinin indeksidir: `["none","forest","shrub","grass","crop","barren","urban","snow","wetland"]` (0 = veri yok / deniz; liste yalnızca sona eklenir; oyun listeyi kendi tablosuyla karşılaştırır, uyuşmazsa hata verir). Kaynak: Overture `base/land_cover` çokgenleri (ESA WorldCover 2021, CC BY 4.0); her 100 m hücre 4×4 alt hücreyle rasterleştirilir, en çok alan kaplayan sınıf kazanır (kaplama < %25 ise `none`). `meta.json`: `"landcover": {"file": "landcover.bin", "classes": [...]}`; dosya yoksa alan da yoktur.
+
 Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 
 ## Veri Kaynakları ve Lisanslar
@@ -157,7 +159,8 @@ Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 | Yükseklik | Copernicus GLO-30 DEM (AWS Open Data: `copernicus-dem-30m`) | Copernicus lisansı — atıf zorunlu |
 | İl sınırları | geoBoundaries (TUR, ADM1) | CC BY 4.0 — atıf zorunlu |
 | Nehir, göl, kaynak | Overture Maps `base/water` (OSM türevi; `tools/fetch_water.py`) | ODbL-1.0 — © OpenStreetMap katkıcıları, atıf zorunlu |
-| Orman, yol, yerleşim (Faz 4) | OSM ya da ESA WorldCover (CC BY 4.0, 10 m arazi örtüsü); Geofabrik/Overpass bu ortamdan erişilemiyor | ODbL / CC BY 4.0 — atıf zorunlu |
+| Arazi örtüsü (orman, çalı, çayır, tarım, yerleşim) | ESA WorldCover 2021, Overture Maps `base/land_cover` dağıtımıyla (`tools/fetch_landcover.py`); Geofabrik/Overpass bu ortamdan erişilemiyor | CC BY 4.0 — © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium |
+| Yol (ileri faz) | OSM | ODbL — atıf zorunlu |
 
 Tüm atıflar README.md'de ve oyunun içinde (ana menü / krediler) gösterilmelidir.
 
@@ -180,6 +183,7 @@ pip install -r requirements.txt
 python fetch_dem.py zonguldak-bartin-karabuk     # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB)
 python fetch_boundaries.py                       # geoBoundaries TUR ADM1 → tools/raw/boundaries/
 python fetch_water.py zonguldak-bartin-karabuk   # Overture su katmanı (HTTP Range; ~150 MB indirir, ~3 dk) → tools/raw/water/
+python fetch_landcover.py zonguldak-bartin-karabuk # Overture arazi örtüsü / ESA WorldCover (HTTP Range) → tools/raw/landcover/
 python build_region.py zonguldak-bartin-karabuk  # → public/data/regions/<id>/ (commit edilir)
 python -m pytest tests                           # Python birim testleri
 ```

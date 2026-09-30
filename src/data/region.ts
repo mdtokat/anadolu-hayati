@@ -1,4 +1,5 @@
 import { HORIZONTAL_SCALE } from '../config';
+import { classesMatch, type LandCoverMeta } from './landcover';
 import type { UtmOrigin } from '../world/geo';
 
 /** public/data/regions/<id>/meta.json (bkz. CLAUDE.md "Bölge Veri Formatı"). */
@@ -18,6 +19,8 @@ export interface RegionMeta {
   sources: string[];
   /** features.json'daki katmanlar (Faz 3: ['water']); boşsa dosya yoktur. */
   features: string[];
+  /** landcover.bin bilgisi (Faz 4); dosya yoksa null. */
+  landcover: LandCoverMeta | null;
 }
 
 /** Bir çokgen: dış halka + delikler. Halkalar düz [x0, z0, x1, z1, ...] dizisidir (oyun X/Z). */
@@ -78,6 +81,8 @@ export interface RegionData {
   provinces: ProvinceShape[];
   /** Haritadaki özellikler (features.json); meta.features boşsa null. */
   features: RegionFeatures | null;
+  /** Arazi örtüsü sınıfları (uint8), heightmap ile aynı ızgara ve sıra; meta.landcover yoksa null. */
+  landcover: Uint8Array | null;
 }
 
 /** Veri bozuksa ya da sözleşmeyle uyuşmuyorsa fırlatılır. */
@@ -150,7 +155,41 @@ export function parseMeta(json: unknown): RegionMeta {
     features: Array.isArray(json.features)
       ? json.features.filter((s) => typeof s === 'string')
       : [],
+    landcover: parseLandCoverMeta(json.landcover),
   };
+}
+
+/** meta.json `landcover` alanı: yoksa null; varsa dosya adı ve sınıf tablosu koddakiyle eşleşmeli. */
+function parseLandCoverMeta(value: unknown): LandCoverMeta | null {
+  if (value === undefined) return null;
+  if (!isRecord(value)) fail("'landcover' bir nesne olmalı");
+  const file = readString(value, 'file');
+  const classes = value.classes;
+  if (!Array.isArray(classes) || !classes.every((c) => typeof c === 'string')) {
+    fail("'landcover.classes' metin listesi olmalı");
+  }
+  if (!classesMatch(classes as string[])) {
+    fail(
+      `landcover sınıf tablosu kodla uyuşmuyor (veri: ${classes.join(', ')}). ` +
+        'Veriyi yeniden üret (tools/build_region.py) ya da src/data/landcover.ts ile eşitle.',
+    );
+  }
+  return { file, classes: classes as string[] };
+}
+
+/** landcover.bin'i doğrular: uzunluk ızgarayla eşleşmeli, her değer bilinen bir sınıf olmalı. */
+export function parseLandCover(buffer: ArrayBuffer, meta: RegionMeta): Uint8Array {
+  const expected = meta.gridWidth * meta.gridHeight;
+  if (buffer.byteLength !== expected) {
+    fail(`landcover.bin ${buffer.byteLength} bayt, beklenen ${expected}`);
+  }
+  const classes = new Uint8Array(buffer);
+  const known = meta.landcover?.classes.length ?? 0;
+  for (let i = 0; i < classes.length; i++) {
+    if ((classes[i] as number) >= known)
+      fail(`landcover.bin'de bilinmeyen sınıf değeri (hücre ${i})`);
+  }
+  return classes;
 }
 
 /** Bu platform little-endian mı? (heightmap.bin little-endian yazılır.) */
@@ -308,7 +347,7 @@ type FetchLike = (url: string) => Promise<{
 }>;
 
 /**
- * Bölgeyi yükler: meta.json + heightmap.bin + provinces.geojson.
+ * Bölgeyi yükler: meta.json + heightmap.bin + provinces.geojson (+ features.json, landcover.bin varsa).
  * `baseUrl`: Vite `BASE_URL` (GitHub Pages'te /anadolu-hayati/) — dosyalar `<base>data/regions/<id>/` altındadır.
  */
 export async function loadRegion(
@@ -327,10 +366,11 @@ export async function loadRegion(
   const meta = parseMeta(await (await get('meta.json')).json());
   if (meta.id !== id) fail(`meta.json id'si '${meta.id}', beklenen '${id}'`);
 
-  const [heightmap, provinces, features] = await Promise.all([
+  const [heightmap, provinces, features, landcover] = await Promise.all([
     get('heightmap.bin').then((r) => r.arrayBuffer()),
     get('provinces.geojson').then((r) => r.json()),
     meta.features.length > 0 ? get('features.json').then((r) => r.json()) : Promise.resolve(null),
+    meta.landcover ? get(meta.landcover.file).then((r) => r.arrayBuffer()) : Promise.resolve(null),
   ]);
 
   return {
@@ -338,5 +378,6 @@ export async function loadRegion(
     heights: parseHeightmap(heightmap, meta),
     provinces: parseProvinces(provinces),
     features: features === null ? null : parseFeatures(features),
+    landcover: landcover === null ? null : parseLandCover(landcover, meta),
   };
 }

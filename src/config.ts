@@ -242,7 +242,8 @@ export const REGION_SCENE = {
 /**
  * Gerçek arazi renklendirmesi (fragment shader). Rakımlar gerçek metre, eğim eşikleri oyun uzayındaki
  * (dikey ölçek uygulanmış) eğimdir; oyuncu eğim limitiyle aynı ölçekte.
- * Orman poligonları Faz 4'te (OSM) gelecek; şimdilik rakıma bağlı koyu bir "orman zemini" tonu var.
+ * Arazi örtüsü sınıfı (landcover.bin) varsa o sınıfın rengi, rakım/eğim rengini ezer; sınıfsız yerler
+ * (deniz, veri yok) rakıma bağlı prosedürel renkte kalır.
  */
 export const TERRAIN_LOOK = {
   /** Bu rakımın (m) altında, düz yerlerde kum/çakıl. */
@@ -260,6 +261,22 @@ export const TERRAIN_LOOK = {
   forestColor: 0x2f5a2b,
   alpineColor: 0x8a8a5c,
   rockColor: 0x6f675d,
+  /** Arazi örtüsü sınıfı renkleri (landcover.bin; bkz. data/landcover.ts). */
+  cover: {
+    forest: 0x2a4d27,
+    shrub: 0x6b7a3a,
+    grass: 0x6fa043,
+    crop: 0xb5a45a,
+    barren: 0x9a8f7c,
+    urban: 0x8d8b86,
+    snow: 0xf2f4f7,
+    wetland: 0x4f6b4a,
+  },
+  /**
+   * Ormanlık/çalılık yerde kaya rengine geçişin zayıflama oranı (0..1). Gerçek yamaçlar oyunda ×3,3
+   * dikleştiğinden dağlık ormanlar aksi halde gri kayaya dönerdi.
+   */
+  rockCoverDamp: 0.65,
   /** Renk gürültüsü: dünya birimi başına frekans ve genlik (0..1). */
   noiseFrequency: 0.045,
   noiseStrength: 0.22,
