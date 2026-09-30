@@ -141,7 +141,7 @@ describe('provinceAt', () => {
 describe('RegionHeightSource (sentetik 3×2 ızgara)', () => {
   // 3 sütun × 2 satır; elevationMax 65535 → uint16 değeri doğrudan metre
   const meta: RegionMeta = parseMeta(VALID_META);
-  const source = new RegionHeightSource(meta, new Uint16Array([0, 150, 300, 150, 300, 450]));
+  const source = new RegionHeightSource(meta, new Uint16Array([30, 150, 300, 150, 300, 450]));
   const cell = 100 / HORIZONTAL_SCALE; // 2 oyun metresi
 
   it('örnek konumları orijin etrafında simetriktir', () => {
@@ -154,18 +154,25 @@ describe('RegionHeightSource (sentetik 3×2 ızgara)', () => {
 
   it('örnek noktalarında yüksekliği (metre / VERTICAL_SCALE) verir', () => {
     expect(source.heightAt(source.xAt(2), source.zAt(1))).toBeCloseTo(450 / VERTICAL_SCALE, 5);
-    expect(source.heightAt(source.xAt(0), source.zAt(0))).toBeCloseTo(0, 5);
+    expect(source.heightAt(source.xAt(0), source.zAt(0))).toBeCloseTo(30 / VERTICAL_SCALE, 5);
   });
 
   it('bilinear aradeğerler: hücre merkezi dört köşenin ortalamasıdır', () => {
     const cx = (source.xAt(0) + source.xAt(1)) / 2;
     const cz = (source.zAt(0) + source.zAt(1)) / 2;
-    expect(source.heightAt(cx, cz)).toBeCloseTo((0 + 150 + 150 + 300) / 4 / VERTICAL_SCALE, 5);
+    expect(source.heightAt(cx, cz)).toBeCloseTo((30 + 150 + 150 + 300) / 4 / VERTICAL_SCALE, 5);
   });
 
   it('ızgara dışında kenar değerini kullanır', () => {
     expect(source.heightAt(1e6, 1e6)).toBeCloseTo(450 / VERTICAL_SCALE, 5);
-    expect(source.heightAt(-1e6, -1e6)).toBeCloseTo(0, 5);
+    expect(source.heightAt(-1e6, -1e6)).toBeCloseTo(30 / VERTICAL_SCALE, 5);
+  });
+
+  it('değeri 0 olan hücre deniz sayılır ve çukurlaşır (yükseklik negatif)', () => {
+    const sea = new RegionHeightSource(meta, new Uint16Array([0, 150, 300, 150, 300, 450]));
+    expect(sea.heightAt(sea.xAt(0), sea.zAt(0))).toBeLessThan(0);
+    // Kara hücreleri değişmez
+    expect(sea.heightAt(sea.xAt(2), sea.zAt(1))).toBeCloseTo(450 / VERTICAL_SCALE, 5);
   });
 
   it('contains ve elevationAt', () => {

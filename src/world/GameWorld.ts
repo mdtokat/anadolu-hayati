@@ -19,8 +19,11 @@ export interface GameWorld {
   readonly spawn: Vec3;
   /** Bu dünyada tırmanılabilir en dik yamaç (derece). */
   readonly maxSlopeDeg: number;
-  /** Her render karesinde çağrılır: odak (oyuncu) çevresindeki chunk/collider akışını günceller. */
-  update(focusX: number, focusZ: number): void;
+  /**
+   * Her render karesinde çağrılır: odak (oyuncu) çevresindeki chunk/collider akışını günceller.
+   * `timeSeconds`: animasyonlar (deniz dalgaları) için sürekli artan zaman.
+   */
+  update(focusX: number, focusZ: number, timeSeconds: number): void;
   /** Işınlanma/doğma öncesi: (x, z) çevresinin fizik ve görsel varlıklarını senkron hazırlar. */
   prepare(x: number, z: number): void;
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */

@@ -1,6 +1,7 @@
-import { HORIZONTAL_SCALE, VERTICAL_SCALE } from '../config';
+import { HORIZONTAL_SCALE, SEABED, VERTICAL_SCALE } from '../config';
 import type { RegionData, RegionMeta } from '../data/region';
 import type { HeightSource } from './HeightSource';
+import { seabedDepth, seaDistanceToLand } from './seabed';
 
 export interface Bounds {
   minX: number;
@@ -15,6 +16,9 @@ export interface Bounds {
  * Örnekler ızgara köşesidir (piksel merkezi) ve orijin etrafında simetriktir:
  *   x = (c − (W − 1) / 2) · cell,  z = (r − (H − 1) / 2) · cell,  cell = cellSizeReal / HORIZONTAL_SCALE.
  * Izgara dışında en yakın kenar değeri kullanılır.
+ *
+ * Deniz (heightmap'te 0'a kırpılı hücreler) çalışma zamanında kıyıdan uzaklığa göre çukurlaştırılır
+ * (bkz. SEABED): su yüzeyi ile zemin çakışıp titremesin. Mesh, collider ve `heightAt` aynı diziyi okur.
  */
 export class RegionHeightSource implements HeightSource {
   /** Izgara hücre boyu (oyun metresi). */
@@ -40,9 +44,20 @@ export class RegionHeightSource implements HeightSource {
         (meta.elevationMin + ((heights[i] as number) / 65535) * range) / VERTICAL_SCALE;
     }
 
+    this.applySeabed(heights);
+
     const halfX = ((this.width - 1) / 2) * this.cell;
     const halfZ = ((this.height - 1) / 2) * this.cell;
     this.bounds = { minX: -halfX, maxX: halfX, minZ: -halfZ, maxZ: halfZ };
+  }
+
+  /** Deniz hücrelerini (uint16 değeri 0) kıyıdan uzaklığa göre aşağı indirir. */
+  private applySeabed(heights: Uint16Array): void {
+    const distance = seaDistanceToLand(this.width, this.height, (i) => heights[i] === 0);
+    const depth = seabedDepth(distance, this.cell, SEABED.slopeDeg, SEABED.maxDepth);
+    for (let i = 0; i < depth.length; i++) {
+      if (heights[i] === 0) this.game[i] = -(depth[i] as number);
+    }
   }
 
   static fromRegion(region: RegionData): RegionHeightSource {

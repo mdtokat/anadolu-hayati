@@ -307,3 +307,30 @@ export const TELEPORTS = [
   { name: 'Filyos vadisi', lat: 41.5667, lon: 32.0333 },
   { name: 'Yenice', lat: 41.2028, lon: 32.3358 },
 ] as const;
+
+/**
+ * Deniz tabanı: heightmap'te deniz 0 m'ye kırpılı olduğundan (sözleşme), oyunda deniz hücreleri
+ * kıyıdan uzaklığa göre çalışma zamanında çukurlaştırılır. Böylece su yüzeyi zeminle çakışıp
+ * titremez (z-fighting) ve kıyıdan açığa doğru gerçekçi bir derinleşme olur.
+ */
+export const SEABED = {
+  /** Kıyıdan açığa doğru taban eğimi (derece). */
+  slopeDeg: 12,
+  /** En büyük derinlik (oyun m; gerçekte × VERTICAL_SCALE). */
+  maxDepth: 4,
+} as const;
+
+/** Deniz yüzeyi (Karadeniz) ayarları. */
+export const WATER = {
+  /** Su yüzeyi yüksekliği (oyun m): 0'ın hemen üstü; kıyı çizgisinde zemin ile çakışıp titremesin. */
+  level: 0.02,
+  /** Düzlemin bölge kenarlarından taşan payı (oyun m): ufka kadar deniz. */
+  margin: 9000,
+  color: 0x1d5f7a,
+  opacity: 0.78,
+  roughness: 0.22,
+  /** Dalga desenleri: dünya birimi başına frekans, animasyon hızı ve normal bozulma şiddeti. */
+  waveFrequency: 0.09,
+  waveSpeed: 0.55,
+  waveStrength: 0.22,
+} as const;

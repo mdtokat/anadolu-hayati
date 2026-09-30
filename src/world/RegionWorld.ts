@@ -13,6 +13,7 @@ import { provinceAt } from './provinces';
 import { RegionHeightSource } from './RegionHeightSource';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial } from './TerrainMaterial';
+import { Water } from './Water';
 
 /**
  * Gerçek bölge dünyası: chunk'lanmış LOD'lu arazi mesh'leri, yakın chunk'lar için Rapier
@@ -31,6 +32,7 @@ export class RegionWorld implements GameWorld {
   private readonly chunks: ChunkManager;
   private readonly colliders: ChunkColliders;
   private readonly walls: RAPIER.Collider[];
+  private readonly water: Water;
 
   constructor(
     readonly region: RegionData,
@@ -47,6 +49,8 @@ export class RegionWorld implements GameWorld {
     this.scene.add(this.chunks.group);
     this.colliders = new ChunkColliders(physics, this.source);
     this.walls = createBoundsWalls(physics, this.source.bounds);
+    this.water = new Water(this.source.bounds);
+    this.scene.add(this.water.mesh);
 
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
@@ -64,9 +68,10 @@ export class RegionWorld implements GameWorld {
     return findSafeSpawn(this.source, x, z, this.maxSlopeDeg);
   }
 
-  update(focusX: number, focusZ: number): void {
+  update(focusX: number, focusZ: number, timeSeconds: number): void {
     this.colliders.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
+    this.water.update(timeSeconds);
   }
 
   prepare(x: number, z: number): void {
@@ -76,7 +81,8 @@ export class RegionWorld implements GameWorld {
   locationInfo(x: number, z: number, feetY: number): LocationInfo {
     return {
       province: provinceAt(this.region.provinces, x, z)?.name ?? null,
-      elevation: feetY * VERTICAL_SCALE,
+      // Deniz tabanı kurgusaldır (bkz. SEABED); rakım deniz seviyesinin altına inmez.
+      elevation: Math.max(0, feetY * VERTICAL_SCALE),
     };
   }
 
@@ -90,6 +96,7 @@ export class RegionWorld implements GameWorld {
   }
 
   dispose(): void {
+    this.water.dispose();
     this.chunks.dispose();
     this.colliders.dispose();
     for (const wall of this.walls) this.physics.removeCollider(wall);

@@ -161,7 +161,7 @@ export class Game {
     this.playerCamera.applyMouse(look.dx, look.dy);
 
     const feet = this.player.renderPosition(alpha);
-    this.world.update(feet.x, feet.z);
+    this.world.update(feet.x, feet.z, performance.now() / 1000);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
 

@@ -31,7 +31,7 @@ function setup() {
   const step = (intent: MoveIntent, yaw: number) => {
     player.update(DT, intent, yaw);
     physics.step();
-    world.update(player.position.x, player.position.z);
+    world.update(player.position.x, player.position.z, 0);
   };
   const dispose = () => {
     player.dispose();
@@ -67,6 +67,25 @@ describe('RegionWorld (gerçek bölge, fizik)', () => {
     expect(world.stats.colliders).toBeGreaterThan(0);
     expect(world.stats.colliders).toBeLessThanOrEqual(9);
     expect(world.stats.chunks).toBeGreaterThan(50); // görsel chunk'lar başlangıçta hazır
+    dispose();
+  });
+
+  it("locationInfo: il adı ve gerçek rakım; deniz altında rakım 0'ın altına inmez", () => {
+    const { world, dispose } = setup();
+    const safranbolu = world.safePointFor(TELEPORTS[1].lat, TELEPORTS[1].lon) as {
+      x: number;
+      y: number;
+      z: number;
+    };
+    const info = world.locationInfo(safranbolu.x, safranbolu.z, safranbolu.y);
+    expect(info.province).toBe('Karabük');
+    expect(info.elevation).toBeGreaterThan(200); // ayak y'sinden × VERTICAL_SCALE
+    expect(info.elevation).toBeCloseTo(safranbolu.y * 15, 5);
+
+    const sea = latLonToGame(41.9, 32.0, region.meta.originUtm);
+    const underwater = world.locationInfo(sea.x, sea.z, world.terrain.heightAt(sea.x, sea.z));
+    expect(underwater.province).toBeNull();
+    expect(underwater.elevation).toBe(0);
     dispose();
   });
 
