@@ -1,6 +1,10 @@
-# Veri hattı bağımlılıkları (Faz 2'de kullanılır)
+# Veri hattı bağımlılıkları (Python 3.11+)
 rasterio
 geopandas
 numpy
 pyproj
 shapely
+# regions.yaml okumak için
+pyyaml
+# tools/tests için
+pytest
