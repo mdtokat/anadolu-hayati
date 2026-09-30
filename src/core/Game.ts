@@ -12,6 +12,8 @@ import { loadRegion } from '../data/region';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
 import { collectedToast, gatherPrompt } from '../interaction/promptText';
+import { craft } from '../items/craft';
+import { eatItem, quickEat } from '../items/eatItem';
 import { Inventory } from '../items/Inventory';
 import type { StructureKind } from '../placement/structures';
 import { PlacementController } from '../placement/PlacementController';
@@ -25,6 +27,8 @@ import {
 } from '../placement/promptText';
 import { StructureSystem } from '../placement/StructureSystem';
 import { FireTender } from '../placement/tend';
+import { ITEMS } from '../items/itemDefs';
+import { RECIPES, type RecipeId } from '../items/recipes';
 import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Player } from '../player/Player';
 import { PlayerCamera } from '../player/PlayerCamera';
@@ -36,6 +40,7 @@ import { canSprint } from '../survival/vitals';
 import { DeathScreen } from '../ui/DeathScreen';
 import { FpsCounter } from '../ui/FpsCounter';
 import { Hud } from '../ui/Hud';
+import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
@@ -98,6 +103,10 @@ export class Game {
   private readonly hud: Hud;
   private readonly pauseMenu: PauseMenu;
   private readonly deathScreen: DeathScreen;
+  private readonly inventoryPanel: InventoryPanel;
+  /** Envanter paneli açık: oyun duraklı (fare serbest) ama duraklatma menüsü çıkmaz. */
+  private inventoryOpen = false;
+  private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
   private lastLocationUpdate = -Infinity;
@@ -136,7 +145,18 @@ export class Game {
     this.input = new Input(this.renderer.domElement, document, this.events, window);
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
-    this.pauseMenu = new PauseMenu(container, this.events, () => this.input.requestLock());
+    this.pauseMenu = new PauseMenu(
+      container,
+      this.events,
+      () => this.input.requestLock(),
+      () => this.inventoryOpen,
+    );
+    this.inventoryPanel = new InventoryPanel(container, this.inventory, {
+      onEat: (slot) => this.eatFromSlot(slot),
+      onCraft: (recipe) => this.craftRecipe(recipe),
+      onClose: () => this.closeInventory(),
+      getVitals: () => this.survival.state,
+    });
     this.deathScreen = new DeathScreen(container, () => this.respawnPlayer());
 
     // Başlangıçta duraklatılmış: ilk tıklamayla pointer lock alınınca oyun başlar.
@@ -148,8 +168,9 @@ export class Game {
 
     this.offs.push(
       this.events.on('input:pointerLockChanged', ({ locked }) => this.setPaused(!locked)),
+      // Envanter açıkken göstergeler görünür kalır (yemek yerken izlenir).
       this.events.on('game:paused', () => {
-        this.hud.setVisible(false);
+        this.hud.setVisible(this.inventoryOpen);
         this.placement.cancel();
       }),
       this.events.on('game:resumed', () => this.hud.setVisible(true)),
@@ -159,6 +180,8 @@ export class Game {
         if (action === 'placeCampfire') this.togglePlacement('campfire');
         if (action === 'placeShelter') this.togglePlacement('lean_to');
         if (action === 'confirmPlacement') this.confirmPlacement();
+        if (action === 'toggleInventory') this.openInventory();
+        if (action === 'eat') this.quickEatFood();
       }),
       this.events.on('player:died', (death) => {
         this.placement.cancel();
@@ -177,6 +200,13 @@ export class Game {
         this.hud.notify(fuelToast(seconds), INTERACT.toastMs),
       ),
       this.events.on('structure:extinguished', ({ id }) => this.notifyExtinguished(id)),
+      this.events.on('item:crafted', ({ item, count }) => {
+        this.hud.notify(
+          `Üretildi: ${ITEMS[item].name}${count > 1 ? ` ×${count}` : ''}`,
+          INTERACT.toastMs,
+        );
+        this.inventoryPanel.refresh();
+      }),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
@@ -208,8 +238,8 @@ export class Game {
     if (event.code === 'BracketLeft') this.survival.clock.skipHours(-1);
     if (event.code === 'BracketRight') this.survival.clock.skipHours(1);
     if (event.code === 'KeyK') this.survival.setVitals({ health: 0, hydration: 0 });
-    // I: yerleştirme/yakıt denemek için malzeme ver (ateş, sundurma, dal, kütük).
-    if (event.code === 'KeyI') {
+    // P: yerleştirme/yakıt denemek için malzeme ver (ateş, sundurma, dal, kütük).
+    if (event.code === 'KeyP') {
       this.inventory.add('campfire', 1);
       this.inventory.add('lean_to', 1);
       this.inventory.add('stick', 10);
@@ -257,7 +287,9 @@ export class Game {
     this.structureLayer.dispose();
     this.world.dispose();
     this.physics.dispose();
+    if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.pauseMenu.dispose();
+    this.inventoryPanel.dispose();
     this.deathScreen.dispose();
     this.hud.dispose();
     this.fps?.dispose();
@@ -313,6 +345,58 @@ export class Game {
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
       drinking: water !== null && held && !gathering && !tending,
     });
+  }
+
+  /** Envanter/üretim panelini açar: oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken (fare kilitli). */
+  private openInventory(): void {
+    if (this.inventoryOpen || !this.survival.alive || this.loop.paused) return;
+    this.inventoryOpen = true; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
+    this.inventoryPanel.show();
+    this.input.exitLock();
+  }
+
+  /** Paneli kapatır ve fare kilidini ister; kilit verilmezse duraklatma menüsü devreye girer. */
+  private closeInventory(): void {
+    if (!this.inventoryOpen) return;
+    this.inventoryOpen = false;
+    this.inventoryPanel.hide();
+    this.input.requestLock();
+    if (this.lockFallback !== null) clearTimeout(this.lockFallback);
+    this.lockFallback = setTimeout(() => {
+      this.lockFallback = null;
+      if (this.loop.paused && !this.inventoryOpen && !this.pauseMenu.visible) this.pauseMenu.show();
+    }, 500);
+  }
+
+  /** `F`: en çok tokluk veren yiyeceği ye; olmazsa nedenini bildir. */
+  private quickEatFood(): void {
+    const result = quickEat(this.inventory, this.survival);
+    if (result.ok) {
+      this.hud.notify(`Yedin: ${ITEMS[result.item].name}`, INTERACT.toastMs);
+    } else if (result.reason === 'no_food') {
+      this.hud.notify('Yiyeceğin yok', INTERACT.toastMs);
+    } else if (result.reason === 'full') {
+      this.hud.notify('Tokluk dolu', INTERACT.toastMs);
+    }
+  }
+
+  private eatFromSlot(slot: number): void {
+    const item = eatItem(this.inventory, this.survival, slot);
+    if (item !== null) this.hud.notify(`Yedin: ${ITEMS[item].name}`, INTERACT.toastMs);
+    this.inventoryPanel.refresh();
+  }
+
+  private craftRecipe(id: RecipeId): void {
+    const result = craft(this.inventory, RECIPES[id]);
+    if (result.ok) {
+      this.events.emit('item:crafted', {
+        recipe: id,
+        item: result.output.id,
+        count: result.output.count,
+      });
+    } else {
+      this.inventoryPanel.refresh();
+    }
   }
 
   /** Ölüm ekranındaki "Yeniden Doğ": göstergeler dolar, oyuncu rastgele güvenli noktaya taşınır. */
@@ -389,6 +473,11 @@ export class Game {
    * toplanabilir nesne, sonra su içme, sonra "balta gerekir"/"envanter dolu" gibi engeller.
    */
   private updatePrompt(): void {
+    if (this.inventoryOpen) {
+      this.hud.setPrompt(null);
+      this.hud.setProgress(null);
+      return;
+    }
     const alive = this.survival.alive;
     const ghost = alive ? this.placement.ghost : null;
     if (ghost) {

@@ -4,6 +4,8 @@ import { INPUT } from '../config';
 export type InputAction =
   | 'toggleCamera'
   | 'toggleBorders'
+  | 'toggleInventory'
+  | 'eat'
   | 'placeCampfire'
   | 'placeShelter'
   /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirmeyi onayla. */
@@ -39,6 +41,8 @@ export function actionForKey(code: string): InputAction | null {
   const bindings = INPUT.bindings;
   if ((bindings.toggleCamera as readonly string[]).includes(code)) return 'toggleCamera';
   if ((bindings.toggleBorders as readonly string[]).includes(code)) return 'toggleBorders';
+  if ((bindings.toggleInventory as readonly string[]).includes(code)) return 'toggleInventory';
+  if ((bindings.eat as readonly string[]).includes(code)) return 'eat';
   if ((bindings.placeCampfire as readonly string[]).includes(code)) return 'placeCampfire';
   if ((bindings.placeShelter as readonly string[]).includes(code)) return 'placeShelter';
   return null;

@@ -40,7 +40,7 @@ describe('yerleştirme metinleri', () => {
   });
 
   it('hayalet ipucu: geçerliyse kur/iptal tuşları, değilse neden', () => {
-    expect(aimPrompt(ghost())).toBe('Sol tık: Kamp Ateşi kur · F: iptal');
+    expect(aimPrompt(ghost())).toBe('Sol tık: Kamp Ateşi kur · C: iptal');
     expect(aimPrompt(ghost({ kind: 'lean_to' }))).toBe('Sol tık: Sundurma kur · G: iptal');
     expect(aimPrompt(ghost({ valid: false, reason: 'too_steep' }))).toBe('Zemin çok dik');
   });

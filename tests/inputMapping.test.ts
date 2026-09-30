@@ -55,8 +55,13 @@ describe('actionForKey', () => {
   it('B il sınırı çizgilerini aç/kapa eylemidir', () => {
     expect(actionForKey('KeyB')).toBe('toggleBorders');
   });
-  it('F kamp ateşi, G sundurma yerleştirme eylemidir', () => {
-    expect(actionForKey('KeyF')).toBe('placeCampfire');
+  it('I ve Tab envanter panelini, F hızlı yemeği açar', () => {
+    expect(actionForKey('KeyI')).toBe('toggleInventory');
+    expect(actionForKey('Tab')).toBe('toggleInventory');
+    expect(actionForKey('KeyF')).toBe('eat');
+  });
+  it('C kamp ateşi, G sundurma yerleştirme eylemidir', () => {
+    expect(actionForKey('KeyC')).toBe('placeCampfire');
     expect(actionForKey('KeyG')).toBe('placeShelter');
   });
   it('diğer tuşlar için null döner (E etkileşim eylem değil, basılı tutulur)', () => {

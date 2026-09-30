@@ -9,7 +9,9 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Boşluk', 'Zıpla'],
   ['Fare', 'Etrafa bak'],
   ['V', '1. / 3. şahıs kamera'],
-  ['E', 'Su iç (tatlı su kenarında basılı tut)'],
+  ['E', 'Nesne topla / su iç (basılı tut)'],
+  ['I / Tab', 'Envanter ve üretim'],
+  ['F', 'Hızlı yemek'],
   ['B', 'İl sınırlarını aç/kapa'],
   ['Esc', 'Duraklat'],
 ];
@@ -37,6 +39,8 @@ export class PauseMenu {
     parent: HTMLElement,
     events: EventBus<GameEvents>,
     private readonly onResume: () => void,
+    /** Menü şu an gösterilmemeli mi (ör. envanter paneli açıkken oyun duraklıdır ama menü çıkmaz)? */
+    private readonly isSuppressed: () => boolean = () => false,
   ) {
     this.root.className = 'pause-menu';
 
@@ -87,9 +91,12 @@ export class PauseMenu {
         this.hint.textContent = '';
         this.root.hidden = true;
       }),
-      events.on('game:paused', () => this.show()),
+      events.on('game:paused', () => {
+        if (!this.isSuppressed()) this.show();
+      }),
       events.on('input:pointerLockFailed', () => {
         this.hint.textContent = 'Tarayıcı fare kilidini hemen vermedi; lütfen tekrar tıkla.';
+        if (!this.isSuppressed()) this.show();
       }),
     );
   }
@@ -103,7 +110,8 @@ export class PauseMenu {
     this.root.remove();
   }
 
-  private show(): void {
+  /** Menüyü gösterir (oyun duraklıyken; envanter kapanınca fare kilidi alınamazsa da çağrılır). */
+  show(): void {
     this.render();
     this.root.hidden = false;
     this.button.focus({ preventScroll: true });

@@ -1,5 +1,6 @@
 import type { ItemId } from '../items/itemDefs';
 import type { StructureId, StructureKind } from '../placement/structures';
+import type { RecipeId } from '../items/recipes';
 import type { PropId, PropKind } from '../world/propKinds';
 import type { DeathCause } from '../survival/vitals';
 import type { InputAction } from './inputMapping';
@@ -35,5 +36,7 @@ export interface GameEvents {
   'structure:extinguished': { id: StructureId };
   /** Ateşe yakıt atılınca: atılan eşya ve gerçekten eklenen yanma süresi (sn). */
   'structure:refueled': { id: StructureId; item: ItemId; seconds: number };
+  /** Bir tarif üretilince: tarif kimliği ve çıktı. */
+  'item:crafted': { recipe: RecipeId; item: ItemId; count: number };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
 }

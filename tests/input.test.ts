@@ -98,15 +98,15 @@ describe('Input', () => {
     expect(actions).toEqual(['confirmPlacement']);
   });
 
-  it('F ve G yerleştirme eylemleridir; yalnızca kilitliyken ve tekrar etmeden', () => {
+  it('C ve G yerleştirme eylemleridir; yalnızca kilitliyken ve tekrar etmeden', () => {
     const { events, key, setLock } = setup();
     const actions: string[] = [];
     events.on('input:action', ({ action }) => actions.push(action));
-    key('keydown', 'KeyF');
+    key('keydown', 'KeyC');
     expect(actions).toEqual([]);
     setLock(true);
-    key('keydown', 'KeyF');
-    key('keydown', 'KeyF', true);
+    key('keydown', 'KeyC');
+    key('keydown', 'KeyC', true);
     key('keydown', 'KeyG');
     expect(actions).toEqual(['placeCampfire', 'placeShelter']);
   });

@@ -122,7 +122,10 @@ export class Input {
     if (this.intent().jump) this.jumpLatched = true;
     const action = actionForKey(event.code);
     // Eylemler yalnızca oyun kontrolündeyken (pointer lock) tetiklenir.
-    if (action && this.pointerLocked) this.events.emit('input:action', { action });
+    if (action && this.pointerLocked) {
+      if (action === 'toggleInventory') event.preventDefault?.(); // Tab odağı kaydırmasın
+      this.events.emit('input:action', { action });
+    }
   }
 
   private onMouseMove(event: MouseLikeEvent): void {

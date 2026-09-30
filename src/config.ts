@@ -125,8 +125,12 @@ export const INPUT = {
     toggleBorders: ['KeyB'],
     /** Etkileşim (basılı tutulur): toplama, ateşe yakıt atma, tatlı su içme. */
     interact: ['KeyE'],
+    /** Envanter ve üretim panelini aç/kapa. */
+    toggleInventory: ['KeyI', 'Tab'],
+    /** Hızlı yemek: tokluğu en çok artıran yiyeceği ye. */
+    eat: ['KeyF'],
     /** Yerleştirme hayaleti: kamp ateşi / sundurma (aynı tuş iptal eder); sol tık yerleştirir. */
-    placeCampfire: ['KeyF'],
+    placeCampfire: ['KeyC'],
     placeShelter: ['KeyG'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
