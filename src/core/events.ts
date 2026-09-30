@@ -9,5 +9,7 @@ export interface GameEvents {
   'input:pointerLockChanged': { locked: boolean };
   'input:pointerLockFailed': undefined;
   'input:action': { action: InputAction };
+  'time:nightStarted': { day: number };
+  'time:dayStarted': { day: number };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
 }

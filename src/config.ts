@@ -352,3 +352,20 @@ export const BORDERS = {
   /** Başlangıçta görünür mü? */
   visibleByDefault: true,
 } as const;
+
+/**
+ * Gün-gece döngüsü ve güneş geometrisi. Güneş konumu, bölgenin enlemi ve yılın günü için gerçek
+ * astronomik formülle hesaplanır (yerel güneş saati: boylam/saat dilimi düzeltmesi yok).
+ */
+export const CLOCK = {
+  /** Bir oyun gününün (24 oyun saati) gerçek süresi (saniye): 24 dk → 1 oyun saati = 1 gerçek dk. */
+  dayLengthSeconds: 24 * 60,
+  /** Oyunun başladığı gün saati (0–24). */
+  startHour: 9,
+  /** Yılın günü (1–365); 265 = 22 Eylül (ekinoks: gündüz ≈ gece ≈ 12 sa). Mevsim ileride eklenecek. */
+  dayOfYear: 265,
+  /** Bölgenin enlemi (derece K); Zonguldak–Bartın–Karabük ≈ 41,5°. */
+  latitudeDeg: 41.5,
+  /** Güneş bu yüksekliğin (derece) altına inince "gece" sayılır (−6° = sivil alacakaranlığın sonu). */
+  nightSunAltitudeDeg: -6,
+} as const;
