@@ -16,9 +16,10 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | Boşluk | Zıpla |
 | Fare | Etrafa bak |
 | V | Birinci / üçüncü şahıs kamera |
+| B | İl sınırı çizgilerini aç/kapa |
 | Esc | Duraklat (menüyü aç) |
 
-Test arazisinde doğma noktasının doğusunda 30° ve 60° rampalar, güneyinde 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru blokları bulunur; 45°'den dik yamaçlara tırmanılamaz.
+Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`npm run dev`) 1–5 tuşları Zonguldak, Safranbolu, Amasra, Filyos ve Yenice'ye ışınlar. `?world=test` adresi Faz 1'in test arenasını açar (30°/60° rampalar, 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru).
 
 ## Gereksinimler
 
@@ -38,7 +39,20 @@ npm test            # Vitest
 npm run format      # Prettier ile biçimlendir
 ```
 
-Veri hattı (Faz 2 ile birlikte gelecek): `tools/` klasörü, Python 3.11+ ve `tools/requirements.txt`.
+### Veri hattı (`tools/`)
+
+Oyunun okuduğu işlenmiş bölge verisi (`public/data/regions/`) depoda hazırdır; yeniden üretmek istersen Python 3.11+ gerekir:
+
+```bash
+cd tools
+pip install -r requirements.txt
+python fetch_dem.py                 # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB, commit edilmez)
+python fetch_boundaries.py          # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python build_region.py              # → public/data/regions/zonguldak-bartin-karabuk/
+python -m pytest tests              # Python birim testleri
+```
+
+Bölge tanımı `tools/regions.yaml`'dadır. Koordinat ve veri formatı sözleşmesi için [CLAUDE.md](CLAUDE.md)'ye bakın.
 
 ## Yayın
 

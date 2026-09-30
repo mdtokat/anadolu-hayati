@@ -56,29 +56,29 @@ Kabul kriterleri:
 **Amaç:** Üç ilin gerçek yükseklik verisiyle yürünebilir arazisi.
 
 Veri hattı (`tools/`):
-- [ ] `requirements.txt` ve kurulum talimatı
-- [ ] `fetch_dem.py`: Copernicus GLO-30 karolarını indirir (bu bölge için N40–N41 × E031–E033, 6 karo)
-- [ ] `fetch_boundaries.py`: geoBoundaries TUR ADM1 indirir, üç ili süzer
-- [ ] `build_region.py`: karoları birleştirir → EPSG:32636'ya dönüştürür → 100 m ızgaraya örnekler → denizi 0'a kırpar → `heightmap.bin` + `meta.json` + `provinces.geojson` üretir
-- [ ] Bölge tanımları bir config dosyasında (`tools/regions.yaml`: id, il listesi, sınır kutusu)
+- [x] `requirements.txt` ve kurulum talimatı
+- [x] `fetch_dem.py`: Copernicus GLO-30 karolarını indirir (bu bölge için N40–N41 × E031–E033, 6 karo)
+- [x] `fetch_boundaries.py`: geoBoundaries TUR ADM1 indirir, üç ili süzer
+- [x] `build_region.py`: karoları birleştirir → EPSG:32636'ya dönüştürür → 100 m ızgaraya örnekler → denizi 0'a kırpar → `heightmap.bin` + `meta.json` + `provinces.geojson` üretir
+- [x] Bölge tanımları bir config dosyasında (`tools/regions.yaml`: id, il listesi, sınır kutusu)
 
 Oyun tarafı:
-- [ ] `data/` altında bölge yükleyici (meta + heightmap)
-- [ ] Chunk sistemi: arazi 128×128 hücrelik parçalara bölünür, oyuncuya yakın olanlar yüklenir
-- [ ] Basit LOD (uzak chunk'lar daha düşük çözünürlükte)
-- [ ] Rapier heightfield collider'ları (sadece yakın chunk'lar)
-- [ ] Rakım ve eğime göre doku karışımı (kum, çim, orman zemini, kaya)
-- [ ] Deniz düzlemi (Karadeniz) ve basit su shader'ı
-- [ ] İl sınırlarının yerde ince çizgi olarak gösterimi (açılıp kapanabilir)
-- [ ] HUD: bulunulan il adı ve gerçek rakım (m)
-- [ ] Geliştirici kısayolu: harita üzerinde belirli bir noktaya ışınlanma (örn. Zonguldak merkez, Safranbolu, Amasra)
+- [x] `data/` altında bölge yükleyici (meta + heightmap)
+- [x] Chunk sistemi: arazi 128×128 hücrelik parçalara bölünür, oyuncuya yakın olanlar yüklenir
+- [x] Basit LOD (uzak chunk'lar daha düşük çözünürlükte)
+- [x] Rapier heightfield collider'ları (sadece yakın chunk'lar)
+- [x] Rakım ve eğime göre doku karışımı (kum, çim, orman zemini, kaya)
+- [x] Deniz düzlemi (Karadeniz) ve basit su shader'ı
+- [x] İl sınırlarının yerde ince çizgi olarak gösterimi (açılıp kapanabilir)
+- [x] HUD: bulunulan il adı ve gerçek rakım (m)
+- [x] Geliştirici kısayolu: harita üzerinde belirli bir noktaya ışınlanma (örn. Zonguldak merkez, Safranbolu, Amasra)
 
 Kabul kriterleri:
-- [ ] Oyuncu üç il boyunca kesintisiz yürüyebiliyor
-- [ ] Amasra kıyısı, Filyos vadisi ve Yenice ormanları bölgesi tanınabilir biçimde görünüyor
-- [ ] Koordinat dönüşümü (gerçek ↔ oyun) için birim testler var
-- [ ] Heightmap okuma ve chunk indeksleme için birim testler var
-- [ ] 60 FPS hedefi korunuyor
+- [x] Oyuncu üç il boyunca kesintisiz yürüyebiliyor _(otomatik: gerçek heightmap + Rapier ile Zonguldak → Amasra (Bartın) → Safranbolu (Karabük) rotaları fizikle yürünüyor)_
+- [ ] Amasra kıyısı, Filyos vadisi ve Yenice ormanları bölgesi tanınabilir biçimde görünüyor _(Amasra kıyısı ve Yenice dağları ekran görüntülerinde tanınabilir; Filyos vadisi ayrıca elle incelenmeli; orman örtüsü yalnızca rakıma bağlı bir renk tonu, orman poligonları Faz 4'te OSM ile gelecek — görsel onay bekliyor)_
+- [x] Koordinat dönüşümü (gerçek ↔ oyun) için birim testler var
+- [x] Heightmap okuma ve chunk indeksleme için birim testler var
+- [ ] 60 FPS hedefi korunuyor _(gerçek GPU'lu masaüstünde elle ölçülecek; en kötü durumda 95 draw call, ~411 bin üçgen)_
 
 ---
 

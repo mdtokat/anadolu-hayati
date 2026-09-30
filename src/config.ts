@@ -46,7 +46,7 @@ export const CAMERA = {
   /** Dikey görüş açısı (derece). */
   fov: 70,
   near: 0.1,
-  far: 500,
+  far: 5000,
   /** Bakışta yukarı/aşağı sınırı (derece); 90'a çok yakın değerler kamerayı ters çevirir. */
   maxPitchDeg: 89,
   /** Üçüncü şahıs: kameranın oyuncudan uzaklığı (oyun metresi). */
@@ -127,6 +127,8 @@ export const INPUT = {
     jump: ['Space'],
     /** Birinci / üçüncü şahıs kamera geçişi. */
     toggleCamera: ['KeyV'],
+    /** İl sınırı çizgilerini aç/kapa. */
+    toggleBorders: ['KeyB'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -205,4 +207,148 @@ export const PLAYER = {
   controllerOffset: 0.02,
   /** Bu yüksekliğin altına düşerse doğma noktasına döner. */
   fallRespawnY: -30,
+} as const;
+
+/** Arazi chunk sistemi ve LOD ayarları (Faz 2). */
+export const CHUNK = {
+  /** Bir chunk'ın kenarındaki hücre sayısı (chunk = 129×129 köşe, komşularla kenar paylaşır). */
+  cells: 128,
+  /** LOD başına örnek atlama: LOD0 = her örnek, LOD1 = her 2., … (köşe sayısı: 129, 65, 33, 17). */
+  lodStrides: [1, 2, 4, 8],
+  /**
+   * LOD geçiş uzaklıkları (oyun m, oyuncudan chunk'a): LOD0→1, LOD1→2, LOD2→3. Gerçek bölgede tüm chunk'ların
+   * üçgen toplamı [200, 550, 1300] ile en çok ~605 bin, bu değerlerle ~365 bin (culling öncesi).
+   */
+  lodDistances: [130, 350, 900],
+  /** LOD geçişinde titremeyi (flapping) önleyen oransal histerezis. */
+  lodHysteresis: 0.15,
+  /** LOD başına etek derinliği (oyun m): farklı LOD'lu komşular arasındaki çatlakları kapatır. */
+  skirtDepth: [1, 2, 4, 8],
+  /** Bu uzaklıktan (oyun m) yakın chunk'lar yüklenir. Bölge ~4 km olduğundan hemen hepsi. */
+  viewDistance: 4000,
+  /** Karede kurulan en fazla chunk (mesh/collider) sayısı: kare süresi sıçramasın. */
+  maxBuildsPerFrame: 2,
+  /** Fizik: bu uzaklıktaki (oyun m) chunk'lar için Rapier heightfield collider'ı vardır. */
+  physicsRadius: 160,
+  /** Collider'lar `physicsRadius × bu` uzaklıktan sonra kaldırılır (histerezis). */
+  physicsRemoveFactor: 1.6,
+  /** Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). */
+  maxColliderBuildsPerFrame: 1,
+} as const;
+
+/** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */
+export const REGION_SCENE = {
+  /** Sis: başlangıç ve bitiş mesafesi (oyun m). Uzak LOD'ların "pop"unu da gizler. */
+  fogNear: 400,
+  fogFar: 3800,
+} as const;
+
+/**
+ * Gerçek arazi renklendirmesi (fragment shader). Rakımlar gerçek metre, eğim eşikleri oyun uzayındaki
+ * (dikey ölçek uygulanmış) eğimdir; oyuncu eğim limitiyle aynı ölçekte.
+ * Orman poligonları Faz 4'te (OSM) gelecek; şimdilik rakıma bağlı koyu bir "orman zemini" tonu var.
+ */
+export const TERRAIN_LOOK = {
+  /** Bu rakımın (m) altında, düz yerlerde kum/çakıl. */
+  sandMaxElevation: 6,
+  /** Kumdan çime geçiş şeridi (m). */
+  sandBlend: 8,
+  /** Çimden orman zeminine geçiş: [başlangıç, tam] rakım (m). */
+  forestFrom: [120, 450],
+  /** Orman zemininden yüksek çayıra/kayalığa geçiş: [başlangıç, tam] rakım (m). */
+  alpineFrom: [1300, 1750],
+  /** Kaya rengine geçiş: [başlangıç, tam] oyun eğimi (derece). */
+  rockSlopeDeg: [45, 62],
+  sandColor: 0xc2b280,
+  grassColor: 0x5a8f3c,
+  forestColor: 0x2f5a2b,
+  alpineColor: 0x8a8a5c,
+  rockColor: 0x6f675d,
+  /** Renk gürültüsü: dünya birimi başına frekans ve genlik (0..1). */
+  noiseFrequency: 0.045,
+  noiseStrength: 0.22,
+  /** Gürültünün sönmeye başladığı uzaklık (oyun m): uzakta titreşim (aliasing) olmasın. */
+  noiseFadeDistance: 900,
+} as const;
+
+/** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
+export const REGION_PLAYER = {
+  /**
+   * Oyun eğimi sınırı (derece). VERTICAL_SCALE = 15 ve HORIZONTAL_SCALE = 50 iken gerçek eğimler 3,3 kat
+   * dikleşir; 100 m ızgarada bölgenin ~%93'ü 60°'nin altındadır (45° ile yalnızca ~%64).
+   */
+  maxSlopeDeg: 60,
+} as const;
+
+/** Harita kenarındaki görünmez duvarlar. */
+export const REGION_BOUNDS = {
+  /** Duvar kalınlığı (oyun m). */
+  wallThickness: 10,
+  /** Duvarın en alt ve en üst y'si (oyun m): tüm arazi yüksekliğini kaplar. */
+  wallBottom: -200,
+  wallTop: 600,
+} as const;
+
+/** Güvenli doğma noktası araması. */
+export const SPAWN_SEARCH = {
+  /** Sınırın altında bırakılan pay (derece): kenarda doğan oyuncu hemen kaymasın. */
+  slopeMarginDeg: 8,
+  /** Gerçek rakım (m) bu değerin altındaki noktalar (deniz/kıyı çizgisi) doğma için uygun değildir. */
+  minElevation: 1,
+  /** Aday noktanın çevresinde de eğim denetlenir: bu yarıçapta (oyun m). */
+  probeRadius: 4,
+  /** En fazla arama yarıçapı (oyun m). */
+  maxRadius: 800,
+} as const;
+
+/**
+ * Geliştirici ışınlanma noktaları (dev modunda 1–5 tuşları). İlki oyunun başlangıç noktasıdır.
+ * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur.
+ */
+export const TELEPORTS = [
+  { name: 'Zonguldak merkez', lat: 41.4564, lon: 31.7987 },
+  { name: 'Safranbolu', lat: 41.2517, lon: 32.6939 },
+  { name: 'Amasra', lat: 41.7494, lon: 32.3853 },
+  { name: 'Filyos vadisi', lat: 41.5667, lon: 32.0333 },
+  { name: 'Yenice', lat: 41.2028, lon: 32.3358 },
+] as const;
+
+/**
+ * Deniz tabanı: heightmap'te deniz 0 m'ye kırpılı olduğundan (sözleşme), oyunda deniz hücreleri
+ * kıyıdan uzaklığa göre çalışma zamanında çukurlaştırılır. Böylece su yüzeyi zeminle çakışıp
+ * titremez (z-fighting) ve kıyıdan açığa doğru gerçekçi bir derinleşme olur.
+ */
+export const SEABED = {
+  /** Kıyıdan açığa doğru taban eğimi (derece). */
+  slopeDeg: 12,
+  /** En büyük derinlik (oyun m; gerçekte × VERTICAL_SCALE). */
+  maxDepth: 4,
+} as const;
+
+/** Deniz yüzeyi (Karadeniz) ayarları. */
+export const WATER = {
+  /** Su yüzeyi yüksekliği (oyun m): 0'ın hemen üstü; kıyı çizgisinde zemin ile çakışıp titremesin. */
+  level: 0.02,
+  /** Düzlemin bölge kenarlarından taşan payı (oyun m): ufka kadar deniz. */
+  margin: 9000,
+  color: 0x1d5f7a,
+  opacity: 0.78,
+  roughness: 0.22,
+  /** Dalga desenleri: dünya birimi başına frekans, animasyon hızı ve normal bozulma şiddeti. */
+  waveFrequency: 0.09,
+  waveSpeed: 0.55,
+  waveStrength: 0.22,
+} as const;
+
+/** İl sınırı çizgileri: yere yapışık ince çizgi (WebGL'de çizgi kalınlığı 1 pikseldir). */
+export const BORDERS = {
+  /** Çizgi köşeleri arası en büyük aralık (oyun m): arazi yüksekliğini izlesin diye sık örneklenir. */
+  spacing: 20,
+  /** Çizginin zeminden yüksekliği (oyun m): zeminin içine gömülmesin. */
+  lift: 0.6,
+  /** Hedef illerin ve komşu illerin çizgi renkleri. */
+  regionColor: 0xffd23f,
+  neighborColor: 0x8fb4d6,
+  /** Başlangıçta görünür mü? */
+  visibleByDefault: true,
 } as const;

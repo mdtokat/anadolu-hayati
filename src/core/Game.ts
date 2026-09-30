@@ -1,28 +1,43 @@
 import { WebGLRenderer } from 'three';
-import { RENDER, TERRAIN_TEST } from '../config';
+import { RENDER, TELEPORTS } from '../config';
+import { loadRegion } from '../data/region';
 import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Player } from '../player/Player';
 import { PlayerCamera } from '../player/PlayerCamera';
 import { PlayerModel } from '../player/PlayerModel';
 import { FpsCounter } from '../ui/FpsCounter';
 import { Hud } from '../ui/Hud';
-import { formatDebugInfo } from '../ui/hudFormat';
+import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { PauseMenu } from '../ui/PauseMenu';
+import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
+import { RegionWorld } from '../world/RegionWorld';
 import { TestScene } from '../world/TestScene';
 import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import { GameLoop } from './GameLoop';
 import { Input } from './Input';
+import { teleportSlotForKey } from './inputMapping';
+
+/** Hangi dünyanın oynanacağı: gerçek bölge ya da Faz 1 test arenası (`?world=test`). */
+export type WorldKind = 'region' | 'test';
+
+export interface GameOptions {
+  world?: WorldKind;
+}
+
+/** Konum HUD'unun güncelleme aralığı (ms). */
+const LOCATION_HUD_INTERVAL_MS = 250;
+
+/** Bölge kimliği (public/data/regions/<id>). */
+const REGION_ID = 'zonguldak-bartin-karabuk';
 
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
   readonly events = new EventBus<GameEvents>();
 
   private readonly renderer: WebGLRenderer;
-  private readonly physics: PhysicsWorld;
-  private readonly terrain = new ProceduralHeightSource();
-  private readonly world: TestScene;
+  private readonly world: GameWorld;
   private readonly player: Player;
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
@@ -33,18 +48,20 @@ export class Game {
   private readonly pauseMenu: PauseMenu;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
+  private lastLocationUpdate = -Infinity;
 
-  private constructor(private readonly container: HTMLElement) {
+  private constructor(
+    private readonly container: HTMLElement,
+    private readonly physics: PhysicsWorld,
+    world: GameWorld,
+  ) {
+    this.world = world;
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
     container.appendChild(this.renderer.domElement);
 
-    this.physics = new PhysicsWorld();
-    this.world = new TestScene(this.physics, this.terrain);
-
-    const { x, z } = TERRAIN_TEST.spawn;
-    this.player = new Player(this.physics, { x, y: this.terrain.heightAt(x, z) + 0.05, z });
-    this.playerCamera = new PlayerCamera(this.events, this.terrain);
+    this.player = new Player(this.physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
+    this.playerCamera = new PlayerCamera(this.events, world.terrain);
     this.world.scene.add(this.playerModel.object);
 
     this.input = new Input(this.renderer.domElement, document, this.events, window);
@@ -65,19 +82,55 @@ export class Game {
       this.events.on('game:resumed', () => this.hud.setVisible(true)),
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
+        if (action === 'toggleBorders') this.world.toggleBorders?.();
       }),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
     );
     window.addEventListener('resize', this.onResize);
+    if (import.meta.env.DEV) document.addEventListener('keydown', this.onDevKey);
     this.resize();
   }
 
-  /** WASM fizik motorunu yükleyip oyunu kurar. */
-  static async create(container: HTMLElement): Promise<Game> {
-    await initPhysics();
-    return new Game(container);
+  /** WASM fizik motorunu ve (gerçek bölgede) bölge verisini yükleyip oyunu kurar. */
+  static async create(container: HTMLElement, options: GameOptions = {}): Promise<Game> {
+    const kind = options.world ?? 'region';
+    const [region] = await Promise.all([
+      kind === 'region' ? loadRegion(REGION_ID) : null,
+      initPhysics(),
+    ]);
+
+    const physics = new PhysicsWorld();
+    const world: GameWorld =
+      region !== null
+        ? new RegionWorld(region, physics)
+        : new TestScene(physics, new ProceduralHeightSource());
+    return new Game(container, physics, world);
+  }
+
+  /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
+  private readonly onDevKey = (event: KeyboardEvent): void => {
+    const slot = teleportSlotForKey(event.code);
+    const target = slot === null ? undefined : TELEPORTS[slot];
+    if (!target) return;
+    const ok = this.teleportToLatLon(target.lat, target.lon);
+    console.info(
+      `Işınlanma: ${target.name}${ok ? '' : ' (yürünebilir nokta bulunamadı ya da bu dünyada desteklenmiyor)'}`,
+    );
+  };
+
+  /**
+   * Oyuncuyu enlem/boylama ışınlar (en yakın yürünebilir noktaya). Yalnızca gerçek bölgede çalışır;
+   * bulunamazsa false. Işınlanmadan önce çevredeki collider'lar senkron kurulur.
+   */
+  teleportToLatLon(lat: number, lon: number): boolean {
+    if (!(this.world instanceof RegionWorld)) return false;
+    const target = this.world.safePointFor(lat, lon);
+    if (!target) return false;
+    this.world.prepare(target.x, target.z);
+    this.player.teleport(target);
+    return true;
   }
 
   get paused(): boolean {
@@ -92,6 +145,7 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('keydown', this.onDevKey);
     for (const off of this.offs) off();
     this.input.dispose();
     this.playerModel.dispose();
@@ -126,11 +180,14 @@ export class Game {
     this.playerCamera.applyMouse(look.dx, look.dy);
 
     const feet = this.player.renderPosition(alpha);
+    const now = performance.now();
+    this.world.update(feet.x, feet.z, now / 1000);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
+    this.updateLocationHud(now, feet);
     if (import.meta.env.DEV) {
       this.hud.setDebugText(
         formatDebugInfo({
@@ -141,6 +198,14 @@ export class Game {
         }),
       );
     }
+  }
+
+  /** Konum satırı (il adı, rakım): pahalı olmasın diye saniyede birkaç kez güncellenir. */
+  private updateLocationHud(now: number, feet: { x: number; y: number; z: number }): void {
+    if (!this.world.locationInfo) return;
+    if (now - this.lastLocationUpdate < LOCATION_HUD_INTERVAL_MS) return;
+    this.lastLocationUpdate = now;
+    this.hud.setLocation(formatLocation(this.world.locationInfo(feet.x, feet.z, feet.y)));
   }
 
   private resize(): void {

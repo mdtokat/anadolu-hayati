@@ -1,6 +1,7 @@
 import './ui.css';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
+import { CREDITS } from './credits';
 
 const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['W A S D', 'Yürü'],
@@ -8,8 +9,12 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Boşluk', 'Zıpla'],
   ['Fare', 'Etrafa bak'],
   ['V', '1. / 3. şahıs kamera'],
+  ['B', 'İl sınırlarını aç/kapa'],
   ['Esc', 'Duraklat'],
 ];
+
+/** Yalnızca geliştirme modunda gösterilen ek kontroller. */
+const DEV_CONTROLS: ReadonlyArray<readonly [string, string]> = [['1 – 5', 'Işınlan (geliştirici)']];
 
 /**
  * Başlangıç ve duraklatma menüsü. Oyun duraklayınca (pointer lock kaybı, örn. Esc) görünür;
@@ -43,7 +48,8 @@ export class PauseMenu {
     this.button.addEventListener('click', () => this.onResume());
 
     const controls = document.createElement('dl');
-    for (const [key, action] of CONTROLS) {
+    const rows = import.meta.env.DEV ? [...CONTROLS, ...DEV_CONTROLS] : CONTROLS;
+    for (const [key, action] of rows) {
       const dt = document.createElement('dt');
       dt.textContent = key;
       const dd = document.createElement('dd');
@@ -51,7 +57,20 @@ export class PauseMenu {
       controls.append(dt, dd);
     }
 
-    panel.append(title, this.subtitle, this.button, this.hint, controls);
+    const credits = document.createElement('div');
+    credits.className = 'pause-menu-credits';
+    for (const credit of CREDITS) {
+      const paragraph = document.createElement('p');
+      const link = document.createElement('a');
+      link.href = credit.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = credit.label;
+      paragraph.append(link, ` — ${credit.text}`);
+      credits.append(paragraph);
+    }
+
+    panel.append(title, this.subtitle, this.button, this.hint, controls, credits);
     this.root.append(panel);
     this.root.addEventListener('click', () => this.onResume());
     parent.appendChild(this.root);

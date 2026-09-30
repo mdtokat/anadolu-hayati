@@ -27,3 +27,19 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  tools:
+    # Veri hattının saf yardımcıları (tools/regionlib.py) için Python testleri.
+    # Veri indirme/işleme burada çalışmaz (yüzlerce MB); yalnızca birim testler.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - run: pip install -r tools/requirements.txt
+      - run: python -m pytest tools/tests -q

@@ -57,6 +57,25 @@
   gap: 6px;
 }
 
+/* Konum: il adı ve rakım (sağ üst) */
+.hud-location {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  text-align: right;
+}
+.hud-location[hidden] {
+  display: none;
+}
+.hud-location-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+.hud-location-detail {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
 /* Geliştirici bilgisi (yalnızca dev modunda) */
 .hud-debug {
   position: absolute;
@@ -147,4 +166,22 @@
 .pause-menu dd {
   margin: 0;
   opacity: 0.8;
+}
+
+.pause-menu-credits {
+  max-width: 420px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  opacity: 0.7;
+}
+.pause-menu-credits p {
+  margin: 0 0 6px;
+}
+.pause-menu-credits a {
+  color: inherit;
+  font-weight: 600;
 }

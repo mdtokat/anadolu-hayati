@@ -12,8 +12,11 @@ const CENTER_OFFSET = PLAYER.height / 2;
 const CAPSULE_HALF_HEIGHT = (PLAYER.height - 2 * PLAYER.radius) / 2;
 /** Tavana çarpmayı ayırt etmek için dikey tolerans. */
 const EPSILON = 1e-4;
-/** Bu değerin altında normal.y'ye sahip yüzeyler (maksimum eğimden dik) tırmanılamaz sayılır. */
-const MIN_CLIMBABLE_NORMAL_Y = Math.cos(PLAYER.maxSlopeDeg * DEG_TO_RAD);
+
+export interface PlayerOptions {
+  /** Tırmanılabilir en dik yamaç (derece). Varsayılan: PLAYER.maxSlopeDeg. */
+  maxSlopeDeg?: number;
+}
 
 /**
  * Oyuncu: Rapier kinematic character controller ile çarpışma duyarlı hareket.
@@ -30,12 +33,17 @@ export class Player {
   private velocity: Vec3 = { x: 0, y: 0, z: 0 };
   private onGround = false;
   private readonly scratchCollision = new RAPIER.CharacterCollision();
+  /** Bu değerin altında normal.y'ye sahip yüzeyler (maksimum eğimden dik) tırmanılamaz sayılır. */
+  private readonly minClimbableNormalY: number;
 
   constructor(
     private readonly physics: PhysicsWorld,
     private readonly spawn: Vec3,
+    options: PlayerOptions = {},
   ) {
     const world = physics.world;
+    const maxSlopeDeg = options.maxSlopeDeg ?? PLAYER.maxSlopeDeg;
+    this.minClimbableNormalY = Math.cos(maxSlopeDeg * DEG_TO_RAD);
     this.previous = { ...spawn };
     this.current = { ...spawn };
 
@@ -55,8 +63,8 @@ export class Player {
     controller.setUp({ x: 0, y: 1, z: 0 });
     controller.setSlideEnabled(true);
     // Tırmanma sınırı ile kayma eşiği aynı: sınırı aşan yamaçlarda oyuncu ilerleyemez ve kayar.
-    controller.setMaxSlopeClimbAngle(PLAYER.maxSlopeDeg * DEG_TO_RAD);
-    controller.setMinSlopeSlideAngle(PLAYER.maxSlopeDeg * DEG_TO_RAD);
+    controller.setMaxSlopeClimbAngle(maxSlopeDeg * DEG_TO_RAD);
+    controller.setMinSlopeSlideAngle(maxSlopeDeg * DEG_TO_RAD);
     controller.enableAutostep(PLAYER.autostepHeight, PLAYER.autostepMinWidth, false);
     controller.enableSnapToGround(PLAYER.snapToGroundDistance);
     controller.setApplyImpulsesToDynamicBodies(false);
@@ -124,7 +132,7 @@ export class Player {
     for (let i = 0; i < count; i++) {
       const hit = this.controller.computedCollision(i, this.scratchCollision);
       // normal1: yüzey normali (zemin ≈ +Y, duvar ≈ yatay, tavan ≈ −Y); tavan ayrıca ele alınır.
-      if (hit && hit.normal1.y >= 0 && hit.normal1.y < MIN_CLIMBABLE_NORMAL_Y) return true;
+      if (hit && hit.normal1.y >= 0 && hit.normal1.y < this.minClimbableNormalY) return true;
     }
     return false;
   }
@@ -140,19 +148,18 @@ export class Player {
 
   /** Doğma noktasına ışınlar ve hızı sıfırlar. */
   respawn(): void {
-    this.previous = { ...this.spawn };
-    this.current = { ...this.spawn };
+    this.teleport(this.spawn);
+  }
+
+  /** Ayak tabanı `position`'a ışınlar ve hızı sıfırlar (fizik dünyasında collider hazır olmalı). */
+  teleport(position: Vec3): void {
+    this.previous = { ...position };
+    this.current = { ...position };
     this.velocity = { x: 0, y: 0, z: 0 };
     this.onGround = false;
-    this.body.setTranslation(
-      { x: this.spawn.x, y: this.spawn.y + CENTER_OFFSET, z: this.spawn.z },
-      true,
-    );
-    this.body.setNextKinematicTranslation({
-      x: this.spawn.x,
-      y: this.spawn.y + CENTER_OFFSET,
-      z: this.spawn.z,
-    });
+    const center = { x: position.x, y: position.y + CENTER_OFFSET, z: position.z };
+    this.body.setTranslation(center, true);
+    this.body.setNextKinematicTranslation(center);
   }
 
   dispose(): void {

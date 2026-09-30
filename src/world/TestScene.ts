@@ -1,47 +1,58 @@
-import { AmbientLight, Color, DirectionalLight, Fog, Scene } from 'three';
-import { SCENE, TERRAIN_TEST } from '../config';
+import { Scene } from 'three';
+import { PLAYER, TERRAIN_TEST } from '../config';
 import { createHeightfieldDesc } from '../physics/heightfield';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import type { Vec3 } from '../player/movement';
+import { Environment } from './Environment';
+import type { GameWorld } from './GameWorld';
 import { sampleGrid, type GridSpec, type HeightSource } from './HeightSource';
 import { Obstacles } from './Obstacles';
 import { createTerrainMesh } from './TerrainMesh';
 
 /**
- * Faz 1 test ortamı: engebeli prosedürel arazi (mesh + Rapier collider), gökyüzü, sis ve ışık.
- * Mesh ve collider aynı yükseklik ızgarasından üretilir.
+ * Faz 1 test arenası (`?world=test`): engebeli prosedürel arazi, rampalar ve hareket parkuru.
+ * Mesh ve collider aynı yükseklik ızgarasından üretilir. Karakter kontrolünün regresyon testi için durur.
  */
-export class TestScene {
+export class TestScene implements GameWorld {
   readonly scene = new Scene();
+  readonly spawn: Vec3;
+  readonly maxSlopeDeg = PLAYER.maxSlopeDeg;
 
-  private readonly terrain: ReturnType<typeof createTerrainMesh>;
+  private readonly groundMesh: ReturnType<typeof createTerrainMesh>;
   private readonly obstacles: Obstacles;
-  private readonly sun = new DirectionalLight(0xffffff, SCENE.sunIntensity);
-  private readonly ambient = new AmbientLight(0xffffff, SCENE.ambientIntensity);
+  private readonly environment: Environment;
 
-  constructor(physics: PhysicsWorld, source: HeightSource) {
+  constructor(
+    physics: PhysicsWorld,
+    readonly terrain: HeightSource,
+  ) {
     const grid: GridSpec = { size: TERRAIN_TEST.size, cellSize: TERRAIN_TEST.cellSize };
-    const heights = sampleGrid(source, grid);
+    const heights = sampleGrid(terrain, grid);
 
-    const sky = new Color(SCENE.skyColor);
-    this.scene.background = sky;
-    this.scene.fog = new Fog(sky, SCENE.fogNear, SCENE.fogFar);
+    this.environment = new Environment(this.scene);
 
-    this.terrain = createTerrainMesh(heights, grid);
-    this.scene.add(this.terrain);
+    this.groundMesh = createTerrainMesh(heights, grid);
+    this.scene.add(this.groundMesh);
     physics.addStaticCollider(createHeightfieldDesc(heights, grid));
 
-    this.obstacles = new Obstacles(physics, source);
+    this.obstacles = new Obstacles(physics, terrain);
     this.scene.add(this.obstacles.mesh);
 
-    this.sun.position.set(...SCENE.sunPosition);
-    this.scene.add(this.sun, this.ambient);
+    const { x, z } = TERRAIN_TEST.spawn;
+    this.spawn = { x, y: terrain.heightAt(x, z) + 0.05, z };
   }
+
+  /** Test arenasında akış yok: her şey baştan yüklüdür. */
+  update(): void {}
+
+  prepare(): void {}
 
   /** Geometry ve materyalleri serbest bırakır (kaynak temizliği kuralı). */
   dispose(): void {
     this.obstacles.dispose();
-    this.terrain.geometry.dispose();
-    this.terrain.material.dispose();
+    this.groundMesh.geometry.dispose();
+    this.groundMesh.material.dispose();
+    this.environment.dispose();
     this.scene.clear();
   }
 }

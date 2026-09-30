@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { PLAYER } from '../src/config';
+import { PLAYER, REGION_PLAYER } from '../src/config';
 import type { MoveIntent } from '../src/core/inputMapping';
 import { createHeightfieldDesc } from '../src/physics/heightfield';
 import { initPhysics, PhysicsWorld, RAPIER } from '../src/physics/PhysicsWorld';
-import { Player } from '../src/player/Player';
+import { Player, type PlayerOptions } from '../src/player/Player';
 import { sampleGrid, type GridSpec, type HeightSource } from '../src/world/HeightSource';
 
 const DT = 1 / 60;
@@ -23,10 +23,10 @@ beforeAll(async () => {
 });
 
 /** Verilen araziyle dünya + oyuncu kurar; oyuncu (x0, 0) noktasında yüzeyin üstünde doğar. */
-function setup(source: HeightSource, x0 = 0) {
+function setup(source: HeightSource, x0 = 0, options: PlayerOptions = {}) {
   const physics = new PhysicsWorld();
   physics.addStaticCollider(createHeightfieldDesc(sampleGrid(source, GRID), GRID));
-  const player = new Player(physics, { x: x0, y: source.heightAt(x0, 0) + 0.05, z: 0 });
+  const player = new Player(physics, { x: x0, y: source.heightAt(x0, 0) + 0.05, z: 0 }, options);
   const run = (seconds: number, intent: MoveIntent, yaw = FACE_EAST) => {
     for (let i = 0; i < Math.round(seconds / DT); i++) {
       player.update(DT, intent, yaw);
@@ -178,6 +178,52 @@ describe('Player: engeller', () => {
     const { physics, player, run } = withPlatform(2);
     run(5, { ...idle, forward: 1, run: true });
     expect(player.currentVelocity.x).toBeLessThan(1);
+    physics.dispose();
+  });
+});
+
+describe('Player: maxSlopeDeg seçeneği (gerçek bölgede 60°)', () => {
+  const REGION_OPTIONS = { maxSlopeDeg: REGION_PLAYER.maxSlopeDeg };
+
+  /** Koşarak `seconds` sn yamaca yürür; ortalama yatay ilerleme hızını (m/s) döndürür. */
+  function climbSpeed(deg: number, options: PlayerOptions, seconds = 3): number {
+    const { physics, player, run } = setup(slope(deg), -5, options);
+    const startX = player.position.x;
+    run(seconds, { ...idle, forward: 1, run: true });
+    const speed = (player.position.x - startX) / seconds;
+    physics.dispose();
+    return speed;
+  }
+
+  it('varsayılan (45°) 55° yamaca tırmanamaz; 60° seçeneğiyle tırmanır', () => {
+    expect(climbSpeed(55, {})).toBeLessThan(0.5);
+    expect(climbSpeed(55, REGION_OPTIONS)).toBeGreaterThan(1.5);
+  });
+
+  it('60° seçeneği 65° yamaçta yine engeldir', () => {
+    expect(climbSpeed(65, REGION_OPTIONS)).toBeLessThan(0.5);
+  });
+
+  it('dik ama tırmanılabilir yamaçta hız kabul edilebilir kalır (yatay ≥ 1,5 m/s @ 55°)', () => {
+    // Rapier yamaçta yatay mesafeyi cos²θ kısaltır: 7 m/s koşuda 55°'de ≈ 2,3 m/s beklenir.
+    const v55 = climbSpeed(55, REGION_OPTIONS);
+    expect(v55).toBeGreaterThan(1.5);
+    expect(v55).toBeLessThan(4);
+  });
+
+  it('hız eğimle tekdüze azalır (30° > 45° > 55°)', () => {
+    const v30 = climbSpeed(30, REGION_OPTIONS);
+    const v45 = climbSpeed(45, REGION_OPTIONS);
+    const v55 = climbSpeed(55, REGION_OPTIONS);
+    expect(v30).toBeGreaterThan(v45);
+    expect(v45).toBeGreaterThan(v55);
+  });
+
+  it('60° seçeneğiyle, limitin üstündeki yamaçta durunca kayar (tırmanılamaz yüzeyde güvenli değil)', () => {
+    const { physics, player, run } = setup(slope(68), 30, REGION_OPTIONS);
+    const startY = player.position.y;
+    run(3, idle);
+    expect(player.position.y).toBeLessThan(startY - 1);
     physics.dispose();
   });
 });
