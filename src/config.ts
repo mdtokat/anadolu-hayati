@@ -123,8 +123,11 @@ export const INPUT = {
     toggleCamera: ['KeyV'],
     /** İl sınırı çizgilerini aç/kapa. */
     toggleBorders: ['KeyB'],
-    /** Etkileşim (basılı tutulur): tatlı su kaynağından su içme. */
+    /** Etkileşim (basılı tutulur): toplama, ateşe yakıt atma, tatlı su içme. */
     interact: ['KeyE'],
+    /** Yerleştirme hayaleti: kamp ateşi / sundurma (aynı tuş iptal eder); sol tık yerleştirir. */
+    placeCampfire: ['KeyF'],
+    placeShelter: ['KeyG'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,

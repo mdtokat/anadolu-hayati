@@ -83,6 +83,34 @@ describe('Input', () => {
     expect(handler).toHaveBeenCalledWith({ action: 'toggleCamera' });
   });
 
+  it('sol tık yalnızca kilitliyken confirmPlacement eylemidir; diğer tuşlar ve kilitsiz tık değil', () => {
+    const { events, doc, setLock } = setup();
+    const actions: string[] = [];
+    events.on('input:action', ({ action }) => actions.push(action));
+    const click = (button: number) =>
+      doc.dispatchEvent(Object.assign(new Event('mousedown'), { button }));
+    click(0); // kilit yok (kilidi alan tıklama)
+    setLock(true);
+    click(2);
+    click(1);
+    expect(actions).toEqual([]);
+    click(0);
+    expect(actions).toEqual(['confirmPlacement']);
+  });
+
+  it('F ve G yerleştirme eylemleridir; yalnızca kilitliyken ve tekrar etmeden', () => {
+    const { events, key, setLock } = setup();
+    const actions: string[] = [];
+    events.on('input:action', ({ action }) => actions.push(action));
+    key('keydown', 'KeyF');
+    expect(actions).toEqual([]);
+    setLock(true);
+    key('keydown', 'KeyF');
+    key('keydown', 'KeyF', true);
+    key('keydown', 'KeyG');
+    expect(actions).toEqual(['placeCampfire', 'placeShelter']);
+  });
+
   it('mantık adımından önce bırakılan kısa zıplama dokunuşu bir kez iletilir', () => {
     const { input, key } = setup();
     key('keydown', 'Space');

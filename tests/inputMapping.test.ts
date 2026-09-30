@@ -55,8 +55,13 @@ describe('actionForKey', () => {
   it('B il sınırı çizgilerini aç/kapa eylemidir', () => {
     expect(actionForKey('KeyB')).toBe('toggleBorders');
   });
-  it('diğer tuşlar için null döner', () => {
+  it('F kamp ateşi, G sundurma yerleştirme eylemidir', () => {
+    expect(actionForKey('KeyF')).toBe('placeCampfire');
+    expect(actionForKey('KeyG')).toBe('placeShelter');
+  });
+  it('diğer tuşlar için null döner (E etkileşim eylem değil, basılı tutulur)', () => {
     expect(actionForKey('KeyW')).toBeNull();
+    expect(actionForKey('KeyE')).toBeNull();
   });
 });
 
