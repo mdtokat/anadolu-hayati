@@ -504,6 +504,68 @@ export const CREATURES = {
   carcassSeconds: 300,
   /** Öldürülen canlının hücresinde yeniden doğması için beklenecek süre (gerçek sn). */
   respawnCooldownSeconds: 600,
+
+  /** Doğma hücresinin kenarı (oyun m): chunk boyuyla aynı (128 hücre × 2 m) → hücre anahtarı chunk anahtarıdır. */
+  spawnCellSize: 256,
+  /** Doğma denetiminin aralığı (gerçek sn). */
+  spawnIntervalSeconds: 0.5,
+  /** Bir hücrede tür başına doğma denemesi; beklenen grup sayısı = tür yoğunluğu × uygunluk. */
+  spawnAttemptsPerCell: 8,
+  /** Bir "dönem" (gerçek sn): aday canlılar `seedFrom(seed, cx, cy, epoch)` ile dönem başına yeniden çekilir. */
+  epochSeconds: 1800,
+  /** Hücre başına aday önbelleği (LRU). */
+  candidateCacheSize: 48,
+  /** Bir doğma denetiminde en çok bu kadar yeni hücrenin adayı üretilir (kare süresi sıçramasın); kalanı sonraki denetime kalır. */
+  maxNewCellsPerPass: 1,
+  /** Yapıların (ateş, sundurma) bu yarıçapında (oyun m) canlı doğmaz. */
+  structureClearance: 25,
+  /** Doğma noktası oyuncunun bu yarı açısı (derece) içinde ve `spawnHiddenDistance` ötesinde değilse "görünür" sayılır. */
+  spawnViewHalfAngleDeg: 65,
+  /** Görüş konisi içinde bu uzaklıktan (oyun m) yakın yerde canlı doğmaz (pop-in görünmesin). */
+  spawnHiddenDistance: 240,
+  /** Zaman penceresi histerezisi: canlı, doğma eşiğinin bu kadar üstüne çıkınca (görünmüyorsa) sessizce kaldırılır. */
+  despawnHysteresis: 0.15,
+  /** Tatlı suya bu uzaklıktan (oyun m) yakın yerde canlı doğmaz (göl/nehir içinde doğmasın). */
+  spawnWaterClearance: 6,
+  /** Gerçek rakım (m) bu değerin altı deniz/kıyı sayılır: canlı girmez. */
+  seaElevationMeters: 0.5,
+  /** Canlı eğimi merkez + bu uzaklıktaki (oyun m) dört noktanın ortalamasıdır (2 m'lik ızgara gürültüsünü yumuşatır). */
+  slopeSmoothRadius: 3,
+  /** Grup üyeleri lider çevresinde bu yarıçaptan (oyun m) daha uzağa doğmaz. */
+  groupSpread: 6,
+  /** Gün doğumu/batımı bandı: güneş yüksekliği (derece) bu aralıkta alacakaranlıktır. */
+  twilightAltitudeDeg: [-6, 6],
+
+  /** Yapay zekâ: oyuncuya bu uzaklığın (oyun m) ötesindeki canlılar her `farAiEvery`. adımda güncellenir (AI LOD). */
+  lodNearRadius: 120,
+  farAiEvery: 4,
+  /** Hareket ederken bu süre (sn) içinde `stuckMinDistance`'tan az yer değiştiren canlı takılmış sayılır. */
+  stuckSeconds: 4,
+  stuckMinDistance: 0.8,
+  /** Engel karşısında yön sapması: süre (sn) ve açı aralığı (rad). */
+  steerSeconds: 1.2,
+  steerAngle: [0.9, 2.2],
+  /** Tatlı su (göl içi) denetimi bu aralıkla (sn) yapılır: pahalı sorgu. */
+  waterCheckSeconds: 0.25,
+  /** Canlı bu kadar yatay adımdan (oyun m) sonra göl içi denetimi için ileriye bakar. */
+  waterLookAhead: 1.5,
+  /** Vurulunca geri tepme hızı (oyun m/sn) ve sönümü (1/sn). */
+  knockbackSpeed: 3,
+  knockbackDecay: 6,
+  /** Vurulunca "kışkırtılmış" kalma süresi (gerçek sn): oyuncunun yerini bilir, saldırgan/kaçak davranır. */
+  provokedSeconds: 10,
+  /** Vurulma parlamasının sönüm hızı (1/sn). */
+  hitFlashDecay: 4,
+  /** Oyuncu hareketinin gürültü çarpanı (duyma menzili): dinlenirken neredeyse duyulmaz. */
+  noise: { rest: 0.1, walk: 0.5, run: 1 },
+  /** Oyuncunun görünürlük çarpanı: yavaş/durgun oyuncu daha geç fark edilir. */
+  visibility: { rest: 0.6, walk: 1, run: 1.15 },
+  /** Çok yakın (oyuncuya bu uzaklıktan yakın) canlı, bakış yönünden bağımsız oyuncuyu fark eder (oyun m). */
+  senseRadius: 6,
+  /** Dinlenme/saldırı dışı yavaş dönüş: tür başına `turnRate` (rad/sn) bu çarpanla uyumsuz yönde hızı keser. */
+  minAlignedSpeed: 0.25,
+  /** Vuruş anında oyuncu saldırı menzilinin bu katı içindeyse isabet eder (oyun m çarpanı). */
+  attackReachSlack: 1.25,
 } as const;
 
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */

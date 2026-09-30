@@ -24,6 +24,7 @@ import type {
   CreatureState,
   CreatureView,
 } from '../creatures/kinds';
+import { playerWeakness } from '../creatures/perception';
 import { loadRegion } from '../data/region';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
@@ -437,12 +438,21 @@ export class Game {
     const feet = this.player.position;
     const { clock } = this.survival;
     return {
-      player: { x: feet.x, y: feet.y, z: feet.z, activity, alive: this.survival.alive },
+      player: {
+        x: feet.x,
+        y: feet.y,
+        z: feet.z,
+        activity,
+        alive: this.survival.alive,
+        yaw: this.playerCamera.yaw,
+        weakness: playerWeakness(this.survival.state),
+      },
       hour: clock.hour,
       sunAltitudeDeg: clock.sun.altitudeDeg,
       isNight: clock.isNight,
       fires: this.structureSystem.structures.all().filter(isLit),
-      terrain: null,
+      structures: this.structureSystem.structures.all(),
+      terrain: this.world.creatureTerrain ?? null,
     };
   }
 

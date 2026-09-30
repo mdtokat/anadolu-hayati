@@ -129,6 +129,8 @@ interface CreatureContext {          // Game.creatureContext() üretir (iskelede
   terrain: CreatureTerrain | null;                             // A'nın 5.4'te tanımladığı arazi erişimi
 }
 ```
+> **5.4 eki (A, geriye uyumlu):** `CreatureContext.player` isteğe bağlı `yaw` (görüş konisinde doğma yok) ve `weakness` (0–1, avcılar zayıf hedefi gündüz de izler; `Game` `playerWeakness(survival.state)` ile verir) alanları, `CreatureContext.structures?` (tüm yapılar; çevrelerinde 25 m doğma yok) ve `CreatureSystem.killedSnapshot()/restoreKilled()` (Faz 6 kaydı için öldürülen hücre bekleme listesi) eklendi. B'nin bu alanları kullanması gerekmez; `terrain` artık `RegionWorld.creatureTerrain`'den gelir (test arenasında null → canlı yok).
+
 Saldırı, hasar, kesme ve pişirme mantığı **B'de** saf mantık; **A**'ya hiçbir zaman eşya/envanter/oyuncu canı girmez.
 
 ### 3.4 Olaylar (`core/events.ts`)

@@ -73,12 +73,24 @@ export interface CreatureTerrain {
 
 /** `CreatureSystem.update` her sabit adımda dünyadan/oyuncudan bunu alır (`Game.creatureContext()` üretir). */
 export interface CreatureContext {
-  player: { x: number; y: number; z: number; activity: Activity; alive: boolean };
+  player: {
+    x: number;
+    y: number;
+    z: number;
+    activity: Activity;
+    alive: boolean;
+    /** Bakış yönü (yaw); verilirse oyuncunun görüş konisinde canlı doğmaz. */
+    yaw?: number;
+    /** Zayıflık 0–1 (1 = çok aç/susuz/yaralı): avcılar zayıf hedefi gündüz de izler. Verilmezse 0. */
+    weakness?: number;
+  };
   hour: number;
   sunAltitudeDeg: number;
   isNight: boolean;
   /** Yanan ateşlerin konumları (yırtıcılar çekinir). */
   fires: ReadonlyArray<{ x: number; z: number }>;
+  /** Tüm yapıların (ateş, sundurma) konumları: çevrelerinde canlı doğmaz. Verilmezse `fires` kullanılır. */
+  structures?: ReadonlyArray<{ x: number; z: number }>;
   /** Arazi sorguları; destekleyen dünya yoksa (test arenası) null ve canlı oluşmaz. */
   terrain: CreatureTerrain | null;
 }
