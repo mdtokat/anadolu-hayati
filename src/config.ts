@@ -129,3 +129,36 @@ export const INPUT = {
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
 } as const;
+
+/** Oyuncu hareketi ve kapsül ölçüleri (oyun metresi / saniye). */
+export const PLAYER = {
+  /** Kapsülün toplam boyu (ayaktan tepeye). */
+  height: PLAYER_HEIGHT,
+  /** Kapsül yarıçapı. */
+  radius: 0.35,
+  /** Göz yüksekliği (ayak tabanından). */
+  eyeHeight: 1.65,
+  /** Yürüme ve koşma hızları. */
+  walkSpeed: 4,
+  runSpeed: 7,
+  /** Zıplama yüksekliği; başlangıç hızı yerçekiminden türetilir. */
+  jumpHeight: 1.1,
+  /** Yerde hedef hıza ulaşma / durma ivmesi. */
+  groundAcceleration: 45,
+  /** Havada yön değiştirme ivmesi (yerdekinden düşük: momentum korunur). */
+  airAcceleration: 10,
+  /** Serbest düşüşte hız üst sınırı. */
+  maxFallSpeed: 40,
+  /** Bu eğimden (derece) dik yüzeylere tırmanılamaz; oyuncu aşağı kayar. */
+  maxSlopeDeg: 45,
+  /** Otomatik basamak: bu yüksekliğe kadar engellere adım atar. */
+  autostepHeight: 0.4,
+  /** Otomatik basamak için gereken asgari basamak genişliği. */
+  autostepMinWidth: 0.2,
+  /** İnişlerde zemine yapışma mesafesi. */
+  snapToGroundDistance: 0.3,
+  /** Kontrolcünün çarpışma payı (küçük tampon). */
+  controllerOffset: 0.02,
+  /** Bu yüksekliğin altına düşerse doğma noktasına döner. */
+  fallRespawnY: -30,
+} as const;
