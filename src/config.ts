@@ -442,4 +442,16 @@ export const SURVIVAL = {
 
   /** Tatlı su içerken susuzluk seviyesinin saniyedeki artışı. */
   drinkPerSecond: 8,
+  /** İçme oturumunun başlaması için su seviyesinin tamdan en az bu kadar düşük olması gerekir (anlamsız mikro oturumlar olmasın). */
+  drinkMinDeficit: 1,
+} as const;
+
+/** Ölüm sonrası yeniden doğma noktası seçimi. */
+export const RESPAWN = {
+  /** Rastgele tohumu; ölüm sırası (n) ile birleşir: aynı seed aynı ölümde aynı noktayı verir. */
+  seed: 90210,
+  /** Bir noktayı bulmak için en çok kaç aday denenir. */
+  attempts: 400,
+  /** Güvenli noktaya kaydırma bu kadardan (oyun m) fazlaysa aday reddedilir (il dışına taşmasın). */
+  maxDrift: 40,
 } as const;

@@ -1,3 +1,4 @@
+import type { DeathCause } from '../survival/vitals';
 import type { InputAction } from './inputMapping';
 
 /** Oyun genelindeki olayların adı → yük tipi eşlemesi. Yeni sistemler buraya olay ekler. */
@@ -11,5 +12,9 @@ export interface GameEvents {
   'input:action': { action: InputAction };
   'time:nightStarted': { day: number };
   'time:dayStarted': { day: number };
+  'player:died': { cause: DeathCause; survivedSeconds: number; day: number };
+  'player:respawned': { deaths: number };
+  /** Bir içme oturumu bitince: bu oturumda artan su seviyesi. */
+  'player:drank': { amount: number };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
 }
