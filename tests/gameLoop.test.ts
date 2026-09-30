@@ -54,3 +54,24 @@ describe('GameLoop', () => {
     }
   });
 });
+
+describe('GameLoop duraklatma', () => {
+  it('duraklatılınca mantık çalışmaz ama render sürer', () => {
+    const { loop, update, render } = makeLoop();
+    loop.setPaused(true);
+    expect(loop.advance(STEP * 5)).toBe(0);
+    expect(update).not.toHaveBeenCalled();
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it('devam edince duraklama sırasında biriken süre atılır', () => {
+    const { loop, update } = makeLoop();
+    loop.advance(STEP / 2); // yarım adım birikti
+    loop.setPaused(true);
+    loop.advance(10);
+    loop.setPaused(false);
+    expect(loop.advance(STEP / 2)).toBe(0); // eski yarım adım silindi; tek başına yetmez
+    expect(update).not.toHaveBeenCalled();
+    expect(loop.advance(STEP / 2)).toBe(1);
+  });
+});

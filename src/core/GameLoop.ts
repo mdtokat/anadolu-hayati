@@ -16,6 +16,7 @@ export class GameLoop {
   private accumulator = 0;
   private lastTimestamp: number | null = null;
   private rafId: number | null = null;
+  private isPaused = false;
 
   constructor(
     private readonly callbacks: GameLoopCallbacks,
@@ -27,11 +28,30 @@ export class GameLoop {
     return this.rafId !== null;
   }
 
+  get paused(): boolean {
+    return this.isPaused;
+  }
+
+  /**
+   * Duraklatınca mantık adımları durur, render sürer (menü arkasında sahne çizilmeye devam eder).
+   * Devam edince biriken süre atılır: duraklama süresi kadar "yetişme" adımı çalışmaz.
+   */
+  setPaused(paused: boolean): void {
+    if (this.isPaused === paused) return;
+    this.isPaused = paused;
+    this.accumulator = 0;
+  }
+
   /**
    * `frameTime` saniye kadar zamanı ilerletir; kaç sabit adım çalıştığını döndürür.
    * Ardından `render(alpha)` çağrılır.
    */
   advance(frameTime: number): number {
+    if (this.isPaused) {
+      this.callbacks.render(0);
+      return 0;
+    }
+
     this.accumulator += Math.min(Math.max(frameTime, 0), this.maxFrameTime);
 
     let steps = 0;

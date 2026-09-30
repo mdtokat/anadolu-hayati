@@ -83,6 +83,41 @@ describe('Input', () => {
     expect(handler).toHaveBeenCalledWith({ action: 'toggleCamera' });
   });
 
+  it('mantık adımından önce bırakılan kısa zıplama dokunuşu bir kez iletilir', () => {
+    const { input, key } = setup();
+    key('keydown', 'Space');
+    key('keyup', 'Space'); // sonraki adımdan önce bırakıldı
+    expect(input.intent().jump).toBe(false); // anlık durumda görünmez
+    expect(input.pollIntent().jump).toBe(true); // ama adım için iletilir
+    expect(input.pollIntent().jump).toBe(false); // ve yalnızca bir kez
+  });
+
+  it('zıplama tuşu basılı tutulurken her adımda iletilir', () => {
+    const { input, key } = setup();
+    key('keydown', 'Space');
+    expect(input.pollIntent().jump).toBe(true);
+    expect(input.pollIntent().jump).toBe(true);
+    key('keyup', 'Space');
+    expect(input.pollIntent().jump).toBe(false);
+  });
+
+  it('kilit kalkınca bekleyen zıplama iptal olur', () => {
+    const { input, key, setLock } = setup();
+    setLock(true);
+    key('keydown', 'Space');
+    setLock(false);
+    expect(input.pollIntent().jump).toBe(false);
+  });
+
+  it('tek fare olayındaki aşırı delta sınırlanır (kilit anı sıçraması)', () => {
+    const { input, move, setLock } = setup();
+    setLock(true);
+    move(5000, -5000);
+    const look = input.consumeLook();
+    expect(look.dx).toBe(250);
+    expect(look.dy).toBe(-250);
+  });
+
   it('pencere odağı kaybolunca basılı tuşları bırakır', () => {
     const { input, key, win } = setup();
     key('keydown', 'KeyD');

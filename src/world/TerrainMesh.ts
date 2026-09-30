@@ -7,7 +7,7 @@ import {
   PlaneGeometry,
 } from 'three';
 import { TERRAIN_TEST } from '../config';
-import { gridCells, sampleGrid, type GridSpec, type HeightSource } from './HeightSource';
+import { gridCells, type GridSpec } from './HeightSource';
 
 /**
  * Yükseklik ızgarasından arazi mesh'i üretir. Vertex sırası ızgarayla aynıdır
@@ -37,10 +37,9 @@ export function createTerrainGeometry(heights: Float32Array, grid: GridSpec): Bu
 }
 
 export function createTerrainMesh(
-  source: HeightSource,
+  heights: Float32Array,
   grid: GridSpec,
 ): Mesh<BufferGeometry, MeshStandardMaterial> {
-  const heights = sampleGrid(source, grid);
-  const material = new MeshStandardMaterial({ vertexColors: true, flatShading: false });
+  const material = new MeshStandardMaterial({ vertexColors: true });
   return new Mesh(createTerrainGeometry(heights, grid), material);
 }

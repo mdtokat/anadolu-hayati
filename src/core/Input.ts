@@ -1,3 +1,4 @@
+import { INPUT } from '../config';
 import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import { actionForKey, mapKeysToIntent, type MoveIntent } from './inputMapping';
@@ -31,6 +32,8 @@ export class Input {
   private readonly pressed = new Set<string>();
   private lookX = 0;
   private lookY = 0;
+  /** Zıplama tuşuna basıldı ama henüz bir mantık adımı bunu görmedi (çok kısa dokunuşlar kaybolmasın). */
+  private jumpLatched = false;
   private readonly cleanups: Array<() => void> = [];
 
   constructor(
@@ -50,9 +53,20 @@ export class Input {
     return this.doc.pointerLockElement !== null && this.doc.pointerLockElement === this.target;
   }
 
-  /** Şu an basılı tuşlardan hareket niyeti. */
+  /** Şu an basılı tuşlardan hareket niyeti (yan etkisiz). */
   intent(): MoveIntent {
     return mapKeysToIntent(this.pressed);
+  }
+
+  /**
+   * Bir mantık adımı için hareket niyetini alır. Zıplama, tuş bu adımdan önce bırakılmış olsa
+   * bile bir kez iletilir (kare arasında biten hızlı dokunuşlar kaybolmaz).
+   */
+  pollIntent(): MoveIntent {
+    const intent = this.intent();
+    if (this.jumpLatched) intent.jump = true;
+    this.jumpLatched = false;
+    return intent;
   }
 
   /** Son çağrıdan beri biriken fare hareketini (piksel) döndürür ve sıfırlar. */
@@ -87,6 +101,7 @@ export class Input {
   private onKeyDown(event: KeyLikeEvent): void {
     this.pressed.add(event.code);
     if (event.repeat) return;
+    if (this.intent().jump) this.jumpLatched = true;
     const action = actionForKey(event.code);
     // Eylemler yalnızca oyun kontrolündeyken (pointer lock) tetiklenir.
     if (action && this.pointerLocked) this.events.emit('input:action', { action });
@@ -94,8 +109,9 @@ export class Input {
 
   private onMouseMove(event: MouseLikeEvent): void {
     if (!this.pointerLocked) return;
-    this.lookX += event.movementX;
-    this.lookY += event.movementY;
+    const cap = INPUT.maxMouseDeltaPerEvent;
+    this.lookX += Math.min(Math.max(event.movementX, -cap), cap);
+    this.lookY += Math.min(Math.max(event.movementY, -cap), cap);
   }
 
   private onPointerLockChange(): void {
@@ -103,6 +119,7 @@ export class Input {
     if (!locked) {
       // Kilit kalkınca (ör. Esc) basılı tuşlar ve bekleyen bakış sıfırlanır: takılı tuş kalmasın.
       this.pressed.clear();
+      this.jumpLatched = false;
       this.lookX = 0;
       this.lookY = 0;
     }

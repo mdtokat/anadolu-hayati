@@ -28,22 +28,17 @@ export const FIXED_STEP = 1 / FIXED_UPDATE_HZ;
  */
 export const MAX_FRAME_TIME = 0.25;
 
-/** Sahne ayarları (Faz 0 test sahnesi). */
+/** Sahne ayarları (Faz 1 test ortamı). */
 export const SCENE = {
   /** Gökyüzü ve sis rengi. */
   skyColor: 0x87ceeb,
-  /** Zemin düzleminin kenar uzunluğu (oyun metresi). */
-  groundSize: 200,
-  groundColor: 0x4a7c3a,
   /** Sis: başlangıç ve bitiş mesafesi (oyun metresi). */
-  fogNear: 40,
-  fogFar: 160,
-  /** Dönen küpün kenarı (oyun metresi) ve dönüş hızı (radyan/saniye). */
-  cubeSize: 2,
-  cubeColor: 0xd9822b,
-  cubeSpinSpeed: 1,
-  /** Küpün zeminden yüksekliği (merkezi, oyun metresi). */
-  cubeHeight: 2,
+  fogNear: 60,
+  fogFar: 220,
+  /** Güneş ışığı yoğunluğu, yönü (konum, hedef orijindedir) ve ortam ışığı yoğunluğu. */
+  sunIntensity: 2.2,
+  sunPosition: [60, 100, 40],
+  ambientIntensity: 0.6,
 } as const;
 
 /** Kamera ayarları. */
@@ -52,9 +47,14 @@ export const CAMERA = {
   fov: 70,
   near: 0.1,
   far: 500,
-  /** Faz 0'da sabit bir bakış noktası; Faz 1'de oyuncu kamerası bunu değiştirir. */
-  position: [6, 4, 8],
-  lookAt: [0, 1.5, 0],
+  /** Bakışta yukarı/aşağı sınırı (derece); 90'a çok yakın değerler kamerayı ters çevirir. */
+  maxPitchDeg: 89,
+  /** Üçüncü şahıs: kameranın oyuncudan uzaklığı (oyun metresi). */
+  thirdPersonDistance: 4,
+  /** Üçüncü şahıs: kameranın baktığı nokta (ayak tabanından yükseklik, omuz hizası). */
+  thirdPersonPivotHeight: 1.5,
+  /** Üçüncü şahıs: kameranın zeminden asgari yüksekliği (yerin altına girmesin). */
+  thirdPersonGroundClearance: 0.3,
 } as const;
 
 /** Render ayarları. */
@@ -107,6 +107,8 @@ export const TERRAIN_TEST = {
   ],
   /** Rampa kenarlarındaki yumuşatma şeridi (oyun metresi). */
   rampEdgeWidth: 2,
+  /** Oyuncunun doğduğu X/Z noktası (düz alanın merkezi). */
+  spawn: { x: 0, z: 0 },
   /** Zemin renkleri: düz yerde çim, dik yerde kaya. */
   grassColor: 0x4a7c3a,
   rockColor: 0x7a746a,
@@ -128,6 +130,18 @@ export const INPUT = {
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
+  /**
+   * Tek bir fare olayında kabul edilen en büyük hareket (piksel). Bazı tarayıcılar pointer lock
+   * alındığı anda tek seferlik dev bir delta gönderir; bu sınır kamerayı sıçratmasını önler.
+   */
+  maxMouseDeltaPerEvent: 250,
+} as const;
+
+/** Oyuncu modeli (üçüncü şahıs görünümünde çizilen kapsül). */
+export const PLAYER_MODEL = {
+  bodyColor: 0x2f6fdf,
+  /** Bakış yönünü gösteren küçük "burun" bloğunun rengi. */
+  noseColor: 0xffd23f,
 } as const;
 
 /** Oyuncu hareketi ve kapsül ölçüleri (oyun metresi / saniye). */
