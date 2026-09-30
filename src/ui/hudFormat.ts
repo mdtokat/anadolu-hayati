@@ -7,6 +7,8 @@ export interface DebugInfo {
   grounded: boolean;
   cameraMode: 'firstPerson' | 'thirdPerson';
   /** Nesne katmanı sayımları (yalnızca nesne destekleyen dünyalarda). */
+  /** Yapı katmanı sayımları (kamp ateşi, sundurma). */
+  structures?: { structures: number; lit: number; lights: number } | null;
   props?: { instances: number; meshes: number; loadedChunks: number; activeChunks: number } | null;
 }
 
@@ -32,6 +34,10 @@ export function formatDebugInfo(info: DebugInfo): string {
   if (info.props) {
     const { instances, meshes, loadedChunks, activeChunks } = info.props;
     lines.push(`Nesne: ${instances} örnek, ${meshes} mesh, chunk ${loadedChunks}/${activeChunks}`);
+  }
+  if (info.structures) {
+    const { structures, lit, lights } = info.structures;
+    lines.push(`Yapı: ${structures} (${lit} yanık, ${lights} ışık)`);
   }
   return lines.join('\n');
 }

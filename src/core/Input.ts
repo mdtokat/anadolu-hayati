@@ -24,6 +24,10 @@ interface MouseLikeEvent extends Event {
   movementY: number;
 }
 
+interface ButtonLikeEvent extends Event {
+  button: number;
+}
+
 /**
  * Klavye + fare girdisi ve pointer lock. Bakış (fare) delta'ları biriktirilir ve
  * render karesinde `consumeLook()` ile alınır; hareket niyeti basılı tuşlardan okunur.
@@ -45,6 +49,7 @@ export class Input {
     this.listen(doc, 'keydown', (e) => this.onKeyDown(e as KeyLikeEvent));
     this.listen(doc, 'keyup', (e) => this.pressed.delete((e as KeyLikeEvent).code));
     this.listen(doc, 'mousemove', (e) => this.onMouseMove(e as MouseLikeEvent));
+    this.listen(doc, 'mousedown', (e) => this.onMouseDown(e as ButtonLikeEvent));
     this.listen(doc, 'pointerlockchange', () => this.onPointerLockChange());
     this.listen(doc, 'pointerlockerror', () =>
       this.events.emit('input:pointerLockFailed', undefined),
@@ -128,6 +133,12 @@ export class Input {
     const cap = INPUT.maxMouseDeltaPerEvent;
     this.lookX += Math.min(Math.max(event.movementX, -cap), cap);
     this.lookY += Math.min(Math.max(event.movementY, -cap), cap);
+  }
+
+  /** Sol tık yalnızca oyun kontrolündeyken eylemdir (kilidi alan tıklama eylem sayılmaz). */
+  private onMouseDown(event: ButtonLikeEvent): void {
+    if (event.button !== 0 || !this.pointerLocked) return;
+    this.events.emit('input:action', { action: 'confirmPlacement' });
   }
 
   private onPointerLockChange(): void {

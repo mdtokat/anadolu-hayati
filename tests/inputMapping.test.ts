@@ -60,8 +60,13 @@ describe('actionForKey', () => {
     expect(actionForKey('Tab')).toBe('toggleInventory');
     expect(actionForKey('KeyF')).toBe('eat');
   });
-  it('diğer tuşlar için null döner', () => {
+  it('C kamp ateşi, G sundurma yerleştirme eylemidir', () => {
+    expect(actionForKey('KeyC')).toBe('placeCampfire');
+    expect(actionForKey('KeyG')).toBe('placeShelter');
+  });
+  it('diğer tuşlar için null döner (E etkileşim eylem değil, basılı tutulur)', () => {
     expect(actionForKey('KeyW')).toBeNull();
+    expect(actionForKey('KeyE')).toBeNull();
   });
 });
 

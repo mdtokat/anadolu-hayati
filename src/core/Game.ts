@@ -15,6 +15,18 @@ import { collectedToast, gatherPrompt } from '../interaction/promptText';
 import { craft } from '../items/craft';
 import { eatItem, quickEat } from '../items/eatItem';
 import { Inventory } from '../items/Inventory';
+import type { StructureKind } from '../placement/structures';
+import { PlacementController } from '../placement/PlacementController';
+import {
+  aimPrompt,
+  fuelToast,
+  placeFailureText,
+  placedToast,
+  tendPrompt,
+  toggleToast,
+} from '../placement/promptText';
+import { StructureSystem } from '../placement/StructureSystem';
+import { FireTender } from '../placement/tend';
 import { ITEMS } from '../items/itemDefs';
 import { RECIPES, type RecipeId } from '../items/recipes';
 import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
@@ -35,6 +47,7 @@ import { PauseMenu } from '../ui/PauseMenu';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { RegionWorld } from '../world/RegionWorld';
+import { StructureLayer } from '../world/StructureLayer';
 import { TestScene } from '../world/TestScene';
 import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
@@ -52,6 +65,9 @@ export interface GameOptions {
 /** Konum HUD'unun güncelleme aralığı (ms). */
 const LOCATION_HUD_INTERVAL_MS = 250;
 
+/** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
+const EXTINGUISH_NOTICE_RADIUS = 40;
+
 /** Bölge kimliği (public/data/regions/<id>). */
 const REGION_ID = 'zonguldak-bartin-karabuk';
 
@@ -64,12 +80,23 @@ export class Game {
   readonly inventory = new Inventory();
   /** Bakılan nesneye `E` ile toplama (saf mantık). */
   readonly gather = new GatherSystem(this.events, this.inventory);
+  /** Yerleştirilmiş yapılar (kamp ateşi, sundurma) ve ateş yakıtı (saf mantık). */
+  readonly structureSystem = new StructureSystem(this.events);
+  /** Yakındaki ateşe `E` ile yakıt atma (saf mantık). */
+  readonly fireTender = new FireTender(
+    this.events,
+    this.inventory,
+    this.structureSystem.structures,
+  );
+  /** Yapı yerleştirme: hayalet ve onay (saf mantık). */
+  readonly placement: PlacementController;
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
   private readonly player: Player;
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
+  private readonly structureLayer: StructureLayer;
   private readonly input: Input;
   private readonly loop: GameLoop;
   private readonly fps: FpsCounter | null;
@@ -100,6 +127,20 @@ export class Game {
     this.player = new Player(this.physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
     this.playerCamera = new PlayerCamera(this.events, world.terrain);
     this.world.scene.add(this.playerModel.object);
+    this.structureLayer = new StructureLayer(this.structureSystem.structures);
+    this.world.scene.add(this.structureLayer.group);
+    this.placement = new PlacementController({
+      events: this.events,
+      inventory: this.inventory,
+      structures: this.structureSystem.structures,
+      world: {
+        heightAt: (x, z) => world.terrain.heightAt(x, z),
+        nearFreshWater: world.freshWaterNear
+          ? (x, z) => world.freshWaterNear?.(x, z) != null
+          : undefined,
+      },
+      isAlive: () => this.survival.alive,
+    });
 
     this.input = new Input(this.renderer.domElement, document, this.events, window);
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
@@ -128,15 +169,22 @@ export class Game {
     this.offs.push(
       this.events.on('input:pointerLockChanged', ({ locked }) => this.setPaused(!locked)),
       // Envanter açıkken göstergeler görünür kalır (yemek yerken izlenir).
-      this.events.on('game:paused', () => this.hud.setVisible(this.inventoryOpen)),
+      this.events.on('game:paused', () => {
+        this.hud.setVisible(this.inventoryOpen);
+        this.placement.cancel();
+      }),
       this.events.on('game:resumed', () => this.hud.setVisible(true)),
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
         if (action === 'toggleBorders') this.world.toggleBorders?.();
+        if (action === 'placeCampfire') this.togglePlacement('campfire');
+        if (action === 'placeShelter') this.togglePlacement('lean_to');
+        if (action === 'confirmPlacement') this.confirmPlacement();
         if (action === 'toggleInventory') this.openInventory();
         if (action === 'eat') this.quickEatFood();
       }),
       this.events.on('player:died', (death) => {
+        this.placement.cancel();
         this.hud.setPrompt(null);
         this.deathScreen.show(death);
         this.input.exitLock(); // fareyle "Yeniden Doğ"a tıklanabilsin
@@ -145,6 +193,13 @@ export class Game {
         if (removed) this.world.setPropDepleted?.(propId, true);
         this.hud.notify(collectedToast(item, count), INTERACT.toastMs);
       }),
+      this.events.on('structure:placed', ({ kind }) =>
+        this.hud.notify(placedToast(kind), INTERACT.toastMs),
+      ),
+      this.events.on('structure:refueled', ({ seconds }) =>
+        this.hud.notify(fuelToast(seconds), INTERACT.toastMs),
+      ),
+      this.events.on('structure:extinguished', ({ id }) => this.notifyExtinguished(id)),
       this.events.on('item:crafted', ({ item, count }) => {
         this.hud.notify(
           `Üretildi: ${ITEMS[item].name}${count > 1 ? ` ×${count}` : ''}`,
@@ -183,6 +238,13 @@ export class Game {
     if (event.code === 'BracketLeft') this.survival.clock.skipHours(-1);
     if (event.code === 'BracketRight') this.survival.clock.skipHours(1);
     if (event.code === 'KeyK') this.survival.setVitals({ health: 0, hydration: 0 });
+    // P: yerleştirme/yakıt denemek için malzeme ver (ateş, sundurma, dal, kütük).
+    if (event.code === 'KeyP') {
+      this.inventory.add('campfire', 1);
+      this.inventory.add('lean_to', 1);
+      this.inventory.add('stick', 10);
+      this.inventory.add('log', 2);
+    }
     const slot = teleportSlotForKey(event.code);
     const target = slot === null ? undefined : TELEPORTS[slot];
     if (!target) return;
@@ -222,6 +284,7 @@ export class Game {
     this.input.dispose();
     this.playerModel.dispose();
     this.player.dispose();
+    this.structureLayer.dispose();
     this.world.dispose();
     this.physics.dispose();
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
@@ -252,6 +315,8 @@ export class Game {
     this.physics.step();
 
     const feet = this.player.position;
+    this.placement.update({ x: feet.x, z: feet.z, yaw: this.playerCamera.yaw });
+    this.structureSystem.update(step);
     // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
     const held = this.input.interactHeld;
     const nearby = this.world.propsNear?.(feet.x, feet.z, INTERACT.reach) ?? [];
@@ -269,12 +334,16 @@ export class Game {
     this.gather.update(step, held, focus?.prop ?? null);
     const gathering = this.gather.offer?.status === 'ready';
 
+    // Ateşe yakıt: toplanabilir nesne yoksa ve ateşin yakınındaysa E yakıt atar (su içmeden önceliklidir).
+    this.fireTender.update(step, held && !gathering, feet);
+    const tending = this.fireTender.offer?.status === 'ready';
+
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
-      drinking: water !== null && held && !gathering,
+      drinking: water !== null && held && !gathering && !tending,
     });
   }
 
@@ -356,6 +425,8 @@ export class Game {
     this.world.setSun?.(this.survival.clock.sun);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
+    this.structureLayer.update(now / 1000, feet.x, feet.z);
+    this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
@@ -370,6 +441,7 @@ export class Game {
           grounded: this.player.grounded,
           cameraMode: this.playerCamera.mode,
           props: this.world.propStats,
+          structures: this.structureLayer.stats,
         }),
       );
     }
@@ -406,15 +478,55 @@ export class Game {
       this.hud.setProgress(null);
       return;
     }
-    const offer = this.survival.alive && !this.inventoryOpen ? this.gather.offer : null;
+    const alive = this.survival.alive;
+    const ghost = alive ? this.placement.ghost : null;
+    if (ghost) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(aimPrompt(ghost));
+      return;
+    }
+    const offer = alive ? this.gather.offer : null;
     if (offer?.status === 'ready') {
       this.hud.setPrompt(gatherPrompt(offer));
       this.hud.setProgress(this.gather.progress > 0 ? this.gather.progress : null);
       return;
     }
+    const tend = alive ? this.fireTender.offer : null;
+    if (tend?.status === 'ready') {
+      this.hud.setPrompt(tendPrompt(tend));
+      this.hud.setProgress(this.fireTender.progress > 0 ? this.fireTender.progress : null);
+      return;
+    }
     this.hud.setProgress(null);
     const drink = this.drinkPrompt();
-    this.hud.setPrompt(drink ?? (offer ? gatherPrompt(offer) : null));
+    this.hud.setPrompt(
+      drink ?? (offer ? gatherPrompt(offer) : null) ?? (tend ? tendPrompt(tend) : null),
+    );
+  }
+
+  /** F/G: yerleştirme hayaletini aç/kapa; eşya yoksa kısa bildirim. */
+  private togglePlacement(kind: StructureKind): void {
+    const text = toggleToast(this.placement.toggle(kind), kind);
+    if (text) this.hud.notify(text, INTERACT.toastMs);
+  }
+
+  /** Sol tık: hayaleti yapıya çevir; engel varsa nedenini söyle. */
+  private confirmPlacement(): void {
+    if (!this.placement.aiming) return;
+    const result = this.placement.confirm();
+    if (result.ok) return;
+    const text = placeFailureText(result.reason);
+    if (text) this.hud.notify(text, INTERACT.toastMs);
+  }
+
+  /** Yakındaki (40 m) bir ateş söndüyse bildirir; uzaktakiler sessiz söner. */
+  private notifyExtinguished(id: number): void {
+    const fire = this.structureSystem.structures.get(id);
+    if (!fire) return;
+    const feet = this.player.position;
+    if (Math.hypot(fire.x - feet.x, fire.z - feet.z) <= EXTINGUISH_NOTICE_RADIUS) {
+      this.hud.notify('Ateş söndü', INTERACT.toastMs);
+    }
   }
 
   /** Su kaynağı erişimdeyken ipucu: içiyorsa "İçiyorsun…", değilse "E: Su iç". */

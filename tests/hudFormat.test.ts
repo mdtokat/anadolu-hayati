@@ -30,6 +30,12 @@ describe('formatDebugInfo', () => {
     expect(formatDebugInfo({ ...info, props: null })).not.toContain('Nesne');
   });
 
+  it('yapı katmanı varsa sayımlarını ekler', () => {
+    const text = formatDebugInfo({ ...info, structures: { structures: 3, lit: 2, lights: 2 } });
+    expect(text.split('\n').at(-1)).toBe('Yapı: 3 (2 yanık, 2 ışık)');
+    expect(formatDebugInfo({ ...info, structures: null })).not.toContain('Yapı');
+  });
+
   it('sıfıra yakın değerleri -0.0 olarak yazmaz', () => {
     const text = formatDebugInfo({ ...info, position: { x: -0.001, y: 0.02, z: -0.04 } });
     expect(text).toContain('Konum: 0.0, 0.0, 0.0');

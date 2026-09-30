@@ -1,7 +1,15 @@
 import { INPUT } from '../config';
 
 /** Tek seferlik (basıldığı anda tetiklenen) eylemler. */
-export type InputAction = 'toggleCamera' | 'toggleBorders' | 'toggleInventory' | 'eat';
+export type InputAction =
+  | 'toggleCamera'
+  | 'toggleBorders'
+  | 'toggleInventory'
+  | 'eat'
+  | 'placeCampfire'
+  | 'placeShelter'
+  /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirmeyi onayla. */
+  | 'confirmPlacement';
 
 /** Tuş durumundan türetilen hareket niyeti. */
 export interface MoveIntent {
@@ -35,6 +43,8 @@ export function actionForKey(code: string): InputAction | null {
   if ((bindings.toggleBorders as readonly string[]).includes(code)) return 'toggleBorders';
   if ((bindings.toggleInventory as readonly string[]).includes(code)) return 'toggleInventory';
   if ((bindings.eat as readonly string[]).includes(code)) return 'eat';
+  if ((bindings.placeCampfire as readonly string[]).includes(code)) return 'placeCampfire';
+  if ((bindings.placeShelter as readonly string[]).includes(code)) return 'placeShelter';
   return null;
 }
 

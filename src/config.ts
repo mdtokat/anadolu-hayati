@@ -123,12 +123,15 @@ export const INPUT = {
     toggleCamera: ['KeyV'],
     /** İl sınırı çizgilerini aç/kapa. */
     toggleBorders: ['KeyB'],
-    /** Etkileşim (basılı tutulur): tatlı su kaynağından su içme, nesne toplama. */
+    /** Etkileşim (basılı tutulur): toplama, ateşe yakıt atma, tatlı su içme. */
     interact: ['KeyE'],
     /** Envanter ve üretim panelini aç/kapa. */
     toggleInventory: ['KeyI', 'Tab'],
     /** Hızlı yemek: tokluğu en çok artıran yiyeceği ye. */
     eat: ['KeyF'],
+    /** Yerleştirme hayaleti: kamp ateşi / sundurma (aynı tuş iptal eder); sol tık yerleştirir. */
+    placeCampfire: ['KeyC'],
+    placeShelter: ['KeyG'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -778,4 +781,72 @@ export const INTERACT = {
   maxTargetHeight: 1.6,
   /** Toplanınca ekranda gösterilen bildirimin süresi (ms). */
   toastMs: 2000,
+} as const;
+
+/** Yapı yerleştirme (Faz 4.8): hayalet konumu ve geçerlilik kuralları. */
+export const PLACEMENT = {
+  /** Hayalet, oyuncunun bakış yönünde bu yatay uzaklığa (oyun m) konur. */
+  aimDistance: 2.5,
+  /** Oyuncu ile hedef arasındaki en büyük yatay uzaklık (oyun m). */
+  maxReach: 4,
+  /** Eğim, hedef çevresinde bu adımla (oyun m) örneklenen yüksekliklerden hesaplanır. */
+  slopeSampleStep: 0.75,
+  /** Yapı türüne göre: en dik yamaç (derece, oyun uzayı), kaplama yarıçapı (oyun m). */
+  kinds: {
+    campfire: { maxSlopeDeg: 45, radius: 0.9 },
+    lean_to: { maxSlopeDeg: 40, radius: 2 },
+  },
+  /** İki yapının merkezleri arasındaki en az uzaklık: yarıçapların toplamı + bu pay (oyun m). */
+  spacingMargin: 0.3,
+} as const;
+
+/** Kamp ateşi yakıtı (Faz 4.8). Süreler gerçek saniyedir (24 gerçek dk = 1 oyun günü). */
+export const FIRE = {
+  /** Yeni kurulan ateşin yanma süresi (sn): ≈ 10 oyun saati. */
+  burnSeconds: 600,
+  /** Yakıt deposunun üst sınırı (sn); fazlası boşa gider. */
+  maxFuelSeconds: 1200,
+  /** Ateşe atılan eşyanın eklediği yanma süresi (sn). */
+  fuel: { stick: 90, log: 300 },
+  /** Ateşe yakıt atmak için en fazla yatay uzaklık (oyun m). */
+  refuelReach: 3,
+  /** Ateşe bir yakıt atmak için `E`'nin basılı tutulacağı süre (sn). */
+  refuelSeconds: 0.8,
+} as const;
+
+/** Yapıların (kamp ateşi, sundurma) görünümü ve ateş ışığı (Faz 4.8). Geometri `world/structureGeometry.ts`'tedir. */
+export const STRUCTURE_LOOK = {
+  colors: {
+    stone: 0x7b7870,
+    ash: 0x2a2725,
+    /** Zemine gömülen etek: yamaçta görünen kısım toprak tonunda olsun (siyah kutu gibi durmasın). */
+    skirt: 0x54493d,
+    log: 0x5a3e27,
+    pole: 0x6b4b2d,
+    roof: 0x4c5a2b,
+    leaves: 0x6f5d2c,
+    flameOuter: 0xff6a1a,
+    flameInner: 0xffb830,
+    flameCore: 0xfff0a0,
+  },
+  /** Yüz başına ton oynaması (düz gölgeli görünüm için). */
+  faceShade: 0.06,
+  /**
+   * Ateş ışığı: en yakın `lightPool` yanık ateşe bir `PointLight` atanır (ışık sayısı sabit: sayı değişince
+   * shader yeniden derlenir). `intensity` candela (fiziksel ışık; decay 2), `distance` sönme yarıçapı (oyun m).
+   */
+  fire: {
+    lightColor: 0xff9a4a,
+    lightPool: 3,
+    intensity: 30,
+    distance: 20,
+    height: 0.9,
+    /** Titreme: yoğunluk ±flicker oranında, flickerSpeed hızında oynar. */
+    flicker: 0.18,
+    flickerSpeed: 9,
+    /** Bu uzaklıktan (oyun m) uzaktaki ateşlere ışık atanmaz. */
+    lightRange: 60,
+  },
+  /** Yerleştirme hayaleti: geçerli/geçersiz renk ve saydamlık. */
+  ghost: { validColor: 0x3ddc84, invalidColor: 0xe5484d, opacity: 0.45 },
 } as const;
