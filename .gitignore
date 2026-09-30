@@ -1,0 +1,31 @@
+# Node
+node_modules/
+dist/
+*.log
+.vite/
+coverage/
+
+# Ortam / editör
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Veri hattı: ham veri ASLA commit edilmez (tools/raw/.gitkeep hariç)
+tools/raw/*
+!tools/raw/.gitkeep
+
+# Python ortamları ve önbellekleri
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/

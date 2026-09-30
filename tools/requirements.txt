@@ -1,0 +1,6 @@
+# Veri hattı bağımlılıkları (Faz 2'de kullanılır)
+rasterio
+geopandas
+numpy
+pyproj
+shapely
