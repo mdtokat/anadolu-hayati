@@ -27,7 +27,7 @@ Görevler:
 Kabul kriterleri:
 - [x] `npm run dev` ile sahne açılıyor
 - [x] Tüm kontrol komutları hatasız geçiyor
-- [ ] GitHub Pages linkinde sahne görünüyor
+- [x] GitHub Pages linkinde sahne görünüyor
 
 ---
 
@@ -36,18 +36,18 @@ Kabul kriterleri:
 **Amaç:** Düz bir dünyada iyi hissettiren karakter kontrolü.
 
 Görevler:
-- [ ] Rapier fizik entegrasyonu (`physics/` sarmalayıcısı, WASM başlatma)
-- [ ] Input sistemi (klavye + fare, pointer lock)
-- [ ] Karakter kontrolcüsü: yürüme (WASD), koşma (Shift), zıplama (Space), eğim limiti
-- [ ] Birinci şahıs kamera; `V` ile üçüncü şahıs geçişi
-- [ ] Test ortamı: engebeli prosedürel zemin + birkaç engel
-- [ ] Basit HUD iskeleti (HTML overlay)
-- [ ] Duraklatma menüsü (Esc)
+- [x] Rapier fizik entegrasyonu (`physics/` sarmalayıcısı, WASM başlatma)
+- [x] Input sistemi (klavye + fare, pointer lock)
+- [x] Karakter kontrolcüsü: yürüme (WASD), koşma (Shift), zıplama (Space), eğim limiti
+- [x] Birinci şahıs kamera; `V` ile üçüncü şahıs geçişi
+- [x] Test ortamı: engebeli prosedürel zemin + birkaç engel
+- [x] Basit HUD iskeleti (HTML overlay)
+- [x] Duraklatma menüsü (Esc)
 
 Kabul kriterleri:
-- [ ] Karakter eğimlerde doğal hareket ediyor, dik yamaçlara tırmanamıyor
-- [ ] 60 FPS korunuyor
-- [ ] Input ve karakter hız hesapları için birim testler var
+- [ ] Karakter eğimlerde doğal hareket ediyor, dik yamaçlara tırmanamıyor _(otomatik testler geçiyor: 40°'ye kadar tırmanır, 50°+ engel; "doğal his" masaüstünde elle onaylanacak)_
+- [ ] 60 FPS korunuyor _(gerçek GPU'lu masaüstünde elle ölçülecek)_
+- [x] Input ve karakter hız hesapları için birim testler var
 
 ---
 

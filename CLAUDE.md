@@ -14,12 +14,16 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 > Her faz bitiminde bu bölüm güncellenmelidir.
 
-- **Aktif faz:** Faz 0 — Kurulum (kod tamam; yalnızca GitHub Pages yayın doğrulaması bekliyor)
-- **Tamamlanan fazlar:** —
+- **Aktif faz:** Faz 1 — Oynanabilir Prototip (kod ve birim testler tamam; iki kabul kriteri elle doğrulama bekliyor: 60 FPS ve eğimlerde "doğal his", gerçek GPU'lu masaüstünde)
+- **Tamamlanan fazlar:** Faz 0 — Kurulum (PR #1 ile main'e birleşti; Pages yayını doğrulandı: https://mdtokat.github.io/anadolu-hayati/)
 - **Bilinen sorunlar / notlar:**
-  - Faz 0'ın son kabul kriteri ("GitHub Pages linkinde sahne görünüyor") PR main'e birleşip `pages.yml` çalıştıktan sonra doğrulanacak. Bunun için depoda **Settings → Pages → Source: GitHub Actions** seçili olmalı.
   - TypeScript **6.0.3'e sabit**: `typescript-eslint` 8.71 `typescript <6.1.0` istiyor; 7.x'e geçiş `typescript-eslint` uyumu gelene kadar ertelendi.
   - Prettier yalnızca kod/config dosyalarını biçimlendirir; `*.md` belgeleri elle yazılır (`.prettierignore`).
+  - Rapier WASM'ı base64 gömülü olduğu için `rapier` chunk'ı ~4,3 MB ham / ~1,7 MB gzip. Yükleme bütçesini (< 10 sn) izle; gerekirse WASM'ı ayrı dosya olarak sunmayı değerlendir.
+  - Karakter: Rapier yamaçta yatay mesafeyi cos²θ kısaltıyor; `Player` çarpışma sonrası hızı yalnızca havadayken veya tırmanılamaz yüzeye çarpınca geri yazar (aksi halde oyuncu yamaca "yapışıyordu"). Bu davranışı değiştirirken `tests/player.test.ts` yamaç testlerine bak.
+  - Esc tarayıcıda pointer lock'u kendisi bırakır; duraklatma `pointerlockchange` olayına bağlı. Chrome, Esc'ten hemen sonra kilidi geri vermeyebilir (menüde ipucu gösterilir).
+  - Dev modunda `window.__game` hata ayıklama kancası vardır (üretimde yok); headless doğrulamada kullanıldı.
+  - Faz 1 arazisi prosedürel test arazisidir (`ProceduralHeightSource`); Faz 2'de gerçek yükseklik verisi aynı `HeightSource` arayüzüne takılacak.
   - `vite preview` de üretim `base` değerini (`/anadolu-hayati/`) kullanır; yerelde önizleme adresi `http://localhost:4173/anadolu-hayati/`.
 
 ## Teknoloji Yığını

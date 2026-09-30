@@ -1,40 +1,87 @@
-import { PerspectiveCamera, WebGLRenderer } from 'three';
-import { CAMERA, RENDER } from '../config';
+import { WebGLRenderer } from 'three';
+import { RENDER, TERRAIN_TEST } from '../config';
+import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
+import { Player } from '../player/Player';
+import { PlayerCamera } from '../player/PlayerCamera';
+import { PlayerModel } from '../player/PlayerModel';
 import { FpsCounter } from '../ui/FpsCounter';
+import { Hud } from '../ui/Hud';
+import { formatDebugInfo } from '../ui/hudFormat';
+import { PauseMenu } from '../ui/PauseMenu';
+import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { TestScene } from '../world/TestScene';
 import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import { GameLoop } from './GameLoop';
+import { Input } from './Input';
 
-/** Oyunun kök nesnesi: renderer, sahne ve sabit adımlı döngüyü bir araya getirir. */
+/** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
   readonly events = new EventBus<GameEvents>();
 
   private readonly renderer: WebGLRenderer;
-  private readonly camera: PerspectiveCamera;
-  private readonly world = new TestScene();
+  private readonly physics: PhysicsWorld;
+  private readonly terrain = new ProceduralHeightSource();
+  private readonly world: TestScene;
+  private readonly player: Player;
+  private readonly playerCamera: PlayerCamera;
+  private readonly playerModel = new PlayerModel();
+  private readonly input: Input;
   private readonly loop: GameLoop;
   private readonly fps: FpsCounter | null;
+  private readonly hud: Hud;
+  private readonly pauseMenu: PauseMenu;
+  private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
 
-  constructor(private readonly container: HTMLElement) {
+  private constructor(private readonly container: HTMLElement) {
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
     container.appendChild(this.renderer.domElement);
 
-    this.camera = new PerspectiveCamera(CAMERA.fov, 1, CAMERA.near, CAMERA.far);
-    this.camera.position.set(...CAMERA.position);
-    this.camera.lookAt(...CAMERA.lookAt);
+    this.physics = new PhysicsWorld();
+    this.world = new TestScene(this.physics, this.terrain);
 
+    const { x, z } = TERRAIN_TEST.spawn;
+    this.player = new Player(this.physics, { x, y: this.terrain.heightAt(x, z) + 0.05, z });
+    this.playerCamera = new PlayerCamera(this.events, this.terrain);
+    this.world.scene.add(this.playerModel.object);
+
+    this.input = new Input(this.renderer.domElement, document, this.events, window);
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
+    this.hud = new Hud(container, import.meta.env.DEV);
+    this.pauseMenu = new PauseMenu(container, this.events, () => this.input.requestLock());
 
+    // Başlangıçta duraklatılmış: ilk tıklamayla pointer lock alınınca oyun başlar.
     this.loop = new GameLoop({
       update: (step) => this.update(step),
       render: (alpha) => this.render(alpha),
     });
+    this.loop.setPaused(true);
 
+    this.offs.push(
+      this.events.on('input:pointerLockChanged', ({ locked }) => this.setPaused(!locked)),
+      this.events.on('game:paused', () => this.hud.setVisible(false)),
+      this.events.on('game:resumed', () => this.hud.setVisible(true)),
+      this.events.on('input:action', ({ action }) => {
+        if (action === 'toggleCamera') this.playerCamera.toggleMode();
+      }),
+      this.events.on('camera:modeChanged', ({ mode }) =>
+        this.playerModel.setVisible(mode === 'thirdPerson'),
+      ),
+    );
     window.addEventListener('resize', this.onResize);
     this.resize();
+  }
+
+  /** WASM fizik motorunu yükleyip oyunu kurar. */
+  static async create(container: HTMLElement): Promise<Game> {
+    await initPhysics();
+    return new Game(container);
+  }
+
+  get paused(): boolean {
+    return this.loop.paused;
   }
 
   start(): void {
@@ -45,7 +92,14 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     window.removeEventListener('resize', this.onResize);
+    for (const off of this.offs) off();
+    this.input.dispose();
+    this.playerModel.dispose();
+    this.player.dispose();
     this.world.dispose();
+    this.physics.dispose();
+    this.pauseMenu.dispose();
+    this.hud.dispose();
     this.fps?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -53,22 +107,46 @@ export class Game {
     this.events.clear();
   }
 
+  /** Duraklatır/sürdürür (pointer lock kaybı = duraklat). */
+  private setPaused(paused: boolean): void {
+    if (this.loop.paused === paused) return;
+    this.loop.setPaused(paused);
+    this.events.emit(paused ? 'game:paused' : 'game:resumed', undefined);
+  }
+
   private update(step: number): void {
-    // Sabit adım: fizik ve oyun mantığı burada ilerler.
-    this.world.update(step);
+    // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
+    this.player.update(step, this.input.pollIntent(), this.playerCamera.yaw);
+    this.physics.step();
   }
 
   private render(alpha: number): void {
-    this.world.syncVisuals(alpha);
-    this.renderer.render(this.world.scene, this.camera);
+    // Bakış her render karesinde uygulanır: fare hareketi 60 Hz'e kısıtlanmaz.
+    const look = this.input.consumeLook();
+    this.playerCamera.applyMouse(look.dx, look.dy);
+
+    const feet = this.player.renderPosition(alpha);
+    this.playerCamera.update(feet);
+    this.playerModel.update(feet, this.playerCamera.yaw);
+
+    this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
+    if (import.meta.env.DEV) {
+      this.hud.setDebugText(
+        formatDebugInfo({
+          position: this.player.position,
+          velocity: this.player.currentVelocity,
+          grounded: this.player.grounded,
+          cameraMode: this.playerCamera.mode,
+        }),
+      );
+    }
   }
 
   private resize(): void {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     this.renderer.setSize(width, height);
-    this.camera.aspect = width / Math.max(height, 1);
-    this.camera.updateProjectionMatrix();
+    this.playerCamera.resize(width, height);
   }
 }
