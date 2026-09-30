@@ -940,7 +940,7 @@ export const COMBAT = {
   maxDefense: 0.6,
 } as const;
 
-/** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir (5.8). */
+/** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir. */
 export const LOOT = {
   /** Elle kesme süresi (sn, `E` basılı tutulur). */
   butcherSeconds: 6,
