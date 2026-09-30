@@ -55,7 +55,8 @@ beforeAll(async () => {
 const TREE_KINDS: PropKind[] = ['tree_broadleaf', 'tree_conifer', 'chestnut'];
 const WOODY_KINDS: PropKind[] = [...TREE_KINDS, 'bush', 'berry_bush', 'hazel', 'mushroom'];
 
-describe('scatterChunk (gerçek bölge)', () => {
+// Tüm bölgeyi (130 chunk, ~94 bin nesne) tarayan testler yavaş CI çalıştırıcılarında 5 sn'yi aşabilir.
+describe('scatterChunk (gerçek bölge)', { timeout: 60_000 }, () => {
   it("tüm chunk'lar hesaplanır ve bölgede nesne vardır", () => {
     expect(all).toHaveLength(grid.cols * grid.rows);
     const total = all.reduce((sum, p) => sum + p.count, 0);
