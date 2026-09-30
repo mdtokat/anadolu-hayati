@@ -1,10 +1,18 @@
 import { INVENTORY } from '../config';
-import { ITEMS, type ItemId } from './itemDefs';
+import { ITEMS, isItemId, type ItemId } from './itemDefs';
 
 export interface ItemStack {
   id: ItemId;
   count: number;
 }
+
+/** Kayıt formatı (sürümlü): Faz 6 kayıt sistemine hazırlık. */
+export interface InventorySave {
+  version: 1;
+  slots: Array<ItemStack | null>;
+}
+
+export const INVENTORY_SAVE_VERSION = 1;
 
 export interface InventoryOptions {
   slots?: number;
@@ -176,6 +184,54 @@ export class Inventory {
     if (!this.canAfford(costs)) return false;
     for (const [id, n] of Inventory.totals(costs)) this.remove(id, n);
     return true;
+  }
+
+  toJSON(): InventorySave {
+    return {
+      version: INVENTORY_SAVE_VERSION,
+      slots: this.stacks.map((stack) => (stack ? { id: stack.id, count: stack.count } : null)),
+    };
+  }
+
+  /** Kayıttan kurar; bozuk veride (sürüm, kimlik, adet, slot sayısı, ağırlık) `Error` fırlatır. */
+  static fromJSON(data: unknown, options: InventoryOptions = {}): Inventory {
+    if (typeof data !== 'object' || data === null) throw new Error('Envanter kaydı nesne değil');
+    const save = data as { version?: unknown; slots?: unknown };
+    if (save.version !== INVENTORY_SAVE_VERSION) {
+      throw new Error(`Desteklenmeyen envanter kayıt sürümü: ${String(save.version)}`);
+    }
+    if (!Array.isArray(save.slots)) throw new Error('Envanter kaydında slots dizisi yok');
+
+    const inventory = new Inventory({ ...options, slots: options.slots ?? save.slots.length });
+    if (save.slots.length !== inventory.slotCount) {
+      throw new Error(
+        `Slot sayısı uyuşmuyor: kayıtta ${save.slots.length}, envanterde ${inventory.slotCount}`,
+      );
+    }
+    save.slots.forEach((raw: unknown, index) => {
+      if (raw === null) return;
+      const entry = raw as { id?: unknown; count?: unknown } | undefined;
+      if (typeof entry !== 'object' || entry === null || !isItemId(entry.id)) {
+        throw new Error(`Slot ${index}: bilinmeyen veya eksik eşya kimliği`);
+      }
+      const { id, count } = entry;
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 1) {
+        throw new Error(`Slot ${index}: geçersiz adet (${String(count)})`);
+      }
+      if (count > ITEMS[id].stackMax) {
+        throw new Error(
+          `Slot ${index}: adet yığın sınırını aşıyor (${count} > ${ITEMS[id].stackMax})`,
+        );
+      }
+      inventory.stacks[index] = { id, count };
+      inventory.weightG += count * ITEMS[id].weightG;
+    });
+    if (inventory.weightG > inventory.maxWeightG) {
+      throw new Error(
+        `Kayıtlı ağırlık sınırı aşıyor (${inventory.weightG} g > ${inventory.maxWeightG} g)`,
+      );
+    }
+    return inventory;
   }
 
   private static totals(costs: ReadonlyArray<ItemStack>): Map<ItemId, number> {
