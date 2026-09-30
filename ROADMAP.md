@@ -126,19 +126,30 @@ Kabul kriterleri:
 ---
 
 ## Faz 5 — Canlılar
-**Branch:** `faz-5-canlilar`
+**Branch:** `faz-5-canlilar` _(alt görevler ayrı branch/PR'larla `main`'e girer; iki hesapta paralel yürütülür: bkz. [docs/faz-5-paralel-plan.md](docs/faz-5-paralel-plan.md))_
+**Amaç:** Dünyayı yaşayan, tehlikeli ve beslenilebilir yap: hayvanlar, av, pişirme, hasar.
 
-Görevler:
-- [ ] Bölgeye özgü hayvanlar: boz ayı, kurt, yaban domuzu, karaca
-- [ ] Basit durum makinesi yapay zekâsı (dolaşma, kaçma, saldırma)
-- [ ] Biyoma ve gece/gündüze göre doğma kuralları
-- [ ] Avlanma ve et pişirme
-- [ ] Hasar ve savunma
+Görevler (numaralar alt görev sırasıdır; **Hesap A = Beyin**, **Hesap B = Beden ve oyuncu**):
+- [ ] **5.0** İskele: sözleşme tipleri (`creatures/kinds.ts`), olaylar, config blokları, yeni eşya kimlikleri, boş `CreatureSystem`/`CombatSystem` ve `Game` bağlantıları, yer tutucu çizim
+- [ ] **5.1** _(A)_ Bölgeye özgü hayvanlar: tür tablosu (boz ayı, kurt, yaban domuzu, karaca), kimlikler, `CREATURES` config
+- [ ] **5.2** _(A)_ Basit durum makinesi yapay zekâsı (dolaşma, otlama, fark etme, kaçma, sinsi yaklaşma, kovalama, saldırma); algı (görüş, duyma, ateş)
+- [ ] **5.3** _(A)_ Biyoma (arazi örtüsü + rakım + eğim) ve gece/gündüze göre doğma kuralları, deterministik yerleşim, akış
+- [ ] **5.4** _(A)_ `CreatureSystem`: araziye oturmuş hareket, takılma çözümü, AI LOD, hasar alma ve leş
+- [ ] **5.5** _(A)_ Ölçüm ve ayar: araziye takılmama simülasyonu, CPU bütçesi, doğma yoğunluğu
+- [ ] **5.6** _(B)_ Hasar ve savunma: `applyDamage`, ölüm nedeni "hayvan saldırısı", savunma, dokunulmazlık süresi
+- [ ] **5.7** _(B)_ Oyuncu saldırısı: silahlar (yumruk, taş balta, taş mızrak), isabet testi, bekleme/enerji, sol tık
+- [ ] **5.8** _(B)_ Eşya/tarif/yük: çiğ ve pişmiş et, deri, kemik, taş mızrak, deri yelek; yük tablosu
+- [ ] **5.9** _(B)_ Avlanma ve et pişirme: leş kesme (`E` basılı), ateşte pişirme, `E` öncelik sırası
+- [ ] **5.10** _(B)_ Canlı görseli: `CreatureLayer` (parçalı instanced model, yürüme/saldırı/ölü animasyonu), dev demosu
+- [ ] **5.11** _(B)_ Arayüz: hasar tepkisi, vuruş işareti, ipuçları, ölüm ekranı, kontroller
+- [ ] **5.12** Birleştirme: gerçek canlılarla av zinciri, denge, birleşik performans ölçümü (Faz 4 sonrası taban ölçüm dahil)
+- [ ] **5.13** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
 
 Kabul kriterleri:
-- [ ] Hayvanlar araziye takılmadan hareket ediyor
-- [ ] Görüş mesafesindeki hayvan sayısı performansı düşürmüyor
-- [ ] Yapay zekâ durum geçişleri için birim testler var
+- [ ] Hayvanlar araziye takılmadan hareket ediyor _(5.5: gerçek bölgede simülasyon testi)_
+- [ ] Görüş mesafesindeki hayvan sayısı performansı düşürmüyor _(5.12: taban + ≤ 20 draw call, ≤ 60 bin üçgen; gerçek FPS elle GPU'lu masaüstünde)_
+- [ ] Yapay zekâ durum geçişleri için birim testler var _(5.2)_
+- [ ] Oyuncu hayvan avlayıp eti pişirip yiyebiliyor ve hayvan saldırısıyla ölebiliyor _(5.12; oyunda elle doğrulanır)_
 
 ---
 
