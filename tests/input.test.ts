@@ -125,6 +125,14 @@ describe('Input', () => {
     expect(input.intent().strafe).toBe(0);
   });
 
+  it('pointerlockerror olayını yayınlar', () => {
+    const { events, doc } = setup();
+    const handler = vi.fn();
+    events.on('input:pointerLockFailed', handler);
+    doc.dispatchEvent(new Event('pointerlockerror'));
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it('requestLock hedefin requestPointerLock metodunu çağırır ve hatayı yutar', () => {
     const { input, target } = setup();
     input.requestLock();

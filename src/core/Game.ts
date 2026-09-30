@@ -5,6 +5,9 @@ import { Player } from '../player/Player';
 import { PlayerCamera } from '../player/PlayerCamera';
 import { PlayerModel } from '../player/PlayerModel';
 import { FpsCounter } from '../ui/FpsCounter';
+import { Hud } from '../ui/Hud';
+import { formatDebugInfo } from '../ui/hudFormat';
+import { PauseMenu } from '../ui/PauseMenu';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { TestScene } from '../world/TestScene';
 import { EventBus } from './EventBus';
@@ -26,6 +29,8 @@ export class Game {
   private readonly input: Input;
   private readonly loop: GameLoop;
   private readonly fps: FpsCounter | null;
+  private readonly hud: Hud;
+  private readonly pauseMenu: PauseMenu;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
 
@@ -44,6 +49,8 @@ export class Game {
 
     this.input = new Input(this.renderer.domElement, document, this.events, window);
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
+    this.hud = new Hud(container, import.meta.env.DEV);
+    this.pauseMenu = new PauseMenu(container, this.events, () => this.input.requestLock());
 
     // Başlangıçta duraklatılmış: ilk tıklamayla pointer lock alınınca oyun başlar.
     this.loop = new GameLoop({
@@ -54,6 +61,8 @@ export class Game {
 
     this.offs.push(
       this.events.on('input:pointerLockChanged', ({ locked }) => this.setPaused(!locked)),
+      this.events.on('game:paused', () => this.hud.setVisible(false)),
+      this.events.on('game:resumed', () => this.hud.setVisible(true)),
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
       }),
@@ -61,7 +70,6 @@ export class Game {
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
     );
-    this.renderer.domElement.addEventListener('click', this.onCanvasClick);
     window.addEventListener('resize', this.onResize);
     this.resize();
   }
@@ -84,13 +92,14 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     window.removeEventListener('resize', this.onResize);
-    this.renderer.domElement.removeEventListener('click', this.onCanvasClick);
     for (const off of this.offs) off();
     this.input.dispose();
     this.playerModel.dispose();
     this.player.dispose();
     this.world.dispose();
     this.physics.dispose();
+    this.pauseMenu.dispose();
+    this.hud.dispose();
     this.fps?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -104,8 +113,6 @@ export class Game {
     this.loop.setPaused(paused);
     this.events.emit(paused ? 'game:paused' : 'game:resumed', undefined);
   }
-
-  private readonly onCanvasClick = (): void => this.input.requestLock();
 
   private update(step: number): void {
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
@@ -124,6 +131,16 @@ export class Game {
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
+    if (import.meta.env.DEV) {
+      this.hud.setDebugText(
+        formatDebugInfo({
+          position: this.player.position,
+          velocity: this.player.currentVelocity,
+          grounded: this.player.grounded,
+          cameraMode: this.playerCamera.mode,
+        }),
+      );
+    }
   }
 
   private resize(): void {

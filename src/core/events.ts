@@ -7,6 +7,7 @@ export interface GameEvents {
   'game:paused': undefined;
   'game:resumed': undefined;
   'input:pointerLockChanged': { locked: boolean };
+  'input:pointerLockFailed': undefined;
   'input:action': { action: InputAction };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
 }

@@ -46,6 +46,9 @@ export class Input {
     this.listen(doc, 'keyup', (e) => this.pressed.delete((e as KeyLikeEvent).code));
     this.listen(doc, 'mousemove', (e) => this.onMouseMove(e as MouseLikeEvent));
     this.listen(doc, 'pointerlockchange', () => this.onPointerLockChange());
+    this.listen(doc, 'pointerlockerror', () =>
+      this.events.emit('input:pointerLockFailed', undefined),
+    );
     if (windowLike) this.listen(windowLike, 'blur', () => this.pressed.clear());
   }
 
