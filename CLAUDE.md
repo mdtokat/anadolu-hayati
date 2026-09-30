@@ -14,9 +14,13 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 > Her faz bitiminde bu bölüm güncellenmelidir.
 
-- **Aktif faz:** Faz 0 — Kurulum
+- **Aktif faz:** Faz 0 — Kurulum (kod tamam; yalnızca GitHub Pages yayın doğrulaması bekliyor)
 - **Tamamlanan fazlar:** —
-- **Bilinen sorunlar / notlar:** —
+- **Bilinen sorunlar / notlar:**
+  - Faz 0'ın son kabul kriteri ("GitHub Pages linkinde sahne görünüyor") PR main'e birleşip `pages.yml` çalıştıktan sonra doğrulanacak. Bunun için depoda **Settings → Pages → Source: GitHub Actions** seçili olmalı.
+  - TypeScript **6.0.3'e sabit**: `typescript-eslint` 8.71 `typescript <6.1.0` istiyor; 7.x'e geçiş `typescript-eslint` uyumu gelene kadar ertelendi.
+  - Prettier yalnızca kod/config dosyalarını biçimlendirir; `*.md` belgeleri elle yazılır (`.prettierignore`).
+  - `vite preview` de üretim `base` değerini (`/anadolu-hayati/`) kullanır; yerelde önizleme adresi `http://localhost:4173/anadolu-hayati/`.
 
 ## Teknoloji Yığını
 
@@ -137,6 +141,7 @@ npm run preview     # Derlemeyi yerelde önizle
 npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest
+npm run format      # Prettier (biçimlendir); format:check yalnızca denetler
 ```
 
 Veri hattı (Faz 2+):

@@ -1,0 +1,9 @@
+dist/
+node_modules/
+coverage/
+package-lock.json
+public/data/
+tools/raw/
+
+# Proje belgeleri elle yazılır; otomatik biçimlendirme kapsamı dışında
+*.md
