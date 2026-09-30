@@ -139,20 +139,15 @@ describe('buildChunkMesh: normaller ve sarım', () => {
     const data = buildChunkMesh(source, grid, 7, 4, 0);
     const surfaceIndexCount = (data.verticesPerSide - 1) ** 2 * 6;
     for (let t = 0; t < surfaceIndexCount; t += 3) {
-      const [a, b, c] = [data.indices[t], data.indices[t + 1], data.indices[t + 2]].map(
-        (v) => (v as number) * 3,
-      );
-      const p = data.positions;
-      const ux = (p[b as number] as number) - (p[a as number] as number);
-      const uy = (p[(b as number) + 1] as number) - (p[(a as number) + 1] as number);
-      const uz = (p[(b as number) + 2] as number) - (p[(a as number) + 2] as number);
-      const vx = (p[c as number] as number) - (p[a as number] as number);
-      const vy = (p[(c as number) + 1] as number) - (p[(a as number) + 1] as number);
-      const vz = (p[(c as number) + 2] as number) - (p[(a as number) + 2] as number);
-      const ny = uz * vx - ux * vz; // (u × v).y
-      expect(ny).toBeGreaterThan(0);
-      void uy;
-      void vy;
+      const [a, b, c] = [data.indices[t], data.indices[t + 1], data.indices[t + 2]] as number[];
+      const coord = (vertexIndex: number | undefined, axis: number) =>
+        data.positions[(vertexIndex as number) * 3 + axis] as number;
+      const ux = coord(b, 0) - coord(a, 0);
+      const uz = coord(b, 2) - coord(a, 2);
+      const vx = coord(c, 0) - coord(a, 0);
+      const vz = coord(c, 2) - coord(a, 2);
+      // (u × v).y = uz·vx − ux·vz > 0  ⇒  üçgen yukarı bakar
+      expect(uz * vx - ux * vz).toBeGreaterThan(0);
     }
   });
 
