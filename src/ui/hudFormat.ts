@@ -1,4 +1,5 @@
 import type { Vec3 } from '../player/movement';
+import type { LocationInfo } from '../world/GameWorld';
 
 export interface DebugInfo {
   position: Readonly<Vec3>;
@@ -26,4 +27,12 @@ export function formatDebugInfo(info: DebugInfo): string {
     `Zeminde: ${info.grounded ? 'evet' : 'hayır'}`,
     `Kamera: ${info.cameraMode === 'firstPerson' ? '1. şahıs' : '3. şahıs'}`,
   ].join('\n');
+}
+
+/** HUD'daki konum satırları: il adı (komşu ilse belirtilir) ve gerçek rakım. */
+export function formatLocation(info: LocationInfo): { title: string; detail: string } {
+  let title: string;
+  if (info.province !== null) title = info.inRegion ? info.province : `${info.province} (komşu il)`;
+  else title = info.elevation < 1 ? 'Karadeniz' : 'Harita dışı';
+  return { title, detail: `Rakım: ${Math.round(info.elevation)} m` };
 }

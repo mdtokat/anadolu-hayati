@@ -1,7 +1,7 @@
 import { INPUT } from '../config';
 
 /** Tek seferlik (basıldığı anda tetiklenen) eylemler. */
-export type InputAction = 'toggleCamera';
+export type InputAction = 'toggleCamera' | 'toggleBorders';
 
 /** Tuş durumundan türetilen hareket niyeti. */
 export interface MoveIntent {
@@ -30,5 +30,8 @@ export function mapKeysToIntent(pressed: ReadonlySet<string>): MoveIntent {
 
 /** Basılan tuşa karşılık gelen tek seferlik eylem; yoksa null. */
 export function actionForKey(code: string): InputAction | null {
-  return (INPUT.bindings.toggleCamera as readonly string[]).includes(code) ? 'toggleCamera' : null;
+  const bindings = INPUT.bindings;
+  if ((bindings.toggleCamera as readonly string[]).includes(code)) return 'toggleCamera';
+  if ((bindings.toggleBorders as readonly string[]).includes(code)) return 'toggleBorders';
+  return null;
 }

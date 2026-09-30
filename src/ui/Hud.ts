@@ -10,6 +10,9 @@ export class Hud {
 
   private readonly root = document.createElement('div');
   private readonly debug: HTMLElement | null;
+  private readonly location = document.createElement('div');
+  private readonly locationTitle = document.createElement('div');
+  private readonly locationDetail = document.createElement('div');
 
   constructor(parent: HTMLElement, showDebug: boolean) {
     this.root.className = 'hud';
@@ -18,7 +21,12 @@ export class Hud {
     const crosshair = document.createElement('div');
     crosshair.className = 'hud-crosshair';
     this.gauges.className = 'hud-gauges';
-    this.root.append(crosshair, this.gauges);
+    this.location.className = 'hud-location';
+    this.locationTitle.className = 'hud-location-title';
+    this.locationDetail.className = 'hud-location-detail';
+    this.location.append(this.locationTitle, this.locationDetail);
+    this.location.hidden = true; // konum bilgisi olmayan dünyalarda (test arenası) görünmez
+    this.root.append(crosshair, this.gauges, this.location);
 
     if (showDebug) {
       this.debug = document.createElement('div');
@@ -32,6 +40,16 @@ export class Hud {
 
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
+  }
+
+  /** Konum bilgisini gösterir (il adı ve rakım); `null` gizler. */
+  setLocation(location: { title: string; detail: string } | null): void {
+    this.location.hidden = location === null;
+    if (location === null) return;
+    if (this.locationTitle.textContent !== location.title)
+      this.locationTitle.textContent = location.title;
+    if (this.locationDetail.textContent !== location.detail)
+      this.locationDetail.textContent = location.detail;
   }
 
   setDebugText(text: string): void {

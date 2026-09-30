@@ -7,7 +7,7 @@ import { PlayerCamera } from '../player/PlayerCamera';
 import { PlayerModel } from '../player/PlayerModel';
 import { FpsCounter } from '../ui/FpsCounter';
 import { Hud } from '../ui/Hud';
-import { formatDebugInfo } from '../ui/hudFormat';
+import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { PauseMenu } from '../ui/PauseMenu';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
@@ -24,6 +24,9 @@ export type WorldKind = 'region' | 'test';
 export interface GameOptions {
   world?: WorldKind;
 }
+
+/** Konum HUD'unun güncelleme aralığı (ms). */
+const LOCATION_HUD_INTERVAL_MS = 250;
 
 /** Bölge kimliği (public/data/regions/<id>). */
 const REGION_ID = 'zonguldak-bartin-karabuk';
@@ -44,6 +47,7 @@ export class Game {
   private readonly pauseMenu: PauseMenu;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
+  private lastLocationUpdate = -Infinity;
 
   private constructor(
     private readonly container: HTMLElement,
@@ -77,6 +81,7 @@ export class Game {
       this.events.on('game:resumed', () => this.hud.setVisible(true)),
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
+        if (action === 'toggleBorders') this.world.toggleBorders?.();
       }),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
@@ -161,12 +166,14 @@ export class Game {
     this.playerCamera.applyMouse(look.dx, look.dy);
 
     const feet = this.player.renderPosition(alpha);
-    this.world.update(feet.x, feet.z, performance.now() / 1000);
+    const now = performance.now();
+    this.world.update(feet.x, feet.z, now / 1000);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
+    this.updateLocationHud(now, feet);
     if (import.meta.env.DEV) {
       this.hud.setDebugText(
         formatDebugInfo({
@@ -177,6 +184,14 @@ export class Game {
         }),
       );
     }
+  }
+
+  /** Konum satırı (il adı, rakım): pahalı olmasın diye saniyede birkaç kez güncellenir. */
+  private updateLocationHud(now: number, feet: { x: number; y: number; z: number }): void {
+    if (!this.world.locationInfo) return;
+    if (now - this.lastLocationUpdate < LOCATION_HUD_INTERVAL_MS) return;
+    this.lastLocationUpdate = now;
+    this.hud.setLocation(formatLocation(this.world.locationInfo(feet.x, feet.z, feet.y)));
   }
 
   private resize(): void {

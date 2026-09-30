@@ -6,6 +6,8 @@ import type { HeightSource } from './HeightSource';
 export interface LocationInfo {
   /** Bulunulan il; harita dışı/deniz ise null. */
   province: string | null;
+  /** İl, bölgenin hedef illerinden biri mi (false = yürünebilir komşu il)? */
+  inRegion: boolean;
   /** Gerçek rakım (m). */
   elevation: number;
 }
@@ -28,5 +30,7 @@ export interface GameWorld {
   prepare(x: number, z: number): void;
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */
   locationInfo?(x: number, z: number, feetY: number): LocationInfo;
+  /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
+  toggleBorders?(): void;
   dispose(): void;
 }

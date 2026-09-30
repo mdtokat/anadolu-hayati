@@ -52,6 +52,9 @@ describe('actionForKey', () => {
   it('V kamera geçişi eylemidir', () => {
     expect(actionForKey('KeyV')).toBe('toggleCamera');
   });
+  it('B il sınırı çizgilerini aç/kapa eylemidir', () => {
+    expect(actionForKey('KeyB')).toBe('toggleBorders');
+  });
   it('diğer tuşlar için null döner', () => {
     expect(actionForKey('KeyW')).toBeNull();
   });

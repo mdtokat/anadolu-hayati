@@ -127,6 +127,8 @@ export const INPUT = {
     jump: ['Space'],
     /** Birinci / üçüncü şahıs kamera geçişi. */
     toggleCamera: ['KeyV'],
+    /** İl sınırı çizgilerini aç/kapa. */
+    toggleBorders: ['KeyB'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -333,4 +335,17 @@ export const WATER = {
   waveFrequency: 0.09,
   waveSpeed: 0.55,
   waveStrength: 0.22,
+} as const;
+
+/** İl sınırı çizgileri: yere yapışık ince çizgi (WebGL'de çizgi kalınlığı 1 pikseldir). */
+export const BORDERS = {
+  /** Çizgi köşeleri arası en büyük aralık (oyun m): arazi yüksekliğini izlesin diye sık örneklenir. */
+  spacing: 20,
+  /** Çizginin zeminden yüksekliği (oyun m): zeminin içine gömülmesin. */
+  lift: 0.6,
+  /** Hedef illerin ve komşu illerin çizgi renkleri. */
+  regionColor: 0xffd23f,
+  neighborColor: 0x8fb4d6,
+  /** Başlangıçta görünür mü? */
+  visibleByDefault: true,
 } as const;

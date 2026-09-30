@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDebugInfo, horizontalSpeed } from '../src/ui/hudFormat';
+import { formatDebugInfo, formatLocation, horizontalSpeed } from '../src/ui/hudFormat';
 
 describe('horizontalSpeed', () => {
   it('yalnızca yatay bileşenleri hesaba katar', () => {
@@ -30,5 +30,29 @@ describe('formatDebugInfo', () => {
     const text = formatDebugInfo({ ...info, grounded: false, cameraMode: 'thirdPerson' });
     expect(text).toContain('Zeminde: hayır');
     expect(text).toContain('Kamera: 3. şahıs');
+  });
+});
+
+describe('formatLocation', () => {
+  it('hedef il: il adı ve yuvarlanmış rakım', () => {
+    expect(formatLocation({ province: 'Zonguldak', inRegion: true, elevation: 133.6 })).toEqual({
+      title: 'Zonguldak',
+      detail: 'Rakım: 134 m',
+    });
+  });
+
+  it('komşu il belirtilir', () => {
+    expect(formatLocation({ province: 'Bolu', inRegion: false, elevation: 900 }).title).toBe(
+      'Bolu (komşu il)',
+    );
+  });
+
+  it('il yok: deniz seviyesindeyse Karadeniz, değilse harita dışı', () => {
+    expect(formatLocation({ province: null, inRegion: false, elevation: 0 }).title).toBe(
+      'Karadeniz',
+    );
+    expect(formatLocation({ province: null, inRegion: false, elevation: 300 }).title).toBe(
+      'Harita dışı',
+    );
   });
 });

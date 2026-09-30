@@ -9,6 +9,7 @@ import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
 import type { GameWorld, LocationInfo } from './GameWorld';
 import { latLonToGame } from './geo';
+import { ProvinceBorders } from './ProvinceBorders';
 import { provinceAt } from './provinces';
 import { RegionHeightSource } from './RegionHeightSource';
 import { findSafeSpawn } from './spawn';
@@ -33,6 +34,7 @@ export class RegionWorld implements GameWorld {
   private readonly colliders: ChunkColliders;
   private readonly walls: RAPIER.Collider[];
   private readonly water: Water;
+  private readonly borders: ProvinceBorders;
 
   constructor(
     readonly region: RegionData,
@@ -51,6 +53,8 @@ export class RegionWorld implements GameWorld {
     this.walls = createBoundsWalls(physics, this.source.bounds);
     this.water = new Water(this.source.bounds);
     this.scene.add(this.water.mesh);
+    this.borders = new ProvinceBorders(region.provinces, (x, z) => this.source.heightAt(x, z));
+    this.scene.add(this.borders.object);
 
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
@@ -78,9 +82,15 @@ export class RegionWorld implements GameWorld {
     this.colliders.ensureAround(x, z);
   }
 
+  toggleBorders(): void {
+    this.borders.toggle();
+  }
+
   locationInfo(x: number, z: number, feetY: number): LocationInfo {
+    const province = provinceAt(this.region.provinces, x, z);
     return {
-      province: provinceAt(this.region.provinces, x, z)?.name ?? null,
+      province: province?.name ?? null,
+      inRegion: province?.inRegion ?? false,
       // Deniz tabanı kurgusaldır (bkz. SEABED); rakım deniz seviyesinin altına inmez.
       elevation: Math.max(0, feetY * VERTICAL_SCALE),
     };
@@ -96,6 +106,7 @@ export class RegionWorld implements GameWorld {
   }
 
   dispose(): void {
+    this.borders.dispose();
     this.water.dispose();
     this.chunks.dispose();
     this.colliders.dispose();

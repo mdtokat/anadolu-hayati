@@ -8,6 +8,7 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Boşluk', 'Zıpla'],
   ['Fare', 'Etrafa bak'],
   ['V', '1. / 3. şahıs kamera'],
+  ['B', 'İl sınırlarını aç/kapa'],
   ['Esc', 'Duraklat'],
 ];
 

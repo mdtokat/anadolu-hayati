@@ -57,6 +57,25 @@
   gap: 6px;
 }
 
+/* Konum: il adı ve rakım (sağ üst) */
+.hud-location {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  text-align: right;
+}
+.hud-location[hidden] {
+  display: none;
+}
+.hud-location-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+.hud-location-detail {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
 /* Geliştirici bilgisi (yalnızca dev modunda) */
 .hud-debug {
   position: absolute;
