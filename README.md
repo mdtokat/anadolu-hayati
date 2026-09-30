@@ -2,7 +2,7 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı; **Faz 1 — Oynanabilir Prototip** kodu hazır: engebeli bir test arazisinde Rapier fiziğiyle yürüyebildiğin, koşup zıplayabildiğin birinci/üçüncü şahıs prototip. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı; **Faz 2 — Gerçek Arazi** ile birleşti; **Faz 3 — Hayatta Kalma Çekirdeği** kodu hazır: gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
 **Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
 
@@ -14,6 +14,7 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | W A S D (veya ok tuşları) | Yürü |
 | Shift | Koş |
 | Boşluk | Zıpla |
+| E (basılı tut) | Tatlı su kenarında su iç |
 | Fare | Etrafa bak |
 | V | Birinci / üçüncü şahıs kamera |
 | B | İl sınırı çizgilerini aç/kapa |
@@ -48,6 +49,7 @@ cd tools
 pip install -r requirements.txt
 python fetch_dem.py                 # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB, commit edilmez)
 python fetch_boundaries.py          # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python fetch_water.py               # Overture su katmanı (HTTP Range, ~150 MB) → tools/raw/water/
 python build_region.py              # → public/data/regions/zonguldak-bartin-karabuk/
 python -m pytest tests              # Python birim testleri
 ```
@@ -60,12 +62,13 @@ Bölge tanımı `tools/regions.yaml`'dadır. Koordinat ve veri formatı sözleş
 
 ## Veri Kaynakları ve Atıflar
 
-Oyun aşağıdaki açık verileri kullanacaktır (veri hattı Faz 2'de eklenir). Atıflar oyunun içinde de gösterilecektir.
+Oyun aşağıdaki açık verileri kullanır. Atıflar oyunun içinde (duraklatma menüsü) de gösterilir.
 
 | Veri         | Kaynak                                                                                | Lisans / Atıf                                |
 | ------------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Yükseklik    | [Copernicus GLO-30 DEM](https://registry.opendata.aws/copernicus-dem/) (AWS Open Data) | Copernicus lisansı — atıf zorunlu            |
 | İl sınırları | [geoBoundaries](https://www.geoboundaries.org/) (TUR, ADM1)                           | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| Orman, nehir, yol | [OpenStreetMap](https://www.openstreetmap.org/copyright) (Geofabrik Türkiye extract) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
+| Akarsu, göl (tatlı su) | [OpenStreetMap](https://www.openstreetmap.org/copyright), [Overture Maps](https://overturemaps.org/) `base/water` dağıtımı üzerinden | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
+| Orman, yol (Faz 4) | [OpenStreetMap](https://www.openstreetmap.org/copyright) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
 
 Yükseklik verisi: _Contains modified Copernicus DEM GLO-30 data (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA; all rights reserved)._

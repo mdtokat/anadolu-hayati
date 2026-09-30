@@ -28,17 +28,11 @@ export const FIXED_STEP = 1 / FIXED_UPDATE_HZ;
  */
 export const MAX_FRAME_TIME = 0.25;
 
-/** Sahne ayarları (Faz 1 test ortamı). */
+/** Sahne ayarları (Faz 1 test ortamı sisi; gökyüzü ve ışıklar için bkz. SKY). */
 export const SCENE = {
-  /** Gökyüzü ve sis rengi. */
-  skyColor: 0x87ceeb,
   /** Sis: başlangıç ve bitiş mesafesi (oyun metresi). */
   fogNear: 60,
   fogFar: 220,
-  /** Güneş ışığı yoğunluğu, yönü (konum, hedef orijindedir) ve ortam ışığı yoğunluğu. */
-  sunIntensity: 2.2,
-  sunPosition: [60, 100, 40],
-  ambientIntensity: 0.6,
 } as const;
 
 /** Kamera ayarları. */
@@ -129,6 +123,8 @@ export const INPUT = {
     toggleCamera: ['KeyV'],
     /** İl sınırı çizgilerini aç/kapa. */
     toggleBorders: ['KeyB'],
+    /** Etkileşim (basılı tutulur): tatlı su kaynağından su içme. */
+    interact: ['KeyE'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -351,4 +347,186 @@ export const BORDERS = {
   neighborColor: 0x8fb4d6,
   /** Başlangıçta görünür mü? */
   visibleByDefault: true,
+} as const;
+
+/**
+ * Gün-gece döngüsü ve güneş geometrisi. Güneş konumu, bölgenin enlemi ve yılın günü için gerçek
+ * astronomik formülle hesaplanır (yerel güneş saati: boylam/saat dilimi düzeltmesi yok).
+ */
+export const CLOCK = {
+  /** Bir oyun gününün (24 oyun saati) gerçek süresi (saniye): 24 dk → 1 oyun saati = 1 gerçek dk. */
+  dayLengthSeconds: 24 * 60,
+  /** Oyunun başladığı gün saati (0–24). */
+  startHour: 9,
+  /** Yılın günü (1–365); 265 = 22 Eylül (ekinoks: gündüz ≈ gece ≈ 12 sa). Mevsim ileride eklenecek. */
+  dayOfYear: 265,
+  /** Bölgenin enlemi (derece K); Zonguldak–Bartın–Karabük ≈ 41,5°. */
+  latitudeDeg: 41.5,
+  /** Güneş bu yüksekliğin (derece) altına inince "gece" sayılır (−6° = sivil alacakaranlığın sonu). */
+  nightSunAltitudeDeg: -6,
+} as const;
+
+/**
+ * İklim modeli sabitleri: yaklaşık Batı Karadeniz kıyısı değerleri (Zonguldak civarı için mantıklı büyüklük
+ * mertebesinde seçilmiş, doğrulanmış iklim normali DEĞİLDİR). Mevsim ve rakım etkisi ayarlanabilir.
+ */
+export const CLIMATE = {
+  /** Deniz seviyesinde yıllık ortalama sıcaklık (°C). */
+  annualMeanC: 13.5,
+  /** Yıllık salınımın genliği (°C): en sıcak ay ortalaması = ortalama + genlik. */
+  annualAmplitudeC: 8.5,
+  /** Yılın en sıcak günü (24 Temmuz). */
+  warmestDayOfYear: 205,
+  /** Günlük salınımın genliği (°C): en sıcak ile en soğuk saat farkının yarısı. */
+  dailyAmplitudeC: 4.5,
+  /** Günün en sıcak saati (yerel güneş saati). */
+  warmestHour: 15,
+  /** Rakımla soğuma (°C / 1000 gerçek metre). Standart atmosfer ≈ 6,5. */
+  lapseRateCPerKm: 6.5,
+} as const;
+
+/**
+ * Hayatta kalma göstergeleri (saf mantık; gerçek saniye üzerinden işler, gün uzunluğundan bağımsız).
+ * Değerler 0–100 arası "seviye"dir (100 = dolu). Varsayılanlar: hareketsiz bir oyuncu ~20 dk'da ölür
+ * (susuzluk 12 dk'da biter, ardından can ~8 dk'da tükenir). Hepsi ayarlanabilir.
+ */
+export const SURVIVAL = {
+  maxValue: 100,
+
+  /** Hareketsizken susuzluk/açlık seviyesinin tamamen bitmesi için gereken süre (dakika). */
+  hydrationEmptyMinutes: 12,
+  satietyEmptyMinutes: 30,
+  /** Aktiviteye göre susuzluk/açlık tüketim çarpanı. */
+  activityDrain: { rest: 1, walk: 1.6, run: 3 },
+  /** Ortam bu sıcaklığın (°C) üstüne çıkınca her derece için susuzluk bu oranda hızlanır. */
+  hotThirstAboveC: 28,
+  hotThirstPerDegree: 0.05,
+
+  /** Enerji (yorgunluğun tersi; stamina benzeri): koşarak bitme, dinlenirken ve yürürken dolma süreleri (sn). */
+  runEmptySeconds: 90,
+  restRefillSeconds: 40,
+  walkRefillSeconds: 120,
+  /** Enerji 0'a inince koşma/zıplama kapanır; enerji bu seviyeye çıkınca yeniden açılır. */
+  exhaustedRecoverAt: 25,
+
+  /** Can: tüm göstergeler iyiyken saniyede yenilenme ve bunun için gereken asgari tokluk/susuzluk seviyesi. */
+  healthRegenPerSecond: 0.15,
+  healthRegenMinLevel: 50,
+  /** Hasar (can/saniye): susuzluk ve açlık seviyesi 0 iken. */
+  dehydrationDamagePerSecond: 0.2,
+  starvationDamagePerSecond: 0.1,
+
+  /** Vücut ısısı. */
+  bodyTempNormalC: 37,
+  /** Bu ortam sıcaklığının (°C) altında denge ısısı düşer; her derece için düşüş (°C). */
+  comfortAmbientC: 18,
+  coldSlope: 0.35,
+  /** Bu ortam sıcaklığının üstünde denge ısısı yükselir; her derece için artış (°C). */
+  hotAmbientC: 28,
+  hotSlope: 0.25,
+  /** Aktivitenin denge ısısına eklediği ısı (°C). */
+  activityHeatC: { rest: 0, walk: 0.5, run: 1.5 },
+  /** Vücut ısısının dengeye yaklaşma zaman sabiti (sn). */
+  bodyTempTauSeconds: 300,
+  /** Bu ısının altı hipotermi, üstü hipertermi hasarı verir; her derece için hasar (can/sn). */
+  hypothermiaBelowC: 35,
+  hypothermiaDamagePerDegree: 0.1,
+  hyperthermiaAboveC: 39,
+  hyperthermiaDamagePerDegree: 0.25,
+  /** Can yenilenmesi için vücut ısısının olması gereken aralık (°C). */
+  healthRegenBodyTempC: [36, 38.5],
+
+  /** Tatlı su içerken susuzluk seviyesinin saniyedeki artışı. */
+  drinkPerSecond: 8,
+  /** İçme oturumunun başlaması için su seviyesinin tamdan en az bu kadar düşük olması gerekir (anlamsız mikro oturumlar olmasın). */
+  drinkMinDeficit: 1,
+} as const;
+
+/** Ölüm sonrası yeniden doğma noktası seçimi. */
+export const RESPAWN = {
+  /** Rastgele tohumu; ölüm sırası (n) ile birleşir: aynı seed aynı ölümde aynı noktayı verir. */
+  seed: 90210,
+  /** Bir noktayı bulmak için en çok kaç aday denenir. */
+  attempts: 400,
+  /** Güvenli noktaya kaydırma bu kadardan (oyun m) fazlaysa aday reddedilir (il dışına taşmasın). */
+  maxDrift: 40,
+} as const;
+
+/**
+ * Tatlı su etkileşimi ve gösterimi. Dünya yatayda 1:50 ölçekli olduğundan gerçek bir nehir (5–30 m)
+ * oyunda 0,1–0,6 m genişliğinde kalır; görünür ve içilebilir olması için genişlikler oyun için abartılır.
+ */
+export const FRESH_WATER = {
+  /** Su kaynağına (çizgi/kıyı/kaynak noktası) bu uzaklıktan (oyun m) yakın oyuncu içebilir; çokgenin içi 0 sayılır. */
+  reachDistance: 3.5,
+  /** Çizim genişlikleri (oyun m): tür başına akarsu şeridi genişliği. */
+  lineWidth: { river: 3, stream: 1.2, canal: 1.5 },
+  /** Uzamsal ızgara hücre boyu (oyun m); sorgu yarıçapından küçük olmamalı. */
+  indexCellSize: 40,
+  /** Su rengi (nehir şeridi ve göl yüzeyi). */
+  color: 0x3b8fb3,
+  opacity: 0.85,
+  /** Akarsu şeridinin zeminden yüksekliği (oyun m); göller için yüzey yüksekliği kıyıdan alınır. */
+  lift: 0.12,
+} as const;
+
+/**
+ * Gökyüzü ve gün ışığı (güneş yüksekliğine bağlı). Yükseklikler derece; renkler 0xRRGGBB.
+ * Gündüz/gece geçişi güneş yüksekliğine göre yumuşak yapılır; alacakaranlıkta ufuk turuncuya çalar.
+ */
+export const SKY = {
+  /** Gökyüzü tepe rengi: gündüz ve gece. */
+  zenithDay: 0x3d7fd0,
+  zenithNight: 0x02040d,
+  /** Ufuk (ve sis) rengi: gündüz, gece ve alacakaranlık (gün doğumu/batımı). */
+  horizonDay: 0xa9d0ee,
+  horizonNight: 0x0a1020,
+  horizonTwilight: 0xf0894a,
+  /** Gündüz faktörü: güneş bu yükseklikte (derece) 0'dan, bunda 1'e çıkar. */
+  dayFactorFrom: -8,
+  dayFactorTo: 15,
+  /** Alacakaranlık vurgusu: güneş ufuk çizgisinden bu kadar (derece) uzaklaştıkça sönümlenir. */
+  twilightWidth: 9,
+  /** Alacakaranlık renginin en fazla ne kadarının ufuk rengine karışacağı (0–1). */
+  twilightMix: 0.75,
+  /** Doğrudan güneş ışığı yoğunluğu (öğlen) ve rengi; ufka yaklaştıkça sıcak tona geçer. */
+  sunIntensity: 2.2,
+  sunColorHigh: 0xfff4e0,
+  sunColorLow: 0xffa860,
+  /** Güneşin ışığının açıldığı ve tam olduğu yükseklik (derece). */
+  sunLightFrom: -2,
+  sunLightTo: 12,
+  /** Sıcak renge geçiş: güneş bu yüksekliğin (derece) altında turuncuya döner. */
+  sunWarmBelow: 25,
+  /** Ay ışığı yoğunluğu (dolunay, tepede) ve rengi. */
+  moonIntensity: 0.75,
+  moonColor: 0x9db8ff,
+  /** Ortam ışığı: gündüz ve gece yoğunluğu/rengi. Gece tamamen kararmasın (en az görüş). */
+  ambientDay: 0.6,
+  ambientNight: 0.42,
+  ambientColorDay: 0xffffff,
+  ambientColorNight: 0x6478b8,
+  /** Yıldızlar: güneş bu yüksekliğin altında belirmeye başlar ve daha altında tam görünür. */
+  starsFadeStart: -3,
+  starsFadeEnd: -12,
+  /** Güneş ve ay diskinin görünür açısal yarıçapı (derece; gerçekte ~0,27°, oyunda abartılı). */
+  sunDiscRadiusDeg: 1.6,
+  moonDiscRadiusDeg: 1.3,
+  /** Gök kubbesinin yarıçapı (oyun m); kamera uzak düzleminin (CAMERA.far) içinde kalmalı. */
+  domeRadius: 4000,
+  /** Işık yönü uzaklığı (oyun m); yalnızca yön önemlidir. */
+  lightDistance: 100,
+} as const;
+
+/** Hayatta kalma HUD'u: gösterge uyarı eşikleri. */
+export const SURVIVAL_HUD = {
+  /** Gösterge bu seviyenin altına inince "düşük" (sarı) uyarısı. */
+  lowBelow: 35,
+  /** Gösterge bu seviyenin altına inince "kritik" (kırmızı, yanıp söner). */
+  criticalBelow: 15,
+  /** Vücut ısısı uyarıları: bu eşiklerin dışında "soğuk/sıcak" (°C); ölümcül eşikler SURVIVAL'da. */
+  coldBelowC: 36,
+  hotAboveC: 38.2,
+  /** HUD'un yenilenme aralığı (ms). */
+  refreshIntervalMs: 100,
 } as const;

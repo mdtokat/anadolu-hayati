@@ -87,17 +87,17 @@ Kabul kriterleri:
 **Amaç:** Oyunu oyun yapan temel baskı mekanikleri.
 
 Görevler:
-- [ ] `survival/` altında saf mantık: sağlık, açlık, susuzluk, yorgunluk
-- [ ] Gece-gündüz döngüsü (ayarlanabilir gün uzunluğu), güneş/ay ışığı, gökyüzü renk geçişleri
-- [ ] Sıcaklık modeli: saat + rakım (+ ileride mevsim) → vücut ısısına etki
-- [ ] Tatlı su kaynağından (nehir, göl) su içme
-- [ ] Ölüm ve yeniden doğma (bölge içinde rastgele güvenli nokta)
-- [ ] HUD göstergeleri
+- [x] `survival/` altında saf mantık: sağlık, açlık, susuzluk, yorgunluk
+- [x] Gece-gündüz döngüsü (ayarlanabilir gün uzunluğu), güneş/ay ışığı, gökyüzü renk geçişleri
+- [x] Sıcaklık modeli: saat + rakım (+ ileride mevsim) → vücut ısısına etki _(mevsim sinüsü de var; başlangıç günü sabit)_
+- [x] Tatlı su kaynağından (nehir, göl) su içme _(veri: Overture `base/water` → `features.json`; içmek için `E` basılı tut)_
+- [x] Ölüm ve yeniden doğma (bölge içinde rastgele güvenli nokta)
+- [x] HUD göstergeleri
 
 Kabul kriterleri:
-- [ ] Hiçbir şey yapmayan oyuncu makul sürede (ayarlanabilir) ölüyor
-- [ ] Yüksek rakımda gece belirgin biçimde daha tehlikeli
-- [ ] Tüm istatistik hesapları için birim testler var
+- [x] Hiçbir şey yapmayan oyuncu makul sürede (ayarlanabilir) ölüyor _(varsayılan ~20 dk, susuzluktan; `SURVIVAL.hydrationEmptyMinutes`)_
+- [x] Yüksek rakımda gece belirgin biçimde daha tehlikeli _(simülasyon: 500 m'de bir gece can ~98, 1000 m ~39, ≥1500 m ölümcül)_
+- [x] Tüm istatistik hesapları için birim testler var
 
 ---
 
@@ -106,7 +106,7 @@ Kabul kriterleri:
 **Amaç:** Dünyayla etkileşim ve ilerleme hissi.
 
 Görevler:
-- [ ] Veri hattı: OSM'den orman, nehir, göl, yerleşim verisi → `features.json`
+- [ ] Veri hattı: OSM'den orman, yerleşim verisi → `features.json` _(su katmanı Faz 3'te eklendi; aynı dosyaya yeni katmanlar eklenir)_
 - [ ] OSM orman poligonlarına göre seed'li ağaç yerleştirme (instanced mesh)
 - [ ] Kaya, çalı, yenebilir bitki yerleştirme (biyoma göre)
 - [ ] Toplama etkileşimi (bakılan nesneye `E`)

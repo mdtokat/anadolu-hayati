@@ -1,5 +1,7 @@
 import type { Scene } from 'three';
 import type { Vec3 } from '../player/movement';
+import type { SkyPosition } from '../survival/astronomy';
+import type { WaterHit } from './waterIndex';
 import type { HeightSource } from './HeightSource';
 
 /** Konum hakkında HUD'da gösterilecek bilgi (yalnızca gerçek bölgede vardır). */
@@ -28,6 +30,12 @@ export interface GameWorld {
   update(focusX: number, focusZ: number, timeSeconds: number): void;
   /** Işınlanma/doğma öncesi: (x, z) çevresinin fizik ve görsel varlıklarını senkron hazırlar. */
   prepare(x: number, z: number): void;
+  /** Güneşin konumuna göre gökyüzü/ışık görünümünü günceller (destekleyen dünyalarda). */
+  setSun?(sun: SkyPosition): void;
+  /** (x, z) noktasına erişim mesafesindeki en yakın tatlı su (nehir, göl, kaynak); yoksa null. */
+  freshWaterNear?(x: number, z: number): WaterHit | null;
+  /** n. ölümden sonra yeniden doğma noktası (ayak tabanı); dünya desteklemiyorsa tanımsız. */
+  respawnPoint?(deathIndex: number): Vec3 | null;
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */
   locationInfo?(x: number, z: number, feetY: number): LocationInfo;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */

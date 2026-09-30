@@ -9,12 +9,17 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Boşluk', 'Zıpla'],
   ['Fare', 'Etrafa bak'],
   ['V', '1. / 3. şahıs kamera'],
+  ['E', 'Su iç (tatlı su kenarında basılı tut)'],
   ['B', 'İl sınırlarını aç/kapa'],
   ['Esc', 'Duraklat'],
 ];
 
 /** Yalnızca geliştirme modunda gösterilen ek kontroller. */
-const DEV_CONTROLS: ReadonlyArray<readonly [string, string]> = [['1 – 5', 'Işınlan (geliştirici)']];
+const DEV_CONTROLS: ReadonlyArray<readonly [string, string]> = [
+  ['1 – 5', 'Işınlan (geliştirici)'],
+  ['[ ]', 'Saati 1 saat geri/ileri (geliştirici)'],
+  ['K', 'Canı sıfırla (geliştirici)'],
+];
 
 /**
  * Başlangıç ve duraklatma menüsü. Oyun duraklayınca (pointer lock kaybı, örn. Esc) görünür;

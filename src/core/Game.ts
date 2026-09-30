@@ -1,13 +1,19 @@
 import { WebGLRenderer } from 'three';
-import { RENDER, TELEPORTS } from '../config';
+import { RENDER, SURVIVAL, SURVIVAL_HUD, TELEPORTS, VERTICAL_SCALE } from '../config';
 import { loadRegion } from '../data/region';
 import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Player } from '../player/Player';
 import { PlayerCamera } from '../player/PlayerCamera';
 import { PlayerModel } from '../player/PlayerModel';
+import { activityFromIntent, gateIntent } from '../survival/activity';
+import { formatClock } from '../survival/clock';
+import { SurvivalSystem } from '../survival/SurvivalSystem';
+import { canSprint } from '../survival/vitals';
+import { DeathScreen } from '../ui/DeathScreen';
 import { FpsCounter } from '../ui/FpsCounter';
 import { Hud } from '../ui/Hud';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
+import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
@@ -35,6 +41,8 @@ const REGION_ID = 'zonguldak-bartin-karabuk';
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
   readonly events = new EventBus<GameEvents>();
+  /** Hayatta kalma durumu: saat, iklim, göstergeler (saf mantık; dev araçları da okur). */
+  readonly survival = new SurvivalSystem(this.events);
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -46,9 +54,13 @@ export class Game {
   private readonly fps: FpsCounter | null;
   private readonly hud: Hud;
   private readonly pauseMenu: PauseMenu;
+  private readonly deathScreen: DeathScreen;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
   private lastLocationUpdate = -Infinity;
+  private lastSurvivalHudUpdate = -Infinity;
+  /** Fizik adımında hesaplanan: E basılı ve tatlı su erişimde mi (HUD ipucu için). */
+  private waterInReach = false;
 
   private constructor(
     private readonly container: HTMLElement,
@@ -68,6 +80,7 @@ export class Game {
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
     this.pauseMenu = new PauseMenu(container, this.events, () => this.input.requestLock());
+    this.deathScreen = new DeathScreen(container, () => this.respawnPlayer());
 
     // Başlangıçta duraklatılmış: ilk tıklamayla pointer lock alınınca oyun başlar.
     this.loop = new GameLoop({
@@ -83,6 +96,11 @@ export class Game {
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
         if (action === 'toggleBorders') this.world.toggleBorders?.();
+      }),
+      this.events.on('player:died', (death) => {
+        this.hud.setPrompt(null);
+        this.deathScreen.show(death);
+        this.input.exitLock(); // fareyle "Yeniden Doğ"a tıklanabilsin
       }),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
@@ -111,6 +129,10 @@ export class Game {
 
   /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
   private readonly onDevKey = (event: KeyboardEvent): void => {
+    // [ / ]: saati bir saat geri/ileri sar; K: canı ve suyu sıfırla (ölüm ekranını dene).
+    if (event.code === 'BracketLeft') this.survival.clock.skipHours(-1);
+    if (event.code === 'BracketRight') this.survival.clock.skipHours(1);
+    if (event.code === 'KeyK') this.survival.setVitals({ health: 0, hydration: 0 });
     const slot = teleportSlotForKey(event.code);
     const target = slot === null ? undefined : TELEPORTS[slot];
     if (!target) return;
@@ -153,6 +175,7 @@ export class Game {
     this.world.dispose();
     this.physics.dispose();
     this.pauseMenu.dispose();
+    this.deathScreen.dispose();
     this.hud.dispose();
     this.fps?.dispose();
     this.renderer.dispose();
@@ -169,9 +192,36 @@ export class Game {
   }
 
   private update(step: number): void {
+    if (!this.survival.alive) return; // ölü: oyun donar, ölüm ekranı gösterilir
+
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
-    this.player.update(step, this.input.pollIntent(), this.playerCamera.yaw);
+    const intent = gateIntent(this.input.pollIntent(), canSprint(this.survival.state));
+    this.player.update(step, intent, this.playerCamera.yaw);
     this.physics.step();
+
+    const feet = this.player.position;
+    const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
+    this.waterInReach = water !== null;
+    this.survival.update(step, {
+      activity: activityFromIntent(intent),
+      elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
+      drinking: water !== null && this.input.interactHeld,
+    });
+  }
+
+  /** Ölüm ekranındaki "Yeniden Doğ": göstergeler dolar, oyuncu rastgele güvenli noktaya taşınır. */
+  private respawnPlayer(): void {
+    if (this.survival.alive) return;
+    this.survival.respawn();
+    const point = this.world.respawnPoint?.(this.survival.deathCount) ?? null;
+    if (point) {
+      this.world.prepare(point.x, point.z);
+      this.player.teleport(point);
+    } else {
+      this.player.respawn();
+    }
+    this.deathScreen.hide();
+    this.input.requestLock();
   }
 
   private render(alpha: number): void {
@@ -182,12 +232,14 @@ export class Game {
     const feet = this.player.renderPosition(alpha);
     const now = performance.now();
     this.world.update(feet.x, feet.z, now / 1000);
+    this.world.setSun?.(this.survival.clock.sun);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
     this.updateLocationHud(now, feet);
+    this.updateSurvivalHud(now);
     if (import.meta.env.DEV) {
       this.hud.setDebugText(
         formatDebugInfo({
@@ -206,6 +258,28 @@ export class Game {
     if (now - this.lastLocationUpdate < LOCATION_HUD_INTERVAL_MS) return;
     this.lastLocationUpdate = now;
     this.hud.setLocation(formatLocation(this.world.locationInfo(feet.x, feet.z, feet.y)));
+  }
+
+  /** Göstergeler, saat ve su içme ipucu: saniyede birkaç kez güncellenir. */
+  private updateSurvivalHud(now: number): void {
+    if (now - this.lastSurvivalHudUpdate < SURVIVAL_HUD.refreshIntervalMs) return;
+    this.lastSurvivalHudUpdate = now;
+    const { clock } = this.survival;
+    this.hud.setSurvival({
+      vitals: this.survival.state,
+      clock: formatClock(clock.hour),
+      day: formatDay(clock.day),
+      ambientC: this.survival.ambientC,
+    });
+    this.hud.setPrompt(this.drinkPrompt());
+  }
+
+  /** Su kaynağı erişimdeyken ipucu: içiyorsa "İçiyorsun…", değilse "E: Su iç". */
+  private drinkPrompt(): string | null {
+    if (!this.survival.alive || !this.waterInReach) return null;
+    if (this.survival.drinking) return 'İçiyorsun…';
+    const missing = SURVIVAL.maxValue - this.survival.state.hydration;
+    return missing < SURVIVAL.drinkMinDeficit ? 'Susuzluğun yok' : 'E (basılı tut): Su iç';
   }
 
   private resize(): void {

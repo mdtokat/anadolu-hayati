@@ -1,11 +1,46 @@
 import './ui.css';
+import type { VitalsState } from '../survival/vitals';
+import {
+  bodyTempLabel,
+  bodyTempLevel,
+  formatTemperature,
+  gaugeFraction,
+  gaugeLevel,
+  warnings,
+} from './survivalFormat';
+
+/** HUD'da gösterilen dört seviye göstergesi: anahtar, başlık. */
+const GAUGES = [
+  ['health', 'Sağlık'],
+  ['satiety', 'Tokluk'],
+  ['hydration', 'Su'],
+  ['energy', 'Enerji'],
+] as const;
+
+type GaugeKey = (typeof GAUGES)[number][0];
+
+interface GaugeElements {
+  row: HTMLElement;
+  fill: HTMLElement;
+}
+
+/** Saat/sıcaklık satırında gösterilen zaman ve ortam bilgisi. */
+export interface SurvivalHudInfo {
+  vitals: Readonly<VitalsState>;
+  /** "HH:MM" */
+  clock: string;
+  /** "3. gün" gibi gün etiketi. */
+  day: string;
+  /** Ortam sıcaklığı (°C). */
+  ambientC: number;
+}
 
 /**
  * Oyun içi HUD iskeleti (HTML overlay): artı imleç, hayatta kalma göstergeleri için boş alan
  * ve (yalnızca dev modunda) geliştirici bilgisi.
  */
 export class Hud {
-  /** Faz 3'te sağlık/açlık/susuzluk göstergeleri buraya eklenecek. */
+  /** Sağlık/tokluk/su/enerji çubukları (sol alt). */
   readonly gauges = document.createElement('div');
 
   private readonly root = document.createElement('div');
@@ -13,6 +48,11 @@ export class Hud {
   private readonly location = document.createElement('div');
   private readonly locationTitle = document.createElement('div');
   private readonly locationDetail = document.createElement('div');
+  private readonly gaugeElements = new Map<GaugeKey, GaugeElements>();
+  private readonly bodyTemp = document.createElement('div');
+  private readonly clock = document.createElement('div');
+  private readonly warningList = document.createElement('div');
+  private readonly prompt = document.createElement('div');
 
   constructor(parent: HTMLElement, showDebug: boolean) {
     this.root.className = 'hud';
@@ -26,7 +66,21 @@ export class Hud {
     this.locationDetail.className = 'hud-location-detail';
     this.location.append(this.locationTitle, this.locationDetail);
     this.location.hidden = true; // konum bilgisi olmayan dünyalarda (test arenası) görünmez
-    this.root.append(crosshair, this.gauges, this.location);
+    this.buildGauges();
+    this.clock.className = 'hud-clock';
+    this.warningList.className = 'hud-warnings';
+    this.prompt.className = 'hud-prompt';
+    this.prompt.hidden = true;
+    this.gauges.hidden = true; // hayatta kalma verisi gelene kadar (test arenasında da) görünmez
+    this.clock.hidden = true;
+    this.root.append(
+      crosshair,
+      this.gauges,
+      this.location,
+      this.clock,
+      this.warningList,
+      this.prompt,
+    );
 
     if (showDebug) {
       this.debug = document.createElement('div');
@@ -36,6 +90,68 @@ export class Hud {
       this.debug = null;
     }
     parent.appendChild(this.root);
+  }
+
+  private buildGauges(): void {
+    for (const [key, label] of GAUGES) {
+      const row = document.createElement('div');
+      row.className = 'hud-gauge';
+      const name = document.createElement('span');
+      name.className = 'hud-gauge-label';
+      name.textContent = label;
+      const track = document.createElement('div');
+      track.className = 'hud-gauge-track';
+      const fill = document.createElement('div');
+      fill.className = 'hud-gauge-fill';
+      track.append(fill);
+      row.append(name, track);
+      this.gauges.append(row);
+      this.gaugeElements.set(key, { row, fill });
+    }
+    this.bodyTemp.className = 'hud-body-temp';
+    this.gauges.append(this.bodyTemp);
+  }
+
+  /** Hayatta kalma göstergelerini, saati ve uyarıları günceller. */
+  setSurvival(info: SurvivalHudInfo): void {
+    this.gauges.hidden = false;
+    this.clock.hidden = false;
+    const { vitals } = info;
+    for (const [key] of GAUGES) {
+      const element = this.gaugeElements.get(key);
+      if (!element) continue;
+      const value = vitals[key];
+      element.fill.style.width = `${(gaugeFraction(value) * 100).toFixed(1)}%`;
+      setState(element.row, key === 'energy' && vitals.exhausted ? 'critical' : gaugeLevel(value));
+    }
+
+    const level = bodyTempLevel(vitals.bodyTemp);
+    setText(
+      this.bodyTemp,
+      `Vücut: ${formatTemperature(vitals.bodyTemp)} ${bodyTempLabel(vitals.bodyTemp)}`.trim(),
+    );
+    setState(this.bodyTemp, level);
+
+    setText(this.clock, `${info.clock} · ${info.day} · ${formatTemperature(info.ambientC)}`);
+
+    const list = warnings(vitals);
+    const joined = list.join('\n');
+    if (this.warningList.dataset.text !== joined) {
+      this.warningList.dataset.text = joined;
+      this.warningList.replaceChildren(
+        ...list.map((text) => {
+          const line = document.createElement('div');
+          line.textContent = text;
+          return line;
+        }),
+      );
+    }
+  }
+
+  /** Ekran ortası altında kısa ipucu (ör. "E: su iç"); `null` gizler. */
+  setPrompt(text: string | null): void {
+    this.prompt.hidden = text === null;
+    if (text !== null) setText(this.prompt, text);
   }
 
   setVisible(visible: boolean): void {
@@ -59,4 +175,13 @@ export class Hud {
   dispose(): void {
     this.root.remove();
   }
+}
+
+/** Metni yalnızca değiştiyse yazar (gereksiz DOM güncellemesi olmasın). */
+function setText(element: HTMLElement, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
+}
+
+function setState(element: HTMLElement, state: string): void {
+  if (element.dataset.state !== state) element.dataset.state = state;
 }

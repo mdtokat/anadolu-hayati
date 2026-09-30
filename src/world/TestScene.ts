@@ -3,6 +3,7 @@ import { PLAYER, TERRAIN_TEST } from '../config';
 import { createHeightfieldDesc } from '../physics/heightfield';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import type { Vec3 } from '../player/movement';
+import type { SkyPosition } from '../survival/astronomy';
 import { Environment } from './Environment';
 import type { GameWorld } from './GameWorld';
 import { sampleGrid, type GridSpec, type HeightSource } from './HeightSource';
@@ -43,7 +44,13 @@ export class TestScene implements GameWorld {
   }
 
   /** Test arenasında akış yok: her şey baştan yüklüdür. */
-  update(): void {}
+  update(focusX: number, focusZ: number): void {
+    this.environment.follow(focusX, focusZ);
+  }
+
+  setSun(sun: SkyPosition): void {
+    this.environment.setSun(sun);
+  }
 
   prepare(): void {}
 

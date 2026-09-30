@@ -61,6 +61,16 @@ export class Input {
     return mapKeysToIntent(this.pressed);
   }
 
+  /** Etkileşim tuşu (E) şu an basılı mı? */
+  get interactHeld(): boolean {
+    return INPUT.bindings.interact.some((code) => this.pressed.has(code));
+  }
+
+  /** Pointer lock'u bırakır (ölüm ekranı gibi fareyle tıklanan arayüzler için). */
+  exitLock(): void {
+    this.doc.exitPointerLock?.();
+  }
+
   /**
    * Bir mantık adımı için hareket niyetini alır. Zıplama, tuş bu adımdan önce bırakılmış olsa
    * bile bir kez iletilir (kare arasında biten hızlı dokunuşlar kaybolmaz).

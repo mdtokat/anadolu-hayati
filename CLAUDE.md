@@ -14,16 +14,21 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 > Her faz bitiminde bu bölüm güncellenmelidir.
 
-- **Aktif faz:** Faz 2 — Gerçek Arazi (kod ve birim testler tamam; iki kabul kriteri elle doğrulama bekliyor: 60 FPS ve "Yenice ormanları" görsel tanınırlığı; ayrıca Faz 1'in "eğimlerde doğal his" ve 60 FPS kriterleri gerçek GPU'lu masaüstünde)
-- **Tamamlanan fazlar:** Faz 0 — Kurulum; Faz 1 — Oynanabilir Prototip (main'e birleşti, iki kriter açık: yukarıya bak)
+- **Aktif faz:** Faz 3 — Hayatta Kalma Çekirdeği (kod ve birim testler tamam; elle doğrulama bekliyor: gerçek GPU'lu masaüstünde 60 FPS ve oyun hissi/denge — açlık/susuzluk hızları, gece soğuğu; ayrıca Faz 1'in "eğimlerde doğal his" ve 60 FPS ile Faz 2'nin 60 FPS ve "Yenice ormanları" görsel tanınırlığı kriterleri)
+- **Tamamlanan fazlar:** Faz 0 — Kurulum; Faz 1 — Oynanabilir Prototip; Faz 2 — Gerçek Arazi (üçü de main'e birleşti; açık kalan elle-doğrulama kriterleri yukarıda)
 - **Bilinen sorunlar / notlar:**
   - **Bölge verisi commit'li** (`public/data/regions/zonguldak-bartin-karabuk/`, ~3,7 MB). Yeniden üretmek için `tools/` komutlarını çalıştır (bkz. Komutlar). Testler (`tests/region*.test.ts` vb.) bu gerçek dosyalara bağlıdır.
   - **Eğim ölçeği:** Yatay 1:50, dikey 1:15 olduğundan gerçek yamaçlar oyunda ×3,3 dikleşir; 100 m ızgarada kara alanının yalnızca ~%64'ü 45°'nin altındadır (60° ile ~%93). Bu yüzden gerçek bölgede `REGION_PLAYER.maxSlopeDeg = 60` (Faz 1 arenasında 45°). Dik yamaçta yatay hız cos²θ ile düşer (55°'de ≈ 2,3 m/s); yeni bir hız modeli yazılmadı, "his" elle doğrulanmalı. `VERTICAL_SCALE` yalnızca `config.ts`'dedir, veri gerçek metredir.
-  - **Deniz:** Heightmap'te deniz 0 m'dir (sözleşme). Oyunda `RegionHeightSource` deniz hücrelerini kıyıdan uzaklığa göre çalışma zamanında çukurlaştırır (`SEABED`); dolayısıyla deniz altında `elevationAt` negatiftir, HUD rakımı 0'a sıkıştırır. Su düzlemi `WATER.level = 0,02` yüksekliğindedir. Yüzme/boğulma yok (Faz 3).
+  - **Deniz:** Heightmap'te deniz 0 m'dir (sözleşme). Oyunda `RegionHeightSource` deniz hücrelerini kıyıdan uzaklığa göre çalışma zamanında çukurlaştırır (`SEABED`); dolayısıyla deniz altında `elevationAt` negatiftir, HUD rakımı 0'a sıkıştırır. Su düzlemi `WATER.level = 0,02` yüksekliğindedir. Yüzme/boğulma yok (denizde de arazi gibi yürünür; ileri bir faza ertelendi).
   - **Orman örtüsü yok:** Zemin renklendirmesi rakım ve eğime bağlı prosedürel bir karışımdır; orman poligonları OSM ile Faz 4'te gelecek. Copernicus GLO-30 bir yüzey modelidir (DSM); ağaç yükseklikleri araziye karışmıştır.
-  - **Chunk/LOD:** 128×128 hücrelik chunk'lar (bölgede 13×10), LOD0–3, dört kenarda etek. LOD mesafeleri `CHUNK.lodDistances = [130, 350, 900]`; en kötü durumda 95 draw call, ~411 bin üçgen ölçüldü (headless yazılımsal WebGL; gerçek FPS ölçülmedi). Performans sorunu olursa önce bu eşikleri ve `RENDER.maxPixelRatio`'yu ayarla. Collider'lar yalnızca oyuncuya 160 m içindeki chunk'lar için vardır.
+  - **Chunk/LOD:** 128×128 hücrelik chunk'lar (bölgede 13×10), LOD0–3, dört kenarda etek. LOD mesafeleri `CHUNK.lodDistances = [130, 350, 900]`; Faz 2'de en kötü durumda 95 draw call, ~411 bin üçgen; Faz 3 sonrası (gökyüzü kubbesi + 2 su mesh'i) 98 draw call, ~538 bin üçgen ölçüldü (headless yazılımsal WebGL; gerçek FPS ölçülmedi). Fark, kırpılmayan tatlı su mesh'lerinden gelir (~127 bin üçgen); performans sorunu olursa suyu chunk başına bölmek ilk hamle. Performans sorunu olursa önce bu eşikleri ve `RENDER.maxPixelRatio`'yu ayarla. Collider'lar yalnızca oyuncuya 160 m içindeki chunk'lar için vardır.
   - **İl sınırı çizgisi** araziye LOD0 yüksekliğinden yapıştırılır; uzak (kaba) LOD'larda yer yer arazinin altında kalabilir.
-  - **Dev araçları** (üretimde yok): `window.__game`, 1–5 tuşlarıyla ışınlanma (`TELEPORTS`), FPS ve debug HUD'u. `?world=test` Faz 1 test arenasını açar (karakter kontrolü regresyonu için).
+  - **Dev araçları** (üretimde yok): `window.__game` (`survival`, `player`, `world`…), 1–5 tuşlarıyla ışınlanma (`TELEPORTS`), `[` / `]` ile saati ±1 saat sarma, `K` ile canı ve suyu sıfırlama (ölüm ekranı), FPS ve debug HUD'u. `?world=test` Faz 1 test arenasını açar (karakter kontrolü regresyonu için).
+  - **Faz 3 hayatta kalma modeli** (saf mantık, `src/survival/`; sabitler `config.ts` → `CLOCK`, `CLIMATE`, `SURVIVAL`, `RESPAWN`): göstergeler 0–100 (sağlık, tokluk, su, enerji) ve vücut ısısı (°C); süreler **gerçek saniye** cinsindendir, oyun günü ise `CLOCK.dayLengthSeconds` (varsayılan 24 gerçek dk = 1 oyun günü; başlangıç 09:00, yılın 265. günü). Ölçülen davranış: hiçbir şey yapmayan oyuncu ~20 dk'da susuzluktan ölür; kıyıda gece 4 saat güvenli; rakım arttıkça gece ölümcüldür (500 m'de yatarak bir gece can ~98, 1000 m ~39, ≥1500 m tek gecede ölümcül; yürümek ısıtır). İklim yaklaşıktır (mevsim + gün içi sinüs − 6,5 °C/km); ayarlanırsa `tests/vitals.test.ts` kabul simülasyonlarını yeniden çalıştır.
+  - **Yemek yok:** Tokluk düşer ama doldurmanın yolu Faz 4'te (toplama/pişirme) gelecek; şimdilik yalnızca su içilebilir (tatlı su kenarında `E` basılı tut). Deniz suyu içilmez. HUD'da "Tokluk/Su" adları kullanılır (açlık/susuzluğun tersi).
+  - **Tatlı su verisi:** `features.json` yalnızca `water` katmanını taşır (Overture Maps `base/water`, OSM türevi, ODbL). Gerçek nehirler oyunda 0,1–0,6 m genişliğinde kalacağından çizim genişlikleri ve içme mesafesi `FRESH_WATER`'da abartılmıştır (nehir 3 m, dere 1,2 m, kanal 1,5 m; erişim 3,5 m). Su şeritleri/yüzeyleri araziye LOD0 yüksekliğinden yapıştırılır; uzak LOD'larda yer yer arazinin altında kalabilir. `tools/fetch_water.py` HTTP Range ile ~150 MB indirir (~3 dk); ham çıktı `tools/raw/water/` altında, commit edilmez.
+  - **Gökyüzü ve ışık:** `world/skyModel.ts` güneş yüksekliğinden renk/yoğunluk üretir (saf, testli); `SkyDome` gradyan, yıldız, güneş/ay diskini çizer; `Environment.setSun` ışıkları ve sisi günceller. Ay güneşin tam karşısındadır (evre yok). Gece bilerek okunaklı tutulur (`SKY.ambientNight`, `SKY.moonIntensity`).
+  - **Ölüm ve yeniden doğma:** Ölünce oyun donar, fare kilidi bırakılır, ölüm ekranı (duraklatma menüsünün üstünde) çıkar; "Yeniden Doğ" göstergeleri doldurur, saat kesintisiz sürer, oyuncu hedef illerde deterministik-rastgele (n. ölüm için sabit tohum) güvenli bir noktaya taşınır.
   - TypeScript **6.0.3'e sabit**: `typescript-eslint` 8.71 `typescript <6.1.0` istiyor; 7.x'e geçiş `typescript-eslint` uyumu gelene kadar ertelendi.
   - Prettier yalnızca kod/config dosyalarını biçimlendirir; `*.md` belgeleri elle yazılır (`.prettierignore`).
   - Rapier WASM'ı base64 gömülü olduğu için `rapier` chunk'ı ~4,3 MB ham / ~1,7 MB gzip. Yükleme bütçesini (< 10 sn) izle; gerekirse WASM'ı ayrı dosya olarak sunmayı değerlendir.
@@ -133,7 +138,15 @@ Her bölge `public/data/regions/<bolge-id>/` altında şu dosyalardan oluşur. �
 
 **`provinces.geojson`** — İl sınırları, koordinatları **oyun dünyası X/Z** cinsinden (önceden dönüştürülmüş, 2 ondalık, sadeleştirilmiş), `properties.name` alanı il adı. Ek alanlar: `iso` (TR-67 gibi) ve `inRegion` (bölgenin hedef ili mi `true`, oyuncunun yürüyebildiği komşu il mi `false`). Komşu iller HUD'da adlarının görünmesi içindir.
 
-**`features.json`** (Faz 4+) — OSM kaynaklı orman poligonları, nehirler, yerleşimler; yine oyun koordinatlarında.
+**`features.json`** — Su ve (Faz 4+) orman/yerleşim gibi haritadaki özellikler; koordinatlar oyun X/Z'sinde (2 ondalık, sadeleştirilmiş, ızgaraya kırpılmış). `meta.json` içindeki `features` listesi hangi katmanların bulunduğunu söyler (Faz 3: `["water"]`); yeni katmanlar aynı dosyaya eklenir.
+```json
+{ "version": 1,
+  "water": {
+    "lines":    [{ "kind": "river|stream|canal", "name": "Filyos Çayı", "intermittent": true, "xz": [x0, z0, x1, z1, ...] }],
+    "polygons": [{ "kind": "lake|reservoir|pond|water", "name": "…", "rings": [[x0, z0, ...], /* delikler */] }],
+    "points":   [{ "kind": "spring", "name": "…", "x": 0, "z": 0 }] } }
+```
+Deniz dahil değildir (deniz heightmap'in 0 m seviyesidir); yüzme havuzu, atık su, hendek/drenaj elenir. Kaynak: Overture Maps `base/water` (OSM türevi, **ODbL-1.0**); `features.json` da ODbL kapsamındadır ve © OpenStreetMap katkıcıları atfı gerekir.
 
 Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 
@@ -143,7 +156,8 @@ Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 |---|---|---|
 | Yükseklik | Copernicus GLO-30 DEM (AWS Open Data: `copernicus-dem-30m`) | Copernicus lisansı — atıf zorunlu |
 | İl sınırları | geoBoundaries (TUR, ADM1) | CC BY 4.0 — atıf zorunlu |
-| Orman, nehir, yol | OpenStreetMap (Geofabrik Türkiye extract) | ODbL — atıf zorunlu |
+| Nehir, göl, kaynak | Overture Maps `base/water` (OSM türevi; `tools/fetch_water.py`) | ODbL-1.0 — © OpenStreetMap katkıcıları, atıf zorunlu |
+| Orman, yol, yerleşim (Faz 4) | OSM ya da ESA WorldCover (CC BY 4.0, 10 m arazi örtüsü); Geofabrik/Overpass bu ortamdan erişilemiyor | ODbL / CC BY 4.0 — atıf zorunlu |
 
 Tüm atıflar README.md'de ve oyunun içinde (ana menü / krediler) gösterilmelidir.
 
@@ -165,6 +179,7 @@ cd tools
 pip install -r requirements.txt
 python fetch_dem.py zonguldak-bartin-karabuk     # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB)
 python fetch_boundaries.py                       # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python fetch_water.py zonguldak-bartin-karabuk   # Overture su katmanı (HTTP Range; ~150 MB indirir, ~3 dk) → tools/raw/water/
 python build_region.py zonguldak-bartin-karabuk  # → public/data/regions/<id>/ (commit edilir)
 python -m pytest tests                           # Python birim testleri
 ```

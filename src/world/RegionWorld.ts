@@ -1,12 +1,21 @@
 import { Scene } from 'three';
-import { CHUNK, REGION_PLAYER, REGION_SCENE, TELEPORTS, VERTICAL_SCALE } from '../config';
+import {
+  CHUNK,
+  FRESH_WATER,
+  REGION_PLAYER,
+  REGION_SCENE,
+  TELEPORTS,
+  VERTICAL_SCALE,
+} from '../config';
 import type { RegionData } from '../data/region';
 import { createBoundsWalls } from '../physics/bounds';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import type { Vec3 } from '../player/movement';
+import type { SkyPosition } from '../survival/astronomy';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
+import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
 import type { GameWorld, LocationInfo } from './GameWorld';
 import { latLonToGame } from './geo';
 import { ProvinceBorders } from './ProvinceBorders';
@@ -15,6 +24,8 @@ import { RegionHeightSource } from './RegionHeightSource';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial } from './TerrainMaterial';
 import { Water } from './Water';
+import { FreshWaterMesh } from './FreshWaterMesh';
+import { FreshWaterIndex, type WaterHit } from './waterIndex';
 
 /**
  * Gerçek bölge dünyası: chunk'lanmış LOD'lu arazi mesh'leri, yakın chunk'lar için Rapier
@@ -35,6 +46,8 @@ export class RegionWorld implements GameWorld {
   private readonly walls: RAPIER.Collider[];
   private readonly water: Water;
   private readonly borders: ProvinceBorders;
+  private readonly freshWater: FreshWaterIndex | null;
+  private readonly freshWaterMesh: FreshWaterMesh | null;
 
   constructor(
     readonly region: RegionData,
@@ -56,6 +69,14 @@ export class RegionWorld implements GameWorld {
     this.borders = new ProvinceBorders(region.provinces, (x, z) => this.source.heightAt(x, z));
     this.scene.add(this.borders.object);
 
+    this.freshWater = region.features
+      ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
+      : null;
+    this.freshWaterMesh = region.features
+      ? new FreshWaterMesh(region.features.water, (x, z) => this.source.heightAt(x, z))
+      : null;
+    if (this.freshWaterMesh) this.scene.add(this.freshWaterMesh.object);
+
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
     if (!start) throw new Error('Başlangıç için yürünebilir nokta bulunamadı');
@@ -76,6 +97,24 @@ export class RegionWorld implements GameWorld {
     this.colliders.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
     this.water.update(timeSeconds);
+    this.environment.follow(focusX, focusZ);
+  }
+
+  setSun(sun: SkyPosition): void {
+    this.environment.setSun(sun);
+  }
+
+  freshWaterNear(x: number, z: number): WaterHit | null {
+    return this.freshWater?.nearest(x, z) ?? null;
+  }
+
+  respawnPoint(deathIndex: number): Vec3 | null {
+    return pickRespawnPoint(
+      this.region.provinces,
+      this.source,
+      this.maxSlopeDeg,
+      respawnRandom(deathIndex),
+    );
   }
 
   prepare(x: number, z: number): void {
@@ -107,6 +146,7 @@ export class RegionWorld implements GameWorld {
 
   dispose(): void {
     this.borders.dispose();
+    this.freshWaterMesh?.dispose();
     this.water.dispose();
     this.chunks.dispose();
     this.colliders.dispose();

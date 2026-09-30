@@ -161,3 +161,48 @@ def test_grid_outside_bbox_is_rejected():
     grid = regionlib.Grid(width=10, height=10, cell=100_000, origin_e=500_000, origin_n=4_600_000)
     with pytest.raises(SystemExit):
         build_region.check_grid_inside_bbox(grid, [32.0, 41.0, 32.5, 41.5])
+
+
+def test_build_writes_features_json_when_water_given(tmp_path):
+    """build(water_path=…) features.json ve meta alanlarını üretir."""
+    root = tmp_path
+    size = round(1 / PIXEL)
+    lons = LON0 + (np.arange(size) + 0.5) * PIXEL
+    lats = LAT0 - (np.arange(size) + 0.5) * PIXEL
+    data = elevation_at(lons[None, :], lats[:, None]).astype(np.float32)
+    dem = root / "tile.tif"
+    with rasterio.open(
+        dem, "w", driver="GTiff", height=size, width=size, count=1, dtype="float32",
+        crs="EPSG:4326", transform=from_origin(LON0, LAT0, PIXEL, PIXEL),
+    ) as dst:
+        dst.write(data, 1)
+    boundaries = root / "b.geojson"
+    write_boundaries(boundaries)
+    water = root / "w.geojson"
+    water.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "overture_release": "2026-09-23.1",
+        "features": [{
+            "type": "Feature",
+            "properties": {"name": "Deneme Çayı", "subtype": "river", "class": "river", "is_salt": None, "is_intermittent": None},
+            "geometry": {"type": "LineString", "coordinates": [[32.35, 41.35], [32.45, 41.45], [32.55, 41.55]]},
+        }],
+    }))
+
+    out = root / "out"
+    meta = build_region.build("test", REGION, [dem], boundaries, out, water)
+    assert meta["features"] == ["water"]
+    assert "Overture Maps (OpenStreetMap)" in meta["sources"]
+    assert meta["overtureRelease"] == "2026-09-23.1"
+    features = json.loads((out / "features.json").read_text(encoding="utf-8"))
+    assert features["version"] == 1
+    assert features["water"]["lines"][0]["name"] == "Deneme Çayı"
+    # Kuzeydoğuya akıyor: x artar, z azalır (−Z kuzey)
+    xz = features["water"]["lines"][0]["xz"]
+    assert xz[-2] > xz[0] and xz[-1] < xz[1]
+
+
+def test_build_without_water_has_no_features(built):
+    out, meta = built
+    assert "features" not in meta
+    assert not (out / "features.json").exists()
