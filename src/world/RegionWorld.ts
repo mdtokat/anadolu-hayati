@@ -24,6 +24,7 @@ import { RegionHeightSource } from './RegionHeightSource';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial } from './TerrainMaterial';
 import { Water } from './Water';
+import { FreshWaterMesh } from './FreshWaterMesh';
 import { FreshWaterIndex, type WaterHit } from './waterIndex';
 
 /**
@@ -46,6 +47,7 @@ export class RegionWorld implements GameWorld {
   private readonly water: Water;
   private readonly borders: ProvinceBorders;
   private readonly freshWater: FreshWaterIndex | null;
+  private readonly freshWaterMesh: FreshWaterMesh | null;
 
   constructor(
     readonly region: RegionData,
@@ -70,6 +72,10 @@ export class RegionWorld implements GameWorld {
     this.freshWater = region.features
       ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
       : null;
+    this.freshWaterMesh = region.features
+      ? new FreshWaterMesh(region.features.water, (x, z) => this.source.heightAt(x, z))
+      : null;
+    if (this.freshWaterMesh) this.scene.add(this.freshWaterMesh.object);
 
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
@@ -140,6 +146,7 @@ export class RegionWorld implements GameWorld {
 
   dispose(): void {
     this.borders.dispose();
+    this.freshWaterMesh?.dispose();
     this.water.dispose();
     this.chunks.dispose();
     this.colliders.dispose();
