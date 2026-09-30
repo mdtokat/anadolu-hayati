@@ -74,3 +74,42 @@ export const PHYSICS = {
   /** Yerçekimi ivmesi (oyun m/s²). Oyun metresi gerçek boyutlu kabul edilir. */
   gravity: 9.81,
 } as const;
+
+/**
+ * Faz 1 test arazisi (prosedürel). Faz 2'de gerçek yükseklik verisi aynı HeightSource
+ * arayüzünün arkasına takılacak; bu değerler yalnızca test ortamını etkiler.
+ */
+export const TERRAIN_TEST = {
+  /** Gürültü tohumu: aynı seed aynı araziyi verir. */
+  seed: 1071,
+  /** Arazi kenar uzunluğu (oyun metresi); orijin merkezdedir. */
+  size: 400,
+  /** Izgara hücre boyu (oyun metresi). */
+  cellSize: 1,
+  /** En yüksek tepe yüksekliği (oyun metresi). */
+  amplitude: 14,
+  /** Gürültü temel frekansı (1/oyun metresi). */
+  frequency: 0.012,
+  /** fBm oktav sayısı. */
+  octaves: 4,
+  /** Doğma noktası çevresinde tamamen düz kalan yarıçap (oyun metresi); test rampaları bunun içindedir. */
+  spawnFlatRadius: 36,
+  /** Düz alandan engebeye geçiş şeridinin genişliği (oyun metresi). */
+  spawnBlendWidth: 30,
+  /**
+   * Elle doğrulama için sabit rampalar (yamaç – plato – yamaç). +X yönünde yükselir;
+   * Z ekseninde `z ± width/2` aralığını kaplar. `angleDeg` eğim açısı, `height` plato yüksekliği,
+   * `plateau` plato uzunluğu (oyun metresi).
+   */
+  ramps: [
+    { x: 14, z: -8, width: 8, angleDeg: 30, height: 4, plateau: 4 },
+    { x: 14, z: 8, width: 8, angleDeg: 60, height: 6, plateau: 4 },
+  ],
+  /** Rampa kenarlarındaki yumuşatma şeridi (oyun metresi). */
+  rampEdgeWidth: 2,
+  /** Zemin renkleri: düz yerde çim, dik yerde kaya. */
+  grassColor: 0x4a7c3a,
+  rockColor: 0x7a746a,
+  /** Bu eğimden (normal.y) dik yüzeyler kaya rengine döner. */
+  rockNormalY: 0.75,
+} as const;
