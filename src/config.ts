@@ -28,17 +28,11 @@ export const FIXED_STEP = 1 / FIXED_UPDATE_HZ;
  */
 export const MAX_FRAME_TIME = 0.25;
 
-/** Sahne ayarları (Faz 1 test ortamı). */
+/** Sahne ayarları (Faz 1 test ortamı sisi; gökyüzü ve ışıklar için bkz. SKY). */
 export const SCENE = {
-  /** Gökyüzü ve sis rengi. */
-  skyColor: 0x87ceeb,
   /** Sis: başlangıç ve bitiş mesafesi (oyun metresi). */
   fogNear: 60,
   fogFar: 220,
-  /** Güneş ışığı yoğunluğu, yönü (konum, hedef orijindedir) ve ortam ışığı yoğunluğu. */
-  sunIntensity: 2.2,
-  sunPosition: [60, 100, 40],
-  ambientIntensity: 0.6,
 } as const;
 
 /** Kamera ayarları. */
@@ -472,4 +466,52 @@ export const FRESH_WATER = {
   opacity: 0.85,
   /** Akarsu şeridinin zeminden yüksekliği (oyun m); göller için yüzey yüksekliği kıyıdan alınır. */
   lift: 0.12,
+} as const;
+
+/**
+ * Gökyüzü ve gün ışığı (güneş yüksekliğine bağlı). Yükseklikler derece; renkler 0xRRGGBB.
+ * Gündüz/gece geçişi güneş yüksekliğine göre yumuşak yapılır; alacakaranlıkta ufuk turuncuya çalar.
+ */
+export const SKY = {
+  /** Gökyüzü tepe rengi: gündüz ve gece. */
+  zenithDay: 0x3d7fd0,
+  zenithNight: 0x02040d,
+  /** Ufuk (ve sis) rengi: gündüz, gece ve alacakaranlık (gün doğumu/batımı). */
+  horizonDay: 0xa9d0ee,
+  horizonNight: 0x0a1020,
+  horizonTwilight: 0xf0894a,
+  /** Gündüz faktörü: güneş bu yükseklikte (derece) 0'dan, bunda 1'e çıkar. */
+  dayFactorFrom: -8,
+  dayFactorTo: 15,
+  /** Alacakaranlık vurgusu: güneş ufuk çizgisinden bu kadar (derece) uzaklaştıkça sönümlenir. */
+  twilightWidth: 9,
+  /** Alacakaranlık renginin en fazla ne kadarının ufuk rengine karışacağı (0–1). */
+  twilightMix: 0.75,
+  /** Doğrudan güneş ışığı yoğunluğu (öğlen) ve rengi; ufka yaklaştıkça sıcak tona geçer. */
+  sunIntensity: 2.2,
+  sunColorHigh: 0xfff4e0,
+  sunColorLow: 0xffa860,
+  /** Güneşin ışığının açıldığı ve tam olduğu yükseklik (derece). */
+  sunLightFrom: -2,
+  sunLightTo: 12,
+  /** Sıcak renge geçiş: güneş bu yüksekliğin (derece) altında turuncuya döner. */
+  sunWarmBelow: 25,
+  /** Ay ışığı yoğunluğu (dolunay, tepede) ve rengi. */
+  moonIntensity: 0.32,
+  moonColor: 0x9db8ff,
+  /** Ortam ışığı: gündüz ve gece yoğunluğu/rengi. Gece tamamen kararmasın (en az görüş). */
+  ambientDay: 0.6,
+  ambientNight: 0.16,
+  ambientColorDay: 0xffffff,
+  ambientColorNight: 0x3a4a8a,
+  /** Yıldızlar: güneş bu yüksekliğin altında belirmeye başlar ve daha altında tam görünür. */
+  starsFadeStart: -3,
+  starsFadeEnd: -12,
+  /** Güneş ve ay diskinin görünür açısal yarıçapı (derece; gerçekte ~0,27°, oyunda abartılı). */
+  sunDiscRadiusDeg: 1.6,
+  moonDiscRadiusDeg: 1.3,
+  /** Gök kubbesinin yarıçapı (oyun m); kamera uzak düzleminin (CAMERA.far) içinde kalmalı. */
+  domeRadius: 4000,
+  /** Işık yönü uzaklığı (oyun m); yalnızca yön önemlidir. */
+  lightDistance: 100,
 } as const;

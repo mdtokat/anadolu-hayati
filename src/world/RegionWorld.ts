@@ -4,6 +4,7 @@ import type { RegionData } from '../data/region';
 import { createBoundsWalls } from '../physics/bounds';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import type { Vec3 } from '../player/movement';
+import type { SkyPosition } from '../survival/astronomy';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
@@ -76,6 +77,11 @@ export class RegionWorld implements GameWorld {
     this.colliders.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
     this.water.update(timeSeconds);
+    this.environment.follow(focusX, focusZ);
+  }
+
+  setSun(sun: SkyPosition): void {
+    this.environment.setSun(sun);
   }
 
   prepare(x: number, z: number): void {
