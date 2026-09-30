@@ -111,7 +111,7 @@ Görevler (numaralar alt görev sırasıdır):
 - [x] **4.3** Arazi örtüsüne göre seed'li ağaç yerleştirme (instanced mesh) _(`world/scatter.ts`, `PropLayer`; chunk başına deterministik, LRU önbellekli, iki geometri kademeli)_
 - [x] **4.3** Kaya, çalı, yenebilir bitki yerleştirme (sınıfa/rakıma göre) _(böğürtlen, fındık, kestane, mantar, yerde dal/taş; toplama etkileşimi 4.6'da)_
 - [x] **4.4** Eşya tanımları ve envanter sistemi (ağırlık/slot limiti; saf mantık) + yemek yeme _(`src/items/`: `itemDefs`, `Inventory`, `consume`; `SurvivalSystem.consume` + `player:ate`; oyuna ve arayüze bağlama 4.6–4.7'de)_
-- [ ] **4.5** Crafting mantığı: taş balta, ateş, basit barınak, su kabı tarifleri
+- [x] **4.5** Crafting mantığı: taş balta, ateş, basit barınak, su kabı tarifleri _(`src/items/recipes.ts`, `craft.ts`; ateş ve barınak `campfire`/`lean_to` eşyası olarak üretilir, yerleştirme 4.8'de; arayüz 4.7'de)_
 - [x] **4.6** Toplama etkileşimi (bakılan nesneye `E`) _(`interaction/`: odak seçimi, `GatherSystem`, verim tablosu; `E` basılı tutma, atomik envanter ekleme, `item:collected`; balta ile ağaç kesme)_
 - [ ] **4.7** Envanter ve üretim arayüzü
 - [ ] **4.8** Yerleştirme: ateş ve barınak kurma

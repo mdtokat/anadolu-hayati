@@ -17,9 +17,11 @@ describe('eşya tablosu', () => {
     }
   });
 
-  it('aletlerin yığın sınırı 1', () => {
+  it('alet ve yerleştirilebilir yapıların yığın sınırı 1', () => {
     for (const id of ITEM_IDS) {
-      if (ITEMS[id].category === 'tool') expect(ITEMS[id].stackMax, id).toBe(1);
+      if (ITEMS[id].category === 'tool' || ITEMS[id].category === 'placeable') {
+        expect(ITEMS[id].stackMax, id).toBe(1);
+      }
     }
   });
 
