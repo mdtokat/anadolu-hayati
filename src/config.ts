@@ -814,6 +814,39 @@ export const FIRE = {
   refuelSeconds: 0.8,
 } as const;
 
+/**
+ * Yapıların hayatta kalma etkileri (Faz 4.9). Isı ve barınak, vücut ısısı denge değerine (`SURVIVAL`) ve
+ * enerji dolumuna etki eder; yapılar `placement/exposure.ts` ile oyuncunun konumuna göre okunur.
+ */
+export const SHELTER_EFFECTS = {
+  /** Yanık kamp ateşinin ısıtması: merkezde `maxC`, `coreRadius` içinde tam, `radius`'ta sıfır (oyun m; doğrusal). */
+  fireWarmth: {
+    /** Tek ateşin vücut ısısı denge değerine eklediği en çok ısı (°C). */
+    maxC: 6,
+    coreRadius: 1.5,
+    radius: 6,
+    /** Birden çok ateşin toplam ısıtması bu değeri aşmaz (°C). */
+    maxTotalC: 8,
+  },
+  /**
+   * Sundurma (lean_to) altındaki korunma: sundurmanın yerel dikdörtgeni (yarım genişlik / arka / ön, oyun m;
+   * geometrideki direklerin biraz içi). Yapıya göre yatay konum; zemin farkı `verticalReach`'i aşamazsa geçerli.
+   */
+  shelter: {
+    halfWidth: 1.4,
+    back: -1.1,
+    front: 0.8,
+    /** Etkiler için yapı ile ayak arasındaki en büyük yükseklik farkı (oyun m). */
+    verticalReach: 2.5,
+    /** Soğukta denge ısısındaki düşüşün çarpanı (rüzgâr kesilir, toprak/yaprak yalıtır): <1 daha az üşür. */
+    coldFactor: 0.55,
+    /** Dinlenirken (hareketsiz) enerji dolumu çarpanı: barınakta daha hızlı uyku/dinlenme. */
+    restRefillFactor: 2.5,
+    /** Dinlenirken can yenilenme çarpanı. */
+    restHealthFactor: 1.5,
+  },
+} as const;
+
 /** Yapıların (kamp ateşi, sundurma) görünümü ve ateş ışığı (Faz 4.8). Geometri `world/structureGeometry.ts`'tedir. */
 export const STRUCTURE_LOOK = {
   colors: {

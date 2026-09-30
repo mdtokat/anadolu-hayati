@@ -2,6 +2,7 @@ import './ui.css';
 import type { VitalsState } from '../survival/vitals';
 import {
   bodyTempLabel,
+  exposureLabel,
   bodyTempLevel,
   formatTemperature,
   gaugeFraction,
@@ -33,6 +34,9 @@ export interface SurvivalHudInfo {
   day: string;
   /** Ortam sıcaklığı (°C). */
   ambientC: number;
+  /** Yakındaki ateşlerin ısıtması (°C) ve barınak altında olma durumu. */
+  warmthC: number;
+  sheltered: boolean;
 }
 
 /**
@@ -139,7 +143,12 @@ export class Hud {
     const level = bodyTempLevel(vitals.bodyTemp);
     setText(
       this.bodyTemp,
-      `Vücut: ${formatTemperature(vitals.bodyTemp)} ${bodyTempLabel(vitals.bodyTemp)}`.trim(),
+      [
+        `Vücut: ${formatTemperature(vitals.bodyTemp)} ${bodyTempLabel(vitals.bodyTemp)}`.trim(),
+        exposureLabel(info.warmthC, info.sheltered),
+      ]
+        .filter((part) => part !== '')
+        .join(' · '),
     );
     setState(this.bodyTemp, level);
 

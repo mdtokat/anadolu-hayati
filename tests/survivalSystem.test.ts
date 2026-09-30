@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CLIMATE, CLOCK, SURVIVAL } from '../src/config';
+import { CLIMATE, CLOCK, SHELTER_EFFECTS, SURVIVAL } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { ambientTemperature } from '../src/survival/climate';
@@ -234,5 +234,44 @@ describe('SurvivalSystem: dinamik gün döngüsünde rakım tehlikesi (gerçek s
     const system = new SurvivalSystem(undefined, { startHour: CLIMATE.warmestHour + 12 });
     system.update(DT, idle(0));
     expect(system.ambientC).toBeLessThan(noon - 7);
+  });
+});
+
+describe('ateş ve barınak bağlamı (Faz 4.9)', () => {
+  /** Geceyarısı, 1500 m: korunmasız oyuncu için ölümcül. */
+  const freezing = (extra: Partial<SurvivalContext>): SurvivalContext => ({
+    ...idle(1500),
+    ...extra,
+  });
+  const startAtNight = () => new SurvivalSystem(undefined, { startHour: CLIMATE.warmestHour - 12 });
+  const keepFed = (system: SurvivalSystem) => system.setVitals({ hydration: 100, satiety: 100 });
+
+  function survive(context: SurvivalContext, seconds: number): SurvivalSystem {
+    const system = startAtNight();
+    for (let t = 0; t < seconds && system.alive; t += 1) {
+      keepFed(system);
+      system.update(1, context);
+    }
+    return system;
+  }
+
+  it('bağlam alanları verilmezse, açık 0/false ile birebir aynı sonuç', () => {
+    const implicit = survive(freezing({}), 300);
+    const explicit = survive(freezing({ warmthC: 0, sheltered: false }), 300);
+    expect(explicit.state).toEqual(implicit.state);
+    expect(implicit.state.bodyTemp).toBeLessThan(SURVIVAL.bodyTempNormalC - 1);
+  });
+
+  it('warmthC ısıyı dengeye yansıtır; ateş başında vücut ısısı normale yakın kalır', () => {
+    const system = survive(freezing({ warmthC: SHELTER_EFFECTS.fireWarmth.maxC }), 600);
+    expect(system.alive).toBe(true);
+    expect(system.state.bodyTemp).toBeGreaterThan(36);
+    expect(system.state.health).toBe(100);
+  });
+
+  it('sheltered soğuğu yumuşatır: aynı sürede korunmasıza göre daha yüksek vücut ısısı', () => {
+    const bare = survive(freezing({}), 400);
+    const covered = survive(freezing({ sheltered: true }), 400);
+    expect(covered.state.bodyTemp).toBeGreaterThan(bare.state.bodyTemp + 0.5);
   });
 });

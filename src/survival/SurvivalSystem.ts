@@ -20,6 +20,10 @@ export interface SurvivalContext {
   elevationM: number;
   /** Tatlı su içiyor mu? (Kaynağa yakınlık ve `E` basılı olması Game'de denetlenir.) */
   drinking: boolean;
+  /** Yakındaki ateşlerin vücut ısısı denge değerine eklediği ısı (°C); yoksa 0. */
+  warmthC?: number;
+  /** Barınak altında mı? Yoksa `false`. */
+  sheltered?: boolean;
 }
 
 export interface DeathInfo {
@@ -90,7 +94,13 @@ export class SurvivalSystem {
 
     const step = stepVitals(
       this.vitals,
-      { activity: context.activity, ambientC: this.ambient, drinking: this.drinkingNow },
+      {
+        activity: context.activity,
+        ambientC: this.ambient,
+        drinking: this.drinkingNow,
+        warmthC: context.warmthC,
+        sheltered: context.sheltered,
+      },
       dt,
     );
     this.vitals = step.state;

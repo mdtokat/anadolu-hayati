@@ -1,4 +1,4 @@
-import { SURVIVAL } from '../config';
+import { SHELTER_EFFECTS, SURVIVAL } from '../config';
 
 export type Activity = 'rest' | 'walk' | 'run';
 
@@ -23,6 +23,10 @@ export interface VitalsInput {
   ambientC: number;
   /** Tatlı su içiyor mu? */
   drinking?: boolean;
+  /** Yakındaki ateşlerin vücut ısısı denge değerine eklediği ısı (°C); `placement/exposure.ts`'ten. */
+  warmthC?: number;
+  /** Barınak altında mı? Soğuk etkisi azalır; dinlenirken enerji ve can daha hızlı dolar. */
+  sheltered?: boolean;
 }
 
 /** Bu adımda her kaynaktan alınan hasar (can puanı). */
@@ -61,15 +65,26 @@ export function initialVitals(): VitalsState {
 
 /**
  * Vücut ısısının yöneldiği denge değeri (°C): normal ısı, soğukta ortam sıcaklığıyla orantılı düşer,
- * sıcakta yükselir; aktivite ısı ekler. (Giysi ve barınak yok: Faz 4.)
+ * sıcakta yükselir; aktivite ısı ekler. Barınak (`sheltered`) soğuk etkisini `coldFactor` ile azaltır; ateş
+ * (`warmthC`) dengeyi yükseltir ama vücudu normal ısı + aktivite ısısının üstüne çıkaramaz (ateş aşırı
+ * ısıtmaz; sıcak havada zaten yüksek olan dengeyi değiştirmez).
  */
-export function bodyTempEquilibrium(ambientC: number, activity: Activity): number {
-  let equilibrium = SURVIVAL.bodyTempNormalC + SURVIVAL.activityHeatC[activity];
+export function bodyTempEquilibrium(
+  ambientC: number,
+  activity: Activity,
+  warmthC = 0,
+  sheltered = false,
+): number {
+  const comfortable = SURVIVAL.bodyTempNormalC + SURVIVAL.activityHeatC[activity];
+  let equilibrium = comfortable;
   if (ambientC < SURVIVAL.comfortAmbientC) {
-    equilibrium -= (SURVIVAL.comfortAmbientC - ambientC) * SURVIVAL.coldSlope;
+    const coldFactor = sheltered ? SHELTER_EFFECTS.shelter.coldFactor : 1;
+    equilibrium -= (SURVIVAL.comfortAmbientC - ambientC) * SURVIVAL.coldSlope * coldFactor;
   } else if (ambientC > SURVIVAL.hotAmbientC) {
     equilibrium += (ambientC - SURVIVAL.hotAmbientC) * SURVIVAL.hotSlope;
   }
+  if (warmthC > 0)
+    equilibrium = Math.max(equilibrium, Math.min(equilibrium + warmthC, comfortable));
   return equilibrium;
 }
 
@@ -98,18 +113,20 @@ export function stepVitals(state: VitalsState, input: VitalsInput, dt: number): 
   hydration = clamp(hydration, 0, MAX);
   const satiety = clamp(state.satiety - satietyDrain * dt, 0, MAX);
 
-  // Enerji: koşarak biter, yürürken yavaş, dinlenirken hızlı dolar.
+  // Enerji: koşarak biter, yürürken yavaş, dinlenirken hızlı dolar (barınakta daha hızlı).
+  const sheltered = input.sheltered === true;
+  const restFactor = sheltered ? SHELTER_EFFECTS.shelter.restRefillFactor : 1;
   let energy = state.energy;
   if (activity === 'run' && !state.exhausted) energy -= (MAX / SURVIVAL.runEmptySeconds) * dt;
   else if (activity === 'walk') energy += (MAX / SURVIVAL.walkRefillSeconds) * dt;
-  else if (activity === 'rest') energy += (MAX / SURVIVAL.restRefillSeconds) * dt;
+  else if (activity === 'rest') energy += (MAX / SURVIVAL.restRefillSeconds) * restFactor * dt;
   energy = clamp(energy, 0, MAX);
   let exhausted = state.exhausted;
   if (energy <= 0) exhausted = true;
   else if (exhausted && energy >= SURVIVAL.exhaustedRecoverAt) exhausted = false;
 
   // Vücut ısısı: dengeye üstel yaklaşma.
-  const equilibrium = bodyTempEquilibrium(ambientC, activity);
+  const equilibrium = bodyTempEquilibrium(ambientC, activity, input.warmthC ?? 0, sheltered);
   const bodyTemp =
     equilibrium + (state.bodyTemp - equilibrium) * Math.exp(-dt / SURVIVAL.bodyTempTauSeconds);
 
@@ -138,7 +155,11 @@ export function stepVitals(state: VitalsState, input: VitalsInput, dt: number): 
     hydration >= SURVIVAL.healthRegenMinLevel &&
     bodyTemp >= minTemp &&
     bodyTemp <= maxTemp;
-  if (canRegen) health += SURVIVAL.healthRegenPerSecond * dt;
+  if (canRegen) {
+    const regenFactor =
+      sheltered && activity === 'rest' ? SHELTER_EFFECTS.shelter.restHealthFactor : 1;
+    health += SURVIVAL.healthRegenPerSecond * regenFactor * dt;
+  }
   health = clamp(health, 0, MAX);
 
   const dead = health <= 0;

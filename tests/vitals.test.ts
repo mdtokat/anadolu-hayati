@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLIMATE, CLOCK, SURVIVAL } from '../src/config';
+import { CLIMATE, CLOCK, SHELTER_EFFECTS, SURVIVAL } from '../src/config';
 import { ambientTemperature } from '../src/survival/climate';
 import {
   applyConsumable,
@@ -374,5 +374,124 @@ describe('KABUL: yüksek rakımda gece belirgin biçimde daha tehlikeli', () => 
       }),
     ).seconds;
     expect(running).toBeGreaterThan(resting);
+  });
+});
+
+describe('ateş ısısı ve barınak (Faz 4.9)', () => {
+  const nightHour = CLIMATE.warmestHour - 12;
+  const ambientAt = (elevationM: number) =>
+    ambientTemperature({ hour: nightHour, dayOfYear: CLOCK.dayOfYear, elevationM });
+  const keepFed = (s: VitalsState): VitalsState => ({ ...s, hydration: 100, satiety: 100 });
+  const { fireWarmth, shelter } = SHELTER_EFFECTS;
+
+  it('etki yokken (varsayılan girdi) denge değeri eskisiyle aynı', () => {
+    expect(bodyTempEquilibrium(0, 'rest', 0, false)).toBe(bodyTempEquilibrium(0, 'rest'));
+    const a = stepVitals(initialVitals(), rest(5), 1).state;
+    const b = stepVitals(initialVitals(), rest(5, { warmthC: 0, sheltered: false }), 1).state;
+    expect(b).toEqual(a);
+  });
+
+  it('ateş dengeyi yükseltir, ama normal ısı + aktivite ısısının üstüne çıkarmaz', () => {
+    const cold = bodyTempEquilibrium(0, 'rest');
+    expect(bodyTempEquilibrium(0, 'rest', 3)).toBeCloseTo(cold + 3, 9);
+    // çok güçlü ateş bile konfor ısısında durur
+    expect(bodyTempEquilibrium(0, 'rest', 100)).toBe(SURVIVAL.bodyTempNormalC);
+    expect(bodyTempEquilibrium(0, 'run', 100)).toBe(
+      SURVIVAL.bodyTempNormalC + SURVIVAL.activityHeatC.run,
+    );
+    // sıcak havada ateş dengeyi değiştirmez (aşırı ısıtmaz)
+    expect(bodyTempEquilibrium(40, 'rest', fireWarmth.maxC)).toBe(bodyTempEquilibrium(40, 'rest'));
+  });
+
+  it('barınak yalnızca soğuk etkisini kırpar; konforlu ve sıcak havada fark yok', () => {
+    const cold = bodyTempEquilibrium(0, 'rest');
+    const covered = bodyTempEquilibrium(0, 'rest', 0, true);
+    expect(SURVIVAL.bodyTempNormalC - covered).toBeCloseTo(
+      (SURVIVAL.bodyTempNormalC - cold) * shelter.coldFactor,
+      9,
+    );
+    expect(bodyTempEquilibrium(comfortable, 'rest', 0, true)).toBe(SURVIVAL.bodyTempNormalC);
+    expect(bodyTempEquilibrium(40, 'rest', 0, true)).toBe(bodyTempEquilibrium(40, 'rest'));
+  });
+
+  it('barınakta dinlenirken enerji daha hızlı dolar; yürürken fark yok', () => {
+    const tired = { ...initialVitals(), energy: 0, exhausted: true };
+    const plain = stepVitals(tired, rest(comfortable), 1).state.energy;
+    const covered = stepVitals(tired, rest(comfortable, { sheltered: true }), 1).state.energy;
+    expect(covered).toBeCloseTo(plain * shelter.restRefillFactor, 9);
+    const walkPlain = stepVitals(tired, { activity: 'walk', ambientC: comfortable }, 1).state
+      .energy;
+    const walkCovered = stepVitals(
+      tired,
+      { activity: 'walk', ambientC: comfortable, sheltered: true },
+      1,
+    ).state.energy;
+    expect(walkCovered).toBe(walkPlain);
+  });
+
+  it('barınakta bitkinlikten daha çabuk çıkılır', () => {
+    const tired = { ...initialVitals(), energy: 0, exhausted: true };
+    const secondsToRecover = (sheltered: boolean) => {
+      let state = tired;
+      let t = 0;
+      while (state.exhausted && t < 600) {
+        state = stepVitals(state, rest(comfortable, { sheltered }), 0.5).state;
+        t += 0.5;
+      }
+      return t;
+    };
+    expect(secondsToRecover(true)).toBeLessThan(secondsToRecover(false) / 2);
+  });
+
+  it('barınakta dinlenirken can daha hızlı yenilenir', () => {
+    const hurt = { ...initialVitals(), health: 50 };
+    const plain = stepVitals(hurt, rest(comfortable), 1).state.health - 50;
+    const covered = stepVitals(hurt, rest(comfortable, { sheltered: true }), 1).state.health - 50;
+    expect(covered).toBeCloseTo(plain * shelter.restHealthFactor, 9);
+  });
+
+  describe('KABUL: ateş ve barınak geceyi hayatta geçirtir', () => {
+    /** Bir oyun gecesi ≈ 12 gerçek dk; en soğuk saat sabit tutulur (en kötü durum), su/tokluk dolu. */
+    const NIGHT_SECONDS = 15 * 60;
+    const night = (elevationM: number, extra: Partial<VitalsInput>) =>
+      simulate(rest(ambientAt(elevationM), extra), NIGHT_SECONDS, initialVitals(), 1, keepFed);
+
+    it('1500 m gece: korunmasız ölür; ateş başında hasar bile yok', () => {
+      const bare = night(1500, {});
+      expect(bare.dead).toBe(true);
+      expect(bare.cause).toBe('hypothermia');
+      const fire = night(1500, { warmthC: fireWarmth.maxC });
+      expect(fire.dead).toBe(false);
+      expect(fire.hypothermiaDamage).toBe(0);
+      expect(fire.state.health).toBe(100);
+    });
+
+    it('koruma ateşe uzaklıkla azalır: ateşin kenarında 2000 m gece neredeyse ölümcül', () => {
+      const near = night(2000, { warmthC: fireWarmth.maxC });
+      const edge = night(2000, { warmthC: 2 });
+      const far = night(2000, {});
+      expect(far.dead).toBe(true);
+      expect(edge.state.health).toBeLessThan(near.state.health);
+      expect(edge.state.health).toBeLessThan(30);
+      expect(near.hypothermiaDamage).toBe(0);
+    });
+
+    it('yalnızca barınak: 1500 m geceyi can kaybıyla atlatır; 1000 m gecede neredeyse hasarsız', () => {
+      const sheltered = night(1500, { sheltered: true });
+      expect(sheltered.dead).toBe(false);
+      expect(sheltered.hypothermiaDamage).toBeGreaterThan(0);
+      expect(sheltered.state.health).toBeLessThan(100);
+      const bare1000 = night(1000, {});
+      const covered1000 = night(1000, { sheltered: true });
+      expect(covered1000.dead).toBe(false);
+      expect(covered1000.hypothermiaDamage).toBeLessThan(bare1000.hypothermiaDamage / 5);
+    });
+
+    it('ateş + barınak: 2000 m zirve gecesi bile güvenli, vücut ısısı normal', () => {
+      const both = night(2000, { sheltered: true, warmthC: fireWarmth.maxC });
+      expect(both.dead).toBe(false);
+      expect(both.hypothermiaDamage).toBe(0);
+      expect(both.state.bodyTemp).toBeGreaterThan(SURVIVAL.hypothermiaBelowC + 1.5);
+    });
   });
 });
