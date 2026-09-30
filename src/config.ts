@@ -311,6 +311,152 @@ export const SCATTER = {
   waterClearance: 5,
   /** Ağaç sınırı: bu gerçek rakımın (m) üstünde ağaç yok. */
   treeLineElevation: 1700,
+  /**
+   * Rakım eşiklerine eklenen yavaş gürültü: yapraklı/iğne yapraklı geçişi düz bir çizgi değil, yamalı olsun.
+   * `wavelength` oyun m, `amplitude` gerçek m.
+   */
+  elevationJitter: { wavelength: 90, amplitude: 160 },
+  /**
+   * Tür başına ayarlar. `height`: taban geometrinin gerçek boyu (oyun m; ölçek 1'de); `scale`: rastgele ölçek
+   * aralığı (çarpan); `maxSlopeDeg`: bu oyun eğiminden dik yere konmaz; `elevation`: [a, b, c, d] gerçek m
+   * yamuğu — yoğunluk a→b arasında 0→1, b→c arasında 1, c→d arasında 1→0; `waterClearance`: tatlı suya en
+   * az uzaklık (oyun m); `maxInstances`: örnek tamponu kapasitesi (her kademe için); `maxDistance`: bu
+   * uzaklıktan (oyun m) sonra çizilmez; `farLod`: `nearRadius`'tan uzakta ucuz geometriyle çizilir mi.
+   */
+  kinds: {
+    tree_broadleaf: {
+      height: 17,
+      scale: [0.75, 1.3],
+      maxSlopeDeg: 55,
+      elevation: [0, 0, 600, 1100],
+      waterClearance: 5,
+      maxInstances: 14000,
+      maxDistance: 700,
+      farLod: true,
+    },
+    tree_conifer: {
+      height: 22,
+      scale: [0.75, 1.3],
+      maxSlopeDeg: 55,
+      elevation: [200, 900, 1700, 1750],
+      waterClearance: 5,
+      maxInstances: 14000,
+      maxDistance: 700,
+      farLod: true,
+    },
+    bush: {
+      height: 1.2,
+      scale: [0.7, 1.4],
+      maxSlopeDeg: 58,
+      elevation: [0, 0, 1700, 1900],
+      waterClearance: 3,
+      maxInstances: 20000,
+      maxDistance: 300,
+      farLod: true,
+    },
+    rock: {
+      height: 1.4,
+      scale: [0.4, 1.8],
+      maxSlopeDeg: 90,
+      elevation: [0, 0, 5000, 5000],
+      waterClearance: 1.5,
+      maxInstances: 8000,
+      maxDistance: 450,
+      farLod: true,
+    },
+    berry_bush: {
+      height: 1.1,
+      scale: [0.8, 1.25],
+      maxSlopeDeg: 55,
+      elevation: [0, 0, 1000, 1300],
+      waterClearance: 3,
+      maxInstances: 4000,
+      maxDistance: 200,
+      farLod: false,
+    },
+    hazel: {
+      height: 3.5,
+      scale: [0.8, 1.3],
+      maxSlopeDeg: 50,
+      elevation: [0, 0, 600, 900],
+      waterClearance: 4,
+      maxInstances: 4000,
+      maxDistance: 300,
+      farLod: true,
+    },
+    chestnut: {
+      height: 16,
+      scale: [0.8, 1.25],
+      maxSlopeDeg: 50,
+      elevation: [150, 250, 850, 950],
+      waterClearance: 5,
+      maxInstances: 2000,
+      maxDistance: 700,
+      farLod: true,
+    },
+    mushroom: {
+      height: 0.25,
+      scale: [0.7, 1.4],
+      maxSlopeDeg: 40,
+      elevation: [0, 0, 1500, 1700],
+      waterClearance: 2,
+      maxInstances: 4000,
+      maxDistance: 90,
+      farLod: false,
+    },
+    stick: {
+      height: 0.15,
+      scale: [0.7, 1.4],
+      maxSlopeDeg: 50,
+      elevation: [0, 0, 1900, 2000],
+      waterClearance: 1.5,
+      maxInstances: 6000,
+      maxDistance: 90,
+      farLod: false,
+    },
+    stone: {
+      height: 0.3,
+      scale: [0.6, 1.5],
+      maxSlopeDeg: 70,
+      elevation: [0, 0, 5000, 5000],
+      waterClearance: 1.5,
+      maxInstances: 6000,
+      maxDistance: 120,
+      farLod: false,
+    },
+  },
+  /**
+   * Arazi örtüsü sınıfı → tür yoğunlukları (nesne / 100 m² oyun alanı; rakım yamuğu ile çarpılır).
+   * Tabloda olmayan sınıflarda (urban, snow, none) nesne yoktur. Bir sınıfın toplam yoğunluğu
+   * `100 / candidateSpacing²` değerini aşmamalı (aday başına en çok bir nesne; testle doğrulanır).
+   */
+  density: {
+    forest: {
+      tree_broadleaf: 1.0,
+      tree_conifer: 1.0,
+      chestnut: 0.04,
+      bush: 0.45,
+      berry_bush: 0.06,
+      mushroom: 0.12,
+      stick: 0.25,
+      stone: 0.12,
+      rock: 0.03,
+    },
+    shrub: {
+      bush: 1.0,
+      berry_bush: 0.15,
+      hazel: 0.25,
+      tree_broadleaf: 0.1,
+      tree_conifer: 0.05,
+      rock: 0.05,
+      stick: 0.15,
+      stone: 0.1,
+    },
+    grass: { bush: 0.12, rock: 0.04, stone: 0.12 },
+    crop: { hazel: 0.12, stick: 0.05 },
+    barren: { rock: 0.9, stone: 0.6 },
+    wetland: { bush: 0.15 },
+  },
 } as const;
 
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
