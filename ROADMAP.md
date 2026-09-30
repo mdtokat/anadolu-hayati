@@ -130,7 +130,7 @@ Kabul kriterleri:
 **Amaç:** Dünyayı yaşayan, tehlikeli ve beslenilebilir yap: hayvanlar, av, pişirme, hasar.
 
 Görevler (numaralar alt görev sırasıdır; **Hesap A = Beyin**, **Hesap B = Beden ve oyuncu**):
-- [ ] **5.0** İskele: sözleşme tipleri (`creatures/kinds.ts`), olaylar, config blokları, yeni eşya kimlikleri, boş `CreatureSystem`/`CombatSystem` ve `Game` bağlantıları, yer tutucu çizim
+- [x] **5.0** İskele: sözleşme tipleri (`creatures/kinds.ts`), olaylar, config blokları, yeni eşya kimlikleri, boş `CreatureSystem`/`CombatSystem` ve `Game` bağlantıları, yer tutucu çizim
 - [ ] **5.1** _(A)_ Bölgeye özgü hayvanlar: tür tablosu (boz ayı, kurt, yaban domuzu, karaca), kimlikler, `CREATURES` config
 - [ ] **5.2** _(A)_ Basit durum makinesi yapay zekâsı (dolaşma, otlama, fark etme, kaçma, sinsi yaklaşma, kovalama, saldırma); algı (görüş, duyma, ateş)
 - [ ] **5.3** _(A)_ Biyoma (arazi örtüsü + rakım + eğim) ve gece/gündüze göre doğma kuralları, deterministik yerleşim, akış

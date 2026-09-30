@@ -485,6 +485,27 @@ export const SCATTER = {
   },
 } as const;
 
+/**
+ * Canlı simülasyonu (Faz 5, Hesap A'nın bloğu). Tür tablosu (sağlık, hız, algı…) `creatures/species.ts`'tedir
+ * (5.1). Buradaki değerler iskelet başlangıcıdır; 5.5'te ölçümle ayarlanır.
+ */
+export const CREATURES = {
+  /** Dünya tohumu: aynı tohum aynı canlıları (ve aynı `CreatureId`'leri) verir. */
+  seed: 5107,
+  /** Aynı anda etkin (yaşayan + leş) en çok canlı: CPU ve çizim bütçesi. */
+  maxActive: 40,
+  /** Canlılar oyuncuya bu uzaklığa (oyun m) kadar simüle edilir. */
+  simRadius: 250,
+  /** Bu uzaklığın (oyun m) ötesindeki canlılar kaldırılır (simRadius'tan büyük: sınırda gidip gelmesin). */
+  despawnRadius: 300,
+  /** Oyuncuya bu uzaklıktan (oyun m) yakın yerde canlı doğmaz. */
+  minSpawnDistance: 90,
+  /** Leş bu süre (gerçek sn) sonra kendiliğinden kaybolur. */
+  carcassSeconds: 300,
+  /** Öldürülen canlının hücresinde yeniden doğması için beklenecek süre (gerçek sn). */
+  respawnCooldownSeconds: 600,
+} as const;
+
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
 export const REGION_PLAYER = {
   /**
@@ -882,4 +903,52 @@ export const STRUCTURE_LOOK = {
   },
   /** Yerleştirme hayaleti: geçerli/geçersiz renk ve saydamlık. */
   ghost: { validColor: 0x3ddc84, invalidColor: 0xe5484d, opacity: 0.45 },
+} as const;
+
+/**
+ * Oyuncu savaşı (Faz 5, Hesap B'nin bloğu). Hayvanın saldırı hasarı `creatures/species.ts`'tedir (A); burada
+ * oyuncunun silahları ve savunması durur. İskelet başlangıcıdır; 5.6–5.7'de ayarlanır, denge elle doğrulanır.
+ */
+export const COMBAT = {
+  /** Hasar aldıktan sonra bu süre (gerçek sn) yeni hasar alınmaz. */
+  iframeSeconds: 0.6,
+  /**
+   * Silahlar: `damage` hasar, `reach` yatay menzil (oyun m), `cooldownSeconds` iki saldırı arası,
+   * `energyCost` saldırı başına enerji düşümü (0–100 ölçeği). Anahtar: `fist` ya da silah eşyasının kimliği.
+   */
+  weapons: {
+    fist: { damage: 4, reach: 1.8, cooldownSeconds: 0.7, energyCost: 2 },
+    stone_axe: { damage: 18, reach: 2, cooldownSeconds: 1, energyCost: 4 },
+    stone_spear: { damage: 28, reach: 2.8, cooldownSeconds: 1.2, energyCost: 4 },
+  },
+  /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
+  defense: { hide_vest: 0.2 },
+} as const;
+
+/** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir (5.8). */
+export const LOOT = {
+  /** Elle kesme süresi (sn, `E` basılı tutulur). */
+  butcherSeconds: 6,
+  /** Taş baltayla kesme süresi (sn). */
+  butcherSecondsAxe: 3,
+} as const;
+
+/** Et pişirme (Faz 5, Hesap B'nin bloğu). Yanık ateşin yanında `E` basılı tutulur. */
+export const COOKING = {
+  /** Bir adet çiğ etin pişme süresi (sn). */
+  seconds: 8,
+} as const;
+
+/** Canlıların yer tutucu/geçici görünümü (Faz 5, Hesap B'nin bloğu; 5.10'da gerçek modellerle değişir). */
+export const CREATURE_LOOK = {
+  colors: {
+    roe_deer: 0xb5793f,
+    wild_boar: 0x4a3a30,
+    wolf: 0x6f6f6a,
+    brown_bear: 0x5a3b22,
+  },
+  /** Vurulma parlamasında karıştırılan renk. */
+  hitColor: 0xff3b30,
+  /** Leş (yan yatık) yer tutucusunun boy çarpanı. */
+  deadHeightFactor: 0.35,
 } as const;

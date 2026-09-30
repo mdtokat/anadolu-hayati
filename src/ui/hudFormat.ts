@@ -1,3 +1,4 @@
+import type { CreatureStats } from '../creatures/kinds';
 import type { Vec3 } from '../player/movement';
 import type { LocationInfo } from '../world/GameWorld';
 
@@ -9,6 +10,8 @@ export interface DebugInfo {
   /** Nesne katmanı sayımları (yalnızca nesne destekleyen dünyalarda). */
   /** Yapı katmanı sayımları (kamp ateşi, sundurma). */
   structures?: { structures: number; lit: number; lights: number } | null;
+  /** Canlı simülasyonu sayımları. */
+  creatures?: CreatureStats | null;
   props?: { instances: number; meshes: number; loadedChunks: number; activeChunks: number } | null;
 }
 
@@ -38,6 +41,10 @@ export function formatDebugInfo(info: DebugInfo): string {
   if (info.structures) {
     const { structures, lit, lights } = info.structures;
     lines.push(`Yapı: ${structures} (${lit} yanık, ${lights} ışık)`);
+  }
+  if (info.creatures) {
+    const { active, carcasses } = info.creatures;
+    lines.push(`Canlı: ${active} etkin (${carcasses} leş)`);
   }
   return lines.join('\n');
 }

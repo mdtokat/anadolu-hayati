@@ -14,7 +14,7 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 > Her faz bitiminde bu bölüm güncellenmelidir.
 
-- **Aktif faz:** Faz 4 — Toplama ve Üretim (4.1–4.10 kod ve belgeler tamam; elle doğrulama bekliyor): gerçek GPU'lu masaüstünde 60 FPS ve oyun hissi/denge (Faz 3 açlık/susuzluk hızları, gece soğuğu; Faz 4 toplama süreleri, yakıt süreleri, envanter sınırları, ateş/barınak etkisi), "sıfırdan ateş ve barınak kurma" zincirinin oyunda denenmesi, orman/ağaç görsel tanınırlığı; ayrıca Faz 1'in "eğimlerde doğal his" ve 60 FPS ile Faz 2'nin 60 FPS ve "Yenice ormanları" kriterleri
+- **Aktif faz:** Faz 5 — Canlılar (iki hesapta paralel: [docs/faz-5-paralel-plan.md](docs/faz-5-paralel-plan.md); 5.0 iskelesi hazır, `creatures/` ve `combat/` gövdeleri boş). Bekleyen elle doğrulama — Faz 4 — Toplama ve Üretim (4.1–4.10 kod ve belgeler tamam): gerçek GPU'lu masaüstünde 60 FPS ve oyun hissi/denge (Faz 3 açlık/susuzluk hızları, gece soğuğu; Faz 4 toplama süreleri, yakıt süreleri, envanter sınırları, ateş/barınak etkisi), "sıfırdan ateş ve barınak kurma" zincirinin oyunda denenmesi, orman/ağaç görsel tanınırlığı; ayrıca Faz 1'in "eğimlerde doğal his" ve 60 FPS ile Faz 2'nin 60 FPS ve "Yenice ormanları" kriterleri
 - **Tamamlanan fazlar:** Faz 0 — Kurulum; Faz 1 — Oynanabilir Prototip; Faz 2 — Gerçek Arazi; Faz 3 — Hayatta Kalma Çekirdeği (hepsi main'e birleşti; açık kalan elle-doğrulama kriterleri yukarıda)
 - **Bilinen sorunlar / notlar:**
   - **Bölge verisi commit'li** (`public/data/regions/zonguldak-bartin-karabuk/`, ~3,7 MB). Yeniden üretmek için `tools/` komutlarını çalıştır (bkz. Komutlar). Testler (`tests/region*.test.ts` vb.) bu gerçek dosyalara bağlıdır.
@@ -78,7 +78,8 @@ Yeni bir bağımlılık eklemeden önce gerekçesini belirt ve kullanıcıya sor
 │  ├─ items/                # Eşya tanımları, envanter, yemek, crafting (saf mantık)
 │  ├─ interaction/          # Toplama etkileşimi: odak seçimi, verim tablosu
 │  ├─ placement/            # Ateş/barınak yerleştirme kuralları, yakıt (saf mantık)
-│  ├─ creatures/            # Hayvanlar ve yapay zekâ (Faz 5+)
+│  ├─ creatures/            # Hayvanlar: tür tablosu, yapay zekâ, doğma (saf mantık; Faz 5, `kinds.ts` = sözleşme)
+│  ├─ combat/               # Oyuncu savaşı, hasar/savunma, leş kesme, pişirme (saf mantık; Faz 5)
 │  ├─ ui/                   # HUD ve menüler (HTML/CSS overlay)
 │  ├─ data/                 # Bölge verisi yükleyicileri
 │  └─ utils/                # Matematik, seeded random vb.
