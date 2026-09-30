@@ -2,9 +2,23 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı (tarayıcıda açılan boş bir 3D sahne iskeleti); sıradaki adım **Faz 1 — Oynanabilir Prototip**. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı; **Faz 1 — Oynanabilir Prototip** kodu hazır: engebeli bir test arazisinde Rapier fiziğiyle yürüyebildiğin, koşup zıplayabildiğin birinci/üçüncü şahıs prototip. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
 **Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
+
+## Kontroller
+
+| Tuş | Eylem |
+| --- | --- |
+| Tıkla / **Başla** | Oyunu başlat, fareyi yakala |
+| W A S D (veya ok tuşları) | Yürü |
+| Shift | Koş |
+| Boşluk | Zıpla |
+| Fare | Etrafa bak |
+| V | Birinci / üçüncü şahıs kamera |
+| Esc | Duraklat (menüyü aç) |
+
+Test arazisinde doğma noktasının doğusunda 30° ve 60° rampalar, güneyinde 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru blokları bulunur; 45°'den dik yamaçlara tırmanılamaz.
 
 ## Gereksinimler
 
