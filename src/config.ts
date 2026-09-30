@@ -46,7 +46,7 @@ export const CAMERA = {
   /** Dikey görüş açısı (derece). */
   fov: 70,
   near: 0.1,
-  far: 500,
+  far: 5000,
   /** Bakışta yukarı/aşağı sınırı (derece); 90'a çok yakın değerler kamerayı ters çevirir. */
   maxPitchDeg: 89,
   /** Üçüncü şahıs: kameranın oyuncudan uzaklığı (oyun metresi). */
@@ -223,4 +223,39 @@ export const CHUNK = {
   viewDistance: 4000,
   /** Karede kurulan en fazla chunk (mesh/collider) sayısı: kare süresi sıçramasın. */
   maxBuildsPerFrame: 2,
+} as const;
+
+/** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */
+export const REGION_SCENE = {
+  /** Sis: başlangıç ve bitiş mesafesi (oyun m). Uzak LOD'ların "pop"unu da gizler. */
+  fogNear: 400,
+  fogFar: 3800,
+} as const;
+
+/**
+ * Gerçek arazi renklendirmesi (fragment shader). Rakımlar gerçek metre, eğim eşikleri oyun uzayındaki
+ * (dikey ölçek uygulanmış) eğimdir; oyuncu eğim limitiyle aynı ölçekte.
+ * Orman poligonları Faz 4'te (OSM) gelecek; şimdilik rakıma bağlı koyu bir "orman zemini" tonu var.
+ */
+export const TERRAIN_LOOK = {
+  /** Bu rakımın (m) altında, düz yerlerde kum/çakıl. */
+  sandMaxElevation: 6,
+  /** Kumdan çime geçiş şeridi (m). */
+  sandBlend: 8,
+  /** Çimden orman zeminine geçiş: [başlangıç, tam] rakım (m). */
+  forestFrom: [120, 450],
+  /** Orman zemininden yüksek çayıra/kayalığa geçiş: [başlangıç, tam] rakım (m). */
+  alpineFrom: [1300, 1750],
+  /** Kaya rengine geçiş: [başlangıç, tam] oyun eğimi (derece). */
+  rockSlopeDeg: [45, 62],
+  sandColor: 0xc2b280,
+  grassColor: 0x5a8f3c,
+  forestColor: 0x2f5a2b,
+  alpineColor: 0x8a8a5c,
+  rockColor: 0x6f675d,
+  /** Renk gürültüsü: dünya birimi başına frekans ve genlik (0..1). */
+  noiseFrequency: 0.045,
+  noiseStrength: 0.22,
+  /** Gürültünün sönmeye başladığı uzaklık (oyun m): uzakta titreşim (aliasing) olmasın. */
+  noiseFadeDistance: 900,
 } as const;
