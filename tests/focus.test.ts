@@ -70,16 +70,27 @@ describe('pickFocus', () => {
     expect(pickFocus([a, b], view, () => false)).toBeNull();
   });
 
-  it('dibindeki yer nesnesine yere bakmadan ulaşılır (3B açı koniyi aşsa da)', () => {
-    const closeStick = prop('stick', 0, -1.0);
-    // 1 m ötedeki dal düz bakışta ~58° aşağıdadır; yatay açı 0 olduğundan yine de seçilir.
-    expect(pickFocus([closeStick], view)?.prop).toBe(closeStick);
-    // closeRange'in ötesinde 3B koni geçerlidir: 1,6 m'deki dal ~43° aşağıda → dışarıda,
-    // yere doğru eğilince (pitch −0,45) içeride.
-    const midStick = prop('stick', 0, -1.6);
-    expect(pickFocus([midStick], view)).toBeNull();
-    const down: View = { eye: view.eye, forward: lookDirection(0, -0.45) };
-    expect(pickFocus([midStick], down)?.prop).toBe(midStick);
+  it('dibindeki yer nesnesine yere bakmadan ulaşılır (dikey açı aranmaz)', () => {
+    // 1 m ötedeki dal düz bakışta ~56° aşağıda; 0,4 m ötedeki ~75° aşağıda (eşiğin ötesi) ama closeRange içinde.
+    expect(pickFocus([prop('stick', 0, -1.0)], view)).not.toBeNull();
+    expect(pickFocus([prop('stick', 0, -0.4)], view)).not.toBeNull();
+  });
+
+  it('dik yamaçta oyuncunun çok altındaki nesne düz bakışta da seçilir; dikey tolerans aşılırsa seçilmez', () => {
+    // 2 m ötede, tabanı gözün 3,2 m altında (yükselti açısı ≈ −58°): düz bakışta fark 58° ≤ 65°.
+    const below: PropRef = { id: nextId++, kind: 'bush', x: 0, y: -1.55, z: -2, scale: 1 };
+    expect(pickFocus([below], view)?.prop).toBe(below);
+    // yukarı bakarken (pitch +0,3 ≈ 17°) fark 75° > 65°: seçilmez
+    const up: View = { eye: view.eye, forward: lookDirection(0, 0.3) };
+    expect(pickFocus([below], up)).toBeNull();
+    // yere doğru eğilince tekrar seçilir
+    const down: View = { eye: view.eye, forward: lookDirection(0, -0.6) };
+    expect(pickFocus([below], down)?.prop).toBe(below);
+  });
+
+  it('düz bakışta geniş yatay koni dışındaki nesne, dikey açı ne olursa olsun seçilmez', () => {
+    const aside: PropRef = { id: nextId++, kind: 'bush', x: 2.5, y: 0, z: -1.5, scale: 1 };
+    expect(pickFocus([aside], view)).toBeNull(); // bearing ≈ 59°
   });
 
   it('dibindeki ama arkadaki nesneyi yatay açı da reddeder', () => {

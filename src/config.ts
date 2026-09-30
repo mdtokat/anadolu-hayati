@@ -760,9 +760,14 @@ export const FOOD = {
 export const INTERACT = {
   /** Nesneye en fazla bu yatay uzaklıkta (oyun m) etkileşilir. */
   reach: 3.5,
-  /** Bakış yönü ile nesne arasındaki en büyük açı (derece). */
+  /** Bakış yönü ile nesne arasındaki en büyük yatay açı (derece). */
   viewConeDeg: 40,
-  /** Bu uzaklıktan (oyun m) yakın nesnelerde yalnızca yatay bakış açısı aranır (yere bakmadan da alınır). */
+  /**
+   * Bakış eğimi (pitch) ile nesneye olan yükselti açısı arasındaki en büyük fark (derece). Gerçek yamaçlar
+   * oyunda ×3,3 dikleştiğinden nesne sık sık oyuncunun çok altında/üstündedir; dikey tolerans geniştir.
+   */
+  viewPitchDeg: 65,
+  /** Bu uzaklıktan (oyun m) yakın nesnelerde dikey açı aranmaz (yere bakmadan da alınır). */
   closeRange: 1.5,
   /** Nesnenin hedef noktası: zeminden nesne boyunun bu oranı, en çok `maxTargetHeight` (oyun m). */
   targetHeightFraction: 0.5,

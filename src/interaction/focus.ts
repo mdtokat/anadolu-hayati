@@ -39,11 +39,13 @@ function angleBetween(ax: number, ay: number, az: number, b: Readonly<Vec3>): nu
   return (Math.acos(Math.min(Math.max(cos, -1), 1)) * 180) / Math.PI;
 }
 
+const RAD = 180 / Math.PI;
+
 /**
- * Bakılan nesneyi seçer: `candidates` içinden `accept` diyenlerden, erişim (yatay) ve bakış konisi içinde
- * olan, bakış yönüne en yakın olanı (eşitlikte yakın olanı) döndürür; yoksa `null`.
- * `closeRange` içindeki nesnelerde yalnızca yatay bakış açısı aranır: dibindeki dala yere bakmadan da
- * ulaşılır.
+ * Bakılan nesneyi seçer: `candidates` içinden `accept` diyenlerden, erişim (yatay uzaklık), yatay bakış
+ * konisi (`viewConeDeg`) ve dikey tolerans (`viewPitchDeg`: bakış eğimi ile nesneye yükselti açısı farkı)
+ * içinde olan, bakış yönüne (3B açı) en yakın olanı döndürür; eşitlikte yakın olanı. Yoksa `null`.
+ * `closeRange` içindeki nesnelerde dikey açı aranmaz: dibindeki dala yere bakmadan da ulaşılır.
  */
 export function pickFocus(
   candidates: readonly PropRef[],
@@ -52,6 +54,8 @@ export function pickFocus(
 ): Focus | null {
   let best: Focus | null = null;
   const { eye, forward } = view;
+  const forwardHorizontal = Math.hypot(forward.x, forward.z);
+  const pitchDeg = Math.asin(Math.min(Math.max(forward.y, -1), 1)) * RAD;
 
   for (const prop of candidates) {
     const dx = prop.x - eye.x;
@@ -59,16 +63,20 @@ export function pickFocus(
     const distance = Math.hypot(dx, dz);
     if (distance > INTERACT.reach || !accept(prop)) continue;
 
-    const dy = prop.y + targetHeight(prop) - eye.y;
-    let angleDeg = angleBetween(dx, dy, dz, forward);
-    if (distance <= INTERACT.closeRange) {
-      const horizontalForward = { x: forward.x, y: 0, z: forward.z };
-      if (Math.hypot(forward.x, forward.z) > 1e-6) {
-        angleDeg = Math.min(angleDeg, angleBetween(dx, 0, dz, horizontalForward));
-      }
-    }
-    if (angleDeg > INTERACT.viewConeDeg) continue;
+    // Yatay bakış açısı (bakış neredeyse dikeyse yön belirsiz: kabul).
+    const bearingDeg =
+      forwardHorizontal > 1e-6 && distance > 1e-6
+        ? angleBetween(dx, 0, dz, { x: forward.x, y: 0, z: forward.z })
+        : 0;
+    if (bearingDeg > INTERACT.viewConeDeg) continue;
 
+    const dy = prop.y + targetHeight(prop) - eye.y;
+    if (distance > INTERACT.closeRange) {
+      const elevationDeg = Math.atan2(dy, distance) * RAD;
+      if (Math.abs(elevationDeg - pitchDeg) > INTERACT.viewPitchDeg) continue;
+    }
+
+    const angleDeg = angleBetween(dx, dy, dz, forward);
     if (
       best === null ||
       angleDeg < best.angleDeg - 1e-9 ||
