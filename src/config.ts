@@ -284,6 +284,35 @@ export const TERRAIN_LOOK = {
   noiseFadeDistance: 900,
 } as const;
 
+/**
+ * Seed'li nesne yerleşimi (ağaç, kaya, çalı, yenebilir bitki; Faz 4.3). Mantık `world/scatter.ts`,
+ * çizim `world/PropLayer.ts`. Uzunluklar oyun metresi (gerçek boyut: oyuncu 1,8 m), yoğunluklar
+ * "nesne / 100 m² oyun alanı", rakımlar gerçek metre, eğimler oyun uzayı (dikey ölçek uygulanmış) derecesidir.
+ */
+export const SCATTER = {
+  /** Dünya tohumu: aynı tohum aynı nesneleri (ve aynı `PropId`'leri) verir. */
+  seed: 4303,
+  /**
+   * Aday noktaların jitter'lı ızgara aralığı (oyun m). Chunk kenarını (256 m) tam bölmeli; her aday hücre
+   * en çok bir nesne verir, dolayısıyla chunk başına en çok (256 / aralık)² = 4096 nesne (kimlik sınırı 65536).
+   */
+  candidateSpacing: 4,
+  /** Nesneler oyuncuya bu uzaklığa (oyun m) kadar çizilir; chunk'lar bu yarıçap içindeyse etkindir. */
+  drawRadius: 700,
+  /** Etkin chunk kümesi bu kadar (oyun m) hareketle yeniden hesaplanır/örnek tamponları yenilenir. */
+  refreshDistance: 24,
+  /** Karede hesaplanabilecek en fazla chunk (`scatterChunk`): takılma olmasın. */
+  maxChunkBuildsPerFrame: 2,
+  /** Hesaplanmış chunk sonuçlarının LRU önbellek kapasitesi. */
+  chunkCacheSize: 64,
+  /** Bu gerçek rakımın (m) altında (deniz/kıyı) nesne yok. */
+  minElevation: 3,
+  /** Tatlı suya bu uzaklıktan (oyun m) yakın yere ağaç/çalı dikilmez (kıyıda kaya/taş serbest). */
+  waterClearance: 5,
+  /** Ağaç sınırı: bu gerçek rakımın (m) üstünde ağaç yok. */
+  treeLineElevation: 1700,
+} as const;
+
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
 export const REGION_PLAYER = {
   /**

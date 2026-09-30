@@ -26,3 +26,27 @@ export function createRandom(seed: number): Random {
     int: (min, max) => Math.floor(min + next() * (max - min + 1)),
   };
 }
+
+/**
+ * Tam sayı girdilerinden 32-bit tohum üretir (murmur3 tarzı karma). Sıra önemlidir:
+ * `seedFrom(a, b) !== seedFrom(b, a)`. Sonuç doğrudan `createRandom`'a verilebilir; bitişik
+ * girdiler (ör. komşu chunk'lar) birbirinden ilişkisiz diziler verir.
+ */
+export function seedFrom(...ints: number[]): number {
+  let h = 0x9e3779b9;
+  for (const value of ints) {
+    let k = Math.imul(value | 0, 0xcc9e2d51);
+    k = (k << 15) | (k >>> 17);
+    k = Math.imul(k, 0x1b873593);
+    h ^= k;
+    h = (h << 13) | (h >>> 19);
+    h = (Math.imul(h, 5) + 0xe6546b64) | 0;
+  }
+  h ^= ints.length;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
