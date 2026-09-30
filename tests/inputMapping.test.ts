@@ -55,6 +55,11 @@ describe('actionForKey', () => {
   it('B il sınırı çizgilerini aç/kapa eylemidir', () => {
     expect(actionForKey('KeyB')).toBe('toggleBorders');
   });
+  it('I ve Tab envanter panelini, F hızlı yemeği açar', () => {
+    expect(actionForKey('KeyI')).toBe('toggleInventory');
+    expect(actionForKey('Tab')).toBe('toggleInventory');
+    expect(actionForKey('KeyF')).toBe('eat');
+  });
   it('diğer tuşlar için null döner', () => {
     expect(actionForKey('KeyW')).toBeNull();
   });

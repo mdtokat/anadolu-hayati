@@ -363,3 +363,160 @@
 .death-screen-panel button:hover {
   background: #c14535;
 }
+
+/* Envanter ve üretim paneli (oyun donar; duraklatma menüsünün altında) */
+.inv-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 20, 30, 0.55);
+  font:
+    15px/1.4 system-ui,
+    sans-serif;
+  color: #fff;
+}
+.inv-panel[hidden] {
+  display: none;
+}
+.inv-panel-body {
+  width: min(880px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 18px 22px;
+  background: rgba(20, 30, 40, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+}
+.inv-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin-bottom: 14px;
+}
+.inv-title {
+  margin: 0;
+  font-size: 22px;
+}
+.inv-capacity,
+.inv-vitals {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.inv-close {
+  margin-left: auto;
+}
+.inv-panel button {
+  padding: 6px 14px;
+  font: inherit;
+  color: #fff;
+  background: #2f6fdf;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.inv-panel button:hover:not(:disabled),
+.inv-panel button:focus-visible {
+  background: #4682f0;
+}
+.inv-panel button:disabled {
+  background: #3a4350;
+  color: #8a94a3;
+  cursor: default;
+}
+.inv-columns {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr);
+  gap: 20px;
+}
+@media (max-width: 760px) {
+  .inv-columns {
+    grid-template-columns: 1fr;
+  }
+}
+.inv-slots {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.inv-panel .inv-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 58px;
+  padding: 4px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.inv-panel .inv-slot[data-empty='true'] {
+  background: rgba(255, 255, 255, 0.03);
+}
+.inv-panel .inv-slot[data-selected='true'] {
+  border-color: #ffd23f;
+  box-shadow: 0 0 0 1px #ffd23f;
+}
+.inv-slot-count {
+  font-weight: 700;
+  color: #ffd23f;
+}
+.inv-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.inv-hint {
+  opacity: 0.65;
+}
+.inv-selected {
+  flex: 1;
+}
+.inv-subtitle {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.inv-recipe {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+.inv-recipe[data-craftable='true'] {
+  border: 1px solid rgba(120, 220, 120, 0.5);
+}
+.inv-recipe-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+.inv-recipe-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+}
+.inv-chip {
+  padding: 1px 7px;
+  font-size: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.inv-chip[data-ok='true'] {
+  color: #9be59b;
+}
+.inv-chip[data-ok='false'] {
+  color: #ff9d9d;
+}
+.inv-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ffd23f;
+}

@@ -113,7 +113,7 @@ Görevler (numaralar alt görev sırasıdır):
 - [x] **4.4** Eşya tanımları ve envanter sistemi (ağırlık/slot limiti; saf mantık) + yemek yeme _(`src/items/`: `itemDefs`, `Inventory`, `consume`; `SurvivalSystem.consume` + `player:ate`; oyuna ve arayüze bağlama 4.6–4.7'de)_
 - [x] **4.5** Crafting mantığı: taş balta, ateş, basit barınak, su kabı tarifleri _(`src/items/recipes.ts`, `craft.ts`; ateş ve barınak `campfire`/`lean_to` eşyası olarak üretilir, yerleştirme 4.8'de; arayüz 4.7'de)_
 - [x] **4.6** Toplama etkileşimi (bakılan nesneye `E`) _(`interaction/`: odak seçimi, `GatherSystem`, verim tablosu; `E` basılı tutma, atomik envanter ekleme, `item:collected`; balta ile ağaç kesme)_
-- [ ] **4.7** Envanter ve üretim arayüzü
+- [x] **4.7** Envanter ve üretim arayüzü _(`I`/`Tab` paneli: slot ızgarası, taşıma, "Ye", tarif listesi ve "Üret"; `F` hızlı yemek; panel açıkken oyun donar)_
 - [ ] **4.8** Yerleştirme: ateş ve barınak kurma
 - [ ] **4.9** Ateşin sıcaklık etkisi, barınağın uyku/yorgunluk etkisi
 - [ ] **4.10** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
