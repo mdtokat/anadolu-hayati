@@ -775,3 +775,32 @@ export const INTERACT = {
   /** Toplanınca ekranda gösterilen bildirimin süresi (ms). */
   toastMs: 2000,
 } as const;
+
+/** Yapı yerleştirme (Faz 4.8): hayalet konumu ve geçerlilik kuralları. */
+export const PLACEMENT = {
+  /** Hayalet, oyuncunun bakış yönünde bu yatay uzaklığa (oyun m) konur. */
+  aimDistance: 2.5,
+  /** Oyuncu ile hedef arasındaki en büyük yatay uzaklık (oyun m). */
+  maxReach: 4,
+  /** Eğim, hedef çevresinde bu adımla (oyun m) örneklenen yüksekliklerden hesaplanır. */
+  slopeSampleStep: 0.75,
+  /** Yapı türüne göre: en dik yamaç (derece, oyun uzayı), kaplama yarıçapı (oyun m). */
+  kinds: {
+    campfire: { maxSlopeDeg: 40, radius: 0.9 },
+    lean_to: { maxSlopeDeg: 35, radius: 2 },
+  },
+  /** İki yapının merkezleri arasındaki en az uzaklık: yarıçapların toplamı + bu pay (oyun m). */
+  spacingMargin: 0.3,
+} as const;
+
+/** Kamp ateşi yakıtı (Faz 4.8). Süreler gerçek saniyedir (24 gerçek dk = 1 oyun günü). */
+export const FIRE = {
+  /** Yeni kurulan ateşin yanma süresi (sn): ≈ 10 oyun saati. */
+  burnSeconds: 600,
+  /** Yakıt deposunun üst sınırı (sn); fazlası boşa gider. */
+  maxFuelSeconds: 1200,
+  /** Ateşe atılan eşyanın eklediği yanma süresi (sn). */
+  fuel: { stick: 90, log: 300 },
+  /** Ateşe yakıt atmak için en fazla yatay uzaklık (oyun m). */
+  refuelReach: 3,
+} as const;
