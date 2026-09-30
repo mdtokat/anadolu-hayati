@@ -27,3 +27,21 @@ export function createHeightfieldDesc(heights: Float32Array, grid: GridSpec): RA
     { x: grid.size, y: 1, z: grid.size },
   );
 }
+
+/**
+ * Tek bir chunk için Rapier heightfield tanımı. `heights` satır satır (cells + 1)² köşe;
+ * `size` chunk kenar uzunluğu (oyun m), (centerX, centerZ) chunk merkezidir.
+ */
+export function createChunkHeightfieldDesc(
+  heights: Float32Array,
+  cells: number,
+  size: number,
+  centerX: number,
+  centerZ: number,
+): RAPIER.ColliderDesc {
+  return RAPIER.ColliderDesc.heightfield(cells, cells, toColumnMajor(heights, cells + 1), {
+    x: size,
+    y: 1,
+    z: size,
+  }).setTranslation(centerX, 0, centerZ);
+}

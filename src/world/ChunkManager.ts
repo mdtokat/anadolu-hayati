@@ -60,8 +60,11 @@ export class ChunkManager {
     return this.chunks.get(chunkKey(this.grid, cx, cy))?.lod;
   }
 
-  /** Odak noktası (oyuncu X/Z) çevresindeki chunk'ları günceller. */
-  update(focusX: number, focusZ: number): ChunkUpdateStats {
+  /**
+   * Odak noktası (oyuncu X/Z) çevresindeki chunk'ları günceller. `maxBuilds` ile bu çağrının
+   * bütçesi değiştirilebilir (Infinity = hepsini hemen kur; başlangıç yüklemesi için).
+   */
+  update(focusX: number, focusZ: number, maxBuilds: number = this.maxBuilds): ChunkUpdateStats {
     const work: Array<{ cx: number; cy: number; lod: number; distance: number }> = [];
     let removed = 0;
 
@@ -86,7 +89,7 @@ export class ChunkManager {
 
     // En yakın chunk'lar önce kurulur.
     work.sort((a, b) => a.distance - b.distance);
-    const batch = work.slice(0, this.maxBuilds);
+    const batch = work.slice(0, maxBuilds);
     for (const item of batch) this.build(item.cx, item.cy, item.lod);
 
     return { built: batch.length, removed, pending: work.length - batch.length };

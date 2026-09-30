@@ -223,6 +223,12 @@ export const CHUNK = {
   viewDistance: 4000,
   /** Karede kurulan en fazla chunk (mesh/collider) sayısı: kare süresi sıçramasın. */
   maxBuildsPerFrame: 2,
+  /** Fizik: bu uzaklıktaki (oyun m) chunk'lar için Rapier heightfield collider'ı vardır. */
+  physicsRadius: 160,
+  /** Collider'lar `physicsRadius × bu` uzaklıktan sonra kaldırılır (histerezis). */
+  physicsRemoveFactor: 1.6,
+  /** Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). */
+  maxColliderBuildsPerFrame: 1,
 } as const;
 
 /** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */
@@ -259,3 +265,45 @@ export const TERRAIN_LOOK = {
   /** Gürültünün sönmeye başladığı uzaklık (oyun m): uzakta titreşim (aliasing) olmasın. */
   noiseFadeDistance: 900,
 } as const;
+
+/** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
+export const REGION_PLAYER = {
+  /**
+   * Oyun eğimi sınırı (derece). VERTICAL_SCALE = 15 ve HORIZONTAL_SCALE = 50 iken gerçek eğimler 3,3 kat
+   * dikleşir; 100 m ızgarada bölgenin ~%93'ü 60°'nin altındadır (45° ile yalnızca ~%64).
+   */
+  maxSlopeDeg: 60,
+} as const;
+
+/** Harita kenarındaki görünmez duvarlar. */
+export const REGION_BOUNDS = {
+  /** Duvar kalınlığı (oyun m). */
+  wallThickness: 10,
+  /** Duvarın en alt ve en üst y'si (oyun m): tüm arazi yüksekliğini kaplar. */
+  wallBottom: -200,
+  wallTop: 600,
+} as const;
+
+/** Güvenli doğma noktası araması. */
+export const SPAWN_SEARCH = {
+  /** Sınırın altında bırakılan pay (derece): kenarda doğan oyuncu hemen kaymasın. */
+  slopeMarginDeg: 8,
+  /** Gerçek rakım (m) bu değerin altındaki noktalar (deniz/kıyı çizgisi) doğma için uygun değildir. */
+  minElevation: 1,
+  /** Aday noktanın çevresinde de eğim denetlenir: bu yarıçapta (oyun m). */
+  probeRadius: 4,
+  /** En fazla arama yarıçapı (oyun m). */
+  maxRadius: 800,
+} as const;
+
+/**
+ * Geliştirici ışınlanma noktaları (dev modunda 1–5 tuşları). İlki oyunun başlangıç noktasıdır.
+ * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur.
+ */
+export const TELEPORTS = [
+  { name: 'Zonguldak merkez', lat: 41.4564, lon: 31.7987 },
+  { name: 'Safranbolu', lat: 41.2517, lon: 32.6939 },
+  { name: 'Amasra', lat: 41.7494, lon: 32.3853 },
+  { name: 'Filyos vadisi', lat: 41.5667, lon: 32.0333 },
+  { name: 'Yenice', lat: 41.2028, lon: 32.3358 },
+] as const;

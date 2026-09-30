@@ -5,7 +5,11 @@ if (!container) throw new Error('#app öğesi bulunamadı');
 const loading = document.getElementById('loading');
 
 // Fizik motoru (WASM) yüklenirken "Yükleniyor…" gösterilir; sahne siyah kalmaz.
-Game.create(container)
+// ?world=test → Faz 1 test arenası (karakter kontrolü regresyonu); varsayılan gerçek bölge.
+const world =
+  new URLSearchParams(window.location.search).get('world') === 'test' ? 'test' : 'region';
+
+Game.create(container, { world })
   .then((game) => {
     loading?.remove();
     game.start();
