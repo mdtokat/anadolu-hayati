@@ -1,6 +1,18 @@
 import { WebGLRenderer } from 'three';
-import { RENDER, SURVIVAL, SURVIVAL_HUD, TELEPORTS, VERTICAL_SCALE } from '../config';
+import {
+  INTERACT,
+  PLAYER,
+  RENDER,
+  SURVIVAL,
+  SURVIVAL_HUD,
+  TELEPORTS,
+  VERTICAL_SCALE,
+} from '../config';
 import { loadRegion } from '../data/region';
+import { pickFocus, lookDirection } from '../interaction/focus';
+import { GatherSystem } from '../interaction/gather';
+import { collectedToast, gatherPrompt } from '../interaction/promptText';
+import { Inventory } from '../items/Inventory';
 import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Player } from '../player/Player';
 import { PlayerCamera } from '../player/PlayerCamera';
@@ -43,6 +55,10 @@ export class Game {
   readonly events = new EventBus<GameEvents>();
   /** Hayatta kalma durumu: saat, iklim, göstergeler (saf mantık; dev araçları da okur). */
   readonly survival = new SurvivalSystem(this.events);
+  /** Oyuncunun envanteri (arayüzü 4.7'de; şimdilik toplama bildirimleri ve dev erişimi). */
+  readonly inventory = new Inventory();
+  /** Bakılan nesneye `E` ile toplama (saf mantık). */
+  readonly gather = new GatherSystem(this.events, this.inventory);
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -101,6 +117,10 @@ export class Game {
         this.hud.setPrompt(null);
         this.deathScreen.show(death);
         this.input.exitLock(); // fareyle "Yeniden Doğ"a tıklanabilsin
+      }),
+      this.events.on('item:collected', ({ item, count, propId, removed }) => {
+        if (removed) this.world.setPropDepleted?.(propId, true);
+        this.hud.notify(collectedToast(item, count), INTERACT.toastMs);
       }),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
@@ -200,12 +220,29 @@ export class Game {
     this.physics.step();
 
     const feet = this.player.position;
+    // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
+    const held = this.input.interactHeld;
+    const nearby = this.world.propsNear?.(feet.x, feet.z, INTERACT.reach) ?? [];
+    const focus =
+      nearby.length === 0
+        ? null
+        : pickFocus(
+            nearby,
+            {
+              eye: { x: feet.x, y: feet.y + PLAYER.eyeHeight, z: feet.z },
+              forward: lookDirection(this.playerCamera.yaw, this.playerCamera.pitch),
+            },
+            (prop) => this.gather.inspect(prop) !== null,
+          );
+    this.gather.update(step, held, focus?.prop ?? null);
+    const gathering = this.gather.offer?.status === 'ready';
+
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
-      drinking: water !== null && this.input.interactHeld,
+      drinking: water !== null && held && !gathering,
     });
   }
 
@@ -240,6 +277,7 @@ export class Game {
     this.fps?.frame();
     this.updateLocationHud(now, feet);
     this.updateSurvivalHud(now);
+    this.updatePrompt();
     if (import.meta.env.DEV) {
       this.hud.setDebugText(
         formatDebugInfo({
@@ -272,7 +310,22 @@ export class Game {
       day: formatDay(clock.day),
       ambientC: this.survival.ambientC,
     });
-    this.hud.setPrompt(this.drinkPrompt());
+  }
+
+  /**
+   * Ekran ortası ipucu ve ilerleme çubuğu (her karede; metin yalnızca değişince yazılır). Öncelik:
+   * toplanabilir nesne, sonra su içme, sonra "balta gerekir"/"envanter dolu" gibi engeller.
+   */
+  private updatePrompt(): void {
+    const offer = this.survival.alive ? this.gather.offer : null;
+    if (offer?.status === 'ready') {
+      this.hud.setPrompt(gatherPrompt(offer));
+      this.hud.setProgress(this.gather.progress > 0 ? this.gather.progress : null);
+      return;
+    }
+    this.hud.setProgress(null);
+    const drink = this.drinkPrompt();
+    this.hud.setPrompt(drink ?? (offer ? gatherPrompt(offer) : null));
   }
 
   /** Su kaynağı erişimdeyken ipucu: içiyorsa "İçiyorsun…", değilse "E: Su iç". */

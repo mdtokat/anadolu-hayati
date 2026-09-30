@@ -34,6 +34,10 @@ export class PlayerCamera {
     return this.look.yaw;
   }
 
+  get pitch(): number {
+    return this.look.pitch;
+  }
+
   /** Fare hareketini (piksel) bakışa uygular. */
   applyMouse(dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
