@@ -15,10 +15,13 @@ export const ITEM_IDS = [
   'stone_axe',
   'water_container_empty',
   'water_container_full',
+  // yerleştirilebilir yapılar (4.5'te üretilir, 4.8'de yerleştirilir)
+  'campfire',
+  'lean_to',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
-export type ItemCategory = 'material' | 'food' | 'tool';
+export type ItemCategory = 'material' | 'food' | 'tool' | 'placeable';
 
 /** Yenince göstergelere eklenen puanlar (0–100 ölçeğinde). */
 export interface EdibleEffect {
@@ -96,6 +99,14 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     stackMax: 1,
     category: 'tool',
   },
+  campfire: {
+    id: 'campfire',
+    name: 'Kamp Ateşi',
+    weightG: 4000,
+    stackMax: 1,
+    category: 'placeable',
+  },
+  lean_to: { id: 'lean_to', name: 'Sundurma', weightG: 8000, stackMax: 1, category: 'placeable' },
 };
 
 export function isItemId(value: unknown): value is ItemId {
