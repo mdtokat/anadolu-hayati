@@ -1,4 +1,5 @@
 import type { ItemId } from '../items/itemDefs';
+import type { PropId, PropKind } from '../world/propKinds';
 import type { DeathCause } from '../survival/vitals';
 import type { InputAction } from './inputMapping';
 
@@ -19,5 +20,13 @@ export interface GameEvents {
   'player:drank': { amount: number };
   /** Bir şey yenince: gerçekte artan tokluk ve su (100'e kırpıldıktan sonra). */
   'player:ate': { item: ItemId; satiety: number; hydration: number };
+  /** Bir nesneden eşya toplanınca (eşya türü başına bir kez). `removed`: nesne dünyadan kalktı (kesilen ağaç, alınan dal/taş). */
+  'item:collected': {
+    item: ItemId;
+    count: number;
+    source: PropKind;
+    propId: PropId;
+    removed: boolean;
+  };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
 }

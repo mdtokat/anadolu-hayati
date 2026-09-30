@@ -755,3 +755,18 @@ export const FOOD = {
   /** Yemek için tokluğun 100'den en az bu kadar düşük olması gerekir (tok olan yemek yiyemez). */
   eatMinDeficit: 5,
 } as const;
+
+/** Toplama etkileşimi (Faz 4.6): bakılan nesneye `E`. Verim tablosu `interaction/gatherRules.ts`'tedir. */
+export const INTERACT = {
+  /** Nesneye en fazla bu yatay uzaklıkta (oyun m) etkileşilir. */
+  reach: 3.5,
+  /** Bakış yönü ile nesne arasındaki en büyük açı (derece). */
+  viewConeDeg: 40,
+  /** Bu uzaklıktan (oyun m) yakın nesnelerde yalnızca yatay bakış açısı aranır (yere bakmadan da alınır). */
+  closeRange: 1.5,
+  /** Nesnenin hedef noktası: zeminden nesne boyunun bu oranı, en çok `maxTargetHeight` (oyun m). */
+  targetHeightFraction: 0.5,
+  maxTargetHeight: 1.6,
+  /** Toplanınca ekranda gösterilen bildirimin süresi (ms). */
+  toastMs: 2000,
+} as const;
