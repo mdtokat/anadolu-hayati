@@ -83,7 +83,7 @@ describe('scatterChunk (gerçek bölge)', { timeout: 60_000 }, () => {
         expect(spec.maxSlopeDeg).toBeLessThanOrEqual(90);
       }
     }
-  }, 60_000); // yüz binlerce nesne için expect döngüsü: yerelde ~3 sn, CI'da daha yavaş
+  });
 
   it('ağaçlar yalnızca orman/çalı (ve tarımda fındık) sınıfına düşer; tarım/çıplak/yerleşimde ağaç yok', () => {
     let trees = 0;
