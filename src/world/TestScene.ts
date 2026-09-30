@@ -3,6 +3,7 @@ import { SCENE, TERRAIN_TEST } from '../config';
 import { createHeightfieldDesc } from '../physics/heightfield';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { sampleGrid, type GridSpec, type HeightSource } from './HeightSource';
+import { Obstacles } from './Obstacles';
 import { createTerrainMesh } from './TerrainMesh';
 
 /**
@@ -13,6 +14,7 @@ export class TestScene {
   readonly scene = new Scene();
 
   private readonly terrain: ReturnType<typeof createTerrainMesh>;
+  private readonly obstacles: Obstacles;
   private readonly sun = new DirectionalLight(0xffffff, SCENE.sunIntensity);
   private readonly ambient = new AmbientLight(0xffffff, SCENE.ambientIntensity);
 
@@ -28,12 +30,16 @@ export class TestScene {
     this.scene.add(this.terrain);
     physics.addStaticCollider(createHeightfieldDesc(heights, grid));
 
+    this.obstacles = new Obstacles(physics, source);
+    this.scene.add(this.obstacles.mesh);
+
     this.sun.position.set(...SCENE.sunPosition);
     this.scene.add(this.sun, this.ambient);
   }
 
   /** Geometry ve materyalleri serbest bırakır (kaynak temizliği kuralı). */
   dispose(): void {
+    this.obstacles.dispose();
     this.terrain.geometry.dispose();
     this.terrain.material.dispose();
     this.scene.clear();

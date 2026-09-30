@@ -137,6 +137,36 @@ export const INPUT = {
   maxMouseDeltaPerEvent: 250,
 } as const;
 
+/** Test ortamındaki engeller: elle yerleştirilmiş parkur + seed'li kayalar. */
+export const OBSTACLES = {
+  seed: 20240607,
+  /** Seed'li kaya (kutu) sayısı. */
+  rockCount: 60,
+  /** Kaya boyut aralıkları (oyun metresi). */
+  rockMinSize: 1.5,
+  rockMaxSize: 5,
+  rockMinHeight: 1,
+  rockMaxHeight: 4,
+  /** Kayaların yere gömülme payı (oyun metresi): havada asılı görünmesinler. */
+  rockSink: 0.3,
+  /** Kayalar doğma yarıçapı + bu paydan öteye yerleşir (parkur ve rampalar boş kalsın). */
+  rockClearMargin: 4,
+  /** Kayaların arazi kenarından uzaklığı (oyun metresi). */
+  rockEdgeMargin: 10,
+  rockColor: 0x8a8378,
+  courseColor: 0xb5651d,
+  /**
+   * Hareket parkuru (düz alanda, doğma noktasının +Z tarafında). `h` blok yüksekliği:
+   * 0,3 = otomatik basamak; 0,6 ve 1,0 = zıplayarak çıkılır; 2,0 = aşılamaz duvar.
+   */
+  course: [
+    { x: -20, z: 22, w: 4, h: 0.3, d: 6 },
+    { x: -12, z: 22, w: 4, h: 0.6, d: 6 },
+    { x: -4, z: 22, w: 4, h: 1.0, d: 6 },
+    { x: 4, z: 22, w: 4, h: 2.0, d: 6 },
+  ],
+} as const;
+
 /** Oyuncu modeli (üçüncü şahıs görünümünde çizilen kapsül). */
 export const PLAYER_MODEL = {
   bodyColor: 0x2f6fdf,
