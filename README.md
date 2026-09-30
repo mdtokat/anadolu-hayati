@@ -14,7 +14,8 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | W A S D (veya ok tuşları) | Yürü |
 | Shift | Koş |
 | Boşluk | Zıpla |
-| E (basılı tut) | Bakılan nesneyi topla (dal, taş, yemiş, mantar; baltayla ağaç kes) / ateşe yakıt at / tatlı su kenarında su iç |
+| E (basılı tut) | Öncelik sırasıyla: bakılan nesneyi topla (dal, taş, yemiş, mantar; baltayla ağaç kes) › bakılan leşi kes › yanık ateşin yanında çiğ eti pişir › ateşe yakıt at › tatlı su kenarında su iç |
+| Sol tık | Bakılan canlıya saldır (yumruk, taş balta, taş mızrak); yerleştirme hayaleti açıkken kurar |
 | I veya Tab | Envanter ve üretim paneli (oyun donar) |
 | F | Hızlı yemek (tokluğu en çok artıran yiyecek) |
 | C / G | Kamp ateşi / sundurma yerleştirme hayaleti (aynı tuş iptal eder); sol tık kurar |

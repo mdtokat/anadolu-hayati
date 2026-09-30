@@ -940,6 +940,24 @@ export const COMBAT = {
   maxDefense: 0.6,
 } as const;
 
+/** Savaş arayüzü (Faz 5, Hesap B'nin bloğu): hasar vinyeti, vuruş işareti, tehlike uyarısı. */
+export const COMBAT_HUD = {
+  /** Bu hasar (can puanı) ve üstü vinyeti tam parlaklıkta gösterir; altı orantılı. */
+  fullVignetteDamage: 40,
+  /** Vinyetin en az parlaklığı (küçük hasar da fark edilsin). */
+  minVignette: 0.25,
+  /** Vinyetin sönme süresi (ms). */
+  vignetteMs: 700,
+  /** Vuruş işaretinin görünme süresi (ms). */
+  hitMarkerMs: 220,
+  /** Aynı türden ardışık "Tehlike" bildirimleri arasındaki en kısa süre (ms). */
+  dangerToastCooldownMs: 6000,
+  /** "Tehlike" bildirimi gösterilen durumlar (yalnızca sinsi yaklaşma ve kovalama). */
+  dangerStates: ['stalk', 'chase'],
+  /** Bildirimi tetiklemeyen zararsız türler. */
+  harmlessKinds: ['roe_deer'],
+} as const;
+
 /** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir. */
 export const LOOT = {
   /** Elle kesme süresi (sn, `E` basılı tutulur). */

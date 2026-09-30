@@ -1,6 +1,7 @@
 import { WebGLRenderer } from 'three';
 import {
   COMBAT,
+  COMBAT_HUD,
   INTERACT,
   PLAYER,
   RENDER,
@@ -10,12 +11,19 @@ import {
   VERTICAL_SCALE,
 } from '../config';
 import { CarcassButcher, pickCarcass } from '../combat/carcass';
+import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CookingSystem } from '../combat/cooking';
+import type { MeleeAim } from '../combat/melee';
 import { updateInteractions } from '../combat/interactChain';
 import { butcherPrompt, butcheredToast, cookedToast, cookPrompt } from '../combat/promptText';
 import { CreatureSystem } from '../creatures/CreatureSystem';
-import type { CreatureContext, CreatureView } from '../creatures/kinds';
+import type {
+  CreatureContext,
+  CreatureKind,
+  CreatureState,
+  CreatureView,
+} from '../creatures/kinds';
 import { loadRegion } from '../data/region';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
@@ -48,6 +56,7 @@ import { SurvivalSystem } from '../survival/SurvivalSystem';
 import { canSprint, type Activity } from '../survival/vitals';
 import { DeathScreen } from '../ui/DeathScreen';
 import { FpsCounter } from '../ui/FpsCounter';
+import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../ui/combatFormat';
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
@@ -137,6 +146,7 @@ export class Game {
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
   private demoAnchor: { x: number; z: number } | null = null;
+  private lastDangerToast = -Infinity;
   private lastLocationUpdate = -Infinity;
   private lastSurvivalHudUpdate = -Infinity;
   /** Ayak konumundaki ateş ısısı ve barınak etkisi (her sabit adımda yenilenir). */
@@ -240,6 +250,13 @@ export class Game {
         );
         this.inventoryPanel.refresh();
       }),
+      this.events.on('player:damaged', ({ amount }) =>
+        this.hud.flashDamage(vignetteStrength(amount)),
+      ),
+      this.events.on('creature:damaged', ({ killed }) =>
+        this.hud.showHitMarker(hitMarkerKind(killed)),
+      ),
+      this.events.on('creature:noticed', ({ kind, state }) => this.warnDanger(kind, state)),
       this.events.on('carcass:butchered', ({ id, items }) =>
         this.hud.notify(butcheredToast(items, this.butcher.hasRemaining(id)), INTERACT.toastMs),
       ),
@@ -406,18 +423,10 @@ export class Game {
   }
 
   /** Bakılan leş (yoksa null): `INTERACT` menzili/konisi içinde, ölü canlılar arasından. */
-  private carcassInReach(feet: { x: number; y: number; z: number }): CreatureView | null {
+  private carcassInReach(feet: { x: number; z: number }): CreatureView | null {
     const nearby = this.creatures.near(feet.x, feet.z, INTERACT.reach + COMBAT.aim.searchMargin);
     if (nearby.length === 0) return null;
-    const hit = pickCarcass(nearby, {
-      x: feet.x,
-      y: feet.y,
-      z: feet.z,
-      eyeY: feet.y + PLAYER.eyeHeight,
-      yaw: this.playerCamera.yaw,
-      pitch: this.playerCamera.pitch,
-    });
-    return hit?.view ?? null;
+    return pickCarcass(nearby, this.meleeAim())?.view ?? null;
   }
 
   /**
@@ -568,6 +577,7 @@ export class Game {
       ambientC: this.survival.ambientC,
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
+      defense: defenseFor(this.inventory),
     });
   }
 
@@ -618,8 +628,16 @@ export class Game {
       drink ??
         (offer ? gatherPrompt(offer) : null) ??
         (butcher ? butcherPrompt(butcher) : null) ??
-        (tend ? tendPrompt(tend) : null),
+        (tend ? tendPrompt(tend) : null) ??
+        this.attackHint(alive),
     );
+  }
+
+  /** Vurulabilecek canlı varsa "Sol tık: Saldır · Kurt" ipucu; yoksa null. */
+  private attackHint(alive: boolean): string | null {
+    if (!alive) return null;
+    const hit = this.combat.target(this.meleeAim());
+    return hit ? attackPrompt(hit.view.kind) : null;
   }
 
   /** F/G: yerleştirme hayaletini aç/kapa; eşya yoksa kısa bildirim. */
@@ -634,18 +652,33 @@ export class Game {
     else this.attack();
   }
 
-  /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
-  private attack(): void {
-    if (!this.survival.alive || this.inventoryOpen || this.loop.paused) return;
+  /** Oyuncunun konumu ve bakışı (saldırı ve leş seçimi için). */
+  private meleeAim(): MeleeAim {
     const feet = this.player.position;
-    const result = this.combat.attack({
+    return {
       x: feet.x,
       y: feet.y,
       z: feet.z,
       eyeY: feet.y + PLAYER.eyeHeight,
       yaw: this.playerCamera.yaw,
       pitch: this.playerCamera.pitch,
-    });
+    };
+  }
+
+  /** Bir canlı tehlikeli bir durumda oyuncuyu fark edince "Tehlike: Kurt" uyarısı (sık tekrarlanmaz). */
+  private warnDanger(kind: CreatureKind, state: CreatureState): void {
+    const text = noticedToast(kind, state);
+    if (text === null) return;
+    const now = performance.now();
+    if (now - this.lastDangerToast < COMBAT_HUD.dangerToastCooldownMs) return;
+    this.lastDangerToast = now;
+    this.hud.notify(text, INTERACT.toastMs);
+  }
+
+  /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
+  private attack(): void {
+    if (!this.survival.alive || this.inventoryOpen || this.loop.paused) return;
+    const result = this.combat.attack(this.meleeAim());
     if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
   }
 

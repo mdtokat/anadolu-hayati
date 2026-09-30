@@ -1,5 +1,7 @@
 import './ui.css';
+import { COMBAT_HUD } from '../config';
 import type { VitalsState } from '../survival/vitals';
+import { defenseLabel, type HitMarkerKind } from './combatFormat';
 import {
   bodyTempLabel,
   exposureLabel,
@@ -37,6 +39,8 @@ export interface SurvivalHudInfo {
   /** Yakındaki ateşlerin ısıtması (°C) ve barınak altında olma durumu. */
   warmthC: number;
   sheltered: boolean;
+  /** Giysilerin hasar azaltma oranı (0–1); yoksa 0. */
+  defense?: number;
 }
 
 /**
@@ -54,6 +58,9 @@ export class Hud {
   private readonly locationDetail = document.createElement('div');
   private readonly gaugeElements = new Map<GaugeKey, GaugeElements>();
   private readonly bodyTemp = document.createElement('div');
+  private readonly defense = document.createElement('div');
+  private readonly damageVignette = document.createElement('div');
+  private readonly hitMarker = document.createElement('div');
   private readonly clock = document.createElement('div');
   private readonly warningList = document.createElement('div');
   private readonly prompt = document.createElement('div');
@@ -68,6 +75,8 @@ export class Hud {
 
     const crosshair = document.createElement('div');
     crosshair.className = 'hud-crosshair';
+    this.damageVignette.className = 'hud-damage';
+    this.hitMarker.className = 'hud-hitmarker';
     this.gauges.className = 'hud-gauges';
     this.location.className = 'hud-location';
     this.locationTitle.className = 'hud-location-title';
@@ -87,7 +96,9 @@ export class Hud {
     this.gauges.hidden = true; // hayatta kalma verisi gelene kadar (test arenasında da) görünmez
     this.clock.hidden = true;
     this.root.append(
+      this.damageVignette,
       crosshair,
+      this.hitMarker,
       this.gauges,
       this.location,
       this.clock,
@@ -124,7 +135,9 @@ export class Hud {
       this.gaugeElements.set(key, { row, fill });
     }
     this.bodyTemp.className = 'hud-body-temp';
-    this.gauges.append(this.bodyTemp);
+    this.defense.className = 'hud-defense';
+    this.defense.hidden = true;
+    this.gauges.append(this.bodyTemp, this.defense);
   }
 
   /** Hayatta kalma göstergelerini, saati ve uyarıları günceller. */
@@ -151,6 +164,9 @@ export class Hud {
         .join(' · '),
     );
     setState(this.bodyTemp, level);
+    const defense = defenseLabel(info.defense ?? 0);
+    this.defense.hidden = defense === '';
+    setText(this.defense, defense);
 
     setText(this.clock, `${info.clock} · ${info.day} · ${formatTemperature(info.ambientC)}`);
 
@@ -166,6 +182,17 @@ export class Hud {
         }),
       );
     }
+  }
+
+  /** Hasar vinyeti: kenarlar kısa süre kızarır (`strength` 0–1). */
+  flashDamage(strength: number): void {
+    animateFade(this.damageVignette, strength, COMBAT_HUD.vignetteMs);
+  }
+
+  /** Vuruş işareti: imleç çevresinde kısa süre çarpı (öldüren vuruş kırmızı). */
+  showHitMarker(kind: HitMarkerKind): void {
+    this.hitMarker.dataset.kind = kind;
+    animateFade(this.hitMarker, 1, COMBAT_HUD.hitMarkerMs);
   }
 
   /** Ekran ortası altında kısa ipucu (ör. "E: su iç"); `null` gizler. */
@@ -218,6 +245,13 @@ export class Hud {
     this.toastTimers.clear();
     this.root.remove();
   }
+}
+
+/** Elemanı `peak` opaklığından 0'a `ms` içinde söndürür (Web Animations destekliyse; yoksa etkisiz). */
+function animateFade(element: HTMLElement, peak: number, ms: number): void {
+  if (typeof element.animate !== 'function') return;
+  element.getAnimations?.().forEach((animation) => animation.cancel());
+  element.animate([{ opacity: peak }, { opacity: 0 }], { duration: ms, easing: 'ease-out' });
 }
 
 /** Metni yalnızca değiştiyse yazar (gereksiz DOM güncellemesi olmasın). */

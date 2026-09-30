@@ -47,6 +47,44 @@
   transform: translateY(-50%);
 }
 
+/* Hasar vinyeti (kenarlar kızarır) ve vuruş işareti; animasyonla görünür, dururken saydam */
+.hud-damage {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(190, 0, 0, 0.8) 100%);
+}
+.hud-hitmarker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  --hit-color: #ffffff;
+}
+.hud-hitmarker[data-kind='kill'] {
+  --hit-color: #ff4a3d;
+}
+.hud-hitmarker::before,
+.hud-hitmarker::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 3px;
+  background: var(--hit-color);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+}
+.hud-hitmarker::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.hud-hitmarker::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 /* Hayatta kalma göstergeleri (sol alt) */
 .hud-gauges {
   position: absolute;
@@ -131,6 +169,13 @@
   font-size: 16px;
   font-weight: 600;
   color: #ffd27a;
+}
+.hud-defense {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.hud-defense[hidden] {
+  display: none;
 }
 .hud-prompt {
   position: absolute;

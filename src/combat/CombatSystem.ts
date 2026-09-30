@@ -6,7 +6,7 @@ import type { Inventory } from '../items/Inventory';
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import { COMBAT } from '../config';
 import { defenseFor, InvulnerabilityTimer, mitigate } from './damage';
-import { bestWeapon, pickMeleeTarget, type MeleeAim, type WeaponId } from './melee';
+import { bestWeapon, pickMeleeTarget, type MeleeAim, type MeleeHit, type WeaponId } from './melee';
 
 /** `attack()` sonucu: neden saldırılamadığı ya da isabet durumu. */
 export interface AttackResult {
@@ -58,6 +58,13 @@ export class CombatSystem {
     return this.cooldownLeft;
   }
 
+  /** Şu an vurulabilecek canlı (envanterdeki en iyi silahın menzili ve bakış koni/dikey toleransıyla); yoksa null. */
+  target(aim: MeleeAim): MeleeHit | null {
+    const weapon = COMBAT.weapons[bestWeapon(this.inventory)];
+    const candidates = this.creatures.near(aim.x, aim.z, weapon.reach + COMBAT.aim.searchMargin);
+    return pickMeleeTarget(candidates, aim, weapon);
+  }
+
   /**
    * Oyuncu saldırısı (sol tık): envanterdeki en güçlü silahla `aim` yönüne vurur. Ölüyken, beklemedeyken ya
    * da bitkinken (enerji tükenmiş) saldırı yoktur. Iskalasa da silah bekleme ve enerji maliyeti işler;
@@ -74,8 +81,7 @@ export class CombatSystem {
     this.cooldownLeft = weapon.cooldownSeconds;
     this.survival.spendEnergy(weapon.energyCost);
 
-    const candidates = this.creatures.near(aim.x, aim.z, weapon.reach + COMBAT.aim.searchMargin);
-    const target = pickMeleeTarget(candidates, aim, weapon);
+    const target = this.target(aim);
     const outcome = target
       ? this.creatures.damage(target.view.id, weapon.damage, { x: aim.x, z: aim.z })
       : null;

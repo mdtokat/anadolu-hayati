@@ -141,7 +141,7 @@ Görevler (numaralar alt görev sırasıdır; **Hesap A = Beyin**, **Hesap B = B
 - [x] **5.8** _(B)_ Eşya/tarif/yük: çiğ ve pişmiş et, deri, kemik, taş mızrak, deri yelek; yük tablosu
 - [x] **5.9** _(B)_ Avlanma ve et pişirme: leş kesme (`E` basılı), ateşte pişirme, `E` öncelik sırası
 - [x] **5.10** _(B)_ Canlı görseli: `CreatureLayer` (parçalı instanced model, yürüme/saldırı/ölü animasyonu), dev demosu
-- [ ] **5.11** _(B)_ Arayüz: hasar tepkisi, vuruş işareti, ipuçları, ölüm ekranı, kontroller
+- [x] **5.11** _(B)_ Arayüz: hasar tepkisi, vuruş işareti, ipuçları, ölüm ekranı, kontroller
 - [ ] **5.12** Birleştirme: gerçek canlılarla av zinciri, denge, birleşik performans ölçümü (Faz 4 sonrası taban ölçüm dahil)
 - [ ] **5.13** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
 
@@ -192,3 +192,6 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Safranbolu gibi tarihi yerleşimlerde terk edilmiş yapılar ve ganimet
 - Tekne ile kıyı boyunca seyahat
 - Hikâye / görev sistemi
+- Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir)_
+- Tuzak ve olta ile av; su kabı doldurma ve kaynatma
+- Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (Faz 6 sesleriyle birlikte)
