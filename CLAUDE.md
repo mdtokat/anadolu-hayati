@@ -113,14 +113,18 @@ Her bölge `public/data/regions/<bolge-id>/` altında şu dosyalardan oluşur. �
   "elevationMin": 0,
   "elevationMax": 0,
   "elevationEncoding": "uint16",
-  "sources": ["Copernicus GLO-30 DEM", "geoBoundaries", "OpenStreetMap"]
+  "horizontalScale": 50,
+  "sources": ["Copernicus GLO-30 DEM", "geoBoundaries", "OpenStreetMap"],
+  "built": "YYYY-MM-DD"
 }
 ```
+`horizontalScale` verinin üretildiği yatay ölçeği yazar; oyun yüklerken `config.ts`'deki `HORIZONTAL_SCALE` ile karşılaştırır ve uyuşmazsa hata verir (ölçek değişip veri eski kalırsa sessizce yanlış çalışmasın). Dikey ölçek veriye işlenmez: yükseklikler gerçek metredir, `VERTICAL_SCALE` yalnızca oyunda uygulanır.
 
 **`heightmap.bin`** — Ham `Uint16Array`, little-endian, satır satır (kuzeyden güneye, batıdan doğuya). Değer → metre dönüşümü: `elevation = elevationMin + (v / 65535) * (elevationMax − elevationMin)`. Denizin altı 0'a kırpılır.
+**Örneklerin konumu:** Her değer raster **piksel merkezindeki** yüksekliktir; oyunda heightfield köşesi olarak kullanılır. Sütun `c`, satır `r` için oyun konumu `x = (c − (gridWidth − 1) / 2) · cellSizeReal / HORIZONTAL_SCALE`, `z = (r − (gridHeight − 1) / 2) · cellSizeReal / HORIZONTAL_SCALE` (satır 0 kuzeyde, dolayısıyla z negatif). Izgara orijin merkezlidir. 30 m'lik kaynak 100 m'ye **alan ortalamasıyla** örneklenir (tepe yükseklikleri hafif düşer); Copernicus GLO-30 bir yüzey modelidir (DSM), ağaç/bina yüksekliğini içerir.
 > Not: 16-bit PNG kullanılmaz; tarayıcı canvas'ı 16-bit görüntüleri 8-bit'e düşürür.
 
-**`provinces.geojson`** — İl sınırları, koordinatları **oyun dünyası X/Z** cinsinden (önceden dönüştürülmüş), `properties.name` alanı il adı.
+**`provinces.geojson`** — İl sınırları, koordinatları **oyun dünyası X/Z** cinsinden (önceden dönüştürülmüş, 2 ondalık, sadeleştirilmiş), `properties.name` alanı il adı. Ek alanlar: `iso` (TR-67 gibi) ve `inRegion` (bölgenin hedef ili mi `true`, oyuncunun yürüyebildiği komşu il mi `false`). Komşu iller HUD'da adlarının görünmesi içindir.
 
 **`features.json`** (Faz 4+) — OSM kaynaklı orman poligonları, nehirler, yerleşimler; yine oyun koordinatlarında.
 
@@ -148,12 +152,16 @@ npm test            # Vitest
 npm run format      # Prettier (biçimlendir); format:check yalnızca denetler
 ```
 
-Veri hattı (Faz 2+):
+Veri hattı (Faz 2+; Python 3.11+):
 ```bash
 cd tools
 pip install -r requirements.txt
-python build_region.py zonguldak-bartin-karabuk
+python fetch_dem.py zonguldak-bartin-karabuk     # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB)
+python fetch_boundaries.py                       # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python build_region.py zonguldak-bartin-karabuk  # → public/data/regions/<id>/ (commit edilir)
+python -m pytest tests                           # Python birim testleri
 ```
+Bölge tanımları `tools/regions.yaml`'dadır. geoBoundaries dosyaları Git LFS'tedir: `raw.githubusercontent.com` yalnızca işaretçi verir, `fetch_boundaries.py` gerçek dosyayı `media.githubusercontent.com`'dan alır.
 
 ## Çalışma Kuralları (Claude Code için)
 

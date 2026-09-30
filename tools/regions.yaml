@@ -10,7 +10,7 @@ regions:
     neighbors: [Bolu, Düzce, Kastamonu, Çankırı]
     # Sınır kutusu [boylam_min, enlem_min, boylam_max, enlem_max] (derece).
     # DEM karolarını seçmek ve ızgaranın kutu içinde kaldığını doğrulamak için kullanılır.
-    bbox: [31.25, 40.80, 33.20, 41.90]
+    bbox: [31.20, 40.75, 33.25, 41.95]
     # İllerin UTM sınır kutusuna eklenen pay (metre): sınırlar harita kenarına yapışmasın.
     margin_m: 2000
     # Hedef ızgara hücre boyu (gerçek metre).
