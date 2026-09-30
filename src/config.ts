@@ -123,8 +123,12 @@ export const INPUT = {
     toggleCamera: ['KeyV'],
     /** İl sınırı çizgilerini aç/kapa. */
     toggleBorders: ['KeyB'],
-    /** Etkileşim (basılı tutulur): tatlı su kaynağından su içme. */
+    /** Etkileşim (basılı tutulur): tatlı su kaynağından su içme, nesne toplama. */
     interact: ['KeyE'],
+    /** Envanter ve üretim panelini aç/kapa. */
+    toggleInventory: ['KeyI', 'Tab'],
+    /** Hızlı yemek: tokluğu en çok artıran yiyeceği ye. */
+    eat: ['KeyF'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
