@@ -12,6 +12,7 @@ describe('CREDITS', () => {
     expect(all).toMatch(/OpenStreetMap/);
     expect(all).toMatch(/ODbL/);
     expect(all).toMatch(/Overture/);
+    expect(all).toMatch(/ESA WorldCover/);
   });
 
   it('her atıfın başlığı, metni ve https bağlantısı vardır', () => {

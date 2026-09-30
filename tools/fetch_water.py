@@ -122,13 +122,13 @@ def to_geojson_feature(row: dict[str, Any]) -> dict[str, Any]:
 # -- ağ ------------------------------------------------------------------------
 
 
-def list_water_files(release: str = OVERTURE_RELEASE, opener: Callable[..., Any] = urllib.request.urlopen) -> list[str]:
-    """Yayındaki `water` Parquet dosyalarının S3 anahtarları (sayfalama dahil)."""
-    prefix = urllib.parse.quote(WATER_PREFIX.format(release=release), safe="/")
+def list_parquet_files(prefix: str, opener: Callable[..., Any] = urllib.request.urlopen) -> list[str]:
+    """`prefix` altındaki Parquet dosyalarının S3 anahtarları (sayfalama dahil)."""
+    quoted = urllib.parse.quote(prefix, safe="/")
     keys: list[str] = []
     token: str | None = None
     while True:
-        url = f"{BUCKET_URL}?list-type=2&prefix={prefix}&max-keys=1000"
+        url = f"{BUCKET_URL}?list-type=2&prefix={quoted}&max-keys=1000"
         if token:
             url += f"&continuation-token={urllib.parse.quote(token)}"
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
@@ -139,6 +139,11 @@ def list_water_files(release: str = OVERTURE_RELEASE, opener: Callable[..., Any]
         if not match:
             return [k for k in keys if k.endswith(".parquet")]
         token = match.group(1)
+
+
+def list_water_files(release: str = OVERTURE_RELEASE, opener: Callable[..., Any] = urllib.request.urlopen) -> list[str]:
+    """Yayındaki `water` Parquet dosyalarının S3 anahtarları (sayfalama dahil)."""
+    return list_parquet_files(WATER_PREFIX.format(release=release), opener)
 
 
 def extract_water(

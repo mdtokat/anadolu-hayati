@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Bir bölgenin oyun verisini üretir: heightmap.bin, meta.json, provinces.geojson, features.json.
+"""Bir bölgenin oyun verisini üretir: heightmap.bin, meta.json, provinces.geojson, features.json, landcover.bin.
 
 Kullanım:  python build_region.py [bölge-id]      (varsayılan: zonguldak-bartin-karabuk)
-Önkoşul:   python fetch_dem.py && python fetch_boundaries.py && python fetch_water.py
+Önkoşul:   python fetch_dem.py && python fetch_boundaries.py && python fetch_water.py && python fetch_landcover.py
 Çıktı:     public/data/regions/<bölge-id>/         (commit edilir; oyunun okuduğu dosyalar)
 
 Adımlar: DEM karolarını birleştir → EPSG:32636'ya dönüştürüp `cell_size` (100 m) ızgaraya
 alan ortalamasıyla örnekle → denizi 0'a kırp → uint16'ya nicemle → il sınırlarını sadeleştirip
-oyun X/Z koordinatlarına çevir.
+oyun X/Z koordinatlarına çevir → arazi örtüsü çokgenlerini aynı ızgaraya rasterleştir.
 
 Örnekleme: 30 m → 100 m için `Resampling.average` (alan ortalaması). En yakın komşu, sivri
 gürültülü tepeler üretirdi; ortalama tepe yüksekliklerini hafifçe düşürür (ızgaradaki en yüksek
@@ -24,6 +24,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+import pyarrow.parquet as pq
 import rasterio
 import shapely
 from pyproj import Transformer
@@ -33,6 +34,7 @@ from rasterio.warp import Resampling, reproject
 from shapely.geometry import box, mapping
 
 import features as features_lib
+import landcover as landcover_lib
 import regionlib
 
 TOOLS = Path(__file__).resolve().parent
@@ -113,6 +115,7 @@ def build(
     boundaries_path: Path,
     out_dir: Path,
     water_path: Path | None = None,
+    landcover_path: Path | None = None,
 ) -> dict:
     """Bölge dosyalarını `out_dir`'e yazar. Dönüş: yazılan meta sözlüğü."""
     boundaries = gpd.read_file(boundaries_path).to_crs(CRS)
@@ -172,6 +175,18 @@ def build(
         if collection.get("overture_release"):
             meta["overtureRelease"] = collection["overture_release"]
 
+    landcover_bytes = None
+    if landcover_path is not None:
+        table = pq.read_table(landcover_path)
+        classes, skipped = landcover_lib.rasterize_landcover(
+            table.column("subtype").to_pylist(), shapely.from_wkb(table.column("geometry").to_pylist()), grid
+        )
+        if skipped:
+            print(f"  uyarı: arazi örtüsünde tanınmayan türler atlandı: {dict(skipped)}")
+        landcover_bytes = classes.tobytes()
+        meta["landcover"] = {"file": "landcover.bin", "classes": landcover_lib.CLASSES}
+        meta["sources"].append("ESA WorldCover 2021 (Overture Maps)")
+
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "heightmap.bin").write_bytes(heightmap)
     (out_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -179,6 +194,8 @@ def build(
         json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
+    if landcover_bytes is not None:
+        (out_dir / "landcover.bin").write_bytes(landcover_bytes)
     if water_features is not None:
         (out_dir / "features.json").write_text(
             json.dumps(water_features, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8"
@@ -194,16 +211,19 @@ def main(argv: list[str]) -> int:
     dem_paths = [TOOLS / "raw" / "dem" / f"{name}.tif" for name in regionlib.tiles_for_bbox(*region["bbox"])]
     boundaries_path = TOOLS / "raw" / "boundaries" / "geoBoundaries-TUR-ADM1.geojson"
     water_path = TOOLS / "raw" / "water" / f"{region_id}.geojson"
-    missing = [str(p) for p in [*dem_paths, boundaries_path, water_path] if not p.exists()]
+    landcover_path = TOOLS / "raw" / "landcover" / f"{region_id}.parquet"
+    missing = [str(p) for p in [*dem_paths, boundaries_path, water_path, landcover_path] if not p.exists()]
     if missing:
-        raise SystemExit("Eksik ham veri (önce fetch_dem.py, fetch_boundaries.py ve fetch_water.py çalıştır):\n  " + "\n  ".join(missing))
+        raise SystemExit("Eksik ham veri (önce fetch_dem.py, fetch_boundaries.py, fetch_water.py ve fetch_landcover.py çalıştır):\n  " + "\n  ".join(missing))
 
     out_dir = REPO / "public" / "data" / "regions" / region_id
-    meta = build(region_id, region, dem_paths, boundaries_path, out_dir, water_path)
+    meta = build(region_id, region, dem_paths, boundaries_path, out_dir, water_path, landcover_path)
 
     size = (out_dir / "heightmap.bin").stat().st_size
     print(f"{region_id}: ızgara {meta['gridWidth']}×{meta['gridHeight']} @ {meta['cellSizeReal']:.0f} m")
     print(f"  origin UTM {meta['originUtm']}, yükseklik 0..{meta['elevationMax']:.0f} m, heightmap.bin {size / 1e6:.2f} MB")
+    classes = np.frombuffer((out_dir / "landcover.bin").read_bytes(), dtype=np.uint8)
+    print("  arazi örtüsü: " + ", ".join(f"{k}={v}" for k, v in landcover_lib.class_histogram(classes).items()))
     print(f"  → {out_dir}")
     return 0
 

@@ -148,6 +148,8 @@ Her bölge `public/data/regions/<bolge-id>/` altında şu dosyalardan oluşur. �
 ```
 Deniz dahil değildir (deniz heightmap'in 0 m seviyesidir); yüzme havuzu, atık su, hendek/drenaj elenir. Kaynak: Overture Maps `base/water` (OSM türevi, **ODbL-1.0**); `features.json` da ODbL kapsamındadır ve © OpenStreetMap katkıcıları atfı gerekir.
 
+**`landcover.bin`** (Faz 4) — Arazi örtüsü sınıfları: hücre başına 1 bayt (`Uint8Array`), `heightmap.bin` ile **aynı ızgara ve sıra** (`gridWidth × gridHeight`, satır 0 kuzeyde). Değer, `meta.json` içindeki `landcover.classes` listesinin indeksidir: `["none","forest","shrub","grass","crop","barren","urban","snow","wetland"]` (0 = veri yok / deniz; liste yalnızca sona eklenir; oyun listeyi kendi tablosuyla karşılaştırır, uyuşmazsa hata verir). Kaynak: Overture `base/land_cover` çokgenleri (ESA WorldCover 2021, CC BY 4.0); her 100 m hücre 4×4 alt hücreyle rasterleştirilir, en çok alan kaplayan sınıf kazanır (kaplama < %25 ise `none`). `meta.json`: `"landcover": {"file": "landcover.bin", "classes": [...]}`; dosya yoksa alan da yoktur.
+
 Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 
 ## Veri Kaynakları ve Lisanslar
@@ -157,7 +159,8 @@ Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 | Yükseklik | Copernicus GLO-30 DEM (AWS Open Data: `copernicus-dem-30m`) | Copernicus lisansı — atıf zorunlu |
 | İl sınırları | geoBoundaries (TUR, ADM1) | CC BY 4.0 — atıf zorunlu |
 | Nehir, göl, kaynak | Overture Maps `base/water` (OSM türevi; `tools/fetch_water.py`) | ODbL-1.0 — © OpenStreetMap katkıcıları, atıf zorunlu |
-| Orman, yol, yerleşim (Faz 4) | OSM ya da ESA WorldCover (CC BY 4.0, 10 m arazi örtüsü); Geofabrik/Overpass bu ortamdan erişilemiyor | ODbL / CC BY 4.0 — atıf zorunlu |
+| Arazi örtüsü (orman, çalı, çayır, tarım, yerleşim) | ESA WorldCover 2021, Overture Maps `base/land_cover` dağıtımıyla (`tools/fetch_landcover.py`); Geofabrik/Overpass bu ortamdan erişilemiyor | CC BY 4.0 — © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium |
+| Yol (ileri faz) | OSM | ODbL — atıf zorunlu |
 
 Tüm atıflar README.md'de ve oyunun içinde (ana menü / krediler) gösterilmelidir.
 
@@ -180,6 +183,7 @@ pip install -r requirements.txt
 python fetch_dem.py zonguldak-bartin-karabuk     # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB)
 python fetch_boundaries.py                       # geoBoundaries TUR ADM1 → tools/raw/boundaries/
 python fetch_water.py zonguldak-bartin-karabuk   # Overture su katmanı (HTTP Range; ~150 MB indirir, ~3 dk) → tools/raw/water/
+python fetch_landcover.py zonguldak-bartin-karabuk # Overture arazi örtüsü / ESA WorldCover (HTTP Range) → tools/raw/landcover/
 python build_region.py zonguldak-bartin-karabuk  # → public/data/regions/<id>/ (commit edilir)
 python -m pytest tests                           # Python birim testleri
 ```

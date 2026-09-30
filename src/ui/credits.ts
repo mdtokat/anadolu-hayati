@@ -27,4 +27,9 @@ export const CREDITS: readonly Credit[] = [
     text: '© OpenStreetMap katkıcıları, ODbL 1.0; Overture Maps Foundation dağıtımından (base/water) türetilmiştir.',
     url: 'https://www.openstreetmap.org/copyright',
   },
+  {
+    label: 'Arazi örtüsü',
+    text: '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium, CC BY 4.0; Overture Maps Foundation dağıtımından (base/land_cover) türetilmiştir.',
+    url: 'https://esa-worldcover.org/',
+  },
 ];
