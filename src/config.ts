@@ -388,3 +388,58 @@ export const CLIMATE = {
   /** Rakımla soğuma (°C / 1000 gerçek metre). Standart atmosfer ≈ 6,5. */
   lapseRateCPerKm: 6.5,
 } as const;
+
+/**
+ * Hayatta kalma göstergeleri (saf mantık; gerçek saniye üzerinden işler, gün uzunluğundan bağımsız).
+ * Değerler 0–100 arası "seviye"dir (100 = dolu). Varsayılanlar: hareketsiz bir oyuncu ~20 dk'da ölür
+ * (susuzluk 12 dk'da biter, ardından can ~8 dk'da tükenir). Hepsi ayarlanabilir.
+ */
+export const SURVIVAL = {
+  maxValue: 100,
+
+  /** Hareketsizken susuzluk/açlık seviyesinin tamamen bitmesi için gereken süre (dakika). */
+  hydrationEmptyMinutes: 12,
+  satietyEmptyMinutes: 30,
+  /** Aktiviteye göre susuzluk/açlık tüketim çarpanı. */
+  activityDrain: { rest: 1, walk: 1.6, run: 3 },
+  /** Ortam bu sıcaklığın (°C) üstüne çıkınca her derece için susuzluk bu oranda hızlanır. */
+  hotThirstAboveC: 28,
+  hotThirstPerDegree: 0.05,
+
+  /** Enerji (yorgunluğun tersi; stamina benzeri): koşarak bitme, dinlenirken ve yürürken dolma süreleri (sn). */
+  runEmptySeconds: 90,
+  restRefillSeconds: 40,
+  walkRefillSeconds: 120,
+  /** Enerji 0'a inince koşma/zıplama kapanır; enerji bu seviyeye çıkınca yeniden açılır. */
+  exhaustedRecoverAt: 25,
+
+  /** Can: tüm göstergeler iyiyken saniyede yenilenme ve bunun için gereken asgari tokluk/susuzluk seviyesi. */
+  healthRegenPerSecond: 0.15,
+  healthRegenMinLevel: 50,
+  /** Hasar (can/saniye): susuzluk ve açlık seviyesi 0 iken. */
+  dehydrationDamagePerSecond: 0.2,
+  starvationDamagePerSecond: 0.1,
+
+  /** Vücut ısısı. */
+  bodyTempNormalC: 37,
+  /** Bu ortam sıcaklığının (°C) altında denge ısısı düşer; her derece için düşüş (°C). */
+  comfortAmbientC: 18,
+  coldSlope: 0.35,
+  /** Bu ortam sıcaklığının üstünde denge ısısı yükselir; her derece için artış (°C). */
+  hotAmbientC: 28,
+  hotSlope: 0.25,
+  /** Aktivitenin denge ısısına eklediği ısı (°C). */
+  activityHeatC: { rest: 0, walk: 0.5, run: 1.5 },
+  /** Vücut ısısının dengeye yaklaşma zaman sabiti (sn). */
+  bodyTempTauSeconds: 300,
+  /** Bu ısının altı hipotermi, üstü hipertermi hasarı verir; her derece için hasar (can/sn). */
+  hypothermiaBelowC: 35,
+  hypothermiaDamagePerDegree: 0.1,
+  hyperthermiaAboveC: 39,
+  hyperthermiaDamagePerDegree: 0.25,
+  /** Can yenilenmesi için vücut ısısının olması gereken aralık (°C). */
+  healthRegenBodyTempC: [36, 38.5],
+
+  /** Tatlı su içerken susuzluk seviyesinin saniyedeki artışı. */
+  drinkPerSecond: 8,
+} as const;
