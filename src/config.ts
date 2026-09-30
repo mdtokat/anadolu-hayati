@@ -803,4 +803,6 @@ export const FIRE = {
   fuel: { stick: 90, log: 300 },
   /** Ateşe yakıt atmak için en fazla yatay uzaklık (oyun m). */
   refuelReach: 3,
+  /** Ateşe bir yakıt atmak için `E`'nin basılı tutulacağı süre (sn). */
+  refuelSeconds: 0.8,
 } as const;
