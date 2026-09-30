@@ -1,3 +1,4 @@
+import type { ItemId } from '../items/itemDefs';
 import type { DeathCause } from '../survival/vitals';
 import type { InputAction } from './inputMapping';
 
@@ -16,5 +17,7 @@ export interface GameEvents {
   'player:respawned': { deaths: number };
   /** Bir içme oturumu bitince: bu oturumda artan su seviyesi. */
   'player:drank': { amount: number };
+  /** Bir şey yenince: gerçekte artan tokluk ve su (100'e kırpıldıktan sonra). */
+  'player:ate': { item: ItemId; satiety: number; hydration: number };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
 }

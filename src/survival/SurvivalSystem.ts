@@ -2,6 +2,8 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import { ambientTemperature } from './climate';
 import { CLOCK, SURVIVAL } from '../config';
+import { applyEdible } from '../items/consume';
+import type { EdibleEffect, ItemId } from '../items/itemDefs';
 import { GameClock, type ClockOptions } from './clock';
 import {
   initialVitals,
@@ -109,6 +111,25 @@ export class SurvivalSystem {
     this.aliveSeconds = 0;
     this.drinkingNow = false;
     this.events?.emit('player:respawned', { deaths: this.deaths });
+  }
+
+  /**
+   * Yenen/içilen bir şeyin etkisini uygular. Ölüyse hiçbir şey yapmaz ve `false` döner (çağıran,
+   * eşyayı envanterden düşmeden önce `alive`/dönüş değerini denetlemelidir). `item` verilirse
+   * gerçekte artan değerlerle `player:ate` yayınlanır.
+   */
+  consume(effect: EdibleEffect, item?: ItemId): boolean {
+    if (this.death) return false;
+    const before = this.vitals;
+    this.vitals = applyEdible(before, effect);
+    if (item !== undefined) {
+      this.events?.emit('player:ate', {
+        item,
+        satiety: this.vitals.satiety - before.satiety,
+        hydration: this.vitals.hydration - before.hydration,
+      });
+    }
+    return true;
   }
 
   /** Geliştirici kısayolu: seviyeleri doğrudan ayarlar (test/hata ayıklama). */
