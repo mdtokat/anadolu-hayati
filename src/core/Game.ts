@@ -8,6 +8,9 @@ import {
   TELEPORTS,
   VERTICAL_SCALE,
 } from '../config';
+import { CombatSystem } from '../combat/CombatSystem';
+import { CreatureSystem } from '../creatures/CreatureSystem';
+import type { CreatureContext } from '../creatures/kinds';
 import { loadRegion } from '../data/region';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
@@ -15,7 +18,7 @@ import { collectedToast, gatherPrompt } from '../interaction/promptText';
 import { craft } from '../items/craft';
 import { eatItem, quickEat } from '../items/eatItem';
 import { Inventory } from '../items/Inventory';
-import type { StructureKind } from '../placement/structures';
+import { isLit, type StructureKind } from '../placement/structures';
 import { PlacementController } from '../placement/PlacementController';
 import {
   aimPrompt,
@@ -37,7 +40,7 @@ import { PlayerModel } from '../player/PlayerModel';
 import { activityFromIntent, gateIntent } from '../survival/activity';
 import { formatClock } from '../survival/clock';
 import { SurvivalSystem } from '../survival/SurvivalSystem';
-import { canSprint } from '../survival/vitals';
+import { canSprint, type Activity } from '../survival/vitals';
 import { DeathScreen } from '../ui/DeathScreen';
 import { FpsCounter } from '../ui/FpsCounter';
 import { Hud } from '../ui/Hud';
@@ -45,6 +48,7 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
+import { CreatureLayer } from '../world/CreatureLayer';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { RegionWorld } from '../world/RegionWorld';
@@ -91,6 +95,10 @@ export class Game {
   );
   /** Yapı yerleştirme: hayalet ve onay (saf mantık). */
   readonly placement: PlacementController;
+  /** Canlıların simülasyonu (saf mantık; Faz 5, Hesap A). */
+  readonly creatures = new CreatureSystem(this.events);
+  /** Oyuncu tarafı savaş ve av mantığı (saf mantık; Faz 5, Hesap B). */
+  readonly combat = new CombatSystem(this.events, this.inventory, this.creatures);
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -98,6 +106,7 @@ export class Game {
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
   private readonly structureLayer: StructureLayer;
+  private readonly creatureLayer: CreatureLayer;
   private readonly input: Input;
   private readonly loop: GameLoop;
   private readonly fps: FpsCounter | null;
@@ -132,6 +141,8 @@ export class Game {
     this.world.scene.add(this.playerModel.object);
     this.structureLayer = new StructureLayer(this.structureSystem.structures);
     this.world.scene.add(this.structureLayer.group);
+    this.creatureLayer = new CreatureLayer();
+    this.world.scene.add(this.creatureLayer.group);
     this.placement = new PlacementController({
       events: this.events,
       inventory: this.inventory,
@@ -288,6 +299,9 @@ export class Game {
     this.playerModel.dispose();
     this.player.dispose();
     this.structureLayer.dispose();
+    this.creatureLayer.dispose();
+    this.combat.dispose();
+    this.creatures.dispose();
     this.world.dispose();
     this.physics.dispose();
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
@@ -320,6 +334,8 @@ export class Game {
     const feet = this.player.position;
     this.placement.update({ x: feet.x, z: feet.z, yaw: this.playerCamera.yaw });
     this.structureSystem.update(step);
+    this.creatures.update(step, this.creatureContext(activityFromIntent(intent)));
+    this.combat.update(step);
     // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
     const held = this.input.interactHeld;
     const nearby = this.world.propsNear?.(feet.x, feet.z, INTERACT.reach) ?? [];
@@ -351,6 +367,23 @@ export class Game {
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
     });
+  }
+
+  /**
+   * Canlı simülasyonunun her adımda dünyadan/oyuncudan aldığı bilgi. Hesap A (5.4) `terrain`'i dünyadan bağlar
+   * ve gerekirse alan ekler; başka hiçbir şey bu yöntemin dışında `Game`'e dokunmaz.
+   */
+  private creatureContext(activity: Activity): CreatureContext {
+    const feet = this.player.position;
+    const { clock } = this.survival;
+    return {
+      player: { x: feet.x, y: feet.y, z: feet.z, activity, alive: this.survival.alive },
+      hour: clock.hour,
+      sunAltitudeDeg: clock.sun.altitudeDeg,
+      isNight: clock.isNight,
+      fires: this.structureSystem.structures.all().filter(isLit),
+      terrain: null,
+    };
   }
 
   /** Envanter/üretim panelini açar: oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken (fare kilitli). */
@@ -433,6 +466,7 @@ export class Game {
     this.playerModel.update(feet, this.playerCamera.yaw);
     this.structureLayer.update(now / 1000, feet.x, feet.z);
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
+    this.creatureLayer.update(this.creatures.views());
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
@@ -448,6 +482,7 @@ export class Game {
           cameraMode: this.playerCamera.mode,
           props: this.world.propStats,
           structures: this.structureLayer.stats,
+          creatures: this.creatures.stats,
         }),
       );
     }

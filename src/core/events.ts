@@ -1,3 +1,5 @@
+import type { CreatureId, CreatureKind, CreatureState } from '../creatures/kinds';
+import type { ItemStack } from '../items/Inventory';
 import type { ItemId } from '../items/itemDefs';
 import type { StructureId, StructureKind } from '../placement/structures';
 import type { RecipeId } from '../items/recipes';
@@ -39,4 +41,24 @@ export interface GameEvents {
   /** Bir tarif üretilince: tarif kimliği ve çıktı. */
   'item:crafted': { recipe: RecipeId; item: ItemId; count: number };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
+
+  // ── Faz 5: Canlılar (Hesap A yayınlar; bu bölüme yalnızca A ekler) ──
+  /** Bir canlı oyuncuya saldırınca (vuruş anında, bir kez): `damage` savunma öncesi ham hasar. */
+  'creature:attacked': { id: CreatureId; kind: CreatureKind; damage: number; x: number; z: number };
+  /** Bir canlı hasar alınca (`killed`: bu vuruşla öldü). */
+  'creature:damaged': { id: CreatureId; kind: CreatureKind; amount: number; killed: boolean };
+  /** Bir canlı ölünce; leş simülasyonda kalır (`removeCarcass` ile kaldırılır). */
+  'creature:died': { id: CreatureId; kind: CreatureKind; x: number; y: number; z: number };
+  /** Bir canlı oyuncuyu ilk fark edip `alert`/`stalk`/`chase` durumuna geçince. */
+  'creature:noticed': { id: CreatureId; kind: CreatureKind; state: CreatureState };
+
+  // ── Faz 5: Oyuncu tarafı (Hesap B yayınlar; bu bölüme yalnızca B ekler) ──
+  /** Oyuncu hasar alınca (savunma sonrası). */
+  'player:damaged': { amount: number; cause: 'creature'; sourceKind?: CreatureKind };
+  /** Oyuncu saldırınca; `hitId` isabet ettiği canlı (ıskaladıysa null). */
+  'player:attacked': { weapon: ItemId | 'fist'; hitId: CreatureId | null };
+  /** Bir leş kesilince alınan eşyalar. */
+  'carcass:butchered': { id: CreatureId; kind: CreatureKind; items: ItemStack[] };
+  /** Ateşte bir şey pişirilince (`from`: çiğ eşya). */
+  'item:cooked': { from: ItemId; item: ItemId; count: number };
 }

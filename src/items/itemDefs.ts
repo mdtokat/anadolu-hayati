@@ -18,6 +18,13 @@ export const ITEM_IDS = [
   // yerleştirilebilir yapılar (4.5'te üretilir, 4.8'de yerleştirilir)
   'campfire',
   'lean_to',
+  // av ürünleri ve savaş eşyaları (Faz 5; değerleri 5.8'de Hesap B ayarlar)
+  'raw_meat',
+  'cooked_meat',
+  'hide',
+  'bone',
+  'stone_spear',
+  'hide_vest',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -107,6 +114,33 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     category: 'placeable',
   },
   lean_to: { id: 'lean_to', name: 'Sundurma', weightG: 8000, stackMax: 1, category: 'placeable' },
+  // Faz 5 (iskelet): yer tutucu değerler, 5.8'de ayarlanır. Çiğ etin sağlık riski ve giysi savunması da orada.
+  raw_meat: {
+    id: 'raw_meat',
+    name: 'Çiğ Et',
+    weightG: 500,
+    stackMax: 10,
+    category: 'food',
+    edible: { satiety: 8 },
+  },
+  cooked_meat: {
+    id: 'cooked_meat',
+    name: 'Pişmiş Et',
+    weightG: 400,
+    stackMax: 10,
+    category: 'food',
+    edible: { satiety: 30 },
+  },
+  hide: { id: 'hide', name: 'Deri', weightG: 1500, stackMax: 5, category: 'material' },
+  bone: { id: 'bone', name: 'Kemik', weightG: 300, stackMax: 10, category: 'material' },
+  stone_spear: {
+    id: 'stone_spear',
+    name: 'Taş Mızrak',
+    weightG: 1200,
+    stackMax: 1,
+    category: 'tool',
+  },
+  hide_vest: { id: 'hide_vest', name: 'Deri Yelek', weightG: 1800, stackMax: 1, category: 'tool' },
 };
 
 export function isItemId(value: unknown): value is ItemId {
