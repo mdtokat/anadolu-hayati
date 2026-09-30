@@ -1,5 +1,6 @@
 import { WebGLRenderer } from 'three';
 import {
+  COMBAT,
   INTERACT,
   PLAYER,
   RENDER,
@@ -8,9 +9,13 @@ import {
   TELEPORTS,
   VERTICAL_SCALE,
 } from '../config';
+import { CarcassButcher, pickCarcass } from '../combat/carcass';
 import { CombatSystem } from '../combat/CombatSystem';
+import { CookingSystem } from '../combat/cooking';
+import { updateInteractions } from '../combat/interactChain';
+import { butcherPrompt, butcheredToast, cookedToast, cookPrompt } from '../combat/promptText';
 import { CreatureSystem } from '../creatures/CreatureSystem';
-import type { CreatureContext } from '../creatures/kinds';
+import type { CreatureContext, CreatureView } from '../creatures/kinds';
 import { loadRegion } from '../data/region';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
@@ -99,6 +104,15 @@ export class Game {
   readonly creatures = new CreatureSystem(this.events);
   /** Oyuncu tarafı savaş ve av mantığı (saf mantık; Faz 5, Hesap B). */
   readonly combat = new CombatSystem(this.events, this.inventory, this.creatures, this.survival);
+
+  /** Bakılan leşe `E` ile kesme (saf mantık; Faz 5, Hesap B). */
+  readonly butcher = new CarcassButcher(this.events, this.inventory, this.creatures);
+  /** Yanık ateşin yanında `E` ile et pişirme (saf mantık; Faz 5, Hesap B). */
+  readonly cooking = new CookingSystem(
+    this.events,
+    this.inventory,
+    this.structureSystem.structures,
+  );
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -221,6 +235,12 @@ export class Game {
         );
         this.inventoryPanel.refresh();
       }),
+      this.events.on('carcass:butchered', ({ id, items }) =>
+        this.hud.notify(butcheredToast(items, this.butcher.hasRemaining(id)), INTERACT.toastMs),
+      ),
+      this.events.on('item:cooked', ({ count }) =>
+        this.hud.notify(cookedToast(count), INTERACT.toastMs),
+      ),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
@@ -350,12 +370,23 @@ export class Game {
             },
             (prop) => this.gather.inspect(prop) !== null,
           );
-    this.gather.update(step, held, focus?.prop ?? null);
-    const gathering = this.gather.offer?.status === 'ready';
-
-    // Ateşe yakıt: toplanabilir nesne yoksa ve ateşin yakınındaysa E yakıt atar (su içmeden önceliklidir).
-    this.fireTender.update(step, held && !gathering, feet);
-    const tending = this.fireTender.offer?.status === 'ready';
+    // E öncelik sırası: toplama > leş kesme > pişirme > ateşe yakıt > su içme (combat/interactChain.ts).
+    const interaction = updateInteractions(
+      step,
+      {
+        gather: this.gather,
+        butcher: this.butcher,
+        cooking: this.cooking,
+        fireTender: this.fireTender,
+      },
+      {
+        held,
+        feet,
+        prop: focus?.prop ?? null,
+        carcass: this.carcassInReach(feet),
+        alive: this.survival.alive,
+      },
+    );
 
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
@@ -363,10 +394,25 @@ export class Game {
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
-      drinking: water !== null && held && !gathering && !tending,
+      drinking: water !== null && interaction.drinkAllowed,
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
     });
+  }
+
+  /** Bakılan leş (yoksa null): `INTERACT` menzili/konisi içinde, ölü canlılar arasından. */
+  private carcassInReach(feet: { x: number; y: number; z: number }): CreatureView | null {
+    const nearby = this.creatures.near(feet.x, feet.z, INTERACT.reach + COMBAT.aim.searchMargin);
+    if (nearby.length === 0) return null;
+    const hit = pickCarcass(nearby, {
+      x: feet.x,
+      y: feet.y,
+      z: feet.z,
+      eyeY: feet.y + PLAYER.eyeHeight,
+      yaw: this.playerCamera.yaw,
+      pitch: this.playerCamera.pitch,
+    });
+    return hit?.view ?? null;
   }
 
   /**
@@ -534,6 +580,18 @@ export class Game {
       this.hud.setProgress(this.gather.progress > 0 ? this.gather.progress : null);
       return;
     }
+    const butcher = alive ? this.butcher.offer : null;
+    if (butcher?.status === 'ready') {
+      this.hud.setPrompt(butcherPrompt(butcher));
+      this.hud.setProgress(this.butcher.progress > 0 ? this.butcher.progress : null);
+      return;
+    }
+    const cook = alive ? this.cooking.offer : null;
+    if (cook) {
+      this.hud.setPrompt(cookPrompt(this.fireTender.offer?.status === 'ready'));
+      this.hud.setProgress(this.cooking.progress > 0 ? this.cooking.progress : null);
+      return;
+    }
     const tend = alive ? this.fireTender.offer : null;
     if (tend?.status === 'ready') {
       this.hud.setPrompt(tendPrompt(tend));
@@ -543,7 +601,10 @@ export class Game {
     this.hud.setProgress(null);
     const drink = this.drinkPrompt();
     this.hud.setPrompt(
-      drink ?? (offer ? gatherPrompt(offer) : null) ?? (tend ? tendPrompt(tend) : null),
+      drink ??
+        (offer ? gatherPrompt(offer) : null) ??
+        (butcher ? butcherPrompt(butcher) : null) ??
+        (tend ? tendPrompt(tend) : null),
     );
   }
 

@@ -40,23 +40,34 @@ export function bestWeapon(inventory: Pick<Inventory, 'has'>): WeaponId {
   return best;
 }
 
+/** Bir canlıyı nişan alma kuralları (saldırı ve leş kesme aynı geometriyi farklı eşiklerle kullanır). */
+export interface AimRules {
+  /** Canlının kenarına en büyük yatay uzaklık (oyun m). */
+  reach: number;
+  coneDeg: number;
+  pitchToleranceDeg: number;
+  closeRange: number;
+  maxVerticalGap: number;
+}
+
 /**
- * Bir canlıya vuruş isabet eder mi (saf)? Menzil canlının kenarına yataydır; yatay koni canlının açısal
+ * Bir canlı nişan alınıyor mu (saf)? Menzil canlının kenarına yataydır; yatay koni canlının açısal
  * genişliğiyle genişler; dikey tolerans `INTERACT` yamaç mantığı gibi gevşektir (bakış eğimi ile hedefe
- * yükselti açısı farkı) ve `closeRange` içinde dikey açı aranmaz. Leşe vurulmaz. İsabet yoksa null.
+ * yükselti açısı farkı) ve `closeRange` içinde dikey açı aranmaz. `targetHeight`: hedef noktanın zeminden
+ * yüksekliği (leşte alçak). İsabet yoksa null.
  */
-export function resolveMelee(
+export function aimAt(
   view: CreatureView,
   aim: MeleeAim,
-  weapon: Pick<WeaponStats, 'reach'>,
+  rules: AimRules,
+  targetHeight: number = view.height / 2,
 ): MeleeHit | null {
-  if (view.dead) return null;
   const dx = view.x - aim.x;
   const dz = view.z - aim.z;
   const centerDistance = Math.hypot(dx, dz);
   const distance = Math.max(centerDistance - view.radius, 0);
-  if (distance > weapon.reach) return null;
-  if (Math.abs(view.y - aim.y) > COMBAT.aim.maxVerticalGap) return null;
+  if (distance > rules.reach) return null;
+  if (Math.abs(view.y - aim.y) > rules.maxVerticalGap) return null;
 
   // Yatay koni: bakış yönü (−sin yaw, −cos yaw) ile canlıya yön arasındaki açı.
   let bearingDeg = 0;
@@ -66,17 +77,26 @@ export function resolveMelee(
     const cos = (dx * fx + dz * fz) / centerDistance;
     bearingDeg = Math.acos(Math.min(Math.max(cos, -1), 1)) * RAD;
     const widthDeg = Math.asin(Math.min(view.radius / centerDistance, 1)) * RAD;
-    if (bearingDeg > COMBAT.aim.coneDeg + widthDeg) return null;
+    if (bearingDeg > rules.coneDeg + widthDeg) return null;
   }
 
-  // Dikey: hedef canlının gövde ortası.
-  if (distance > COMBAT.aim.closeRange) {
-    const dy = view.y + view.height / 2 - aim.eyeY;
+  // Dikey: hedef noktanın yükselti açısı bakış eğimine yakın olmalı.
+  if (distance > rules.closeRange) {
+    const dy = view.y + targetHeight - aim.eyeY;
     const elevationDeg = Math.atan2(dy, centerDistance) * RAD;
-    const pitchDeg = aim.pitch * RAD;
-    if (Math.abs(elevationDeg - pitchDeg) > COMBAT.aim.pitchToleranceDeg) return null;
+    if (Math.abs(elevationDeg - aim.pitch * RAD) > rules.pitchToleranceDeg) return null;
   }
   return { view, distance, bearingDeg };
+}
+
+/** Bir canlıya vuruş isabet eder mi? Leşe vurulmaz. */
+export function resolveMelee(
+  view: CreatureView,
+  aim: MeleeAim,
+  weapon: Pick<WeaponStats, 'reach'>,
+): MeleeHit | null {
+  if (view.dead) return null;
+  return aimAt(view, aim, { ...COMBAT.aim, reach: weapon.reach });
 }
 
 /** Adaylar içinden vuruşa en uygun olanı seçer: bakışa en yakın (yatay açı), eşitlikte en yakın. */
