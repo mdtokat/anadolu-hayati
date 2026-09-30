@@ -142,14 +142,14 @@ Görevler (numaralar alt görev sırasıdır; **Hesap A = Beyin**, **Hesap B = B
 - [x] **5.9** _(B)_ Avlanma ve et pişirme: leş kesme (`E` basılı), ateşte pişirme, `E` öncelik sırası
 - [x] **5.10** _(B)_ Canlı görseli: `CreatureLayer` (parçalı instanced model, yürüme/saldırı/ölü animasyonu), dev demosu
 - [x] **5.11** _(B)_ Arayüz: hasar tepkisi, vuruş işareti, ipuçları, ölüm ekranı, kontroller
-- [ ] **5.12** Birleştirme: gerçek canlılarla av zinciri, denge, birleşik performans ölçümü (Faz 4 sonrası taban ölçüm dahil)
+- [x] **5.12** Birleştirme: gerçek canlılarla av zinciri, denge, birleşik performans ölçümü (Faz 4 sonrası taban ölçüm dahil)
 - [ ] **5.13** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
 
 Kabul kriterleri:
 - [x] Hayvanlar araziye takılmadan hareket ediyor _(5.5: gerçek bölgede simülasyon testi: `tests/creatureRegion.test.ts`)_
-- [ ] Görüş mesafesindeki hayvan sayısı performansı düşürmüyor _(5.12: taban + ≤ 20 draw call, ≤ 60 bin üçgen; gerçek FPS elle GPU'lu masaüstünde)_
+- [x] Görüş mesafesindeki hayvan sayısı performansı düşürmüyor _(5.12: 40 canlıyla en kötü +2 draw call, +9,3 bin üçgen (bütçe ≤ +20 / ≤ +60 bin); gerçek FPS elle GPU'lu masaüstünde doğrulanacak)_
 - [x] Yapay zekâ durum geçişleri için birim testler var _(5.2: `tests/ai.test.ts`, tablodaki her geçiş)_
-- [ ] Oyuncu hayvan avlayıp eti pişirip yiyebiliyor ve hayvan saldırısıyla ölebiliyor _(5.12; oyunda elle doğrulanır)_
+- [x] Oyuncu hayvan avlayıp eti pişirip yiyebiliyor ve hayvan saldırısıyla ölebiliyor _(5.12: `tests/integrationHunt.test.ts` gerçek bölgede uçtan uca; oyunda elle his/denge doğrulaması bekliyor)_
 
 ---
 
