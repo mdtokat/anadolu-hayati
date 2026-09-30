@@ -299,6 +299,8 @@ export const SCATTER = {
   candidateSpacing: 4,
   /** Nesneler oyuncuya bu uzaklığa (oyun m) kadar çizilir; chunk'lar bu yarıçap içindeyse etkindir. */
   drawRadius: 700,
+  /** Bu uzaklıktan (oyun m) yakınlar tam geometriyle, ötesi (`farLod` olan türler) ucuz geometriyle çizilir. */
+  nearRadius: 140,
   /** Etkin chunk kümesi bu kadar (oyun m) hareketle yeniden hesaplanır/örnek tamponları yenilenir. */
   refreshDistance: 24,
   /** Karede hesaplanabilecek en fazla chunk (`scatterChunk`): takılma olmasın. */
@@ -371,7 +373,7 @@ export const SCATTER = {
       elevation: [0, 0, 1000, 1300],
       waterClearance: 3,
       maxInstances: 4000,
-      maxDistance: 200,
+      maxDistance: 140,
       farLod: false,
     },
     hazel: {
@@ -405,7 +407,7 @@ export const SCATTER = {
       farLod: false,
     },
     stick: {
-      height: 0.15,
+      height: 0.3,
       scale: [0.7, 1.4],
       maxSlopeDeg: 50,
       elevation: [0, 0, 1900, 2000],
@@ -424,6 +426,23 @@ export const SCATTER = {
       maxDistance: 120,
       farLod: false,
     },
+  },
+  /** Nesne renkleri (0xRRGGBB; vertex rengi, örnek başına ton farkı `instanceColor` ile); yüzey başı ton oynaması. */
+  colors: {
+    trunk: 0x5b4330,
+    broadleaf: 0x3f6d2c,
+    conifer: 0x25492c,
+    chestnut: 0x4f7d2b,
+    bush: 0x486b30,
+    berryLeaf: 0x3e5f2f,
+    berry: 0x401f55,
+    hazel: 0x6a8a30,
+    rock: 0x7d786f,
+    stone: 0x8a857b,
+    mushroomStem: 0xe9e0c9,
+    mushroomCap: 0xb3512e,
+    stick: 0x6a4e34,
+    faceShade: 0.07,
   },
   /**
    * Arazi örtüsü sınıfı → tür yoğunlukları (nesne / 100 m² oyun alanı; rakım yamuğu ile çarpılır).
