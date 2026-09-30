@@ -455,3 +455,21 @@ export const RESPAWN = {
   /** Güvenli noktaya kaydırma bu kadardan (oyun m) fazlaysa aday reddedilir (il dışına taşmasın). */
   maxDrift: 40,
 } as const;
+
+/**
+ * Tatlı su etkileşimi ve gösterimi. Dünya yatayda 1:50 ölçekli olduğundan gerçek bir nehir (5–30 m)
+ * oyunda 0,1–0,6 m genişliğinde kalır; görünür ve içilebilir olması için genişlikler oyun için abartılır.
+ */
+export const FRESH_WATER = {
+  /** Su kaynağına (çizgi/kıyı/kaynak noktası) bu uzaklıktan (oyun m) yakın oyuncu içebilir; çokgenin içi 0 sayılır. */
+  reachDistance: 3.5,
+  /** Çizim genişlikleri (oyun m): tür başına akarsu şeridi genişliği. */
+  lineWidth: { river: 3, stream: 1.2, canal: 1.5 },
+  /** Uzamsal ızgara hücre boyu (oyun m); sorgu yarıçapından küçük olmamalı. */
+  indexCellSize: 40,
+  /** Su rengi (nehir şeridi ve göl yüzeyi). */
+  color: 0x3b8fb3,
+  opacity: 0.85,
+  /** Akarsu şeridinin zeminden yüksekliği (oyun m); göller için yüzey yüksekliği kıyıdan alınır. */
+  lift: 0.12,
+} as const;
