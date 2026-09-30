@@ -3,6 +3,8 @@ import type { Vec3 } from '../player/movement';
 import type { SkyPosition } from '../survival/astronomy';
 import type { WaterHit } from './waterIndex';
 import type { HeightSource } from './HeightSource';
+import type { PropLayerStats } from './PropLayer';
+import type { PropId, PropRef } from './propKinds';
 
 /** Konum hakkında HUD'da gösterilecek bilgi (yalnızca gerçek bölgede vardır). */
 export interface LocationInfo {
@@ -38,6 +40,12 @@ export interface GameWorld {
   respawnPoint?(deathIndex: number): Vec3 | null;
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */
   locationInfo?(x: number, z: number, feetY: number): LocationInfo;
+  /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa; destekleyen dünyalarda. */
+  propsNear?(x: number, z: number, radius: number): PropRef[];
+  /** Nesneyi gizler/geri getirir (toplanan/kesilen nesne); destekleyen dünyalarda. */
+  setPropDepleted?(id: PropId, depleted: boolean): void;
+  /** Dev göstergesi: nesne katmanı sayımları (yoksa null ya da tanımsız). */
+  readonly propStats?: PropLayerStats | null;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
   toggleBorders?(): void;
   dispose(): void;

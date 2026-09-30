@@ -247,6 +247,7 @@ export class Game {
           velocity: this.player.currentVelocity,
           grounded: this.player.grounded,
           cameraMode: this.playerCamera.mode,
+          props: this.world.propStats,
         }),
       );
     }

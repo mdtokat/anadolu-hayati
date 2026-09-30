@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRandom } from '../src/utils/random';
+import { createRandom, seedFrom } from '../src/utils/random';
 
 describe('createRandom', () => {
   it('aynı seed aynı diziyi üretir', () => {
@@ -32,5 +32,35 @@ describe('createRandom', () => {
       expect(n).toBeGreaterThanOrEqual(1);
       expect(n).toBeLessThanOrEqual(6);
     }
+  });
+});
+
+describe('seedFrom', () => {
+  it('aynı girdiler aynı tohumu verir; sonuç 32-bit işaretsiz tamsayıdır', () => {
+    expect(seedFrom(1, 2, 3)).toBe(seedFrom(1, 2, 3));
+    const v = seedFrom(-5, 70000, 3);
+    expect(Number.isInteger(v)).toBe(true);
+    expect(v).toBeGreaterThanOrEqual(0);
+    expect(v).toBeLessThan(2 ** 32);
+  });
+
+  it('sıra ve girdi sayısı sonucu değiştirir', () => {
+    expect(seedFrom(1, 2)).not.toBe(seedFrom(2, 1));
+    expect(seedFrom(1)).not.toBe(seedFrom(1, 0));
+    expect(seedFrom(0)).not.toBe(seedFrom());
+  });
+
+  it('bitişik girdiler çakışmaz (komşu chunk tohumları)', () => {
+    const seen = new Set<number>();
+    for (let cx = 0; cx < 40; cx++) for (let cy = 0; cy < 40; cy++) seen.add(seedFrom(7, cx, cy));
+    expect(seen.size).toBe(1600);
+  });
+
+  it('bitişik tohumlardan üretilen diziler ilişkisiz görünür (ortalama ≈ 0,5)', () => {
+    let sum = 0;
+    const n = 2000;
+    for (let i = 0; i < n; i++) sum += createRandom(seedFrom(42, i)).next();
+    expect(sum / n).toBeGreaterThan(0.45);
+    expect(sum / n).toBeLessThan(0.55);
   });
 });

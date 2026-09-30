@@ -21,6 +21,15 @@ describe('formatDebugInfo', () => {
     );
   });
 
+  it('nesne katmanı varsa sayımlarını ekler', () => {
+    const text = formatDebugInfo({
+      ...info,
+      props: { instances: 1234, meshes: 14, loadedChunks: 30, activeChunks: 32 },
+    });
+    expect(text.split('\n').at(-1)).toBe('Nesne: 1234 örnek, 14 mesh, chunk 30/32');
+    expect(formatDebugInfo({ ...info, props: null })).not.toContain('Nesne');
+  });
+
   it('sıfıra yakın değerleri -0.0 olarak yazmaz', () => {
     const text = formatDebugInfo({ ...info, position: { x: -0.001, y: 0.02, z: -0.04 } });
     expect(text).toContain('Konum: 0.0, 0.0, 0.0');
