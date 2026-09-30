@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Bir bölgenin oyun verisini üretir: heightmap.bin, meta.json, provinces.geojson.
+"""Bir bölgenin oyun verisini üretir: heightmap.bin, meta.json, provinces.geojson, features.json.
 
 Kullanım:  python build_region.py [bölge-id]      (varsayılan: zonguldak-bartin-karabuk)
-Önkoşul:   python fetch_dem.py && python fetch_boundaries.py
+Önkoşul:   python fetch_dem.py && python fetch_boundaries.py && python fetch_water.py
 Çıktı:     public/data/regions/<bölge-id>/         (commit edilir; oyunun okuduğu dosyalar)
 
 Adımlar: DEM karolarını birleştir → EPSG:32636'ya dönüştürüp `cell_size` (100 m) ızgaraya
@@ -32,6 +32,7 @@ from rasterio.transform import from_origin
 from rasterio.warp import Resampling, reproject
 from shapely.geometry import box, mapping
 
+import features as features_lib
 import regionlib
 
 TOOLS = Path(__file__).resolve().parent
@@ -111,6 +112,7 @@ def build(
     dem_paths: list[Path],
     boundaries_path: Path,
     out_dir: Path,
+    water_path: Path | None = None,
 ) -> dict:
     """Bölge dosyalarını `out_dir`'e yazar. Dönüş: yazılan meta sözlüğü."""
     boundaries = gpd.read_file(boundaries_path).to_crs(CRS)
@@ -161,6 +163,15 @@ def build(
         "built": date.today().isoformat(),
     }
 
+    water_features = None
+    if water_path is not None:
+        collection = json.loads(water_path.read_text(encoding="utf-8"))
+        water_features = features_lib.build_features(collection, grid)
+        meta["features"] = ["water"]
+        meta["sources"].append("Overture Maps (OpenStreetMap)")
+        if collection.get("overture_release"):
+            meta["overtureRelease"] = collection["overture_release"]
+
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "heightmap.bin").write_bytes(heightmap)
     (out_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -168,6 +179,10 @@ def build(
         json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
+    if water_features is not None:
+        (out_dir / "features.json").write_text(
+            json.dumps(water_features, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8"
+        )
     return meta
 
 
@@ -178,12 +193,13 @@ def main(argv: list[str]) -> int:
     region = load_region(region_id)
     dem_paths = [TOOLS / "raw" / "dem" / f"{name}.tif" for name in regionlib.tiles_for_bbox(*region["bbox"])]
     boundaries_path = TOOLS / "raw" / "boundaries" / "geoBoundaries-TUR-ADM1.geojson"
-    missing = [str(p) for p in [*dem_paths, boundaries_path] if not p.exists()]
+    water_path = TOOLS / "raw" / "water" / f"{region_id}.geojson"
+    missing = [str(p) for p in [*dem_paths, boundaries_path, water_path] if not p.exists()]
     if missing:
-        raise SystemExit("Eksik ham veri (önce fetch_dem.py ve fetch_boundaries.py çalıştır):\n  " + "\n  ".join(missing))
+        raise SystemExit("Eksik ham veri (önce fetch_dem.py, fetch_boundaries.py ve fetch_water.py çalıştır):\n  " + "\n  ".join(missing))
 
     out_dir = REPO / "public" / "data" / "regions" / region_id
-    meta = build(region_id, region, dem_paths, boundaries_path, out_dir)
+    meta = build(region_id, region, dem_paths, boundaries_path, out_dir, water_path)
 
     size = (out_dir / "heightmap.bin").stat().st_size
     print(f"{region_id}: ızgara {meta['gridWidth']}×{meta['gridHeight']} @ {meta['cellSizeReal']:.0f} m")

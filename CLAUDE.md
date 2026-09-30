@@ -133,7 +133,15 @@ Her bölge `public/data/regions/<bolge-id>/` altında şu dosyalardan oluşur. �
 
 **`provinces.geojson`** — İl sınırları, koordinatları **oyun dünyası X/Z** cinsinden (önceden dönüştürülmüş, 2 ondalık, sadeleştirilmiş), `properties.name` alanı il adı. Ek alanlar: `iso` (TR-67 gibi) ve `inRegion` (bölgenin hedef ili mi `true`, oyuncunun yürüyebildiği komşu il mi `false`). Komşu iller HUD'da adlarının görünmesi içindir.
 
-**`features.json`** (Faz 4+) — OSM kaynaklı orman poligonları, nehirler, yerleşimler; yine oyun koordinatlarında.
+**`features.json`** — Su ve (Faz 4+) orman/yerleşim gibi haritadaki özellikler; koordinatlar oyun X/Z'sinde (2 ondalık, sadeleştirilmiş, ızgaraya kırpılmış). `meta.json` içindeki `features` listesi hangi katmanların bulunduğunu söyler (Faz 3: `["water"]`); yeni katmanlar aynı dosyaya eklenir.
+```json
+{ "version": 1,
+  "water": {
+    "lines":    [{ "kind": "river|stream|canal", "name": "Filyos Çayı", "intermittent": true, "xz": [x0, z0, x1, z1, ...] }],
+    "polygons": [{ "kind": "lake|reservoir|pond|water", "name": "…", "rings": [[x0, z0, ...], /* delikler */] }],
+    "points":   [{ "kind": "spring", "name": "…", "x": 0, "z": 0 }] } }
+```
+Deniz dahil değildir (deniz heightmap'in 0 m seviyesidir); yüzme havuzu, atık su, hendek/drenaj elenir. Kaynak: Overture Maps `base/water` (OSM türevi, **ODbL-1.0**); `features.json` da ODbL kapsamındadır ve © OpenStreetMap katkıcıları atfı gerekir.
 
 Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 
@@ -143,7 +151,8 @@ Tek bir dosya 20 MB'ı geçmemeli. Geçerse chunk'lara bölünmeli.
 |---|---|---|
 | Yükseklik | Copernicus GLO-30 DEM (AWS Open Data: `copernicus-dem-30m`) | Copernicus lisansı — atıf zorunlu |
 | İl sınırları | geoBoundaries (TUR, ADM1) | CC BY 4.0 — atıf zorunlu |
-| Orman, nehir, yol | OpenStreetMap (Geofabrik Türkiye extract) | ODbL — atıf zorunlu |
+| Nehir, göl, kaynak | Overture Maps `base/water` (OSM türevi; `tools/fetch_water.py`) | ODbL-1.0 — © OpenStreetMap katkıcıları, atıf zorunlu |
+| Orman, yol, yerleşim (Faz 4) | OSM ya da ESA WorldCover (CC BY 4.0, 10 m arazi örtüsü); Geofabrik/Overpass bu ortamdan erişilemiyor | ODbL / CC BY 4.0 — atıf zorunlu |
 
 Tüm atıflar README.md'de ve oyunun içinde (ana menü / krediler) gösterilmelidir.
 
@@ -165,6 +174,7 @@ cd tools
 pip install -r requirements.txt
 python fetch_dem.py zonguldak-bartin-karabuk     # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB)
 python fetch_boundaries.py                       # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python fetch_water.py zonguldak-bartin-karabuk   # Overture su katmanı (HTTP Range; ~150 MB indirir, ~3 dk) → tools/raw/water/
 python build_region.py zonguldak-bartin-karabuk  # → public/data/regions/<id>/ (commit edilir)
 python -m pytest tests                           # Python birim testleri
 ```
