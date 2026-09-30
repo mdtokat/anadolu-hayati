@@ -164,6 +164,12 @@ export class SurvivalSystem {
     return true;
   }
 
+  /** Enerji harcar (saldırı gibi eylemler; 0'ın altına inmez). Bitkinlik bir sonraki adımda `stepVitals`'ta işlenir. */
+  spendEnergy(amount: number): void {
+    if (this.death || !(amount > 0)) return;
+    this.vitals = { ...this.vitals, energy: Math.max(this.vitals.energy - amount, 0) };
+  }
+
   /** Geliştirici kısayolu: seviyeleri doğrudan ayarlar (test/hata ayıklama). */
   setVitals(patch: Partial<VitalsState>): void {
     this.vitals = { ...this.vitals, ...patch };

@@ -193,7 +193,7 @@ export class Game {
         if (action === 'toggleBorders') this.world.toggleBorders?.();
         if (action === 'placeCampfire') this.togglePlacement('campfire');
         if (action === 'placeShelter') this.togglePlacement('lean_to');
-        if (action === 'confirmPlacement') this.confirmPlacement();
+        if (action === 'primaryAction') this.primaryAction();
         if (action === 'toggleInventory') this.openInventory();
         if (action === 'eat') this.quickEatFood();
       }),
@@ -553,7 +553,28 @@ export class Game {
     if (text) this.hud.notify(text, INTERACT.toastMs);
   }
 
-  /** Sol tık: hayaleti yapıya çevir; engel varsa nedenini söyle. */
+  /** Sol tık: yerleştirme hayaleti varsa onaylar, yoksa saldırır. */
+  private primaryAction(): void {
+    if (this.placement.aiming) this.confirmPlacement();
+    else this.attack();
+  }
+
+  /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
+  private attack(): void {
+    if (!this.survival.alive || this.inventoryOpen || this.loop.paused) return;
+    const feet = this.player.position;
+    const result = this.combat.attack({
+      x: feet.x,
+      y: feet.y,
+      z: feet.z,
+      eyeY: feet.y + PLAYER.eyeHeight,
+      yaw: this.playerCamera.yaw,
+      pitch: this.playerCamera.pitch,
+    });
+    if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
+  }
+
+  /** Yerleştirmeyi onaylar; engel varsa nedenini söyler. */
   private confirmPlacement(): void {
     if (!this.placement.aiming) return;
     const result = this.placement.confirm();

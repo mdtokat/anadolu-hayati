@@ -83,7 +83,7 @@ describe('Input', () => {
     expect(handler).toHaveBeenCalledWith({ action: 'toggleCamera' });
   });
 
-  it('sol tık yalnızca kilitliyken confirmPlacement eylemidir; diğer tuşlar ve kilitsiz tık değil', () => {
+  it('sol tık yalnızca kilitliyken primaryAction eylemidir; diğer tuşlar ve kilitsiz tık değil', () => {
     const { events, doc, setLock } = setup();
     const actions: string[] = [];
     events.on('input:action', ({ action }) => actions.push(action));
@@ -95,7 +95,7 @@ describe('Input', () => {
     click(1);
     expect(actions).toEqual([]);
     click(0);
-    expect(actions).toEqual(['confirmPlacement']);
+    expect(actions).toEqual(['primaryAction']);
   });
 
   it('C ve G yerleştirme eylemleridir; yalnızca kilitliyken ve tekrar etmeden', () => {

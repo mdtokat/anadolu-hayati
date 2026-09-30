@@ -923,6 +923,19 @@ export const COMBAT = {
   },
   /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
   defense: { hide_vest: 0.2 },
+  /**
+   * İsabet testi (`combat/melee.ts`; `INTERACT` gibi gevşek, çünkü gerçek yamaçlar ×3,3 dikleşir): yatay
+   * koni (canlının açısal genişliği ayrıca eklenir), bakış eğimi ile hedefe yükselti açısı arasındaki en
+   * büyük fark, bu uzaklıktan yakında dikey açı aranmaz ve ayak ile canlı arasındaki en büyük zemin farkı.
+   */
+  aim: {
+    coneDeg: 50,
+    pitchToleranceDeg: 60,
+    closeRange: 1.2,
+    maxVerticalGap: 3,
+    /** Canlı yarıçapı payı: `creatures.near` aramasına menzile eklenir (en büyük canlı yarıçapından büyük). */
+    searchMargin: 1.5,
+  },
   /** Giysilerin toplam savunması bu orana kırpılır (hasar asla tamamen sıfırlanmasın). */
   maxDefense: 0.6,
 } as const;

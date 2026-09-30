@@ -8,8 +8,8 @@ export type InputAction =
   | 'eat'
   | 'placeCampfire'
   | 'placeShelter'
-  /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirmeyi onayla. */
-  | 'confirmPlacement';
+  /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirme hayaleti varsa onayla, yoksa saldır. */
+  | 'primaryAction';
 
 /** Tuş durumundan türetilen hareket niyeti. */
 export interface MoveIntent {
