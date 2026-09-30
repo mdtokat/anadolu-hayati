@@ -41,3 +41,21 @@ export function bestFood(inventory: Inventory, vitals: VitalsState): ItemId | nu
   }
   return best;
 }
+
+export type QuickEatResult =
+  { ok: true; item: ItemId } | { ok: false; reason: 'dead' | 'no_food' | 'full' };
+
+/**
+ * Hızlı yemek (`F`): en çok tokluk veren yiyeceği yer. Başarısızlık nedeni bildirim içindir:
+ * `no_food` envanterde hiç yiyecek yok, `full` yiyecek var ama oyuncu tok.
+ */
+export function quickEat(inventory: Inventory, survival: SurvivalSystem): QuickEatResult {
+  if (!survival.alive) return { ok: false, reason: 'dead' };
+  const best = bestFood(inventory, survival.state);
+  if (best !== null) {
+    const eaten = eatItem(inventory, survival, best);
+    if (eaten !== null) return { ok: true, item: eaten };
+  }
+  const hasFood = ITEM_IDS.some((id) => edibleEffect(id) !== null && inventory.has(id));
+  return { ok: false, reason: hasFood ? 'full' : 'no_food' };
+}
