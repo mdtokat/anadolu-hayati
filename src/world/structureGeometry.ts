@@ -72,7 +72,7 @@ function campfireParts(): Part[] {
   // Etek: zeminin altına inen kül dolgusu (dik yamaçta havada kalmasın).
   parts.push({
     geometry: place(new CylinderGeometry(0.62, 0.62, 0.7, 10, 1, true), 0, -0.3, 0),
-    color: C.ash,
+    color: C.skirt,
   });
   parts.push({
     geometry: place(new CylinderGeometry(0.5, 0.5, 0.05, 10), 0, 0.03, 0),

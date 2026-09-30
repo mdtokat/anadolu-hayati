@@ -789,8 +789,8 @@ export const PLACEMENT = {
   slopeSampleStep: 0.75,
   /** Yapı türüne göre: en dik yamaç (derece, oyun uzayı), kaplama yarıçapı (oyun m). */
   kinds: {
-    campfire: { maxSlopeDeg: 40, radius: 0.9 },
-    lean_to: { maxSlopeDeg: 35, radius: 2 },
+    campfire: { maxSlopeDeg: 45, radius: 0.9 },
+    lean_to: { maxSlopeDeg: 40, radius: 2 },
   },
   /** İki yapının merkezleri arasındaki en az uzaklık: yarıçapların toplamı + bu pay (oyun m). */
   spacingMargin: 0.3,
@@ -815,6 +815,8 @@ export const STRUCTURE_LOOK = {
   colors: {
     stone: 0x7b7870,
     ash: 0x2a2725,
+    /** Zemine gömülen etek: yamaçta görünen kısım toprak tonunda olsun (siyah kutu gibi durmasın). */
+    skirt: 0x54493d,
     log: 0x5a3e27,
     pole: 0x6b4b2d,
     roof: 0x4c5a2b,
