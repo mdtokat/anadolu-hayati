@@ -68,3 +68,9 @@ export const DEBUG = {
   /** FPS sayacının ortalama aldığı pencere (saniye). */
   fpsSampleSeconds: 0.5,
 } as const;
+
+/** Fizik ayarları (Rapier). Adım süresi FIXED_STEP'ten gelir. */
+export const PHYSICS = {
+  /** Yerçekimi ivmesi (oyun m/s²). Oyun metresi gerçek boyutlu kabul edilir. */
+  gravity: 9.81,
+} as const;
