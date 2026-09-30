@@ -806,3 +806,38 @@ export const FIRE = {
   /** Ateşe bir yakıt atmak için `E`'nin basılı tutulacağı süre (sn). */
   refuelSeconds: 0.8,
 } as const;
+
+/** Yapıların (kamp ateşi, sundurma) görünümü ve ateş ışığı (Faz 4.8). Geometri `world/structureGeometry.ts`'tedir. */
+export const STRUCTURE_LOOK = {
+  colors: {
+    stone: 0x7b7870,
+    ash: 0x2a2725,
+    log: 0x5a3e27,
+    pole: 0x6b4b2d,
+    roof: 0x4c5a2b,
+    leaves: 0x6f5d2c,
+    flameOuter: 0xff6a1a,
+    flameInner: 0xffb830,
+    flameCore: 0xfff0a0,
+  },
+  /** Yüz başına ton oynaması (düz gölgeli görünüm için). */
+  faceShade: 0.06,
+  /**
+   * Ateş ışığı: en yakın `lightPool` yanık ateşe bir `PointLight` atanır (ışık sayısı sabit: sayı değişince
+   * shader yeniden derlenir). `intensity` candela (fiziksel ışık; decay 2), `distance` sönme yarıçapı (oyun m).
+   */
+  fire: {
+    lightColor: 0xff9a4a,
+    lightPool: 3,
+    intensity: 30,
+    distance: 20,
+    height: 0.9,
+    /** Titreme: yoğunluk ±flicker oranında, flickerSpeed hızında oynar. */
+    flicker: 0.18,
+    flickerSpeed: 9,
+    /** Bu uzaklıktan (oyun m) uzaktaki ateşlere ışık atanmaz. */
+    lightRange: 60,
+  },
+  /** Yerleştirme hayaleti: geçerli/geçersiz renk ve saydamlık. */
+  ghost: { validColor: 0x3ddc84, invalidColor: 0xe5484d, opacity: 0.45 },
+} as const;

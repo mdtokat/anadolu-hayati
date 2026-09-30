@@ -22,14 +22,14 @@ import type { PropKind } from './propKinds';
  */
 export type PropLod = 'near' | 'far';
 
-interface Part {
+export interface Part {
   geometry: BufferGeometry;
   color: number;
 }
 
 const COLORS = SCATTER.colors;
 
-function place(geometry: BufferGeometry, x: number, y: number, z: number): BufferGeometry {
+export function place(geometry: BufferGeometry, x: number, y: number, z: number): BufferGeometry {
   return geometry.applyMatrix4(new Matrix4().makeTranslation(x, y, z));
 }
 
@@ -49,7 +49,7 @@ function cone(radius: number, height: number, segments: number, y0: number, colo
  * Deforme ikosaedron (taç, çalı, kaya): köşeler yönlerine bağlı gürültüyle oynatılır. Aynı konumdaki
  * köşeler aynı yönde olduğundan çatlak oluşmaz. Elipsoit ölçeği (sx, sy, sz) ve merkez (x, y, z) verilir.
  */
-function blob(
+export function blob(
   radius: number,
   detail: number | 'octa',
   scale: readonly [number, number, number],
@@ -73,7 +73,7 @@ function blob(
 }
 
 /** Parçaları tek düz gölgeli (non-indexed) geometride birleştirir; yüz başına hafif ton oynaması ekler. */
-function merge(parts: Part[], random: Random): BufferGeometry {
+export function merge(parts: Part[], random: Random): BufferGeometry {
   const positions: number[] = [];
   const colors: number[] = [];
   const color = new Color();
