@@ -6,6 +6,7 @@ import {
   Float32BufferAttribute,
   IcosahedronGeometry,
   Matrix4,
+  OctahedronGeometry,
   Vector3,
 } from 'three';
 import { SCATTER } from '../config';
@@ -50,14 +51,15 @@ function cone(radius: number, height: number, segments: number, y0: number, colo
  */
 function blob(
   radius: number,
-  detail: number,
+  detail: number | 'octa',
   scale: readonly [number, number, number],
   center: readonly [number, number, number],
   color: number,
   roughness: number,
   seed: number,
 ): Part {
-  const geometry = new IcosahedronGeometry(radius, detail);
+  const geometry =
+    detail === 'octa' ? new OctahedronGeometry(radius, 0) : new IcosahedronGeometry(radius, detail);
   const position = geometry.getAttribute('position');
   const v = new Vector3();
   for (let i = 0; i < position.count; i++) {
@@ -100,13 +102,16 @@ function merge(parts: Part[], random: Random): BufferGeometry {
 
 type Builder = (height: number, lod: PropLod, seed: number) => Part[];
 
-/** Yapraklı ağaç / kestane: gövde + 3 (yakın) ya da 1 (uzak) deforme taç. */
+/**
+ * Yapraklı ağaç / kestane: gövde + 3 (yakın: 1 ayrıntılı + 2 kaba) ya da sekizyüzlü tek taç (uzak).
+ * Çok sayıda uzak örnek çizildiğinden uzak kademe üçgen bütçesinin belirleyicisidir.
+ */
 function broadleaf(crown: number): Builder {
   return (h, lod, seed) => {
     if (lod === 'far') {
       return [
         trunk(h * 0.035, h * 0.02, h * 0.45, 3),
-        blob(1, 0, [h * 0.3, h * 0.36, h * 0.3], [0, h * 0.68, 0], crown, 0.2, seed),
+        blob(1, 'octa', [h * 0.3, h * 0.38, h * 0.3], [0, h * 0.64, 0], crown, 0.2, seed),
       ];
     }
     return [
@@ -114,7 +119,7 @@ function broadleaf(crown: number): Builder {
       blob(1, 1, [h * 0.3, h * 0.26, h * 0.3], [0, h * 0.6, 0], crown, 0.22, seed),
       blob(
         1,
-        1,
+        0,
         [h * 0.24, h * 0.22, h * 0.24],
         [h * 0.12, h * 0.8, h * 0.05],
         crown,
@@ -123,7 +128,7 @@ function broadleaf(crown: number): Builder {
       ),
       blob(
         1,
-        1,
+        0,
         [h * 0.22, h * 0.2, h * 0.22],
         [-h * 0.1, h * 0.84, -h * 0.08],
         crown,
@@ -138,8 +143,7 @@ function broadleaf(crown: number): Builder {
 const conifer: Builder = (h, lod) => {
   if (lod === 'far') {
     return [
-      trunk(h * 0.03, h * 0.02, h * 0.3, 3),
-      cone(h * 0.16, h * 0.5, 6, h * 0.22, COLORS.conifer),
+      cone(h * 0.17, h * 0.55, 6, h * 0.12, COLORS.conifer),
       cone(h * 0.11, h * 0.42, 6, h * 0.58, COLORS.conifer),
     ];
   }
