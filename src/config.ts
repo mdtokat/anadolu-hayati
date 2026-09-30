@@ -369,3 +369,22 @@ export const CLOCK = {
   /** Güneş bu yüksekliğin (derece) altına inince "gece" sayılır (−6° = sivil alacakaranlığın sonu). */
   nightSunAltitudeDeg: -6,
 } as const;
+
+/**
+ * İklim modeli sabitleri: yaklaşık Batı Karadeniz kıyısı değerleri (Zonguldak civarı için mantıklı büyüklük
+ * mertebesinde seçilmiş, doğrulanmış iklim normali DEĞİLDİR). Mevsim ve rakım etkisi ayarlanabilir.
+ */
+export const CLIMATE = {
+  /** Deniz seviyesinde yıllık ortalama sıcaklık (°C). */
+  annualMeanC: 13.5,
+  /** Yıllık salınımın genliği (°C): en sıcak ay ortalaması = ortalama + genlik. */
+  annualAmplitudeC: 8.5,
+  /** Yılın en sıcak günü (24 Temmuz). */
+  warmestDayOfYear: 205,
+  /** Günlük salınımın genliği (°C): en sıcak ile en soğuk saat farkının yarısı. */
+  dailyAmplitudeC: 4.5,
+  /** Günün en sıcak saati (yerel güneş saati). */
+  warmestHour: 15,
+  /** Rakımla soğuma (°C / 1000 gerçek metre). Standart atmosfer ≈ 6,5. */
+  lapseRateCPerKm: 6.5,
+} as const;
