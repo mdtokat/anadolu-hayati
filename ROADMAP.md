@@ -13,20 +13,20 @@ Gerçek boyut ~195 × 120 km → oyunda (1:50) yaklaşık **3,9 × 2,4 km**
 **Amaç:** Boş ama sağlam bir iskelet. Tarayıcıda açılan, GitHub Pages'te yayınlanan bir 3D sahne.
 
 Görevler:
-- [ ] Vite + TypeScript (strict) projesi, CLAUDE.md'deki klasör yapısı
-- [ ] Three.js kurulumu; basit bir sahne (zemin düzlemi, ışık, gökyüzü rengi, dönen bir küp)
-- [ ] `src/config.ts` iskeleti (ölçek sabitleri dahil)
-- [ ] `core/` altında Game sınıfı ve sabit zaman adımlı oyun döngüsü
-- [ ] Geliştirme modunda FPS sayacı
-- [ ] ESLint + Prettier + Vitest kurulumu, en az bir örnek test
-- [ ] `.gitignore` (node_modules, dist, tools/raw, Python ortamları)
-- [ ] GitHub Actions: her push/PR'da lint + typecheck + test + build
-- [ ] GitHub Actions: main'e push'ta GitHub Pages'e yayın (vite `base` ayarı dahil)
-- [ ] README.md (proje tanımı, çalıştırma komutları, veri atıfları bölümü)
+- [x] Vite + TypeScript (strict) projesi, CLAUDE.md'deki klasör yapısı
+- [x] Three.js kurulumu; basit bir sahne (zemin düzlemi, ışık, gökyüzü rengi, dönen bir küp)
+- [x] `src/config.ts` iskeleti (ölçek sabitleri dahil)
+- [x] `core/` altında Game sınıfı ve sabit zaman adımlı oyun döngüsü
+- [x] Geliştirme modunda FPS sayacı
+- [x] ESLint + Prettier + Vitest kurulumu, en az bir örnek test
+- [x] `.gitignore` (node_modules, dist, tools/raw, Python ortamları)
+- [x] GitHub Actions: her push/PR'da lint + typecheck + test + build
+- [x] GitHub Actions: main'e push'ta GitHub Pages'e yayın (vite `base` ayarı dahil)
+- [x] README.md (proje tanımı, çalıştırma komutları, veri atıfları bölümü)
 
 Kabul kriterleri:
-- [ ] `npm run dev` ile sahne açılıyor
-- [ ] Tüm kontrol komutları hatasız geçiyor
+- [x] `npm run dev` ile sahne açılıyor
+- [x] Tüm kontrol komutları hatasız geçiyor
 - [ ] GitHub Pages linkinde sahne görünüyor
 
 ---
