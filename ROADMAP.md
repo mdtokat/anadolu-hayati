@@ -114,14 +114,14 @@ Görevler (numaralar alt görev sırasıdır):
 - [x] **4.5** Crafting mantığı: taş balta, ateş, basit barınak, su kabı tarifleri _(`src/items/recipes.ts`, `craft.ts`; ateş ve barınak `campfire`/`lean_to` eşyası olarak üretilir, yerleştirme 4.8'de; arayüz 4.7'de)_
 - [x] **4.6** Toplama etkileşimi (bakılan nesneye `E`) _(`interaction/`: odak seçimi, `GatherSystem`, verim tablosu; `E` basılı tutma, atomik envanter ekleme, `item:collected`; balta ile ağaç kesme)_
 - [x] **4.7** Envanter ve üretim arayüzü _(`I`/`Tab` paneli: slot ızgarası, taşıma, "Ye", tarif listesi ve "Üret"; `F` hızlı yemek; panel açıkken oyun donar)_
-- [x] **4.8** Yerleştirme: ateş ve barınak kurma _(`placement/`: `PlacementController`, `StructureSet`, yerleştirme kuralları, ateş yakıtı ve `FireTender`; `world/StructureLayer`: alev, `PointLight` havuzu, hayalet; `F`/`G` hayalet, sol tık kur, `E` ile ateşe dal/kütük; ısı ve uyku etkileri 4.9'da, envanter paneli 4.7'de)_
+- [x] **4.8** Yerleştirme: ateş ve barınak kurma _(`placement/`: `PlacementController`, `StructureSet`, yerleştirme kuralları, ateş yakıtı ve `FireTender`; `world/StructureLayer`: alev, `PointLight` havuzu, hayalet; `C`/`G` hayalet (ateş/sundurma), sol tık kur, `E` ile ateşe dal/kütük; ısı ve uyku etkileri 4.9'da, envanter paneli 4.7'de)_
 - [x] **4.9** Ateşin sıcaklık etkisi, barınağın uyku/yorgunluk etkisi _(`placement/exposure.ts`: ayak konumundaki ateş ısısı (`warmthC`, doğrusal düşen, en çok +6 °C) ve sundurma altı (`sheltered`); `SurvivalContext` ve `stepVitals` bunları kullanır: ateş vücut ısısı dengesini yükseltir (ama normal ısıyı aşırtmaz), barınak soğuk etkisini ×0,55'e indirir, dinlenirken enerji ×2,5 ve can ×1,5 daha hızlı dolar; HUD'da "Ateş başında · Barınakta"; açık uyku mekaniği yok, dinlenme = hareketsizlik; sabitler `SHELTER_EFFECTS`)_
-- [ ] **4.10** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
+- [x] **4.10** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README _(Faz 4 kabul kriterleri, bilinen sorunlar, klasör yapısı, kontroller)_
 
 Kabul kriterleri:
-- [ ] Ormanlar gerçek orman alanlarıyla örtüşüyor _(4.3; arazi örtüsü sınıflarına göre sayısal testle)_
-- [ ] Oyuncu sıfırdan ateş ve barınak kurabiliyor
-- [ ] Envanter ve crafting mantığı için birim testler var
+- [x] Ormanlar gerçek orman alanlarıyla örtüşüyor _(arazi örtüsü sınıflarına göre: `tests/scatterRegion.test.ts`, uygun orman bloklarının ≥ %90'ında ağaç var; ağaç yalnızca orman/çalı ve tarımda fındık sınıfına düşer; görsel tanınırlık elle doğrulanmalı)_
+- [ ] Oyuncu sıfırdan ateş ve barınak kurabiliyor _(zincir kodda tamam ve birim testli: topla → üret → `C`/`G` ile kur → ateşe yakıt at; oyunda elle doğrulanmadı, ısı ve barınak etkisi 4.9'da eklendi)_
+- [x] Envanter ve crafting mantığı için birim testler var _(`inventory`, `itemDefs`, `consume`, `eatItem`, `recipes`, `craft`, `inventoryView` testleri)_
 
 ---
 
