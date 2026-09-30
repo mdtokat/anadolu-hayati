@@ -2,7 +2,7 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı; **Faz 1 — Oynanabilir Prototip** kodu hazır: engebeli bir test arazisinde Rapier fiziğiyle yürüyebildiğin, koşup zıplayabildiğin birinci/üçüncü şahıs prototip. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı; **Faz 2 — Gerçek Arazi** ile birleşti; **Faz 3 — Hayatta Kalma Çekirdeği** kodu hazır: gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
 **Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
 
@@ -14,6 +14,7 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | W A S D (veya ok tuşları) | Yürü |
 | Shift | Koş |
 | Boşluk | Zıpla |
+| E (basılı tut) | Tatlı su kenarında su iç |
 | Fare | Etrafa bak |
 | V | Birinci / üçüncü şahıs kamera |
 | B | İl sınırı çizgilerini aç/kapa |
@@ -48,6 +49,7 @@ cd tools
 pip install -r requirements.txt
 python fetch_dem.py                 # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB, commit edilmez)
 python fetch_boundaries.py          # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python fetch_water.py               # Overture su katmanı (HTTP Range, ~150 MB) → tools/raw/water/
 python build_region.py              # → public/data/regions/zonguldak-bartin-karabuk/
 python -m pytest tests              # Python birim testleri
 ```

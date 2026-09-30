@@ -499,13 +499,13 @@ export const SKY = {
   /** Sıcak renge geçiş: güneş bu yüksekliğin (derece) altında turuncuya döner. */
   sunWarmBelow: 25,
   /** Ay ışığı yoğunluğu (dolunay, tepede) ve rengi. */
-  moonIntensity: 0.32,
+  moonIntensity: 0.75,
   moonColor: 0x9db8ff,
   /** Ortam ışığı: gündüz ve gece yoğunluğu/rengi. Gece tamamen kararmasın (en az görüş). */
   ambientDay: 0.6,
-  ambientNight: 0.16,
+  ambientNight: 0.42,
   ambientColorDay: 0xffffff,
-  ambientColorNight: 0x3a4a8a,
+  ambientColorNight: 0x6478b8,
   /** Yıldızlar: güneş bu yüksekliğin altında belirmeye başlar ve daha altında tam görünür. */
   starsFadeStart: -3,
   starsFadeEnd: -12,

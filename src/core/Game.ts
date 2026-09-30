@@ -129,10 +129,10 @@ export class Game {
 
   /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
   private readonly onDevKey = (event: KeyboardEvent): void => {
-    // [ / ]: saati bir saat geri/ileri sar; K: canı sıfırla (ölüm ekranını dene).
+    // [ / ]: saati bir saat geri/ileri sar; K: canı ve suyu sıfırla (ölüm ekranını dene).
     if (event.code === 'BracketLeft') this.survival.clock.skipHours(-1);
     if (event.code === 'BracketRight') this.survival.clock.skipHours(1);
-    if (event.code === 'KeyK') this.survival.setVitals({ health: 0 });
+    if (event.code === 'KeyK') this.survival.setVitals({ health: 0, hydration: 0 });
     const slot = teleportSlotForKey(event.code);
     const target = slot === null ? undefined : TELEPORTS[slot];
     if (!target) return;

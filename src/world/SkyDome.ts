@@ -39,9 +39,12 @@ void main() {
   vec3 color = mix(uHorizon, uZenith, t);
 
   // Yıldızlar: yön ızgarasında hücre başına en fazla bir yıldız
-  vec3 cell = floor(dir * 140.0);
+  vec3 scaled = dir * 420.0;
+  vec3 cell = floor(scaled);
   float h = hash(cell);
-  float star = step(0.9965, h) * smoothstep(0.0, 0.25, up);
+  // Hücre merkezine yakın küçük nokta (kare değil): merkezden uzaklığa göre sönümlenir
+  float centre = length(fract(scaled) - 0.5);
+  float star = step(0.9985, h) * smoothstep(0.35, 0.05, centre) * smoothstep(0.0, 0.25, up);
   color += vec3(star) * uStarAlpha * (0.6 + 0.4 * hash(cell + 7.0));
 
   // Ay ve güneş diskleri (+ kenar parıltısı)
