@@ -25,6 +25,7 @@ import {
   tendPrompt,
   toggleToast,
 } from '../placement/promptText';
+import { exposureAt, NO_EXPOSURE, type Exposure } from '../placement/exposure';
 import { StructureSystem } from '../placement/StructureSystem';
 import { FireTender } from '../placement/tend';
 import { ITEMS } from '../items/itemDefs';
@@ -111,6 +112,8 @@ export class Game {
   private readonly onResize = (): void => this.resize();
   private lastLocationUpdate = -Infinity;
   private lastSurvivalHudUpdate = -Infinity;
+  /** Ayak konumundaki ateş ısısı ve barınak etkisi (her sabit adımda yenilenir). */
+  private exposure: Readonly<Exposure> = NO_EXPOSURE;
   /** Fizik adımında hesaplanan: E basılı ve tatlı su erişimde mi (HUD ipucu için). */
   private waterInReach = false;
 
@@ -340,10 +343,13 @@ export class Game {
 
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
+    this.exposure = exposureAt(this.structureSystem.structures, feet.x, feet.y, feet.z);
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
       drinking: water !== null && held && !gathering && !tending,
+      warmthC: this.exposure.warmthC,
+      sheltered: this.exposure.sheltered,
     });
   }
 
@@ -465,6 +471,8 @@ export class Game {
       clock: formatClock(clock.hour),
       day: formatDay(clock.day),
       ambientC: this.survival.ambientC,
+      warmthC: this.exposure.warmthC,
+      sheltered: this.exposure.sheltered,
     });
   }
 
