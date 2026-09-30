@@ -515,6 +515,8 @@ export const CREATURES = {
   epochSeconds: 1800,
   /** Hücre başına aday önbelleği (LRU). */
   candidateCacheSize: 48,
+  /** Bir doğma denetiminde en çok bu kadar yeni hücrenin adayı üretilir (kare süresi sıçramasın); kalanı sonraki denetime kalır. */
+  maxNewCellsPerPass: 1,
   /** Yapıların (ateş, sundurma) bu yarıçapında (oyun m) canlı doğmaz. */
   structureClearance: 25,
   /** Doğma noktası oyuncunun bu yarı açısı (derece) içinde ve `spawnHiddenDistance` ötesinde değilse "görünür" sayılır. */

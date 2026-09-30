@@ -116,7 +116,7 @@ describe('CreatureSystem: akış', () => {
         // Dönemleri kaydırmak için oyuncuyu farklı yerlere koy.
         ctx.player.x = epoch * 700 - 1500;
         ctx.player.z = 300;
-        run(system, 2, ctx);
+        run(system, 8, ctx);
         total += system.views().filter((v) => v.kind === 'wolf').length;
       }
       return total;
@@ -295,11 +295,11 @@ describe('CreatureSystem: hasar, ölüm ve leş', () => {
     // Kabaca hedef türleri bulana dek oyuncuyu gezdir.
     let deer: CreatureView | undefined;
     let boar: CreatureView | undefined;
-    for (let i = 0; i < 30 && !(deer && boar); i++) {
+    for (let i = 0; i < 60 && !(deer && boar); i++) {
       ctx.player.x = i * 400 - 2000;
-      run(system, 1, ctx);
-      deer = deer ?? system.views().find((v) => v.kind === 'roe_deer');
-      boar = boar ?? system.views().find((v) => v.kind === 'wild_boar');
+      run(system, 3, ctx);
+      deer = system.views().find((v) => v.kind === 'roe_deer');
+      boar = system.views().find((v) => v.kind === 'wild_boar');
     }
     expect(deer).toBeTruthy();
     expect(boar).toBeTruthy();

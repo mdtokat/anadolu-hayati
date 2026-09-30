@@ -115,10 +115,11 @@ describe('tür tablosu (5.1)', () => {
     expect(SPECIES.brown_bear.fireAvoidRadius).toBeLessThan(SPECIES.wolf.fireAvoidRadius);
   });
 
-  it('kurt gece etkin, gündüz seyrek; ayı en seyrek', () => {
+  it('kurt gece etkin, gündüz seyrek; ayı yalnız gezer ve yalnızca yüksek ormanda yaşar', () => {
     expect(SPECIES.wolf.activity.night).toBeGreaterThan(SPECIES.wolf.activity.day);
-    const densities = CREATURE_KINDS.map((k) => SPECIES[k].habitat.density);
-    expect(SPECIES.brown_bear.habitat.density).toBe(Math.min(...densities));
+    expect(SPECIES.brown_bear.group).toEqual([1, 1]);
+    expect(Object.keys(SPECIES.brown_bear.habitat.cover)).toEqual(['forest']);
+    expect(SPECIES.brown_bear.habitat.elevation[0]).toBeGreaterThanOrEqual(500);
   });
 
   it('config: doğma yarıçapları tutarlı', () => {

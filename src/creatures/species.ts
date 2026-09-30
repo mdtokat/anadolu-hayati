@@ -185,7 +185,7 @@ export const SPECIES: Readonly<Record<CreatureKind, SpeciesDef>> = {
       // Orman, çalı ve tarım (fındık bahçeleri).
       cover: { forest: 1, shrub: 0.7, crop: 1 },
       elevation: [2, 15, 1400, 1500],
-      density: 0.8,
+      density: 1.2,
     },
   },
   wolf: {
@@ -266,7 +266,7 @@ export const SPECIES: Readonly<Record<CreatureKind, SpeciesDef>> = {
       // Yalnız yüksek orman; çok seyrek.
       cover: { forest: 1 },
       elevation: [500, 650, 1800, 2100],
-      density: 0.1,
+      density: 0.8,
     },
   },
 };

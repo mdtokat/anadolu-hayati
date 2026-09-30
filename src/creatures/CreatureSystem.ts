@@ -60,8 +60,6 @@ interface Entry {
   blocks: number;
   /** Hiçbir yöne çıkamayınca artar (sıkışma). */
   trapped: number;
-  /** Art arda takılma pencereleri: 2'de yakına taşınır. */
-  stuckStrikes: number;
   freeTime: number;
   waterClock: number;
   /** AI LOD: son adımdan beri biriken süre. */
@@ -74,18 +72,18 @@ const MOVING_STATES: ReadonlySet<CreatureState> = new Set(['wander', 'flee', 'st
 const PREDATOR_AWARENESS = 0.6;
 /** Göl içi sorgusunun mesafesi (oyun m): çokgen içi 0 sayılır, bu yüzden küçük bir değer yeter. */
 const IN_WATER = 0.001;
-/** Geçilebilir ve göl içi değil (engelde yön seçerken; göl sorgusu pahalıdır, yalnızca engelde çağrılır). */
-function free(species: SpeciesDef, terrain: CreatureTerrain, x: number, z: number): boolean {
-  return passable(species, terrain, x, z) && !terrain.waterNear(x, z, IN_WATER);
-}
-
 /** Engelde denenen sapma açıları (rad, küçükten büyüğe) ve ileriye bakış mesafesi (oyun m). */
 const STEER_OFFSETS = [0.5, 1.0, 1.5, 2.0, 2.6, 3.14];
-const STEER_PROBE_STEPS = [0.6, 1.5, 3, 5];
+/** Yol taraması: adım, en uzak bakış ve seçilebilecek en kısa yol (oyun m). */
+/** Kayarak ilerlenen mesafe, istenen adımın bu oranından azsa hareket engellenmiş sayılır. */
+const SLIDE_MIN_GAIN = 0.3;
+const STEER_STEP = 0.25;
+const STEER_LOOK = 6;
+const STEER_MIN_RUN = 1.5;
 /** Sıkışma kurtarma: kaç art arda çıkışsızlıktan sonra, hangi adım/yarıçap/yönle aranır. */
 const TRAPPED_LIMIT = 2;
 const RESCUE_STEP = 4;
-const RESCUE_RADIUS = 60;
+const RESCUE_RADIUS = 120;
 const RESCUE_DIRECTIONS = 12;
 const RESCUE_SLOPE_MARGIN_DEG = 6;
 
@@ -293,10 +291,16 @@ export class CreatureSystem {
     const structures = context.structures ?? context.fires;
     const weights = new Map<string, number>();
     const pool: Array<{ candidate: Candidate; dist: number }> = [];
+    let newCells = 0;
 
     for (const { cx, cy } of cellsNear(grid, player.x, player.z, CREATURES.simRadius)) {
       const key = cellKey(grid, cx, cy);
       if ((this.killedUntil.get(key) ?? 0) > this.time) continue;
+      if (!this.candidateCache.has(`${cx},${cy},${epoch}`)) {
+        // Yeni hücrenin adaylarını üretmek pahalıdır: denetim başına sınırlı sayıda.
+        if (newCells >= CREATURES.maxNewCellsPerPass) continue;
+        newCells++;
+      }
       for (const candidate of this.candidates(grid, terrain, cx, cy, epoch)) {
         if (this.records.has(candidate.id)) continue;
         let weight = weights.get(candidate.kind);
@@ -340,7 +344,6 @@ export class CreatureSystem {
       stuckReach: 0,
       blocks: 0,
       trapped: 0,
-      stuckStrikes: 0,
       freeTime: 0,
       waterClock: 0,
       aiAccum: 0,
@@ -464,7 +467,7 @@ export class CreatureSystem {
     }
 
     this.move(rec, stepDt, result.intent.speed, terrain);
-    this.watchStuck(rec, stepDt, terrain, context.player);
+    this.watchStuck(rec, stepDt, terrain);
   }
 
   private sensesFor(
@@ -531,6 +534,8 @@ export class CreatureSystem {
       }
 
       let moved = false;
+      const fromX = brain.x;
+      const fromZ = brain.z;
       if (!water) {
         if (passable(species, terrain, nx, nz)) {
           brain.x = nx;
@@ -544,6 +549,9 @@ export class CreatureSystem {
           moved = true;
         }
       }
+      // Duvar boyunca neredeyse hiç ilerletmeyen kayma (hedefe dik yüzey) engel sayılır.
+      if (moved && Math.hypot(brain.x - fromX, brain.z - fromZ) < step * SLIDE_MIN_GAIN)
+        moved = false;
       if (moved) {
         rec.freeTime += dt;
         if (rec.freeTime >= 2) rec.blocks = 0;
@@ -571,20 +579,19 @@ export class CreatureSystem {
       forceWander(brain, rec.rng);
     }
 
+    // Her sapma yönünde kesintisiz geçilebilir yol uzunluğuna bak; en uzun olanı seç (eşitlikte küçük sapma).
     const side = rec.rng.next() < 0.5 ? -1 : 1;
     let chosen: number | null = null;
+    let bestRun = STEER_MIN_RUN;
     for (const offset of STEER_OFFSETS) {
       for (const sign of [side, -side]) {
         const yaw = brain.yaw + sign * offset;
-        const clear = STEER_PROBE_STEPS.every((d) =>
-          free(species, terrain, brain.x - Math.sin(yaw) * d, brain.z - Math.cos(yaw) * d),
-        );
-        if (clear) {
+        const run = this.freeRun(species, terrain, brain.x, brain.z, yaw);
+        if (run > bestRun + 1e-6) {
+          bestRun = run;
           chosen = yaw;
-          break;
         }
       }
-      if (chosen !== null) break;
     }
     if (chosen === null) {
       rec.trapped++;
@@ -605,14 +612,34 @@ export class CreatureSystem {
     brain.yaw = chosen;
   }
 
-  /** Noktanın çevresinde (3 m) en az 6/8 yön geçilebilir mi (cep değil)? */
+  /** (x, z)'den `yaw` yönünde kesintisiz geçilebilir yolun uzunluğu (oyun m, en çok STEER_LOOK). */
+  private freeRun(
+    species: SpeciesDef,
+    terrain: CreatureTerrain,
+    x: number,
+    z: number,
+    yaw: number,
+  ): number {
+    const dx = -Math.sin(yaw);
+    const dz = -Math.cos(yaw);
+    let run = 0;
+    for (let d = STEER_STEP; d <= STEER_LOOK; d += STEER_STEP) {
+      if (!passable(species, terrain, x + dx * d, z + dz * d)) break;
+      run = d;
+    }
+    // Göl içi: yalnızca uzak uçta (pahalı); suya çıkan yol kısaltılır.
+    while (run > 0 && terrain.waterNear(x + dx * run, z + dz * run, IN_WATER)) run -= STEER_STEP;
+    return run;
+  }
+
+  /** Noktanın çevresinde (3 m) en az 5/8 yön geçilebilir mi (cep değil)? */
   private roomy(species: SpeciesDef, terrain: CreatureTerrain, x: number, z: number): boolean {
     let open = 0;
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       if (passable(species, terrain, x + Math.cos(a) * 3, z + Math.sin(a) * 3)) open++;
     }
-    return open >= 6;
+    return open >= 5;
   }
 
   /** Sıkışmış canlıyı yakındaki, eğimi sınırın rahat altında bir noktaya taşır. */
@@ -643,15 +670,12 @@ export class CreatureSystem {
         }
       }
     }
+    // Uygun nokta bulunamadı: en azından yeni bir hedef ver.
+    forceWander(brain, rec.rng);
   }
 
   /** Hareket ederken `stuckSeconds` içinde yer değiştirmeyen canlıya yeni hedef verir. */
-  private watchStuck(
-    rec: Entry,
-    dt: number,
-    terrain: CreatureTerrain,
-    player: CreatureContext['player'],
-  ): void {
+  private watchStuck(rec: Entry, dt: number, terrain: CreatureTerrain): void {
     const brain = rec.brain;
     if (!MOVING_STATES.has(brain.state)) {
       this.resetStuckWindow(rec);
@@ -667,16 +691,8 @@ export class CreatureSystem {
     if (rec.stuckReach < CREATURES.stuckMinDistance) {
       rec.steerTime = 0;
       rec.blocks = 0;
-      rec.stuckStrikes++;
-      // Oyuncu görmüyorsa hemen yakına taşı; görüyorsa önce yeni hedef, tekrarlanırsa taşı.
-      if (rec.stuckStrikes >= 2 || isHiddenFrom(brain, player)) {
-        rec.stuckStrikes = 0;
-        this.rescue(rec, terrain);
-      } else {
-        forceWander(brain, rec.rng);
-      }
-    } else {
-      rec.stuckStrikes = 0;
+      // Yerinde kalan canlı yakındaki uygun bir noktaya taşınır (nadir; bir cepte sıkışmıştır).
+      this.rescue(rec, terrain);
     }
     this.resetStuckWindow(rec);
   }
