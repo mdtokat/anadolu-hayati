@@ -23,6 +23,9 @@ import { provinceAt } from './provinces';
 import { RegionHeightSource } from './RegionHeightSource';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial } from './TerrainMaterial';
+import { LandCoverMap } from './LandCoverMap';
+import { PropLayer, type PropLayerStats } from './PropLayer';
+import type { PropId, PropRef } from './propKinds';
 import { Water } from './Water';
 import { FreshWaterMesh } from './FreshWaterMesh';
 import { FreshWaterIndex, type WaterHit } from './waterIndex';
@@ -48,6 +51,7 @@ export class RegionWorld implements GameWorld {
   private readonly borders: ProvinceBorders;
   private readonly freshWater: FreshWaterIndex | null;
   private readonly freshWaterMesh: FreshWaterMesh | null;
+  private readonly props: PropLayer | null;
 
   constructor(
     readonly region: RegionData,
@@ -85,6 +89,11 @@ export class RegionWorld implements GameWorld {
       : null;
     if (this.freshWaterMesh) this.scene.add(this.freshWaterMesh.object);
 
+    // Nesneler (ağaç, kaya, çalı, yenebilir bitki): arazi örtüsü verisi yoksa yerleşim de yoktur.
+    const cover = LandCoverMap.fromRegion(region);
+    this.props = cover ? new PropLayer(this.source, cover, this.freshWater) : null;
+    if (this.props) this.scene.add(this.props.group);
+
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
     if (!start) throw new Error('Başlangıç için yürünebilir nokta bulunamadı');
@@ -104,6 +113,7 @@ export class RegionWorld implements GameWorld {
   update(focusX: number, focusZ: number, timeSeconds: number): void {
     this.colliders.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
+    this.props?.update(focusX, focusZ);
     this.water.update(timeSeconds);
     this.environment.follow(focusX, focusZ);
   }
@@ -127,6 +137,22 @@ export class RegionWorld implements GameWorld {
 
   prepare(x: number, z: number): void {
     this.colliders.ensureAround(x, z);
+    this.props?.prepare(x, z);
+  }
+
+  /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa. */
+  propsNear(x: number, z: number, radius: number): PropRef[] {
+    return this.props?.propsNear(x, z, radius) ?? [];
+  }
+
+  /** Nesneyi gizler/geri getirir (toplanan/kesilen nesne; durumu tutan 4.6'dır). */
+  setPropDepleted(id: PropId, depleted: boolean): void {
+    this.props?.setPropDepleted(id, depleted);
+  }
+
+  /** Dev göstergesi: nesne katmanı sayımları; nesne katmanı yoksa null. */
+  get propStats(): PropLayerStats | null {
+    return this.props?.stats ?? null;
   }
 
   toggleBorders(): void {
@@ -154,6 +180,7 @@ export class RegionWorld implements GameWorld {
 
   dispose(): void {
     this.borders.dispose();
+    this.props?.dispose();
     this.freshWaterMesh?.dispose();
     this.water.dispose();
     this.chunks.dispose();

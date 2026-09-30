@@ -6,6 +6,8 @@ export interface DebugInfo {
   velocity: Readonly<Vec3>;
   grounded: boolean;
   cameraMode: 'firstPerson' | 'thirdPerson';
+  /** Nesne katmanı sayımları (yalnızca nesne destekleyen dünyalarda). */
+  props?: { instances: number; meshes: number; loadedChunks: number; activeChunks: number } | null;
 }
 
 /** Yatay hız büyüklüğü (m/s). */
@@ -21,12 +23,17 @@ function fixed1(value: number): string {
 /** Geliştirici HUD'unda gösterilen çok satırlı metin. */
 export function formatDebugInfo(info: DebugInfo): string {
   const { position: p } = info;
-  return [
+  const lines = [
     `Konum: ${fixed1(p.x)}, ${fixed1(p.y)}, ${fixed1(p.z)}`,
     `Hız: ${horizontalSpeed(info.velocity).toFixed(1)} m/s`,
     `Zeminde: ${info.grounded ? 'evet' : 'hayır'}`,
     `Kamera: ${info.cameraMode === 'firstPerson' ? '1. şahıs' : '3. şahıs'}`,
-  ].join('\n');
+  ];
+  if (info.props) {
+    const { instances, meshes, loadedChunks, activeChunks } = info.props;
+    lines.push(`Nesne: ${instances} örnek, ${meshes} mesh, chunk ${loadedChunks}/${activeChunks}`);
+  }
+  return lines.join('\n');
 }
 
 /** HUD'daki konum satırları: il adı (komşu ilse belirtilir) ve gerçek rakım. */
