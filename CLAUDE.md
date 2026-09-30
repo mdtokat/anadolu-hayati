@@ -14,9 +14,16 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 > Her faz bitiminde bu bölüm güncellenmelidir.
 
-- **Aktif faz:** Faz 1 — Oynanabilir Prototip (kod ve birim testler tamam; iki kabul kriteri elle doğrulama bekliyor: 60 FPS ve eğimlerde "doğal his", gerçek GPU'lu masaüstünde)
-- **Tamamlanan fazlar:** Faz 0 — Kurulum (PR #1 ile main'e birleşti; Pages yayını doğrulandı: https://mdtokat.github.io/anadolu-hayati/)
+- **Aktif faz:** Faz 2 — Gerçek Arazi (kod ve birim testler tamam; iki kabul kriteri elle doğrulama bekliyor: 60 FPS ve "Yenice ormanları" görsel tanınırlığı; ayrıca Faz 1'in "eğimlerde doğal his" ve 60 FPS kriterleri gerçek GPU'lu masaüstünde)
+- **Tamamlanan fazlar:** Faz 0 — Kurulum; Faz 1 — Oynanabilir Prototip (main'e birleşti, iki kriter açık: yukarıya bak)
 - **Bilinen sorunlar / notlar:**
+  - **Bölge verisi commit'li** (`public/data/regions/zonguldak-bartin-karabuk/`, ~3,7 MB). Yeniden üretmek için `tools/` komutlarını çalıştır (bkz. Komutlar). Testler (`tests/region*.test.ts` vb.) bu gerçek dosyalara bağlıdır.
+  - **Eğim ölçeği:** Yatay 1:50, dikey 1:15 olduğundan gerçek yamaçlar oyunda ×3,3 dikleşir; 100 m ızgarada kara alanının yalnızca ~%64'ü 45°'nin altındadır (60° ile ~%93). Bu yüzden gerçek bölgede `REGION_PLAYER.maxSlopeDeg = 60` (Faz 1 arenasında 45°). Dik yamaçta yatay hız cos²θ ile düşer (55°'de ≈ 2,3 m/s); yeni bir hız modeli yazılmadı, "his" elle doğrulanmalı. `VERTICAL_SCALE` yalnızca `config.ts`'dedir, veri gerçek metredir.
+  - **Deniz:** Heightmap'te deniz 0 m'dir (sözleşme). Oyunda `RegionHeightSource` deniz hücrelerini kıyıdan uzaklığa göre çalışma zamanında çukurlaştırır (`SEABED`); dolayısıyla deniz altında `elevationAt` negatiftir, HUD rakımı 0'a sıkıştırır. Su düzlemi `WATER.level = 0,02` yüksekliğindedir. Yüzme/boğulma yok (Faz 3).
+  - **Orman örtüsü yok:** Zemin renklendirmesi rakım ve eğime bağlı prosedürel bir karışımdır; orman poligonları OSM ile Faz 4'te gelecek. Copernicus GLO-30 bir yüzey modelidir (DSM); ağaç yükseklikleri araziye karışmıştır.
+  - **Chunk/LOD:** 128×128 hücrelik chunk'lar (bölgede 13×10), LOD0–3, dört kenarda etek. LOD mesafeleri `CHUNK.lodDistances = [130, 350, 900]`; en kötü durumda 95 draw call, ~411 bin üçgen ölçüldü (headless yazılımsal WebGL; gerçek FPS ölçülmedi). Performans sorunu olursa önce bu eşikleri ve `RENDER.maxPixelRatio`'yu ayarla. Collider'lar yalnızca oyuncuya 160 m içindeki chunk'lar için vardır.
+  - **İl sınırı çizgisi** araziye LOD0 yüksekliğinden yapıştırılır; uzak (kaba) LOD'larda yer yer arazinin altında kalabilir.
+  - **Dev araçları** (üretimde yok): `window.__game`, 1–5 tuşlarıyla ışınlanma (`TELEPORTS`), FPS ve debug HUD'u. `?world=test` Faz 1 test arenasını açar (karakter kontrolü regresyonu için).
   - TypeScript **6.0.3'e sabit**: `typescript-eslint` 8.71 `typescript <6.1.0` istiyor; 7.x'e geçiş `typescript-eslint` uyumu gelene kadar ertelendi.
   - Prettier yalnızca kod/config dosyalarını biçimlendirir; `*.md` belgeleri elle yazılır (`.prettierignore`).
   - Rapier WASM'ı base64 gömülü olduğu için `rapier` chunk'ı ~4,3 MB ham / ~1,7 MB gzip. Yükleme bütçesini (< 10 sn) izle; gerekirse WASM'ı ayrı dosya olarak sunmayı değerlendir.

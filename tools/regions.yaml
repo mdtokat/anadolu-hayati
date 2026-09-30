@@ -2,7 +2,7 @@
 # Her bölge public/data/regions/<id>/ altına işlenir (bkz. CLAUDE.md "Bölge Veri Formatı").
 regions:
   zonguldak-bartin-karabuk:
-    name: "Zonguldak – Bartın – Karabük"
+    name: 'Zonguldak – Bartın – Karabük'
     # geoBoundaries TUR ADM1 `shapeName` değerleri (Türkçe karakterlerle, aynen)
     provinces: [Zonguldak, Bartın, Karabük]
     # Oyuncunun yürüyebileceği ama bölgeye dahil olmayan komşu iller (HUD'da adları görünür,
