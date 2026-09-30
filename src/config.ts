@@ -206,3 +206,21 @@ export const PLAYER = {
   /** Bu yüksekliğin altına düşerse doğma noktasına döner. */
   fallRespawnY: -30,
 } as const;
+
+/** Arazi chunk sistemi ve LOD ayarları (Faz 2). */
+export const CHUNK = {
+  /** Bir chunk'ın kenarındaki hücre sayısı (chunk = 129×129 köşe, komşularla kenar paylaşır). */
+  cells: 128,
+  /** LOD başına örnek atlama: LOD0 = her örnek, LOD1 = her 2., … (köşe sayısı: 129, 65, 33, 17). */
+  lodStrides: [1, 2, 4, 8],
+  /** LOD geçiş uzaklıkları (oyun m, oyuncudan chunk'a): LOD0→1, LOD1→2, LOD2→3. */
+  lodDistances: [200, 550, 1300],
+  /** LOD geçişinde titremeyi (flapping) önleyen oransal histerezis. */
+  lodHysteresis: 0.15,
+  /** LOD başına etek derinliği (oyun m): farklı LOD'lu komşular arasındaki çatlakları kapatır. */
+  skirtDepth: [1, 2, 4, 8],
+  /** Bu uzaklıktan (oyun m) yakın chunk'lar yüklenir. Bölge ~4 km olduğundan hemen hepsi. */
+  viewDistance: 4000,
+  /** Karede kurulan en fazla chunk (mesh/collider) sayısı: kare süresi sıçramasın. */
+  maxBuildsPerFrame: 2,
+} as const;
