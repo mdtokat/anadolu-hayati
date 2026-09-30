@@ -34,8 +34,21 @@ describe('eşya tablosu', () => {
         (v): v is number => v !== undefined,
       );
       expect(values.length, id).toBeGreaterThan(0);
-      for (const v of values) expect(v >= 0 && v <= 100, id).toBe(true);
+      for (const v of values) expect(v >= -100 && v <= 100, id).toBe(true);
+      // Yalnızca tokluk/su negatif olamaz; can negatif olabilir (çiğ et).
+      expect(def.edible.satiety ?? 0, id).toBeGreaterThanOrEqual(0);
+      expect(def.edible.hydration ?? 0, id).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('av ürünleri: çiğ et riskli ve az doyurur, pişmiş et çok doyurur ve iyileştirir', () => {
+    const raw = ITEMS.raw_meat.edible;
+    const cooked = ITEMS.cooked_meat.edible;
+    expect(raw?.health ?? 0).toBeLessThan(0);
+    expect(cooked?.health ?? 0).toBeGreaterThan(0);
+    expect(cooked?.satiety ?? 0).toBeGreaterThan(raw?.satiety ?? 0);
+    expect(ITEMS.hide.category).toBe('material');
+    expect(ITEMS.bone.category).toBe('material');
   });
 
   it('bir slot ağırlık sınırını tek başına aşmaz (her eşyadan en az bir yığın taşınabilir)', () => {

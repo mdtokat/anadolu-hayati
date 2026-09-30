@@ -34,6 +34,7 @@ export type ItemCategory = 'material' | 'food' | 'tool' | 'placeable';
 export interface EdibleEffect {
   satiety?: number;
   hydration?: number;
+  /** Negatif olabilir (çiğ et): can düşer ama yemek tek başına öldürmez. */
   health?: number;
 }
 
@@ -114,14 +115,15 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     category: 'placeable',
   },
   lean_to: { id: 'lean_to', name: 'Sundurma', weightG: 8000, stackMax: 1, category: 'placeable' },
-  // Faz 5 (iskelet): yer tutucu değerler, 5.8'de ayarlanır. Çiğ etin sağlık riski ve giysi savunması da orada.
+  // Faz 5 (5.8): av ürünleri. Çiğ et az doyurur ve can götürür (risk), ateşte pişen et çok doyurur ve iyileştirir.
+  // Yemek canı 1'in altına indirmez (`applyEdible`); çiğ et tek başına öldürmez.
   raw_meat: {
     id: 'raw_meat',
     name: 'Çiğ Et',
     weightG: 500,
     stackMax: 10,
     category: 'food',
-    edible: { satiety: 8 },
+    edible: { satiety: 8, health: -6 },
   },
   cooked_meat: {
     id: 'cooked_meat',
@@ -129,7 +131,7 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     weightG: 400,
     stackMax: 10,
     category: 'food',
-    edible: { satiety: 30 },
+    edible: { satiety: 30, health: 4 },
   },
   hide: { id: 'hide', name: 'Deri', weightG: 1500, stackMax: 5, category: 'material' },
   bone: { id: 'bone', name: 'Kemik', weightG: 300, stackMax: 10, category: 'material' },
@@ -140,6 +142,7 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     stackMax: 1,
     category: 'tool',
   },
+  // Giysi: envanterde bulunması savunma verir (`COMBAT.defense`); ayrı ekipman slotu yok (Fikir Havuzu).
   hide_vest: { id: 'hide_vest', name: 'Deri Yelek', weightG: 1800, stackMax: 1, category: 'tool' },
 };
 

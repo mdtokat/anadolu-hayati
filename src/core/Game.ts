@@ -1,5 +1,7 @@
 import { WebGLRenderer } from 'three';
 import {
+  COMBAT,
+  COMBAT_HUD,
   INTERACT,
   PLAYER,
   RENDER,
@@ -8,9 +10,20 @@ import {
   TELEPORTS,
   VERTICAL_SCALE,
 } from '../config';
+import { CarcassButcher, pickCarcass } from '../combat/carcass';
+import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
+import { CookingSystem } from '../combat/cooking';
+import type { MeleeAim } from '../combat/melee';
+import { updateInteractions } from '../combat/interactChain';
+import { butcherPrompt, butcheredToast, cookedToast, cookPrompt } from '../combat/promptText';
 import { CreatureSystem } from '../creatures/CreatureSystem';
-import type { CreatureContext } from '../creatures/kinds';
+import type {
+  CreatureContext,
+  CreatureKind,
+  CreatureState,
+  CreatureView,
+} from '../creatures/kinds';
 import { loadRegion } from '../data/region';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
@@ -43,12 +56,14 @@ import { SurvivalSystem } from '../survival/SurvivalSystem';
 import { canSprint, type Activity } from '../survival/vitals';
 import { DeathScreen } from '../ui/DeathScreen';
 import { FpsCounter } from '../ui/FpsCounter';
+import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../ui/combatFormat';
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
 import { CreatureLayer } from '../world/CreatureLayer';
+import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { RegionWorld } from '../world/RegionWorld';
@@ -65,6 +80,8 @@ export type WorldKind = 'region' | 'test';
 
 export interface GameOptions {
   world?: WorldKind;
+  /** Yalnızca dev: canlı simülasyonu yerine sahte canlı demosu çizilir (`?creatures=demo`; görsel doğrulama). */
+  creatureDemo?: boolean;
 }
 
 /** Konum HUD'unun güncelleme aralığı (ms). */
@@ -98,7 +115,16 @@ export class Game {
   /** Canlıların simülasyonu (saf mantık; Faz 5, Hesap A). */
   readonly creatures = new CreatureSystem(this.events);
   /** Oyuncu tarafı savaş ve av mantığı (saf mantık; Faz 5, Hesap B). */
-  readonly combat = new CombatSystem(this.events, this.inventory, this.creatures);
+  readonly combat = new CombatSystem(this.events, this.inventory, this.creatures, this.survival);
+
+  /** Bakılan leşe `E` ile kesme (saf mantık; Faz 5, Hesap B). */
+  readonly butcher = new CarcassButcher(this.events, this.inventory, this.creatures);
+  /** Yanık ateşin yanında `E` ile et pişirme (saf mantık; Faz 5, Hesap B). */
+  readonly cooking = new CookingSystem(
+    this.events,
+    this.inventory,
+    this.structureSystem.structures,
+  );
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -119,6 +145,8 @@ export class Game {
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
+  private demoAnchor: { x: number; z: number } | null = null;
+  private lastDangerToast = -Infinity;
   private lastLocationUpdate = -Infinity;
   private lastSurvivalHudUpdate = -Infinity;
   /** Ayak konumundaki ateş ısısı ve barınak etkisi (her sabit adımda yenilenir). */
@@ -130,6 +158,7 @@ export class Game {
     private readonly container: HTMLElement,
     private readonly physics: PhysicsWorld,
     world: GameWorld,
+    private readonly creatureDemo = false,
   ) {
     this.world = world;
     this.renderer = new WebGLRenderer({ antialias: true });
@@ -193,7 +222,7 @@ export class Game {
         if (action === 'toggleBorders') this.world.toggleBorders?.();
         if (action === 'placeCampfire') this.togglePlacement('campfire');
         if (action === 'placeShelter') this.togglePlacement('lean_to');
-        if (action === 'confirmPlacement') this.confirmPlacement();
+        if (action === 'primaryAction') this.primaryAction();
         if (action === 'toggleInventory') this.openInventory();
         if (action === 'eat') this.quickEatFood();
       }),
@@ -221,6 +250,19 @@ export class Game {
         );
         this.inventoryPanel.refresh();
       }),
+      this.events.on('player:damaged', ({ amount }) =>
+        this.hud.flashDamage(vignetteStrength(amount)),
+      ),
+      this.events.on('creature:damaged', ({ killed }) =>
+        this.hud.showHitMarker(hitMarkerKind(killed)),
+      ),
+      this.events.on('creature:noticed', ({ kind, state }) => this.warnDanger(kind, state)),
+      this.events.on('carcass:butchered', ({ id, items }) =>
+        this.hud.notify(butcheredToast(items, this.butcher.hasRemaining(id)), INTERACT.toastMs),
+      ),
+      this.events.on('item:cooked', ({ count }) =>
+        this.hud.notify(cookedToast(count), INTERACT.toastMs),
+      ),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
@@ -243,7 +285,7 @@ export class Game {
       region !== null
         ? new RegionWorld(region, physics)
         : new TestScene(physics, new ProceduralHeightSource());
-    return new Game(container, physics, world);
+    return new Game(container, physics, world, options.creatureDemo === true);
   }
 
   /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
@@ -350,12 +392,23 @@ export class Game {
             },
             (prop) => this.gather.inspect(prop) !== null,
           );
-    this.gather.update(step, held, focus?.prop ?? null);
-    const gathering = this.gather.offer?.status === 'ready';
-
-    // Ateşe yakıt: toplanabilir nesne yoksa ve ateşin yakınındaysa E yakıt atar (su içmeden önceliklidir).
-    this.fireTender.update(step, held && !gathering, feet);
-    const tending = this.fireTender.offer?.status === 'ready';
+    // E öncelik sırası: toplama > leş kesme > pişirme > ateşe yakıt > su içme (combat/interactChain.ts).
+    const interaction = updateInteractions(
+      step,
+      {
+        gather: this.gather,
+        butcher: this.butcher,
+        cooking: this.cooking,
+        fireTender: this.fireTender,
+      },
+      {
+        held,
+        feet,
+        prop: focus?.prop ?? null,
+        carcass: this.carcassInReach(feet),
+        alive: this.survival.alive,
+      },
+    );
 
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
@@ -363,10 +416,17 @@ export class Game {
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
-      drinking: water !== null && held && !gathering && !tending,
+      drinking: water !== null && interaction.drinkAllowed,
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
     });
+  }
+
+  /** Bakılan leş (yoksa null): `INTERACT` menzili/konisi içinde, ölü canlılar arasından. */
+  private carcassInReach(feet: { x: number; z: number }): CreatureView | null {
+    const nearby = this.creatures.near(feet.x, feet.z, INTERACT.reach + COMBAT.aim.searchMargin);
+    if (nearby.length === 0) return null;
+    return pickCarcass(nearby, this.meleeAim())?.view ?? null;
   }
 
   /**
@@ -466,7 +526,7 @@ export class Game {
     this.playerModel.update(feet, this.playerCamera.yaw);
     this.structureLayer.update(now / 1000, feet.x, feet.z);
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
-    this.creatureLayer.update(this.creatures.views());
+    this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
@@ -486,6 +546,15 @@ export class Game {
         }),
       );
     }
+  }
+
+  /** Çizilecek canlılar: demo açıksa sahte görünümler (oyuncunun ilk konumu merkez), yoksa simülasyon. */
+  private visibleCreatures(feet: { x: number; z: number }): ReadonlyArray<CreatureView> {
+    if (!this.creatureDemo) return this.creatures.views();
+    this.demoAnchor ??= { x: feet.x, z: feet.z };
+    return demoViews(performance.now() / 1000, this.demoAnchor, (x, z) =>
+      this.world.terrain.heightAt(x, z),
+    );
   }
 
   /** Konum satırı (il adı, rakım): pahalı olmasın diye saniyede birkaç kez güncellenir. */
@@ -508,6 +577,7 @@ export class Game {
       ambientC: this.survival.ambientC,
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
+      defense: defenseFor(this.inventory),
     });
   }
 
@@ -534,6 +604,18 @@ export class Game {
       this.hud.setProgress(this.gather.progress > 0 ? this.gather.progress : null);
       return;
     }
+    const butcher = alive ? this.butcher.offer : null;
+    if (butcher?.status === 'ready') {
+      this.hud.setPrompt(butcherPrompt(butcher));
+      this.hud.setProgress(this.butcher.progress > 0 ? this.butcher.progress : null);
+      return;
+    }
+    const cook = alive ? this.cooking.offer : null;
+    if (cook) {
+      this.hud.setPrompt(cookPrompt(this.fireTender.offer?.status === 'ready'));
+      this.hud.setProgress(this.cooking.progress > 0 ? this.cooking.progress : null);
+      return;
+    }
     const tend = alive ? this.fireTender.offer : null;
     if (tend?.status === 'ready') {
       this.hud.setPrompt(tendPrompt(tend));
@@ -543,8 +625,19 @@ export class Game {
     this.hud.setProgress(null);
     const drink = this.drinkPrompt();
     this.hud.setPrompt(
-      drink ?? (offer ? gatherPrompt(offer) : null) ?? (tend ? tendPrompt(tend) : null),
+      drink ??
+        (offer ? gatherPrompt(offer) : null) ??
+        (butcher ? butcherPrompt(butcher) : null) ??
+        (tend ? tendPrompt(tend) : null) ??
+        this.attackHint(alive),
     );
+  }
+
+  /** Vurulabilecek canlı varsa "Sol tık: Saldır · Kurt" ipucu; yoksa null. */
+  private attackHint(alive: boolean): string | null {
+    if (!alive) return null;
+    const hit = this.combat.target(this.meleeAim());
+    return hit ? attackPrompt(hit.view.kind) : null;
   }
 
   /** F/G: yerleştirme hayaletini aç/kapa; eşya yoksa kısa bildirim. */
@@ -553,7 +646,43 @@ export class Game {
     if (text) this.hud.notify(text, INTERACT.toastMs);
   }
 
-  /** Sol tık: hayaleti yapıya çevir; engel varsa nedenini söyle. */
+  /** Sol tık: yerleştirme hayaleti varsa onaylar, yoksa saldırır. */
+  private primaryAction(): void {
+    if (this.placement.aiming) this.confirmPlacement();
+    else this.attack();
+  }
+
+  /** Oyuncunun konumu ve bakışı (saldırı ve leş seçimi için). */
+  private meleeAim(): MeleeAim {
+    const feet = this.player.position;
+    return {
+      x: feet.x,
+      y: feet.y,
+      z: feet.z,
+      eyeY: feet.y + PLAYER.eyeHeight,
+      yaw: this.playerCamera.yaw,
+      pitch: this.playerCamera.pitch,
+    };
+  }
+
+  /** Bir canlı tehlikeli bir durumda oyuncuyu fark edince "Tehlike: Kurt" uyarısı (sık tekrarlanmaz). */
+  private warnDanger(kind: CreatureKind, state: CreatureState): void {
+    const text = noticedToast(kind, state);
+    if (text === null) return;
+    const now = performance.now();
+    if (now - this.lastDangerToast < COMBAT_HUD.dangerToastCooldownMs) return;
+    this.lastDangerToast = now;
+    this.hud.notify(text, INTERACT.toastMs);
+  }
+
+  /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
+  private attack(): void {
+    if (!this.survival.alive || this.inventoryOpen || this.loop.paused) return;
+    const result = this.combat.attack(this.meleeAim());
+    if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
+  }
+
+  /** Yerleştirmeyi onaylar; engel varsa nedenini söyler. */
   private confirmPlacement(): void {
     if (!this.placement.aiming) return;
     const result = this.placement.confirm();

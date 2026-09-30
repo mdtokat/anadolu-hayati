@@ -1,102 +1,119 @@
-import {
-  BoxGeometry,
-  Color,
-  Euler,
-  Group,
-  InstancedMesh,
-  Matrix4,
-  MeshStandardMaterial,
-  Quaternion,
-  Vector3,
-} from 'three';
+import { Group, InstancedBufferAttribute, InstancedMesh, MeshStandardMaterial } from 'three';
 import { CREATURE_LOOK, CREATURES } from '../config';
-import { CREATURE_KINDS, type CreatureKind, type CreatureView } from '../creatures/kinds';
+import type { CreatureId, CreatureView } from '../creatures/kinds';
+import {
+  buildBoxGeometry,
+  buildTaperGeometry,
+  CREATURE_SHAPES,
+  MAX_PARTS,
+  type PartShape,
+} from './creatureGeometry';
+import { InstanceBuffer, phaseDelta, writeCreature, type PoseBuffers } from './creaturePose';
 
 /** Dev göstergesi / test için anlık sayımlar. */
 export interface CreatureLayerStats {
   /** Şu an çizilen canlı sayısı. */
   instances: number;
-  /** Tür başına mesh sayısı kadar (= draw call). */
+  /** Çizilen parça (kutu) sayısı. */
+  parts: number;
+  /** Mesh sayısı (= draw call): şekil başına bir `InstancedMesh`. */
   meshes: number;
 }
 
-/** Yer tutucu kutunun gövde uzunluğu / yarıçap oranı. */
-const BODY_LENGTH_FACTOR = 1.6;
-
 /**
- * Canlıların çizimi: `CreatureView[]` tüketir, hiçbir simülasyon mantığı içermez. **İskelet (5.0):** tür başına
- * tek `InstancedMesh` ve düz renkli kutu (yer tutucu); 5.10'da Hesap B gerçek parçalı modellerle değiştirir
- * (arayüz aynı kalır). Kaynakları `dispose()` eder.
+ * Canlıların çizimi: `CreatureView[]` tüketir, hiçbir simülasyon mantığı içermez. Her canlı birkaç kutu parçadır
+ * (gövde, baş, dört bacak, kuyruk…); parçalar türden bağımsız **şekil başına tek `InstancedMesh`**'te toplanır,
+ * bu yüzden draw call sayısı canlı sayısından ve türden bağımsız sabittir (şekil sayısı kadar). Parça matrisleri
+ * CPU'da yalnızca etkin canlılar (≤ `CREATURES.maxActive`) için her karede yazılır; yürüme fazı her canlı için
+ * `speed`'den türetilir. Kaynakları `dispose()` eder.
  */
 export class CreatureLayer {
   readonly group = new Group();
 
-  private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly material = new MeshStandardMaterial({ roughness: 1 });
-  private readonly meshes = new Map<CreatureKind, InstancedMesh>();
+  private readonly geometries = {
+    box: buildBoxGeometry(),
+    taper: buildTaperGeometry(),
+  };
+  private readonly meshes = {} as Record<PartShape, InstancedMesh>;
+  private readonly buffers = {} as PoseBuffers;
+  private readonly phases = new Map<CreatureId, number>();
+  private readonly seen = new Set<CreatureId>();
+  private lastTime: number | null = null;
   private drawn = 0;
-
-  private readonly matrix = new Matrix4();
-  private readonly quaternion = new Quaternion();
-  private readonly euler = new Euler();
-  private readonly position = new Vector3();
-  private readonly scale = new Vector3();
-  private readonly base = new Color();
-  private readonly hit = new Color(CREATURE_LOOK.hitColor);
+  private drawnParts = 0;
 
   constructor() {
-    for (const kind of CREATURE_KINDS) {
-      const mesh = new InstancedMesh(this.geometry, this.material, CREATURES.maxActive);
+    const capacity = CREATURES.maxActive * MAX_PARTS;
+    for (const shape of CREATURE_SHAPES) {
+      const mesh = new InstancedMesh(this.geometries[shape], this.material, capacity);
+      mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+      // Pozlar doğrudan mesh dizilerine yazılır (ek kopya yok).
+      this.buffers[shape] = new InstanceBuffer(
+        capacity,
+        mesh.instanceMatrix.array as Float32Array,
+        mesh.instanceColor.array as Float32Array,
+      );
       mesh.count = 0;
-      mesh.frustumCulled = false; // en çok `maxActive` örnek; sınır küresi hesabına değmez
-      this.meshes.set(kind, mesh);
+      mesh.frustumCulled = false; // en çok `maxActive` canlı; sınır küresi hesabına değmez
+      this.meshes[shape] = mesh;
       this.group.add(mesh);
     }
   }
 
-  /** Canlıların konum/yönünü ve vurulma parlamasını yazar. */
-  update(views: ReadonlyArray<CreatureView>): void {
-    const counts = new Map<CreatureKind, number>();
+  /**
+   * Canlıları çizer. `timeSeconds`: monoton zaman (yürüme animasyonu için); ilk çağrıda faz ilerlemez.
+   * Kapasiteyi (`maxActive`) aşan canlılar çizilmez.
+   */
+  update(views: ReadonlyArray<CreatureView>, timeSeconds: number): void {
+    const dt =
+      this.lastTime === null
+        ? 0
+        : Math.min(Math.max(timeSeconds - this.lastTime, 0), CREATURE_LOOK.maxFrameSeconds);
+    this.lastTime = timeSeconds;
+
+    for (const buffer of Object.values(this.buffers)) buffer.clear();
+    this.seen.clear();
     let drawn = 0;
+    let parts = 0;
     for (const view of views) {
-      const mesh = this.meshes.get(view.kind);
-      if (!mesh) continue;
-      const index = counts.get(view.kind) ?? 0;
-      if (index >= CREATURES.maxActive) continue;
-      counts.set(view.kind, index + 1);
+      if (drawn >= CREATURES.maxActive) break;
+      let phase = this.phases.get(view.id) ?? view.id * 0.7; // canlılar aynı fazda yürümesin
+      if (!view.dead) phase += phaseDelta(view.kind, view.speed, dt);
+      this.phases.set(view.id, phase);
+      this.seen.add(view.id);
+      parts += writeCreature(view, phase, this.buffers);
       drawn += 1;
-
-      const height = view.dead ? view.height * CREATURE_LOOK.deadHeightFactor : view.height;
-      this.position.set(view.x, view.y + height / 2, view.z);
-      this.euler.set(0, view.yaw, 0);
-      this.quaternion.setFromEuler(this.euler);
-      this.scale.set(view.radius * 2, height, view.radius * 2 * BODY_LENGTH_FACTOR);
-      this.matrix.compose(this.position, this.quaternion, this.scale);
-      mesh.setMatrixAt(index, this.matrix);
-
-      this.base.set(CREATURE_LOOK.colors[view.kind]).lerp(this.hit, view.hitFlash);
-      mesh.setColorAt(index, this.base);
     }
-    for (const kind of CREATURE_KINDS) {
-      const mesh = this.meshes.get(kind) as InstancedMesh;
-      mesh.count = counts.get(kind) ?? 0;
+    // Görünümden çıkan canlıların fazı unutulur (harita büyümesin).
+    if (this.phases.size > this.seen.size) {
+      for (const id of this.phases.keys()) if (!this.seen.has(id)) this.phases.delete(id);
+    }
+
+    for (const shape of CREATURE_SHAPES) {
+      const mesh = this.meshes[shape];
+      const buffer = this.buffers[shape];
+      mesh.count = buffer.count;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
     this.drawn = drawn;
+    this.drawnParts = parts;
   }
 
   get stats(): CreatureLayerStats {
-    return { instances: this.drawn, meshes: this.meshes.size };
+    return { instances: this.drawn, parts: this.drawnParts, meshes: CREATURE_SHAPES.length };
   }
 
   dispose(): void {
-    for (const mesh of this.meshes.values()) {
+    for (const shape of CREATURE_SHAPES) {
+      const mesh = this.meshes[shape];
       this.group.remove(mesh);
       mesh.dispose();
+      this.geometries[shape].dispose();
     }
-    this.meshes.clear();
-    this.geometry.dispose();
+    this.phases.clear();
+    this.seen.clear();
     this.material.dispose();
   }
 }
