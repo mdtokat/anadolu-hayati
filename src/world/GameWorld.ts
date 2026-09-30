@@ -1,4 +1,5 @@
 import type { Scene } from 'three';
+import type { CreatureTerrain } from '../creatures/kinds';
 import type { Vec3 } from '../player/movement';
 import type { SkyPosition } from '../survival/astronomy';
 import type { WaterHit } from './waterIndex';
@@ -46,6 +47,8 @@ export interface GameWorld {
   setPropDepleted?(id: PropId, depleted: boolean): void;
   /** Dev göstergesi: nesne katmanı sayımları (yoksa null ya da tanımsız). */
   readonly propStats?: PropLayerStats | null;
+  /** Canlıların arazi sorguları (Faz 5); desteklemeyen dünyalarda (test arenası) tanımsız, canlı oluşmaz. */
+  readonly creatureTerrain?: CreatureTerrain;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
   toggleBorders?(): void;
   dispose(): void;

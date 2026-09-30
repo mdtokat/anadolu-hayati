@@ -7,6 +7,8 @@ import {
   TELEPORTS,
   VERTICAL_SCALE,
 } from '../config';
+import { createRegionCreatureTerrain } from '../creatures/regionTerrain';
+import type { CreatureTerrain } from '../creatures/kinds';
 import type { RegionData } from '../data/region';
 import { createBoundsWalls } from '../physics/bounds';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
@@ -41,6 +43,7 @@ export class RegionWorld implements GameWorld {
   readonly terrain: RegionHeightSource;
   readonly spawn: Vec3;
   readonly maxSlopeDeg = REGION_PLAYER.maxSlopeDeg;
+  readonly creatureTerrain: CreatureTerrain;
 
   private readonly environment: Environment;
   private readonly material: MeshStandardMaterial;
@@ -93,6 +96,13 @@ export class RegionWorld implements GameWorld {
     const cover = LandCoverMap.fromRegion(region);
     this.props = cover ? new PropLayer(this.source, cover, this.freshWater) : null;
     if (this.props) this.scene.add(this.props.group);
+
+    // Canlılar (Faz 5): arazi örtüsü yoksa her yer `none` sayılır ve canlı doğmaz.
+    this.creatureTerrain = createRegionCreatureTerrain({
+      source: this.source,
+      cover,
+      freshWater: this.freshWater,
+    });
 
     // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
     const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
