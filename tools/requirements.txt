@@ -6,5 +6,7 @@ pyproj
 shapely
 # regions.yaml okumak için
 pyyaml
+# Overture Parquet dosyalarını okumak için (fetch_water.py)
+pyarrow
 # tools/tests için
 pytest
