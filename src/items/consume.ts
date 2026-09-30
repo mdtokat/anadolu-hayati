@@ -16,7 +16,9 @@ export function edibleEffect(id: ItemId): EdibleEffect | null {
 /** Etkiyi göstergelere uygular (0–100'e kırpar); girdi durumu değişmez. */
 export function applyEdible(state: VitalsState, effect: EdibleEffect): VitalsState {
   const next = applyConsumable(state, effect);
-  const health = Math.min(Math.max(state.health + (effect.health ?? 0), 0), SURVIVAL.maxValue);
+  // Zararlı yiyecek (negatif can) canı 1'in altına indirmez: yemek tek başına öldürmez (ölüm nedeni göstergelerden doğar).
+  const floor = (effect.health ?? 0) < 0 ? Math.min(state.health, 1) : 0;
+  const health = Math.min(Math.max(state.health + (effect.health ?? 0), floor), SURVIVAL.maxValue);
   return { ...next, health };
 }
 

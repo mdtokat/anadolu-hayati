@@ -1,7 +1,14 @@
 import type { ItemStack } from './Inventory';
 import type { ItemId } from './itemDefs';
 
-export const RECIPE_IDS = ['stone_axe', 'water_container', 'campfire', 'lean_to'] as const;
+export const RECIPE_IDS = [
+  'stone_axe',
+  'water_container',
+  'campfire',
+  'lean_to',
+  'stone_spear',
+  'hide_vest',
+] as const;
 export type RecipeId = (typeof RECIPE_IDS)[number];
 
 export interface Recipe {
@@ -60,6 +67,27 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     ],
     tool: 'stone_axe',
     output: { id: 'lean_to', count: 1 },
+  },
+  // Faz 5 (5.8): av silahı ve giysi. Deri yalnızca avdan gelir (leş kesme, 5.9).
+  stone_spear: {
+    id: 'stone_spear',
+    name: 'Taş Mızrak',
+    inputs: [
+      { id: 'stick', count: 2 },
+      { id: 'stone', count: 1 },
+      { id: 'tinder', count: 3 },
+    ],
+    output: { id: 'stone_spear', count: 1 },
+  },
+  hide_vest: {
+    id: 'hide_vest',
+    name: 'Deri Yelek',
+    inputs: [
+      { id: 'hide', count: 2 },
+      { id: 'tinder', count: 4 },
+    ],
+    tool: 'stone_axe',
+    output: { id: 'hide_vest', count: 1 },
   },
 };
 

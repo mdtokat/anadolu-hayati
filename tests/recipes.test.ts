@@ -58,8 +58,8 @@ describe('tarif tablosu', () => {
   });
 
   it('ulaşılabilirlik: elle toplananlardan başlayarak her tarif yapılabilir (plan §2.3)', () => {
-    // Elle: dal, taş, kav. Baltayla ek olarak: kütük, kabuk.
-    const have = new Set<ItemId>(['stick', 'stone', 'tinder']);
+    // Elle: dal, taş, kav. Baltayla ek olarak: kütük, kabuk. Avla (leş kesme, Faz 5): deri, kemik.
+    const have = new Set<ItemId>(['stick', 'stone', 'tinder', 'hide', 'bone']);
     const axeOnly: ItemId[] = ['log', 'bark'];
     const done = new Set<string>();
     for (let changed = true; changed;) {

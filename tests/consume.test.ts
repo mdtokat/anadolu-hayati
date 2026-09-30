@@ -4,7 +4,7 @@ import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { applyEdible, canEat, eat, edibleEffect } from '../src/items/consume';
 import { Inventory } from '../src/items/Inventory';
-import { ITEM_IDS, ITEMS } from '../src/items/itemDefs';
+import { ITEM_IDS, ITEMS, type EdibleEffect } from '../src/items/itemDefs';
 import { SurvivalSystem } from '../src/survival/SurvivalSystem';
 import { initialVitals, type VitalsState } from '../src/survival/vitals';
 
@@ -156,5 +156,15 @@ describe('SurvivalSystem.consume', () => {
     system.setVitals({ satiety: 10 });
     expect(system.consume({ satiety: 4 }, 'hazelnut')).toBe(true);
     expect(ate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('zararlı yiyecek (çiğ et)', () => {
+  it('canı düşürür ama 1 altına indirmez; zaten 1 altındaysa daha da düşürmez', () => {
+    const base = { ...initialVitals(), satiety: 50 };
+    const effect = ITEMS.raw_meat.edible as EdibleEffect;
+    expect(applyEdible({ ...base, health: 50 }, effect).health).toBe(50 + (effect.health ?? 0));
+    expect(applyEdible({ ...base, health: 3 }, effect).health).toBe(1);
+    expect(applyEdible({ ...base, health: 0.4 }, effect).health).toBe(0.4);
   });
 });

@@ -9,10 +9,11 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Boşluk', 'Zıpla'],
   ['Fare', 'Etrafa bak'],
   ['V', '1. / 3. şahıs kamera'],
-  ['E', 'Nesne topla / su iç (basılı tut)'],
+  ['E', 'Topla / leş kes / et pişir / ateşe yakıt / su iç (basılı tut)'],
+  ['Sol tık', 'Saldır (yerleştirme hayaleti varken kur)'],
   ['I / Tab', 'Envanter ve üretim'],
   ['F', 'Hızlı yemek'],
-  ['C / G', 'Ateş / sundurma kur (sol tık onaylar)'],
+  ['C / G', 'Ateş / sundurma yerleştirme hayaleti (aynı tuş iptal)'],
   ['B', 'İl sınırlarını aç/kapa'],
   ['Esc', 'Duraklat'],
 ];

@@ -138,7 +138,7 @@ export class Input {
   /** Sol tık yalnızca oyun kontrolündeyken eylemdir (kilidi alan tıklama eylem sayılmaz). */
   private onMouseDown(event: ButtonLikeEvent): void {
     if (event.button !== 0 || !this.pointerLocked) return;
-    this.events.emit('input:action', { action: 'confirmPlacement' });
+    this.events.emit('input:action', { action: 'primaryAction' });
   }
 
   private onPointerLockChange(): void {

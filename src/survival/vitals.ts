@@ -2,8 +2,11 @@ import { SHELTER_EFFECTS, SURVIVAL } from '../config';
 
 export type Activity = 'rest' | 'walk' | 'run';
 
-/** Ölüm nedeni: ölüm anındaki en büyük hasar kaynağı. */
-export type DeathCause = 'dehydration' | 'starvation' | 'hypothermia' | 'hyperthermia';
+/**
+ * Ölüm nedeni: ölüm anındaki en büyük hasar kaynağı. `mauled` (hayvan saldırısı) göstergelerden değil,
+ * `SurvivalSystem.applyDamage` ile dışarıdan gelen hasardan doğar (`DamageBreakdown`'da yoktur).
+ */
+export type DeathCause = 'dehydration' | 'starvation' | 'hypothermia' | 'hyperthermia' | 'mauled';
 
 export interface VitalsState {
   /** Can, tokluk (açlığın tersi), su (susuzluğun tersi), enerji (yorgunluğun tersi): 0–100. */
@@ -42,7 +45,7 @@ export interface VitalsStep {
   damage: DamageBreakdown;
   dead: boolean;
   /** `dead` ise ölüm nedeni. */
-  cause: DeathCause | null;
+  cause: keyof DamageBreakdown | null;
 }
 
 const MAX = SURVIVAL.maxValue;
@@ -89,8 +92,8 @@ export function bodyTempEquilibrium(
 }
 
 /** Hasar dökümünden ölüm nedeni: en büyük katkı. */
-export function causeOfDeath(damage: DamageBreakdown): DeathCause {
-  const entries = Object.entries(damage) as Array<[DeathCause, number]>;
+export function causeOfDeath(damage: DamageBreakdown): keyof DamageBreakdown {
+  const entries = Object.entries(damage) as Array<[keyof DamageBreakdown, number]>;
   return entries.reduce((best, entry) => (entry[1] > best[1] ? entry : best))[0];
 }
 
