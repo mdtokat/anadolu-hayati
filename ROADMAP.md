@@ -27,7 +27,7 @@ Görevler:
 Kabul kriterleri:
 - [x] `npm run dev` ile sahne açılıyor
 - [x] Tüm kontrol komutları hatasız geçiyor
-- [ ] GitHub Pages linkinde sahne görünüyor
+- [x] GitHub Pages linkinde sahne görünüyor
 
 ---
 

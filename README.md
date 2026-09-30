@@ -2,9 +2,9 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. Şu an **Faz 0 — Kurulum**: tarayıcıda açılan boş bir 3D sahne iskeleti. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0 — Kurulum** tamamlandı (tarayıcıda açılan boş bir 3D sahne iskeleti); sıradaki adım **Faz 1 — Oynanabilir Prototip**. Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
-**Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/ _(GitHub Pages yayını etkinleştirildikten sonra)_
+**Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
 
 ## Gereksinimler
 
