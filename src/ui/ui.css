@@ -167,3 +167,21 @@
   margin: 0;
   opacity: 0.8;
 }
+
+.pause-menu-credits {
+  max-width: 420px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  opacity: 0.7;
+}
+.pause-menu-credits p {
+  margin: 0 0 6px;
+}
+.pause-menu-credits a {
+  color: inherit;
+  font-weight: 600;
+}

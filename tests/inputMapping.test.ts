@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actionForKey, mapKeysToIntent } from '../src/core/inputMapping';
+import { actionForKey, mapKeysToIntent, teleportSlotForKey } from '../src/core/inputMapping';
 
 const keys = (...codes: string[]) => new Set(codes);
 
@@ -57,5 +57,18 @@ describe('actionForKey', () => {
   });
   it('diğer tuşlar için null döner', () => {
     expect(actionForKey('KeyW')).toBeNull();
+  });
+});
+
+describe('teleportSlotForKey', () => {
+  it('Digit1..Digit9 → 0..8', () => {
+    expect(teleportSlotForKey('Digit1')).toBe(0);
+    expect(teleportSlotForKey('Digit5')).toBe(4);
+    expect(teleportSlotForKey('Digit9')).toBe(8);
+  });
+  it('diğer tuşlar için null (Digit0 dahil)', () => {
+    expect(teleportSlotForKey('Digit0')).toBeNull();
+    expect(teleportSlotForKey('KeyW')).toBeNull();
+    expect(teleportSlotForKey('Numpad1')).toBeNull();
   });
 });

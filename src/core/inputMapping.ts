@@ -35,3 +35,9 @@ export function actionForKey(code: string): InputAction | null {
   if ((bindings.toggleBorders as readonly string[]).includes(code)) return 'toggleBorders';
   return null;
 }
+
+/** `Digit1`…`Digit9` → 0…8 (geliştirici ışınlanma yuvası); başka tuş için null. */
+export function teleportSlotForKey(code: string): number | null {
+  const match = /^Digit([1-9])$/.exec(code);
+  return match ? Number(match[1]) - 1 : null;
+}

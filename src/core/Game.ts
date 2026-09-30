@@ -1,5 +1,5 @@
 import { WebGLRenderer } from 'three';
-import { RENDER } from '../config';
+import { RENDER, TELEPORTS } from '../config';
 import { loadRegion } from '../data/region';
 import { initPhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Player } from '../player/Player';
@@ -17,6 +17,7 @@ import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import { GameLoop } from './GameLoop';
 import { Input } from './Input';
+import { teleportSlotForKey } from './inputMapping';
 
 /** Hangi dünyanın oynanacağı: gerçek bölge ya da Faz 1 test arenası (`?world=test`). */
 export type WorldKind = 'region' | 'test';
@@ -88,6 +89,7 @@ export class Game {
       ),
     );
     window.addEventListener('resize', this.onResize);
+    if (import.meta.env.DEV) document.addEventListener('keydown', this.onDevKey);
     this.resize();
   }
 
@@ -106,6 +108,17 @@ export class Game {
         : new TestScene(physics, new ProceduralHeightSource());
     return new Game(container, physics, world);
   }
+
+  /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
+  private readonly onDevKey = (event: KeyboardEvent): void => {
+    const slot = teleportSlotForKey(event.code);
+    const target = slot === null ? undefined : TELEPORTS[slot];
+    if (!target) return;
+    const ok = this.teleportToLatLon(target.lat, target.lon);
+    console.info(
+      `Işınlanma: ${target.name}${ok ? '' : ' (yürünebilir nokta bulunamadı ya da bu dünyada desteklenmiyor)'}`,
+    );
+  };
 
   /**
    * Oyuncuyu enlem/boylama ışınlar (en yakın yürünebilir noktaya). Yalnızca gerçek bölgede çalışır;
@@ -132,6 +145,7 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('keydown', this.onDevKey);
     for (const off of this.offs) off();
     this.input.dispose();
     this.playerModel.dispose();
