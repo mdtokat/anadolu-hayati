@@ -747,6 +747,45 @@ export const SURVIVAL = {
   drinkMinDeficit: 1,
 } as const;
 
+/**
+ * Ortam sesleri (Faz 6.8): hepsi Web Audio ile kodla sentezlenir (ses dosyası yok). Katman seviyeleri
+ * (0–1) `audio/ambientMix.ts`'te konumdan/zamandan türetilir; burada eşikler ve zamanlamalar durur.
+ * Ana ses seviyesi kullanıcı ayarındandır (`SETTINGS.volume`).
+ */
+export const AMBIENT = {
+  /** Rüzgârın en düşük seviyesi (deniz seviyesinde, açık arazide hafif esinti). */
+  windBase: 0.12,
+  /** Rüzgârın tam seviyeye çıktığı gerçek rakım (m). */
+  windFullElevationM: 1200,
+  /** Sık ormanda rüzgâr sesi bu çarpanla boğulur. */
+  windForestMuffle: 0.55,
+  /** Sundurma altında rüzgâr bu çarpanla azalır. */
+  windShelterMuffle: 0.5,
+  /** Denizin tam duyulduğu (≤) ve hiç duyulmadığı (≥) uzaklık (oyun m; 1 oyun m = 50 gerçek m). */
+  seaNearDistance: 30,
+  seaFarDistance: 350,
+  /** Güneş yüksekliğine (derece) göre gündüz/gece geçişi: kuşlar bu aralıkta açılır, gece böcekleri aralığın tersinde. */
+  daySunStartDeg: -4,
+  dayFullSunDeg: 10,
+  /** Gece sesleri güneş bu yüksekliğin (derece) altına inerken açılır; `nightFullSunDeg`'de tam. */
+  nightSunStartDeg: 6,
+  nightFullSunDeg: -8,
+  /** Gece böcek/baykuş sesleri bu rakımın (m) üstünde kesilir (soğuk, açık dağ). */
+  insectMaxElevationM: 1500,
+  /** Seviye değişiminin yumuşama süresi (sn): ışınlanma/sınır geçişinde ani sıçrama olmasın. */
+  rampSeconds: 1.5,
+  /** Ana kazanç (kulaklık/hoparlörde ani yüksek ses olmasın diye başlık payı). */
+  headroom: 0.5,
+  /** Ortam girdisini (konum, saat) yenileme aralığı (ms). */
+  updateIntervalMs: 250,
+  /** Kuş ötüşü: seviye 1'de saniyede ortalama bu kadar öt; seviyeyle doğrusal azalır. */
+  birdPerSecondAtFull: 0.5,
+  /** Baykuş: gece sesinin tam olduğu ormanda saniyede ortalama bu kadar. */
+  owlPerSecondAtFull: 0.06,
+  /** Olay (kuş/baykuş) zamanlayıcı adımı (ms). */
+  eventTickMs: 200,
+} as const;
+
 /** İl sınırı geçişi bildirimi (Faz 6.7): sınırda gidip gelmede bildirim yağmasın. */
 export const PROVINCE_NOTICE = {
   /** Yeni ilde bu kadar süre (gerçek sn) kesintisiz kalınca geçiş sayılır (sınır boyunca yürürken titreme elenir). */

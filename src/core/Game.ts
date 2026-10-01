@@ -2,6 +2,7 @@ import { WebGLRenderer } from 'three';
 import {
   COMBAT,
   COMBAT_HUD,
+  AMBIENT,
   INTERACT,
   PROVINCE_NOTICE,
   QUALITY_PRESETS,
@@ -69,6 +70,8 @@ import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
 import type { Settings } from '../settings/settings';
+import { AmbientAudio } from '../audio/AmbientAudio';
+import { ambientMix } from '../audio/ambientMix';
 import { Autosaver } from '../save/Autosaver';
 import { createNewGameSave } from '../save/newGame';
 import { createBackend } from '../save/backends';
@@ -181,6 +184,9 @@ export class Game {
   private lastLocationUpdate = -Infinity;
   /** İl sınırı geçişi bildirimi (yükleme/yeni oyunda sıfırlanır: ilk il sessizce kabul edilir). */
   private readonly provinceTracker = new ProvinceTracker();
+  /** Ortam sesleri (rüzgâr, deniz, orman, gece); oyuna girilince başlar, duraklatınca durur. */
+  private readonly ambient: AmbientAudio;
+  private lastAmbientUpdate = -Infinity;
   private lastSurvivalHudUpdate = -Infinity;
   /** Ayak konumundaki ateş ısısı ve barınak etkisi (her sabit adımda yenilenir). */
   private exposure: Readonly<Exposure> = NO_EXPOSURE;
@@ -225,6 +231,7 @@ export class Game {
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
     this.settingsPanel = new SettingsPanel(container, this.settings);
+    this.ambient = new AmbientAudio(this.settings);
     this.creditsPanel = new CreditsPanel(container);
     this.pauseMenu = new GameMenu(container, this.events, {
       store: this.saves,
@@ -267,12 +274,14 @@ export class Game {
       this.events.on('input:pointerLockChanged', ({ locked }) => this.setPaused(!locked)),
       // Envanter açıkken göstergeler görünür kalır (yemek yerken izlenir).
       this.events.on('game:paused', () => {
+        this.ambient.stop();
         this.hud.setVisible(this.inventoryOpen);
         this.placement.cancel();
       }),
       this.events.on('game:resumed', () => {
         this.sessionActive = true;
         this.hud.setVisible(true);
+        this.ambient.start();
       }),
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
@@ -529,6 +538,7 @@ export class Game {
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.pauseMenu.dispose();
     this.settingsPanel.dispose();
+    this.ambient.dispose();
     this.creditsPanel.dispose();
     this.inventoryPanel.dispose();
     this.deathScreen.dispose();
@@ -723,6 +733,7 @@ export class Game {
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
     this.updateLocationHud(now, feet);
+    this.updateAmbient(now, feet);
     this.updateSurvivalHud(now);
     this.updatePrompt();
     if (import.meta.env.DEV) {
@@ -761,6 +772,23 @@ export class Game {
       now / 1000,
     );
     if (change) this.hud.showBanner(provinceNoticeText(change), PROVINCE_NOTICE.bannerMs);
+  }
+
+  /** Ortam seslerinin katman seviyelerini konumdan/zamandan günceller (saniyede birkaç kez). */
+  private updateAmbient(now: number, feet: { x: number; y: number; z: number }): void {
+    if (!this.world.ambientAt || this.loop.paused) return;
+    if (now - this.lastAmbientUpdate < AMBIENT.updateIntervalMs) return;
+    this.lastAmbientUpdate = now;
+    const sample = this.world.ambientAt(feet.x, feet.z);
+    this.ambient.setLevels(
+      ambientMix({
+        elevationM: feet.y * VERTICAL_SCALE,
+        seaDistance: sample.seaDistance,
+        cover: sample.cover,
+        sunAltitudeDeg: this.survival.clock.sun.altitudeDeg,
+        sheltered: this.exposure.sheltered,
+      }),
+    );
   }
 
   /** Göstergeler, saat ve su içme ipucu: saniyede birkaç kez güncellenir. */
