@@ -1,23 +1,21 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { loadRegion, type RegionData } from '../../src/data/region';
+import { WORLD } from '../../src/config';
+import type { RegionData } from '../../src/data/region';
+import { loadWorld } from '../../src/data/world';
+import { publicFsFetch } from './fsFetch';
 
-export const REGION_ID = 'zonguldak-bartin-karabuk';
-const PUBLIC = resolve(__dirname, '../../public');
+/** Oyunun yüklediği dünya (`public/data/world/<id>/world.json`, karolu). */
+export const REGION_ID = WORLD.id;
 
-/** Depodaki gerçek bölge verisini (public/data/regions/…) tarayıcı olmadan yükler. */
-export async function loadRealRegion(): Promise<RegionData> {
-  return loadRegion(REGION_ID, '/', async (url) => {
-    const bytes = await readFile(resolve(PUBLIC, url.replace(/^\//, '')));
-    const buffer = bytes.buffer.slice(
-      bytes.byteOffset,
-      bytes.byteOffset + bytes.byteLength,
-    ) as ArrayBuffer;
-    return {
-      ok: true,
-      status: 200,
-      json: async () => JSON.parse(bytes.toString('utf-8')) as unknown,
-      arrayBuffer: async () => buffer,
-    };
-  });
+let cached: Promise<RegionData> | null = null;
+
+/**
+ * Depodaki gerçek dünyayı (karo manifesti, `loadWorld`) tarayıcı olmadan yükler. Sonuç **modül düzeyinde
+ * önbelleklidir**: aynı test dosyasındaki çağrılar karoları yeniden birleştirmez (dönen veriyi değiştirme).
+ */
+export function loadRealWorld(): Promise<RegionData> {
+  cached ??= loadWorld(WORLD.id, '/', publicFsFetch());
+  return cached;
 }
+
+/** Faz 2–6 testlerinin adı: artık karolu dünyayı yükler (7.6; eski `public/data/regions/…` 7.10'da kalkar). */
+export const loadRealRegion = loadRealWorld;

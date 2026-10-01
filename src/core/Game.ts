@@ -29,7 +29,8 @@ import type {
   CreatureView,
 } from '../creatures/kinds';
 import { playerWeakness } from '../creatures/perception';
-import { loadRegion, type RegionData } from '../data/region';
+import type { RegionData } from '../data/region';
+import { loadWorld } from '../data/world';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
 import { collectedToast, gatherPrompt } from '../interaction/promptText';
@@ -114,12 +115,6 @@ const LOCATION_HUD_INTERVAL_MS = 250;
 
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
-
-/**
- * Arazi verisinin okunduğu eski bölge (public/data/regions/<id>); 7.6'da karo manifestine (`WORLD.id`) geçer.
- * Kayıtlar dünya kimliğini (`WORLD.id`) taşır: eski bölge, dünyanın kafesteki ilk parçasıdır.
- */
-const REGION_ID = WORLD.legacyRegionId;
 
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
@@ -355,7 +350,7 @@ export class Game {
   static async create(container: HTMLElement, options: GameOptions = {}): Promise<Game> {
     const kind = options.world ?? 'region';
     const [loaded] = await Promise.all([
-      kind === 'region' ? loadRegion(REGION_ID) : null,
+      kind === 'region' ? loadWorld(WORLD.id) : null,
       initPhysics(),
     ]);
     const region = loaded && options.regionTransform ? options.regionTransform(loaded) : loaded;
