@@ -7,7 +7,7 @@ import yaml
 
 import regionlib as rl
 
-REGIONS_YAML = Path(__file__).resolve().parent.parent / "regions.yaml"
+WORLD_YAML = Path(__file__).resolve().parent.parent / "world.yaml"
 
 
 def test_grid_is_centered_on_origin():
@@ -81,12 +81,12 @@ def test_heightmap_bytes_are_little_endian_row_major():
     assert raw == b"\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00"
 
 
-def test_tiles_for_region_bbox_are_the_six_expected():
-    region = yaml.safe_load(REGIONS_YAML.read_text(encoding="utf-8"))["regions"]["zonguldak-bartin-karabuk"]
-    tiles = rl.tiles_for_bbox(*region["bbox"])
-    assert len(tiles) == 6
+def test_tiles_for_world_bbox_are_the_eight_expected():
+    world = yaml.safe_load(WORLD_YAML.read_text(encoding="utf-8"))["worlds"]["bati-karadeniz"]
+    tiles = rl.tiles_for_bbox(*world["bbox"])
+    assert len(tiles) == 8
     assert set(tiles) == {
-        f"Copernicus_DSM_COG_10_N{lat}_00_E{lon}_00_DEM" for lat in ("40", "41") for lon in ("031", "032", "033")
+        f"Copernicus_DSM_COG_10_N{lat}_00_E{lon}_00_DEM" for lat in ("40", "41") for lon in ("030", "031", "032", "033")
     }
 
 
@@ -107,9 +107,9 @@ def test_lfs_pointer_detection():
     assert not rl.is_lfs_pointer(b'{"type": "FeatureCollection"}')
 
 
-def test_regions_yaml_is_well_formed():
-    region = yaml.safe_load(REGIONS_YAML.read_text(encoding="utf-8"))["regions"]["zonguldak-bartin-karabuk"]
-    assert region["provinces"] == ["Zonguldak", "Bartın", "Karabük"]
-    lon_min, lat_min, lon_max, lat_max = region["bbox"]
+def test_world_yaml_is_well_formed():
+    world = yaml.safe_load(WORLD_YAML.read_text(encoding="utf-8"))["worlds"]["bati-karadeniz"]
+    assert world["provinces"] == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu"]
+    lon_min, lat_min, lon_max, lat_max = world["bbox"]
     assert lon_min < lon_max and lat_min < lat_max
-    assert region["cell_size"] > 0 and math.isfinite(region["margin_m"])
+    assert world["cell_size"] > 0 and math.isfinite(world["margin_m"])

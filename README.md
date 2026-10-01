@@ -2,7 +2,7 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. **Faz 0–6** kodu tamamlandı (açık kalan elle doğrulamalar için [CLAUDE.md](CLAUDE.md) "Mevcut Durum"): gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Arazi örtüsüne göre ormanlar, çalılar ve kayalar yerleşir; dal, taş, yemiş ve mantar toplayıp taş balta, taş mızrak, deri yelek, kamp ateşi ve sundurma üretirsin. Ormanlarda karaca, yaban domuzu, kurt ve boz ayı dolaşır: karaca kaçar, domuz ve ayı dokunulunca saldırır, kurtlar geceleri sürü hâlinde avlanır; ateşin başında hayvanlardan korunursun. Avladığın hayvanı keser, ateşte pişirir ve yersin (çiğ et riskli). Hayvanların dağılımı ve davranışı **yaklaşıktır** (oyun dengesi için; bilimsel dağılım haritası değildir). Oyunu birden fazla yuvaya kaydedip yükleyebilir (otomatik kayıt dahil), grafik kalitesini, fare hassasiyetini ve sesi ayarlayabilirsin; il sınırlarını geçince bildirim çıkar, rüzgâr, deniz, orman ve gece sesleri konumuna göre değişir (hepsi kodla sentezlenir). Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0–7** kodu tamamlandı (açık kalan elle doğrulamalar için [CLAUDE.md](CLAUDE.md) "Mevcut Durum"): gerçek Zonguldak–Bartın–Karabük–Düzce–Bolu arazisinde (Abant Gölü ve Yedigöller dahil) kesintisiz yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Arazi örtüsüne göre ormanlar, çalılar ve kayalar yerleşir; dal, taş, yemiş ve mantar toplayıp taş balta, taş mızrak, deri yelek, kamp ateşi ve sundurma üretirsin. Ormanlarda karaca, yaban domuzu, kurt ve boz ayı dolaşır: karaca kaçar, domuz ve ayı dokunulunca saldırır, kurtlar geceleri sürü hâlinde avlanır; ateşin başında hayvanlardan korunursun. Avladığın hayvanı keser, ateşte pişirir ve yersin (çiğ et riskli). Hayvanların dağılımı ve davranışı **yaklaşıktır** (oyun dengesi için; bilimsel dağılım haritası değildir). Oyunu birden fazla yuvaya kaydedip yükleyebilir (otomatik kayıt dahil), grafik kalitesini, fare hassasiyetini ve sesi ayarlayabilirsin; il sınırlarını geçince bildirim çıkar, rüzgâr, deniz, orman ve gece sesleri konumuna göre değişir (hepsi kodla sentezlenir). Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
 **Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
 
@@ -26,7 +26,7 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 Oyun her 2 dakikada ve sekme gizlenirken **otomatik kayıt** yuvasına kaydeder; kayıtlar tarayıcıda (IndexedDB) tutulur ve sürümlüdür. Ayarlar tarayıcıda (`localStorage`) saklanır.
 
-Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`npm run dev`) 1–5 tuşları Zonguldak, Safranbolu, Amasra, Filyos ve Yenice'ye ışınlar. `?world=test` adresi Faz 1'in test arenasını açar (30°/60° rampalar, 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru).
+Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`npm run dev`) 1–9 ve 0 tuşları on noktaya ışınlar (Zonguldak, Safranbolu, Amasra, Filyos, Yenice, Düzce, Bolu, Abant Gölü, Yedigöller, Akçakoca). `?world=test` adresi Faz 1'in test arenasını açar (30°/60° rampalar, 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru).
 
 ## Gereksinimler
 
@@ -57,12 +57,12 @@ python fetch_dem.py bati-karadeniz        # Copernicus GLO-30 karoları → tool
 python fetch_boundaries.py                # geoBoundaries TUR ADM1 → tools/raw/boundaries/
 python fetch_water.py bati-karadeniz      # Overture su katmanı (HTTP Range, ~185 MB) → tools/raw/water/
 python fetch_landcover.py bati-karadeniz  # Overture arazi örtüsü / ESA WorldCover (HTTP Range, ~320 MB) → tools/raw/landcover/
-python build_world.py                     # → public/data/world/bati-karadeniz/ (--verify-legacy: eski alanı eski bölgeyle karşılaştır)
+python build_world.py                     # → public/data/world/bati-karadeniz/
 python qa_world.py                        # kalite raporu (karo tablosu, il kapsamı, dikiş sürekliliği, su)
 python -m pytest tests                    # Python birim testleri
 ```
 
-Dünya tanımı `tools/world.yaml`'dadır (hedef iller, komşuların otomatik seçimi, sınır kutusu, pay); kafes ve karo boyutu `src/config.ts` → `WORLD` ile `tools/worldlib.py`'de sabittir. Eski bölge biçimi (`tools/regions.yaml`, `build_region.py`, `public/data/regions/`) Faz 7 birleştirmesine (7.10) kadar durur. Koordinat ve veri formatı sözleşmesi için [CLAUDE.md](CLAUDE.md)'ye bakın.
+Dünya tanımı `tools/world.yaml`'dadır (hedef iller, komşuların otomatik seçimi, sınır kutusu, pay); kafes ve karo boyutu `src/config.ts` → `WORLD` ile `tools/worldlib.py`'de sabittir. Faz 2–6'nın tek-parça bölge biçimi Faz 7 birleştirmesinde (7.10) kaldırıldı. Koordinat ve veri formatı sözleşmesi için [CLAUDE.md](CLAUDE.md)'ye bakın.
 
 ## Yayın
 

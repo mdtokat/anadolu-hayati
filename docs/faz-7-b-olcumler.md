@@ -1,6 +1,24 @@
 # Faz 7 — Hesap B ölçümleri (7.8 performans ve bellek)
 
-Bu belge [faz-7-paralel-plan.md](faz-7-paralel-plan.md) §5 7.8 ve 7.9'un ölçüm kaydıdır. Gerçek Düzce–Bolu verisi (A, 7.4 → **S2**) gelmeden önce **sentetik büyük dünya** ile alındı; S2 sonrası aynı yöntemle gerçek dünyada yinelendi (ilk bölüm). 7.10'da birleşik tabloya taşınır.
+Bu belge [faz-7-paralel-plan.md](faz-7-paralel-plan.md) §5 7.8 ve 7.9'un ölçüm kaydıdır. Gerçek Düzce–Bolu verisi (A, 7.4 → **S2**) gelmeden önce **sentetik büyük dünya** ile alındı; S2 sonrası aynı yöntemle gerçek dünyada yinelendi (ilk bölüm). Birleşik özet (7.10) hemen aşağıdadır.
+
+## Birleşik tablo (7.10, 2026-10-01)
+
+Faz 6 alanı (tek parça, 130 chunk) ile Faz 7 dünyası (24 karo, 288 chunk), başsız Chromium'da (yazılımsal WebGL) ve Node'da, eski veri kaldırıldıktan sonra yeniden ölçüldü. Değerler aşağıdaki ayrıntı bölümleriyle aynıdır (veri değişmedi).
+
+| Ölçüt | Faz 6 | Faz 7 | Bütçe / not |
+|---|---|---|---|
+| Kapsam | 1588 × 1176 örnek, 13 × 10 = 130 chunk | 2228 × 1962 örnek, 18 × 16 = 288 chunk | |
+| Veri (commit'li) | ≈ 6,0 MB (5 dosya) | ≈ 16 MB (51 dosya; karo ≤ 512 KB, `features.json` ≈ 1,1 MB) | tek dosya ≤ 20 MB |
+| En kötü draw call | 98 | **176** (Köroğlu zirvesi) | < 300 |
+| En çok üçgen | ~473 bin | ~538 bin (merkez) | |
+| Açılış CPU hazırlığı | ~0,4 sn | ~0,6 sn + karo birleştirme ~0,1 sn | ≤ 3 sn |
+| Başsız sayfa açılışı | ~1,0 sn | ~2 sn (2,2 sn ölçüldü; yerel dev sunucusu) | < 10 sn |
+| Bellek dizileri | ≈ 34 MB | ≈ 79 MB | |
+| JS yığını (tüm konumlar sonrası) | ~102 MB | ~147 MB | |
+| Eğim ≤ 60° (kara) | %92,9 | %95,4 | |
+
+Uçtan uca başsız doğrulama (7.10): açılışta `data/regions/` isteği yok; hiçbir 4xx/5xx ve konsol hatası yok; Faz 6 v1 kaydı yüklenip v2'ye çevrildi (`regionId = bati-karadeniz`, tükenen nesneler yerinde); Zonguldak merkezden Düzce merkeze ışınlanınca ve 2 sn kalınca "Düzce'ye hoş geldiniz" göründü. Bolu'ya hemen ardından geçiş, 15 sn bildirim beklemesi içinde olduğundan **sessizdir** (tasarım: `PROVINCE_NOTICE`). Gerçek FPS elle GPU'lu masaüstünde ölçülecek.
 
 ## Yöntem
 

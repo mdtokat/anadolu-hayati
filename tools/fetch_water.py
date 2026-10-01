@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Overture Maps `base/water` katmanından (OSM türevi) bölgenin su özelliklerini çeker.
 
-Kullanım:  python fetch_water.py [bölge-id]      (varsayılan: zonguldak-bartin-karabuk)
+Kullanım:  python fetch_water.py [dünya-id]      (varsayılan: bati-karadeniz)
 Çıktı:     tools/raw/water/<bölge-id>.geojson    (WGS84; commit edilmez)
 
 Overture veri kümesi küresel ve yüzlerce GB'dır; Parquet dosyaları HTTP Range istekleriyle okunur:
@@ -26,12 +26,12 @@ import pyarrow.parquet as pq
 import shapely
 from shapely.geometry import mapping
 
-from fetch_dem import load_region
+from fetch_dem import load_world
 from rangefile import USER_AGENT, HttpRangeFile
 
 TOOLS = Path(__file__).resolve().parent
 RAW_WATER = TOOLS / "raw" / "water"
-DEFAULT_REGION = "zonguldak-bartin-karabuk"
+DEFAULT_WORLD = "bati-karadeniz"
 
 BUCKET_URL = "https://overturemaps-us-west-2.s3.amazonaws.com/"
 # Yeniden üretilebilirlik için sabitlenmiş yayın; yeni bir yayına geçmek bilinçli bir karardır.
@@ -167,15 +167,15 @@ def extract_water(
 
 
 def main(argv: list[str]) -> int:
-    region_id = argv[1] if len(argv) > 1 else DEFAULT_REGION
-    bbox = tuple(load_region(region_id)["bbox"])
-    print(f"{region_id}: Overture {OVERTURE_RELEASE} su katmanı, bbox {bbox}")
+    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
+    bbox = tuple(load_world(world_id)["bbox"])
+    print(f"{world_id}: Overture {OVERTURE_RELEASE} su katmanı, bbox {bbox}")
 
     keys = list_water_files()
     print(f"  {len(keys)} dosya taranıyor (yalnızca altbilgiler ve ilgili satır grupları indirilir)")
     features, downloaded = extract_water(bbox, keys)  # type: ignore[arg-type]
 
-    dest = RAW_WATER / f"{region_id}.geojson"
+    dest = RAW_WATER / f"{world_id}.geojson"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(
         json.dumps({"type": "FeatureCollection", "overture_release": OVERTURE_RELEASE, "features": features}, ensure_ascii=False),

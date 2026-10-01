@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { HORIZONTAL_SCALE, VERTICAL_SCALE } from '../src/config';
 import {
-  loadRegion,
   parseHeightmap,
   parseMeta,
   parseProvinces,
@@ -194,33 +193,6 @@ describe('RegionHeightSource (sentetik 3×2 ızgara)', () => {
     expect(source.contains(0, 0)).toBe(true);
     expect(source.contains(cell + 1, 0)).toBe(false);
     expect(source.elevationAt(source.xAt(1), source.zAt(0))).toBeCloseTo(150, 4);
-  });
-});
-
-describe('loadRegion (sahte fetch)', () => {
-  it('HTTP hatasında anlamlı hata verir', async () => {
-    const fetchImpl = async () => ({
-      ok: false,
-      status: 404,
-      json: async () => ({}),
-      arrayBuffer: async () => new ArrayBuffer(0),
-    });
-    await expect(loadRegion('x', '/', fetchImpl)).rejects.toThrow(/HTTP 404/);
-  });
-
-  it('BASE_URL ile doğru adresleri ister', async () => {
-    const urls: string[] = [];
-    const fetchImpl = async (url: string) => {
-      urls.push(url);
-      return {
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-        arrayBuffer: async () => new ArrayBuffer(0),
-      };
-    };
-    await loadRegion('abc', '/anadolu-hayati/', fetchImpl).catch(() => undefined);
-    expect(urls[0]).toBe('/anadolu-hayati/data/regions/abc/meta.json');
   });
 });
 

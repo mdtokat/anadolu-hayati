@@ -2,7 +2,7 @@ import { HORIZONTAL_SCALE } from '../config';
 import { classesMatch, type LandCoverMeta } from './landcover';
 import type { UtmOrigin } from '../world/geo';
 
-/** public/data/regions/<id>/meta.json (bkz. CLAUDE.md "Bölge Veri Formatı"). */
+/** Bellek içi bölge üst verisi: dünya manifestinden türetilir (bkz. CLAUDE.md "Bölge Veri Formatı", `loadWorld`). */
 export interface RegionMeta {
   id: string;
   name: string;
@@ -135,7 +135,7 @@ export function parseMeta(json: unknown): RegionMeta {
   if (horizontalScale !== HORIZONTAL_SCALE) {
     fail(
       `veri yatay ölçeği ${horizontalScale} ile üretilmiş, config.ts HORIZONTAL_SCALE = ${HORIZONTAL_SCALE}. ` +
-        'Veriyi yeniden üret (tools/build_region.py) ya da ölçeği eşitle.',
+        'Veriyi yeniden üret (tools/build_world.py) ya da ölçeği eşitle.',
     );
   }
 
@@ -197,7 +197,7 @@ function parseLandCoverMeta(value: unknown): LandCoverMeta | null {
   if (!classesMatch(classes as string[])) {
     fail(
       `landcover sınıf tablosu kodla uyuşmuyor (veri: ${classes.join(', ')}). ` +
-        'Veriyi yeniden üret (tools/build_region.py) ya da src/data/landcover.ts ile eşitle.',
+        'Veriyi yeniden üret (tools/build_world.py) ya da src/data/landcover.ts ile eşitle.',
     );
   }
   return { file, classes: classes as string[] };
@@ -371,39 +371,3 @@ export type FetchLike = (url: string) => Promise<{
   json(): Promise<unknown>;
   arrayBuffer(): Promise<ArrayBuffer>;
 }>;
-
-/**
- * Bölgeyi yükler: meta.json + heightmap.bin + provinces.geojson (+ features.json, landcover.bin varsa).
- * `baseUrl`: Vite `BASE_URL` (GitHub Pages'te /anadolu-hayati/) — dosyalar `<base>data/regions/<id>/` altındadır.
- */
-export async function loadRegion(
-  id: string,
-  baseUrl: string = import.meta.env.BASE_URL,
-  fetchImpl: FetchLike = (url) => fetch(url),
-): Promise<RegionData> {
-  const root = `${baseUrl}data/regions/${id}`;
-
-  async function get(file: string) {
-    const response = await fetchImpl(`${root}/${file}`);
-    if (!response.ok) fail(`${file} indirilemedi (HTTP ${response.status})`);
-    return response;
-  }
-
-  const meta = parseMeta(await (await get('meta.json')).json());
-  if (meta.id !== id) fail(`meta.json id'si '${meta.id}', beklenen '${id}'`);
-
-  const [heightmap, provinces, features, landcover] = await Promise.all([
-    get('heightmap.bin').then((r) => r.arrayBuffer()),
-    get('provinces.geojson').then((r) => r.json()),
-    meta.features.length > 0 ? get('features.json').then((r) => r.json()) : Promise.resolve(null),
-    meta.landcover ? get(meta.landcover.file).then((r) => r.arrayBuffer()) : Promise.resolve(null),
-  ]);
-
-  return {
-    meta,
-    heights: parseHeightmap(heightmap, meta),
-    provinces: parseProvinces(provinces),
-    features: features === null ? null : parseFeatures(features),
-    landcover: landcover === null ? null : parseLandCover(landcover, meta),
-  };
-}

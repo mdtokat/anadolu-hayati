@@ -220,3 +220,15 @@ def test_real_world_yaml_is_consistent_with_contract():
     import regionlib
 
     assert len(regionlib.tiles_for_bbox(*config["bbox"])) == 8
+
+
+def test_missing_province_fails_loudly():
+    frame = gpd.GeoDataFrame({"shapeName": ["A"], "geometry": [box(0, 0, 1, 1)]}, crs=wl.CRS)
+    with pytest.raises(SystemExit, match="bulunamadı"):
+        build_world.select_provinces(frame, ["YOK"])
+
+
+def test_grid_outside_bbox_is_rejected():
+    grid = wl.grid_for_lattice(500_000, 4_600_000, 700_000, 4_800_000, 0)
+    with pytest.raises(SystemExit):
+        build_world.check_grid_inside_bbox(grid, [32.0, 41.0, 32.5, 41.5])

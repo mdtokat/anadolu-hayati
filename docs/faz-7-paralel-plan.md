@@ -2,6 +2,8 @@
 
 Bu belge, Faz 7'nin **iki ayrı hesapta (iki oturum) aynı anda** yürütülmesi için hazırlandı. Yöntem Faz 4 ([faz-4-paralel-plan.md](faz-4-paralel-plan.md)) ve Faz 5'tekiyle ([faz-5-paralel-plan.md](faz-5-paralel-plan.md)) aynıdır: önce **küçük bir iskele (7.0)** birleşir, sonra iki hesap birbirinin dosyasına dokunmadan, iskelede sabitlenen **sözleşme** üzerinden çalışır.
 
+> **Durum: Faz 7 tamamlandı (7.0–7.11).** Bu belge tarihsel kayıttır: 7.10'da eski bölge verisi/yükleyicisi/hattı (`public/data/regions/`, `loadRegion`, `build_region.py`, `regions.yaml`, `tile_legacy.py`, `--verify-legacy`) kaldırıldı; metindeki "7.10'a kadar durur" ifadeleri bu nedenle geçmiştir. Güncel durum için `CLAUDE.md` "Mevcut Durum" ve [faz-7-b-olcumler.md](faz-7-b-olcumler.md).
+
 > **Kullanıma başlamadan önce:** `CLAUDE.md` ("Mevcut Durum", "Mimari Kurallar", "Koordinat Sistemi", "Bölge Veri Formatı", "Çalışma Kuralları") ve `ROADMAP.md`'deki Faz 7 bölümünü oku. Kullanıcı seni bu belgeye işaret ederek başlattıysa bu plan onaylanmıştır (CLAUDE.md "Plan, sonra kod" kuralı); plandan sapmak gerekirse uygulamadan önce kullanıcıya sor.
 
 ## 0. Özet

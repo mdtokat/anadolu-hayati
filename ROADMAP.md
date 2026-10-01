@@ -180,7 +180,7 @@ Elle doğrulanacak (bu ortamda gerçek GPU ve ses çıkışı yok):
 ---
 
 ## Faz 7 — Genişleme: Düzce – Bolu (Batı Karadeniz)
-**Branch:** `faz-7-0-iskele`, `faz-7-a-veri`, `faz-7-b-calisma` _(iki hesapta paralel yürütülür: bkz. [docs/faz-7-paralel-plan.md](docs/faz-7-paralel-plan.md))_
+**Branch:** `faz-7-0-iskele`, `faz-7-a-veri`, `faz-7-b-calisma`, `faz-7-entegrasyon` _(iki hesapta paralel yürütülür: bkz. [docs/faz-7-paralel-plan.md](docs/faz-7-paralel-plan.md))_
 **Amaç:** Haritayı batıya ve güneye büyüt: Düzce ve Bolu (Abant, Yedigöller) tam kapsansın, Zonguldak–Bartın–Karabük ile aralarında kesinti olmadan yürünsün. Mimari: **tek koordinat sistemi + diskte 512×512'lik karolar + açılışta belleğe birleştirme** (akış Faz 7 dışı); EPSG:32636 sabit.
 
 Görevler (numaralar alt görev sırasıdır; **Hesap A = Veri ve karolar**, **Hesap B = Çalışma zamanı ve oyun**):
@@ -194,16 +194,16 @@ Görevler (numaralar alt görev sırasıdır; **Hesap A = Veri ve karolar**, **H
 - [x] **7.7** _(B)_ Kayıt v2 ve göç (Faz 6 kayıtları yeni dünyada yüklenir, kimlikler aynı nesneyi gösterir) _(testli: `tests/saveMigration` — Faz 6 koduyla üretilmiş gerçek v1 kayıt `tests/fixtures/save-v1.json`; başsız tarayıcıda v1 kayıt gerçek Faz 7 dünyasında yüklendi, kesilen ağaç gizli)_
 - [x] **7.8** _(B)_ Performans ve bellek (288 chunk, su meshi; draw call < 300) _(gerçek dünyada başsız ölçüm: en kötü 176 draw call (Köroğlu) / ~538 bin üçgen; CPU açılış hazırlığı ~0,6 sn + karo birleştirme ~0,1 sn; bellek dizileri ≈ 79 MB; azaltma gerekmedi — [docs/faz-7-b-olcumler.md](docs/faz-7-b-olcumler.md), `tests/scalePerf`. Gerçek FPS elle GPU'lu masaüstünde)_
 - [x] **7.9** _(B)_ İçerik: Düzce–Bolu ışınlanma noktaları, kesintisiz yürüme, ekoloji/denge ölçümü _(testli: `tests/duzceBolu` — 10 ışınlanma noktası (1–9, 0) doğru ilde, Abant/Yedigöller kıyısında içilebilir su, dikişte sıçrama yok, Zonguldak → Düzce ve → Bolu fizikli yürüyüş; `creatureDensity` Düzce–Bolu ormanı (yoğunluk eski bölgeye benzer, `CREATURES` ayarlanmadı); eğim: dünya karasının %95,4'ü ≤ 60°; gerçek-veri test beklentileri güncellendi)_
-- [ ] **7.10** Birleştirme: eski bölge verisi/yükleyici temizliği, uçtan uca doğrulama, birleşik performans tablosu
-- [ ] **7.11** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
+- [x] **7.10** Birleştirme: eski bölge verisi/yükleyici temizliği, uçtan uca doğrulama, birleşik performans tablosu _(kalktı: `public/data/regions/`, `loadRegion`, `tools/build_region.py`, `regions.yaml`, `tile_legacy.py`, `--verify-legacy`, `compare_with_legacy`, `worldLegacyGolden` testi; ortak yardımcılar `build_world.py`'ye taşındı, `fetch_*` yalnızca `world.yaml` okur. Faz 6 alanına bağlı testler `loadLegacyRegion()` ile dünyanın (0, 0) penceresini kullanır; `latticeGolden` nesne özetleri bu pencereden yeniden kaydedildi (2 nesne farkı, ≤ 1 nicem). Başsız uçtan uca (Chromium, yazılımsal WebGL): açılışta eski veri istenmiyor, Faz 6 v1 kaydı yüklenip v2'ye çevrildi, Zonguldak → Düzce ışınlanıp "Düzce'ye hoş geldiniz" göründü, konsol/ağ hatası yok; birleşik performans tablosu [docs/faz-7-b-olcumler.md](docs/faz-7-b-olcumler.md) başında)_
+- [x] **7.11** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README, plan belgesine "tamamlandı" notu
 
 Kabul kriterleri:
-- [ ] Oyuncu Zonguldak'tan Düzce'ye ve Bolu'ya kesintisiz yürüyebiliyor (karo/eski-yeni alan sınırında boşluk, sıçrama, takılma yok)
-- [ ] Düzce ve Bolu gerçek il sınırlarıyla var; "Düzce'ye hoş geldiniz" bildirimi çıkıyor; Abant Gölü ve Yedigöller'de göl var ve içilebiliyor
-- [ ] Heightmap karo dosyalarına bölünmüş (her dosya ≤ 1 MB); eski alan karolardan bit-eşdeğer yüklenir (7.2), yeni alanla ≤ 1 nicem içinde (7.4)
-- [ ] Faz 6 (v1) kayıtları yeni dünyada yüklenir; tükenen ağaçlar ve öldürülen canlı beklemeleri aynı yerde
-- [ ] Performans bütçesi: kare başı draw call < 300 (başsız ölçüm, en kötü konumlar); açılış hazırlığı ölçülmüş _(gerçek FPS elle GPU'lu masaüstünde)_
-- [ ] Veri hattı tek komutla yeniden üretilebilir; Python ve TS testleri geçer
+- [x] Oyuncu Zonguldak'tan Düzce'ye ve Bolu'ya kesintisiz yürüyebiliyor (karo/eski-yeni alan sınırında boşluk, sıçrama, takılma yok) _(otomatik: `tests/duzceBolu` fizikli yürüyüş + dikişte sıçrama yok; gerçek fareyle yürüme hissi elle)_
+- [x] Düzce ve Bolu gerçek il sınırlarıyla var; "Düzce'ye hoş geldiniz" bildirimi çıkıyor; Abant Gölü ve Yedigöller'de göl var ve içilebiliyor _(`tests/duzceBolu`, `provinceNoticeRegion`; bildirim başsız tarayıcıda 7.10'da görüldü)_
+- [x] Heightmap karo dosyalarına bölünmüş (her dosya ≤ 1 MB); eski alan karolardan bit-eşdeğer yüklenir (7.2), yeni alanla ≤ 1 nicem içinde (7.4) _(yükseklik karoları 512 KB, örtü 256 KB; bit-eşdeğerlik/≤ 1 nicem 7.2/7.4'te eski veriyle doğrulandı, eski veri 7.10'da kalktığından artık yeniden karşılaştırılamaz: karolar manifestteki sha256 ile kilitli. `features.json` ≈ 1,1 MB, bu kriterin kapsamı dışında; büyürse karo başına bölünür — Faz 8+)_
+- [x] Faz 6 (v1) kayıtları yeni dünyada yüklenir; tükenen ağaçlar ve öldürülen canlı beklemeleri aynı yerde _(`tests/saveMigration`, gerçek v1 kayıt `tests/fixtures/save-v1.json`; başsız tarayıcıda 7.10'da yeniden denendi)_
+- [x] Performans bütçesi: kare başı draw call < 300 (başsız ölçüm, en kötü konumlar); açılış hazırlığı ölçülmüş _(en kötü 176 draw call / ~538 bin üçgen; açılış hazırlığı ~0,6 sn; gerçek FPS elle GPU'lu masaüstünde ölçülecek — açık)_
+- [x] Veri hattı tek komutla yeniden üretilebilir; Python ve TS testleri geçer _(`python build_world.py` (ham veri `fetch_*` ile iner); Python 98, Vitest 1343 test geçiyor; gerçek ham veriyle yeniden üretim 7.10'da yeniden çalıştırılmadı (~800 MB indirme), hat sentetik uçtan uca testli)_
 
 ---
 

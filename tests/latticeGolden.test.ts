@@ -143,7 +143,7 @@ beforeAll(async () => {
   real = worldOf(await loadRealWorld());
 }, 60_000);
 
-/** Faz 6 bölge verisinde (`public/data/regions`, 7.10'a kadar) kesin özetler. */
+/** Eski alanın (dünyanın (0, 0) köşesindeki 1588 × 1176 pencere) kesin özetleri. */
 describe('eski bölge golden özetleri (7.5 regresyon kapısı)', { timeout: 60_000 }, () => {
   it('scatterChunk: 12 chunk birebir aynı nesneleri üretir', () => {
     const digests: Record<string, string> = {};
@@ -267,21 +267,26 @@ describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 1
   });
 });
 
+/**
+ * 7.10: eski `public/data/regions` kalktığından özetler, karolu dünyanın eski alana düşen penceresinden
+ * (`loadLegacyRegion`) yeniden kaydedildi. Dünya geneli nicemleme (≤ 1 nicem ≈ 3,7 cm) eğim eşiğindeki 2 nesneyi
+ * değiştirdi (9832 → 9830); yerleşim kuralı ve adaylar (`CANDIDATE_GOLDEN`) aynıdır.
+ */
 const SCATTER_GOLDEN = {
-  total: 9832,
+  total: 9830,
   digests: {
     '0,0': '4b95f515',
-    '12,9': '27655d8e',
-    '6,4': 'fdda65b3',
-    '3,7': 'a9dc59c0',
-    '9,2': '64ed8957',
-    '5,5': '3d014798',
-    '11,6': '7bad7232',
-    '8,5': '605c3d12',
-    '7,8': '05b877ae',
-    '4,3': '9cf46c6f',
-    '10,0': 'e1ed43e1',
-    '1,9': 'ac218180',
+    '12,9': 'd887ccbc',
+    '6,4': '44a06b3a',
+    '3,7': '584bc7ab',
+    '9,2': '959ed496',
+    '5,5': '1bddf8f9',
+    '11,6': '55c94b82',
+    '8,5': '1fa3d2d6',
+    '7,8': '307f3254',
+    '4,3': 'b496006f',
+    '10,0': 'ac2b6c5f',
+    '1,9': '812bef28',
   },
 };
 const CANDIDATE_GOLDEN = {
