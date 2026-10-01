@@ -31,7 +31,7 @@ uniform float uNoiseStrength;
 uniform float uNoiseFade;
 uniform sampler2D uCoverA;    // arazi örtüsü ağırlıkları: forest, shrub, grass, crop
 uniform sampler2D uCoverB;    // barren, urban, snow, wetland
-uniform vec4 uCoverGrid;      // (yarı genişlik, yarı yükseklik, hücre boyu, 0): hücre merkezi konumları
+uniform vec4 uCoverGrid;      // (−orijin.x / hücre, −orijin.z / hücre, hücre boyu, 0): hücre merkezi konumları
 uniform vec2 uCoverSize;      // ızgara boyutu (hücre)
 uniform vec3 uCoverForest;
 uniform vec3 uCoverShrub;
@@ -80,7 +80,7 @@ vec3 terrainAlbedo(vec3 world, vec3 normal, float viewDistance) {
   color = mix(color, uAlpine, alpineAmount);
 
   // Arazi örtüsü: hücre merkezlerinde örneklenen ağırlıklar lineer filtrelenir (sınıf sınırları yumuşak).
-  // Piksel merkezi örnekleri: x = (c − (W−1)/2)·cell → doku koordinatı (c + 0.5)/W; satır 0 kuzeyde (z −).
+  // Piksel merkezi örnekleri: x = orijin.x + c·cell → doku koordinatı (c + 0.5)/W; satır 0 kuzeyde (z −).
   vec2 coverUv = (world.xz / uCoverGrid.z + uCoverGrid.xy + 0.5) / uCoverSize;
   vec4 coverA = texture2D(uCoverA, coverUv);
   vec4 coverB = texture2D(uCoverB, coverUv);
@@ -118,6 +118,8 @@ export interface TerrainCover {
   height: number;
   /** Izgara hücre boyu (oyun metresi). */
   cell: number;
+  /** Dizinin (0, 0) örneğinin konumu (oyun m); verilmezse eski merkezli düzen. */
+  origin?: { x: number; z: number };
 }
 
 /** Ağırlık verisinden lineer filtreli, mipmap'li RGBA doku (veri dokusu: renk uzayı yok). */
@@ -148,6 +150,10 @@ export function createTerrainMaterial(cover: TerrainCover | null = null): MeshSt
     : { a: new Uint8Array(4), b: new Uint8Array(4) };
   const coverA = weightTexture(weights.a, width, height);
   const coverB = weightTexture(weights.b, width, height);
+  const cell = cover?.cell ?? 1;
+  const coverGrid = cover?.origin
+    ? [-cover.origin.x / cell, -cover.origin.z / cell, cell, 0]
+    : [(width - 1) / 2, (height - 1) / 2, cell, 0];
   material.addEventListener('dispose', () => {
     coverA.dispose();
     coverB.dispose();
@@ -174,9 +180,7 @@ export function createTerrainMaterial(cover: TerrainCover | null = null): MeshSt
       uNoiseFade: { value: look.noiseFadeDistance },
       uCoverA: { value: coverA },
       uCoverB: { value: coverB },
-      uCoverGrid: {
-        value: [(width - 1) / 2, (height - 1) / 2, cover?.cell ?? 1, 0],
-      },
+      uCoverGrid: { value: coverGrid },
       uCoverSize: { value: [width, height] },
       uCoverForest: { value: toVec3(look.cover.forest) },
       uCoverShrub: { value: toVec3(look.cover.shrub) },

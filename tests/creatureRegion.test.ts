@@ -63,7 +63,6 @@ describe('gerçek bölge: doğma kuralları', () => {
       seen.add(String(c.id));
       expect(c.cell).toBe(
         cellKey(
-          grid,
           Math.floor((c.x - grid.minX) / grid.size),
           Math.floor((c.z - grid.minZ) / grid.size),
         ),

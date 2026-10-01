@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CHUNK } from '../src/config';
-import { creatureId as legacyCreatureId, MAX_CREATURES_PER_CELL } from '../src/creatures/species';
-import { cellKey, makeSpawnGrid } from '../src/creatures/spawn';
+import { MAX_CREATURES_PER_CELL } from '../src/creatures/species';
+import { makeSpawnGrid } from '../src/creatures/spawn';
 import type { RegionData } from '../src/data/region';
 import {
   CHUNK_KEY_BIAS,
@@ -18,10 +18,15 @@ import {
   legacyPropIdToAbsolute,
 } from '../src/world/chunkKeys';
 import { chunkKey, chunkRect, makeChunkGrid } from '../src/world/chunks';
-import { PROP_INDEX_LIMIT, propId as legacyPropId } from '../src/world/propIndex';
+import { PROP_INDEX_LIMIT } from '../src/world/propIndex';
 import { latticeX, latticeZ } from '../src/world/lattice';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { loadRealRegion } from './helpers/realRegion';
+
+/** Faz 6 (v1) şeması: anahtar `cy · cols + cx` (7.5'te koddan kalktı; göç testleri için burada). */
+function legacyKey(cols: number, cx: number, cy: number): number {
+  return cy * cols + cx;
+}
 
 describe('mutlak chunk anahtarı', () => {
   it('gidiş-dönüş: negatif ve büyük koordinatlar dahil', () => {
@@ -61,8 +66,8 @@ describe('mutlak chunk anahtarı', () => {
   it('anahtar ızgara boyutundan bağımsızdır (eski anahtar cols’a bağlıydı)', () => {
     const wide = makeChunkGrid(2228, 1962, 2);
     const narrow = makeChunkGrid(1588, 1176, 2);
-    expect(chunkKey(wide, 2, 3)).not.toBe(chunkKey(narrow, 2, 3)); // eski şema: kayar
-    expect(absoluteChunkKey(2, 3)).toBe(absoluteChunkKey(2, 3)); // yeni şema: sabit
+    expect(legacyKey(wide.cols, 2, 3)).not.toBe(legacyKey(narrow.cols, 2, 3)); // eski şema: kayar
+    expect(chunkKey(2, 3)).toBe(absoluteChunkKey(2, 3)); // yeni şema: sabit
   });
 });
 
@@ -131,7 +136,7 @@ describe('Faz 6 (v1) kimliklerinin göçü', () => {
     const seen = new Set<number>();
     for (let cy = 0; cy < grid.rows; cy++) {
       for (let cx = 0; cx < grid.cols; cx++) {
-        const mapped = legacyChunkKeyToAbsolute(chunkKey(grid, cx, cy));
+        const mapped = legacyChunkKeyToAbsolute(legacyKey(grid.cols, cx, cy));
         expect(mapped).toBe(absoluteChunkKey(cx, cy));
         seen.add(mapped as number);
       }
@@ -143,16 +148,16 @@ describe('Faz 6 (v1) kimliklerinin göçü', () => {
     const source = RegionHeightSource.fromRegion(region);
     const grid = makeChunkGrid(source.width, source.height, source.cell);
     const spawn = makeSpawnGrid(source.bounds);
-    const oldProp = legacyPropId(chunkKey(grid, 7, 4), 1234);
+    const oldProp = legacyKey(grid.cols, 7, 4) * PROP_INDEX_LIMIT + 1234;
     const mapped = legacyPropIdToAbsolute(oldProp) as number;
     const decoded = decodeAbsolutePropId(mapped);
     expect(decodeAbsoluteChunkKey(decoded.chunkKey)).toEqual({ cx: 7, cy: 4 });
     expect(decoded.index).toBe(1234);
 
-    const oldCell = cellKey(spawn, 12, 9);
+    const oldCell = legacyKey(spawn.cols, 12, 9);
     expect(legacyCellKeyToAbsolute(oldCell)).toBe(absoluteChunkKey(12, 9));
-    // eski canlı kimliği de aynı hücreyi gösterir
-    expect(Math.floor(legacyCreatureId(oldCell, 5) / CREATURE_ID_STRIDE)).toBe(oldCell);
+    // eski canlı kimliği (`hücre · 256 + sıra`) de aynı hücreyi gösterir
+    expect(Math.floor((oldCell * MAX_CREATURES_PER_CELL + 5) / CREATURE_ID_STRIDE)).toBe(oldCell);
   });
 
   it('eski ızgara dışındaki ya da bozuk değerler null verir (göç bunları atar)', () => {

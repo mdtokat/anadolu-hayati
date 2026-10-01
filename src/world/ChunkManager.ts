@@ -1,7 +1,7 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, type Material } from 'three';
 import { CHUNK } from '../config';
 import { buildChunkMesh } from './chunkGeometry';
-import { chunkKey, distanceToChunk, lodForDistance, makeChunkGrid, type ChunkGrid } from './chunks';
+import { chunkGridFor, chunkKey, distanceToChunk, lodForDistance, type ChunkGrid } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
 
 export interface ChunkManagerOptions {
@@ -47,7 +47,7 @@ export class ChunkManager {
     private readonly material: Material,
     options: ChunkManagerOptions = {},
   ) {
-    this.grid = makeChunkGrid(source.width, source.height, source.cell);
+    this.grid = chunkGridFor(source);
     this.viewDistance = options.viewDistance ?? CHUNK.viewDistance;
     this.maxBuilds = options.maxBuildsPerFrame ?? CHUNK.maxBuildsPerFrame;
     this.group.name = 'terrain-chunks';
@@ -67,7 +67,7 @@ export class ChunkManager {
 
   /** Chunk'ın mevcut LOD'u; yüklü değilse undefined. */
   lodOf(cx: number, cy: number): number | undefined {
-    return this.chunks.get(chunkKey(this.grid, cx, cy))?.lod;
+    return this.chunks.get(chunkKey(cx, cy))?.lod;
   }
 
   /**
@@ -78,9 +78,10 @@ export class ChunkManager {
     const work: Array<{ cx: number; cy: number; lod: number; distance: number }> = [];
     let removed = 0;
 
-    for (let cy = 0; cy < this.grid.rows; cy++) {
-      for (let cx = 0; cx < this.grid.cols; cx++) {
-        const key = chunkKey(this.grid, cx, cy);
+    const { cx0, cy0, cols, rows } = this.grid;
+    for (let cy = cy0; cy < cy0 + rows; cy++) {
+      for (let cx = cx0; cx < cx0 + cols; cx++) {
+        const key = chunkKey(cx, cy);
         const entry = this.chunks.get(key);
         const distance = distanceToChunk(this.grid, cx, cy, focusX, focusZ);
 
@@ -112,7 +113,7 @@ export class ChunkManager {
   }
 
   private build(cx: number, cy: number, lod: number): void {
-    const key = chunkKey(this.grid, cx, cy);
+    const key = chunkKey(cx, cy);
     const data = buildChunkMesh(this.source, this.grid, cx, cy, lod);
 
     const geometry = new BufferGeometry();

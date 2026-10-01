@@ -69,6 +69,7 @@ export class RegionWorld implements GameWorld {
         width: this.source.width,
         height: this.source.height,
         cell: this.source.cell,
+        origin: this.source.origin,
       },
     );
     this.environment = new Environment(this.scene, {

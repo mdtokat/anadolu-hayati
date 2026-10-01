@@ -1,5 +1,5 @@
 import { CHUNK } from '../config';
-import { sampleX, sampleZ, type ChunkGrid } from './chunks';
+import { chunkCol0, chunkRow0, sampleX, sampleZ, type ChunkGrid } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
 
 /** Three.js'e bağımlı olmayan chunk geometrisi (typed array'ler). */
@@ -36,8 +36,8 @@ export function buildChunkMesh(
   const positions = new Float32Array(total * 3);
   const normals = new Float32Array(total * 3);
 
-  const col0 = cx * grid.cells;
-  const row0 = cy * grid.cells;
+  const col0 = chunkCol0(grid, cx);
+  const row0 = chunkRow0(grid, cy);
   const step = stride * grid.cellSize;
 
   for (let r = 0; r < n; r++) {

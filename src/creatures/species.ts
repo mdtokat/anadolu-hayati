@@ -1,4 +1,5 @@
 import type { LandCoverClass } from '../data/landcover';
+import { absoluteCreatureId } from '../world/chunkKeys';
 import { CREATURE_KINDS, type CreatureId, type CreatureKind } from './kinds';
 
 /**
@@ -279,14 +280,12 @@ export function speciesOf(kind: CreatureKind): SpeciesDef {
 /** Bir hücrede en çok bu kadar canlı (kimlik alanı 8 bit). */
 export const MAX_CREATURES_PER_CELL = 256;
 
-/** `creatureId(cellKey, index) = cellKey * 256 + index`; aynı tohum → aynı kimlik. */
+/**
+ * `creatureId(cellKey, index) = cellKey * 256 + index` (< 2⁴⁰); hücre anahtarı mutlak chunk anahtarıdır
+ * (`chunkKeys.absoluteCreatureId`). Aynı tohum → aynı kimlik.
+ */
 export function creatureId(cellKey: number, index: number): CreatureId {
-  if (!Number.isInteger(cellKey) || cellKey < 0)
-    throw new Error(`Geçersiz hücre anahtarı: ${cellKey}`);
-  if (!Number.isInteger(index) || index < 0 || index >= MAX_CREATURES_PER_CELL) {
-    throw new Error(`Geçersiz canlı dizini: ${index}`);
-  }
-  return cellKey * MAX_CREATURES_PER_CELL + index;
+  return absoluteCreatureId(cellKey, index);
 }
 
 export function decodeCreatureId(id: CreatureId): { cellKey: number; index: number } {

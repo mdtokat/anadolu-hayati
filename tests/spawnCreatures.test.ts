@@ -18,6 +18,7 @@ import {
   trapezoidWeight,
 } from '../src/creatures/spawn';
 import { SPECIES, decodeCreatureId } from '../src/creatures/species';
+import { absoluteChunkKey } from '../src/world/chunkKeys';
 import { fakeTerrain } from './helpers/fakeTerrain';
 
 const terrain = fakeTerrain();
@@ -34,9 +35,17 @@ const busy = (() => {
 })();
 
 describe('doğma ızgarası', () => {
-  it('bölge sınırına hizalı: 6×6 hücre, anahtar = cy·cols + cx', () => {
-    expect(grid).toMatchObject({ size: 256, cols: 6, rows: 6, minX: -768, minZ: -768 });
-    expect(cellKey(grid, 2, 1)).toBe(8);
+  it('kafese hizasız sentetik arazi: sınıra hizalı 6×6 hücre, anahtar mutlak chunk anahtarı', () => {
+    expect(grid).toMatchObject({
+      size: 256,
+      cx0: 0,
+      cy0: 0,
+      cols: 6,
+      rows: 6,
+      minX: -768,
+      minZ: -768,
+    });
+    expect(cellKey(2, 1)).toBe(absoluteChunkKey(2, 1));
     expect(cellOf(grid, -768, -768)).toEqual({ cx: 0, cy: 0 });
     expect(cellOf(grid, 0, 0)).toEqual({ cx: 3, cy: 3 });
     expect(cellOf(grid, 767, 767)).toEqual({ cx: 5, cy: 5 });
@@ -153,7 +162,7 @@ describe('aday canlılar (deterministik)', () => {
     for (let cy = 0; cy < 3; cy++) {
       for (let cx = 0; cx < 3; cx++) {
         const rect = cellRect(grid, cx, cy);
-        const key = cellKey(grid, cx, cy);
+        const key = cellKey(cx, cy);
         const list = candidatesForCell({ grid, terrain, cx, cy, epoch: 0 });
         list.forEach((c, index) => {
           expect(c.x).toBeGreaterThanOrEqual(rect.minX);
