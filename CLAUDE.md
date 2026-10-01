@@ -49,12 +49,13 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
   - **Performans (Faz 5):** headless yazılımsal WebGL'de 40 canlı çizilirken en kötü +2 draw call, +9,3 bin üçgen (Yenice 73 → 75 draw call, 568 bin → 578 bin üçgen); bir `CreatureSystem.update` adımı ortalama 0,02 ms (40 canlıyla). Gerçek FPS ölçülmedi (elle GPU'lu masaüstünde). Sorun olursa ilk hamle `CREATURES.maxActive`/`simRadius`.
   - TypeScript **6.0.3'e sabit**: `typescript-eslint` 8.71 `typescript <6.1.0` istiyor; 7.x'e geçiş `typescript-eslint` uyumu gelene kadar ertelendi.
   - Prettier yalnızca kod/config dosyalarını biçimlendirir; `*.md` belgeleri elle yazılır (`.prettierignore`).
-  - Rapier WASM'ı base64 gömülü olduğu için `rapier` chunk'ı ~4,3 MB ham / ~1,7 MB gzip. Yükleme bütçesini (< 10 sn) izle; gerekirse WASM'ı ayrı dosya olarak sunmayı değerlendir.
+  - Rapier WASM'ı base64 gömülü olduğu için `rapier` chunk'ı ~4,3 MB ham / ~1,7 MB gzip. Yükleme bütçesi (< 10 sn) `npm run build:check` ile her CI çalışmasında ölçülür; gerekirse WASM'ı ayrı dosya olarak sunmayı değerlendir.
   - Karakter: Rapier yamaçta yatay mesafeyi cos²θ kısaltıyor; `Player` çarpışma sonrası hızı yalnızca havadayken veya tırmanılamaz yüzeye çarpınca geri yazar (aksi halde oyuncu yamaca "yapışıyordu"). Bu davranışı değiştirirken `tests/player.test.ts` yamaç testlerine bak.
   - Esc tarayıcıda pointer lock'u kendisi bırakır; duraklatma `pointerlockchange` olayına bağlı. Chrome, Esc'ten hemen sonra kilidi geri vermeyebilir (menüde ipucu gösterilir).
   - Dev modunda `window.__game` hata ayıklama kancası vardır (üretimde yok); headless doğrulamada kullanıldı.
   - Faz 1 arazisi prosedürel test arazisidir (`ProceduralHeightSource`); Faz 2'de gerçek yükseklik verisi aynı `HeightSource` arayüzüne takılacak.
   - `vite preview` de üretim `base` değerini (`/anadolu-hayati/`) kullanır; yerelde önizleme adresi `http://localhost:4173/anadolu-hayati/`.
+  - **Build sistemi** (`scripts/`, `vite.config.ts`, `.github/workflows/`): derleme betikleri TypeScript'tir ve Node'un yerleşik tür ayıklamasıyla çalışır (Node ≥ 22.18; bağımlılık yok; `scripts/` içinde yalnızca silinebilir sözdizimi: enum/parametre özelliği yok, yerel içe aktarmalar `.ts` uzantılı). `scripts/site.ts` Pages taban yolunun (`/anadolu-hayati/`) tek kaynağıdır. **Derleme kimliği:** `scripts/buildInfo.ts` sürüm + commit (`BUILD_COMMIT` › `git rev-parse HEAD` › `GITHUB_SHA`) + yerel değişiklik işareti + zamanı toplar, `define` ile `src/buildInfo.ts`'e gömülür (Vitest'te `UNKNOWN_BUILD`), `dist/build-info.json` olarak da yayınlanır; Krediler ekranının altında ve konsolda görünür. **Bütçe:** `scripts/buildBudget.ts` (chunk başına ham/gzip, açılış JS+CSS, veri toplamı/en büyük dosya, 20 Mbit/s'de tahmini ilk yükleme < 10 sn; `.bin` sıkıştırılmadan iner varsayımı; ölçüm: rapier 1,64 MB gzip, açılış 1,86 MB, veri 20,1 MB, tahmini 8,5 sn). `npm run build:check` (`scripts/check-build.ts`, saf mantık `buildReport.ts`, `tests/buildReport.test.ts`) bütçeyi ve yayın bütünlüğünü (index.html yolları base'le başlar ve vardır, `public/` eksiksiz kopyalanmış, karolar bayt + sha256 doğru) denetler; aşım/sorun çıkış kodu 1, `warnRatio` (0,9) üstü uyarı; Markdown rapor CI job özetine yazılır. `vite.config.ts` `chunkSizeWarningLimit` = rapier `rawKB`. `npm run build:analyze` (`--mode analyze`: yine üretim derlemesi) kaynak haritası ve `build-stats.json` üretir, rapor chunk başına en büyük kaynakları listeler. **CI:** `check` işi `npm run check` adımlarını ayrı ayrı çalıştırır ve `dist`'i 7 gün artifact olarak saklar; **Pages yayını `workflow_run` ile yalnızca main'e push'un CI'ı yeşil bitince** çalışır (aynı commit'i `BUILD_COMMIT` ile derler; çatal PR'ların "main" dalları elenir); elle tetikleme testsiz derler, yalnızca `build:check` yapar. **Bütçe sınırı yükseltmek bilinçli bir karardır** (gerekçe commit mesajında).
 
 ## Teknoloji Yığını
 
@@ -99,8 +100,10 @@ Yeni bir bağımlılık eklemeden önce gerekçesini belirt ve kullanıcıya sor
 │  ├─ settings/             # Kullanıcı ayarları (grafik kalitesi, fare, ses) ve `localStorage` deposu (saf mantık)
 │  ├─ audio/                # Ortam sesleri: seviye modeli (saf mantık), Web Audio sentez grafiği, denetleyici
 │  ├─ data/                 # Bölge verisi yükleyicileri
+│  ├─ buildInfo.ts          # Derleme kimliği (sürüm, commit, zaman; `define` ile gömülür)
 │  └─ utils/                # Matematik, seeded random vb.
 ├─ public/data/world/       # İşlenmiş dünya verisi: manifest + karolar (oyunun okuduğu dosyalar)
+├─ scripts/                 # Derleme betikleri (TS, Node ile doğrudan): bütçe, derleme denetimi, Vite eklentileri
 ├─ tools/                   # Python veri işleme scriptleri
 │  ├─ requirements.txt
 │  ├─ raw/                  # Ham indirilen veri — .gitignore'da, ASLA commit edilmez
@@ -211,11 +214,14 @@ Tüm atıflar README.md'de ve oyunun içinde (menü → Krediler) gösterilmelid
 ```bash
 npm run dev         # Geliştirme sunucusu
 npm run build       # Üretim derlemesi
+npm run build:check # Derleme raporu: boyut bütçesi + yayın bütünlüğü (build'den sonra)
+npm run build:analyze # Kaynak haritalı derleme + chunk başına en büyük kaynaklar
 npm run preview     # Derlemeyi yerelde önizle
 npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest
 npm run format      # Prettier (biçimlendir); format:check yalnızca denetler
+npm run check       # Hepsi: format:check + lint + typecheck + test + build + build:check
 ```
 
 Veri hattı (Faz 7: kafes/karo düzeni; Python 3.11+):
@@ -237,7 +243,7 @@ Dünya tanımı `tools/world.yaml`'dadır (eski `regions.yaml`/`build_region.py`
 1. **Önce oku:** Göreve başlamadan önce `ROADMAP.md`'deki aktif fazı ve bu dosyadaki "Mevcut Durum"u kontrol et.
 2. **Plan, sonra kod:** Birden fazla dosyaya dokunan işlerde önce kısa bir plan sun, onay al.
 3. **Küçük adımlar:** Bir görev = bir anlamlı commit. Çok büyük değişiklikleri alt görevlere böl.
-4. **Bitirmeden önce doğrula:** Her görevin sonunda `npm run lint`, `npm run typecheck`, `npm test` ve `npm run build` hatasız geçmeli.
+4. **Bitirmeden önce doğrula:** Her görevin sonunda `npm run check` (= `format:check`, `lint`, `typecheck`, `test`, `build`, `build:check`) hatasız geçmeli.
 5. **Commit mesajları:** Conventional Commits formatında (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`).
 6. **Branch:** Her faz kendi branch'inde (`faz-0-kurulum`, `faz-1-prototip` …). Main'e PR ile birleşir.
 7. **Kapsam dışına çıkma:** Aktif fazda olmayan özellikleri ekleme. Fikir varsa ROADMAP.md'deki "Fikir Havuzu"na not düş.
