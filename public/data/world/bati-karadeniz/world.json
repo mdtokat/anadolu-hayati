@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "id": "bati-karadeniz",
+  "name": "Batı Karadeniz",
+  "crs": "EPSG:32636",
+  "originUtm": [
+    434085,
+    4576261
+  ],
+  "horizontalScale": 50,
+  "cellSizeReal": 100,
+  "lattice": {
+    "anchorX": -1587,
+    "anchorZ": -1175
+  },
+  "tileSize": 512,
+  "extent": {
+    "col0": 0,
+    "row0": 0,
+    "cols": 1588,
+    "rows": 1176
+  },
+  "elevation": {
+    "min": 0.0,
+    "max": 1996.0,
+    "encoding": "uint16"
+  },
+  "tiles": [
+    {
+      "tx": 0,
+      "ty": 0,
+      "height": "tiles/0_0.height.bin",
+      "cover": "tiles/0_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "1411e079bdb7f76f783c8b7d35696406888aa28ac22767c9a2cdf88327b3d7f3"
+    },
+    {
+      "tx": 1,
+      "ty": 0,
+      "height": "tiles/1_0.height.bin",
+      "cover": "tiles/1_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "b5720a01c55743441e98b585470dee03c0c9874e1e426bc2ba70b3e8bc25cf16"
+    },
+    {
+      "tx": 2,
+      "ty": 0,
+      "height": "tiles/2_0.height.bin",
+      "cover": "tiles/2_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "8973fad0c8d5c472c94aca0c8eb3419b2335feb1f50f0327da9b26715c8feb8c"
+    },
+    {
+      "tx": 3,
+      "ty": 0,
+      "height": "tiles/3_0.height.bin",
+      "cover": "tiles/3_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "6d535348501627cf37333a2203e7a337c2daa7741c47f2d42d89dd572cddcc80"
+    },
+    {
+      "tx": 0,
+      "ty": 1,
+      "height": "tiles/0_1.height.bin",
+      "cover": "tiles/0_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "7fa6bad573d195664810592a6c0a4a9a43caa6bb00739c5bffb6e301809ea6cc"
+    },
+    {
+      "tx": 1,
+      "ty": 1,
+      "height": "tiles/1_1.height.bin",
+      "cover": "tiles/1_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "692edbb18c3293ea910c8ff8791df9b85b61a0d94d3e48e30b133c6109d06d4b"
+    },
+    {
+      "tx": 2,
+      "ty": 1,
+      "height": "tiles/2_1.height.bin",
+      "cover": "tiles/2_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "40c37ad5789d6504db73cfea4bbb9846bb70436a6e189193712075480259272e"
+    },
+    {
+      "tx": 3,
+      "ty": 1,
+      "height": "tiles/3_1.height.bin",
+      "cover": "tiles/3_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "d735d3323411fd79056ec815e954ed722224ec6dd0d7a00029b49664e9f682f3"
+    },
+    {
+      "tx": 0,
+      "ty": 2,
+      "height": "tiles/0_2.height.bin",
+      "cover": "tiles/0_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "4de6bf56419cd6de7f193c35c2c1210d476fc1584120faf47d42cdc46b601d10"
+    },
+    {
+      "tx": 1,
+      "ty": 2,
+      "height": "tiles/1_2.height.bin",
+      "cover": "tiles/1_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "f2b54e34d248220f6662a094b53bc2922d9f2a0007a51747c988b0be857bdea1"
+    },
+    {
+      "tx": 2,
+      "ty": 2,
+      "height": "tiles/2_2.height.bin",
+      "cover": "tiles/2_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "a9c52cb2366cdc6efac0d09af416c6ee4612ea20663ebacbf34ecf39d0a95d9b"
+    },
+    {
+      "tx": 3,
+      "ty": 2,
+      "height": "tiles/3_2.height.bin",
+      "cover": "tiles/3_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "e11fcc4aa236f78e35245a6ec5bfcaaf0d79161b0b1f20fba9051d61d871e3d6"
+    }
+  ],
+  "provinces": "provinces.geojson",
+  "features": {
+    "file": "features.json",
+    "layers": [
+      "water"
+    ]
+  },
+  "landcover": {
+    "classes": [
+      "none",
+      "forest",
+      "shrub",
+      "grass",
+      "crop",
+      "barren",
+      "urban",
+      "snow",
+      "wetland"
+    ]
+  },
+  "sources": [
+    "Copernicus GLO-30 DEM",
+    "geoBoundaries",
+    "Overture Maps (OpenStreetMap)",
+    "ESA WorldCover 2021 (Overture Maps)"
+  ],
+  "overtureRelease": "2026-09-23.1",
+  "built": "2026-09-30"
+}
