@@ -207,7 +207,45 @@ Kabul kriterleri:
 
 ---
 
-## Faz 8+ — Genişleme
+## Faz 8 — Pilot İl: Zonguldak
+**Branch:** `faz-8-pilot-zonguldak` _(alt görevler ayrı branch/PR'larla `main`'e girer)_
+**Karar:** Kullanıcı talimatıyla **harita genişletmesi durduruldu** (aşağıdaki "Genişleme" bölümü bekliyor); mevcut haritada **Zonguldak pilot il** seçildi. Bu faz yeni il/karo eklemeden, oyunu **tek bir il üzerinde derinleştirir ve cilalar**. Diğer iller (Bartın, Karabük, Düzce, Bolu) haritada ve oynanabilir kalır; yeni çalışma onlara özel yapılmaz, ama bozulmamalıdır (mevcut testler geçmeye devam eder).
+**Amaç:** Zonguldak'ı "bitmiş hissettiren" bir oyun alanı yap: oyuncu burada başlar, öğrenir, hayatta kalır ve ilin farklı yüzlerini (kıyı, vadi, orman, yayla) tanır. Bölgeyle ilgili ölçülmemiş denge ve elle doğrulama borçları kapanır.
+
+**Kapsam dışı (bu faz boyunca):** kömür/maden teması (kullanıcı kararı; fikir Fikir Havuzu'nda kalır), zorunlu öğretici/görev sistemi, yeni il/karo eklemek, `tools/world.yaml` / `build_world.py` ile dünyayı büyütmek, karo akışı, yeni UTM bölgesi, yeni çalışma zamanı bağımlılığı (gerekirse önce sorulur). Veri hattı yalnızca **mevcut** dünya verisini daha iyi kullanmak için (ör. ilçe/yer adı listesi, örtü iyileştirme) dokunulabilir; harita sınırı/kafes/karo kümesi değişmez.
+
+Görevler (numaralar alt görev sırasıdır; her biri bir anlamlı commit/PR):
+- [x] **8.0** Zonguldak ölçüm tabanı: il sınırı içinde kara alanı, arazi örtüsü dağılımı, rakım/eğim dağılımı, tatlı su (nehir/göl), kıyı uzunluğu, canlı doğma yoğunluğu, draw call/üçgen/bellek; çıktı `docs/faz-8-zonguldak-olcumler.md` ve (gerekirse) `tests/zonguldakBaseline` _(sonraki görevlerin "önce/sonra" karşılaştırması bu tabana göredir; değişiklik yok, yalnızca ölçüm)_ _(tamam: `tests/zonguldakBaseline.test.ts` + `tests/helpers/creatureWalk.ts`, rapor [docs/faz-8-zonguldak-olcumler.md](docs/faz-8-zonguldak-olcumler.md); en kötü Zonguldak içi 98 draw call / ~591 bin üçgen; **bulgu:** il çokgeni kıyıdan içeride, kıyı şeridinde `provinceAt` null — 8.1 "Zonguldak içi" tanımında dikkate alınmalı)_
+- [ ] **8.1** Pilot il çerçevesi: yeni oyun başlangıcı ve **yeniden doğma yalnızca Zonguldak içinde** (kullanıcı kararı: ölünce hangi ilde olunursa olunsun oyuncu Zonguldak'ta güvenli bir noktaya doğar; `RESPAWN` Zonguldak il sınırıyla sınırlanır, n. ölüm için deterministik-rastgele seçim korunur); `config.ts` altında `PILOT` bloğu (pilot il adı, başlangıç noktası) _(kayıt şeması değişmez; mevcut v2 kayıtlar yüklenir; il dışına çıkmak ve bildirim akışı aynen çalışır)_
+- [ ] **8.2** Zonguldak yer adları ve ışınlanma: ilçe merkezleri ve belirgin yerler (ör. Zonguldak merkez, Kozlu, Kilimli, Karadeniz Ereğli, Çaycuma, Devrek, Gökçebey, Alaplı, Filyos vadisi) `TELEPORTS`/yer adı tablosuna eklenir _(koordinatlar gerçek enlem/boylamdan; her nokta Zonguldak içinde, yürünebilir ve yakında içilebilir su/yakıt konumunda testli, `tests/duzceBolu` benzeri)_
+- [ ] **8.3** Yer adı bildirimi: il altı (ilçe/yer) geçişinde HUD bildirimi, `ProvinceTracker` mantığına benzer saf mantık _(ilçe sınırı yerine nokta + yarıçap tabanlı; yeni veri/bağımlılık gerekmez)_
+- [ ] **8.4** Zonguldak ekoloji ve denge turu: kıyı, vadi, orman ve yayla bölgeleri için canlı yoğunluğu, kurt/ayı tehdidi, gece soğuğu, yiyecek/su/yakıt bulunabilirliği ölçülür; sorunlar `CREATURES`, `SCATTER`, `CLIMATE` ayarlarıyla düzeltilir _(`tests/balanceEncounters`, `creatureDensity`, `vitals` yeniden çalıştırılır; değerler ayarlanırsa golden/denge testleri güncellenir)_
+- [ ] **8.5** İlk dakikalar için ipucu akışı: Zonguldak başlangıcında oyuncuya ihtiyaç sırasıyla (su → yiyecek → ateş → barınak → av) kısa HUD ipuçları, kontrol özeti _(**yalnızca ipucu**: zorunlu adım, kilit veya görev zinciri yok; saf mantık + `Hud`; her ipucu bir kez gösterilir, ayarlardan kapatılabilir)_
+- [ ] **8.6** Performans ve görsel cila: Zonguldak içinde en kötü konumlarda (merkez kıyısı, Filyos vadisi, yüksek orman) draw call/üçgen ölçümü; bütçe < 300 draw call korunur; sorun çıkarsa `SCATTER`/LOD eşikleri ve su meshi bölme _(8.0 tabanıyla karşılaştırılır)_
+- [ ] **8.7** Elle doğrulama borçlarının pilot ilde toplanması: aşağıdaki liste için kısa bir "elle test kılavuzu" (`docs/faz-8-elle-dogrulama.md`) hazırlanır; sonuçlar kullanıcıdan alınıp işaretlenir
+- [ ] **8.8** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
+
+Kabul kriterleri:
+- [ ] Yeni oyun ve yeniden doğma Zonguldak içinde başlıyor; il dışına çıkmak hâlâ mümkün ve bildirim doğru çalışıyor _(testli)_
+- [ ] En az 8 Zonguldak yer adı/ışınlanma noktası var; hepsi doğru ilde, yürünebilir ve yakınında su var _(testli)_
+- [ ] Zonguldak ölçüm raporu var ve 8.4/8.6 sonrası "önce/sonra" karşılaştırması raporda yer alıyor _(`docs/faz-8-zonguldak-olcumler.md`)_
+- [ ] Denge: hiçbir şey yapmayan oyuncu ölür, ateş + barınak + av zinciri Zonguldak'ta uygulanabilir; kıyıda ve yüksek ormanda gece davranışı beklenen aralıkta _(`vitals`, `balanceEncounters`, `creatureDensity` testleri geçer)_
+- [ ] Performans bütçesi korunur: draw call < 300, Zonguldak'ta en kötü konum tabana göre ≤ +%10 draw call _(başsız ölçüm; gerçek FPS elle)_
+- [ ] Mevcut v1/v2 kayıtlar yüklenir; `SAVE_FORMAT_VERSION` yalnızca şema değişirse artırılır ve göç adımı eklenir
+- [ ] Lint, typecheck, Vitest ve build hatasız; Python testleri etkilenmez (dünya verisi değişmez, `world.json` sha256'ları aynı)
+- [ ] Elle doğrulama kılavuzu hazır (sonuçlar kullanıcı tarafından işaretlenir)
+
+Elle doğrulanacak (gerçek GPU'lu masaüstü ve hoparlör gerekir; Zonguldak çevresinde toplanır):
+- [ ] 60 FPS (en kötü konumlar: Zonguldak merkez kıyısı, Filyos vadisi; tüm dünya görüşteyken)
+- [ ] Zonguldak ormanlarında ve yüksek kesimlerinde (Filyos vadisi, Devrek–Alaplı çevresi) oyun hissi, orman/ağaç görsel tanınırlığı _(Faz 2/4)_
+- [ ] "Sıfırdan ateş ve barınak kurma" zinciri _(Faz 4)_; avlanma, kurt/ayı tehdidi, çiğ et riski, ateşin caydırıcılığı _(Faz 5)_
+- [ ] Ortam sesleri (deniz, rüzgâr, kuş, baykuş) gerçek hoparlörde; kalite ön ayarlarının FPS etkisi; menü/yuva akışı gerçek fare kilidiyle _(Faz 6)_
+
+---
+
+## Genişleme (DURDURULDU — kullanıcı talimatıyla)
+> Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
+
 Her genişleme ayrı bir faz olarak planlanır. Olası sıra (komşuluğa göre):
 
 1. **Kastamonu – Çankırı** (doğuya; Ilgaz) — alan ~+%60: **karo akışı** (oyuncuya göre yükleme/boşaltma) bu fazdan önce gerekli olabilir
