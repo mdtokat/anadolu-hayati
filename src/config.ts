@@ -603,6 +603,42 @@ export const SPAWN_SEARCH = {
 } as const;
 
 /**
+ * Pilot il (Faz 8): harita genişletmesi durdurulduğundan oyun, mevcut haritada tek bir il üzerinde derinleşir.
+ * Yeni oyun başlangıcı ve ölüm sonrası yeniden doğma bu ilin içinde kalır (`world/pilot.ts`); diğer iller
+ * haritada ve yürünebilir kalır, yalnızca doğma noktası olmaz.
+ */
+export const PILOT = {
+  /** `provinces.geojson` içindeki il adı. */
+  province: 'Zonguldak',
+  /** Yeni oyun başlangıcı (enlem/boylam; en yakın yürünebilir nokta otomatik bulunur): Zonguldak merkez. */
+  start: { lat: 41.4564, lon: 31.7987 },
+  /**
+   * İl çokgenleri kıyıdan içeride kaldığından kıyı şeridinde hiçbir ile ait olmayan kara hücreleri vardır
+   * (Zonguldak'ta ≤ 5,2 oyun m, ölçüm: docs/faz-8-zonguldak-olcumler.md). İlsiz bir kara noktası, en yakın
+   * il bu ilse ve çokgene bu kadar (oyun m) yakınsa pilot ilde sayılır.
+   */
+  coastBufferM: 8,
+  /**
+   * Pilot ilin bilinen yerleri (ilçe merkezleri ve belirgin yerler; Faz 8.2). Konumlar yaklaşık enlem/boylamdır
+   * (en yakın yürünebilir nokta bulunur). Dev modunda Shift + 1–9, 0 tuşları sırayla bu yerlere ışınlar
+   * (Shift'siz tuşlar `TELEPORTS`); il altı yer adı bildirimi (8.3) de bu tabloyu kullanır. En çok 10 yer
+   * (tuş sayısı); her yer pilot ilde, karada ve yürünebilir olmalıdır (`tests/pilotPlaces`).
+   */
+  places: [
+    { name: 'Zonguldak merkez', lat: 41.4564, lon: 31.7987 },
+    { name: 'Kozlu', lat: 41.4467, lon: 31.75 },
+    { name: 'Kilimli', lat: 41.51, lon: 31.85 },
+    { name: 'Çatalağzı', lat: 41.5167, lon: 31.8667 },
+    { name: 'Karadeniz Ereğli', lat: 41.2797, lon: 31.4183 },
+    { name: 'Alaplı', lat: 41.1833, lon: 31.3833 },
+    { name: 'Çaycuma', lat: 41.4256, lon: 32.075 },
+    { name: 'Filyos vadisi', lat: 41.5667, lon: 32.0333 },
+    { name: 'Devrek', lat: 41.22, lon: 31.9617 },
+    { name: 'Gökçebey', lat: 41.3017, lon: 32.1317 },
+  ],
+} as const;
+
+/**
  * Geliştirici ışınlanma noktaları (dev modunda 1–9 ve 0 tuşları, sırayla). İlki oyunun başlangıç noktasıdır.
  * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur. `province`: noktanın düştüğü il (test
  * eder). Abant ve Yedigöller noktaları göl kıyısındadır (içine değil): bir iki adımda su içilebilir.
@@ -822,6 +858,23 @@ export const PROVINCE_NOTICE = {
   cooldownSeconds: 15,
   /** Bildirimin ekranda kalma süresi (ms). */
   bannerMs: 4000,
+} as const;
+
+/**
+ * Pilot il yer adı bildirimi (Faz 8.3): `PILOT.places` merkezlerine yaklaşınca yer adı duyurusu. Merkezler en
+ * yakın yürünebilir noktaya oturtulur; yarıçaplar oyun metresidir (1:50 ölçek: 40 m ≈ 2 km gerçek).
+ */
+export const PLACE_NOTICE = {
+  /** Bir yer merkezine bu kadar yakın olunca "yerde" sayılır (en yakın yer kazanır). */
+  enterRadiusM: 40,
+  /** Yerden çıkış yarıçapı: girişten büyüktür, sınırda gidip gelmede titreme olmasın. */
+  exitRadiusM: 55,
+  /** Yeni yerde bu kadar süre (gerçek sn) kesintisiz kalınca bildirilir. */
+  confirmSeconds: 1.5,
+  /** Art arda iki yer bildirimi arasındaki en kısa süre (gerçek sn); araya giren geçişler sessiz işlenir. */
+  cooldownSeconds: 20,
+  /** Bildirimin ekranda kalma süresi (ms). */
+  bannerMs: 3000,
 } as const;
 
 /**

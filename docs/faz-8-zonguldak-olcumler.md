@@ -79,7 +79,7 @@ Yorum: su bol; ama kaynak noktası yalnızca 2 ve göl hemen hiç yok (barajlar 
 | Orman ≥ 700 m, gündüz | ayı 0,083 |
 | Bir `CreatureSystem` adımı (ortalama) | 0,02 ms |
 
-Yorum: gündüz av hayvanı ~0,9/dk (≈ 1 karşılaşma/ 65 sn; Faz 5 hedefi "2–3 dk'da bir" = 0,33–0,5/dk idi, ve Faz 7 ölçümü eski bölgeye benzerdi): Zonguldak'ta av bolluğu hedefin yaklaşık iki katıdır; küçük örnekten dolayı kesin değildir, 8.4'te daha uzun ölçümle (başlangıç sayısı ↑) doğrulanmalıdır. Gece kurt ~4 dk'da bir, gündüz yok; yüksek ormanda (≥ 700 m) ayı ~12 dk'da bir, alçakta ~30 dk'da bir.
+Yorum: 6 başlangıçlık örnek gürültülüdür (gündüz av hayvanı ~0,9/dk çıkmıştı); **24 başlangıçlık kesin ölçüm 8.4 bölümündedir** ve hedef aralığındadır.
 
 ## Performans (başsız yazılımsal WebGL; gerçek FPS ölçülmedi)
 
@@ -102,3 +102,58 @@ Yorum: gündüz av hayvanı ~0,9/dk (≈ 1 karşılaşma/ 65 sn; Faz 5 hedefi "2
 ## Elle doğrulama için bırakılanlar
 
 Gerçek FPS, oyun hissi, ses ve fare kilidi akışı bu ortamda ölçülemez (ROADMAP Faz 8 "Elle doğrulanacak"). Zonguldak'ta en çok dikkat edilecek yerler: **Devrek / Gökçebey** (en çok üçgen, ~14–15 bin nesne) ve **il zirvesi** (en çok draw call).
+
+## 8.4 Ekoloji ve denge turu (2026-10-01)
+
+Test: `tests/zonguldakEcology.test.ts` (su, yiyecek/yakıt, gece soğuğu; `ZONGULDAK_REPORT=1`), canlılar için `ZONGULDAK_STARTS=24 ZONGULDAK_REPORT=1 npx vitest run tests/zonguldakBaseline.test.ts`. (Canlı tablosundaki sayılar; Zonguldak/Karabük/Bartın karşılaştırması için tek seferlik betikle, farklı tohumlarla alındı: komut aynı büyüklükte sayılar verir, birebir aynı değil.) Örnek: pilot ilde rastgele, kara, eğimi ≤ 45° 1500 nokta. **Sonuç: hiçbir ayar değişikliği gerekmedi** (`CREATURES`, `SCATTER`, `CLIMATE`, `SURVIVAL` aynı).
+
+### Canlı yoğunluğu (24 başlangıç × 10 dk; diğer hedef illerle karşılaştırmalı)
+
+| Konum | Gündüz (karaca / domuz / kurt / ayı, /dk) | Gece (karaca / domuz / kurt / ayı, /dk) |
+|---|---|---|
+| Zonguldak orman 50–700 m | 0,362 / 0,267 / 0,042 / 0,046 | 0,138 / 0,450 / 0,108 / 0,017 |
+| Karabük orman 50–700 m | 0,354 / 0,183 / 0,029 / 0,063 | 0,158 / 0,496 / 0,163 / 0,013 |
+| Bartın orman 50–700 m | 0,325 / 0,192 / 0,000 / 0,042 | 0,133 / 0,242 / 0,079 / 0,008 |
+| Zonguldak orman 400–700 m | 0,250 / 0,233 / 0,029 / 0,029 | — |
+| Zonguldak orman ≥ 700 m | 0,308 / 0,279 / 0,017 / 0,050 | — |
+
+- Gündüz av hayvanı (karaca + domuz) Zonguldak'ta ≈ 0,63/dk (≈ 1,6 dk'da bir); Karabük ≈ 0,54, Bartın ≈ 0,52 (Faz 5 hedefi 2–3 dk'da bir; gevşek aralık 0,15–1,5). İlk 6 başlangıçlık ölçümdeki ~0,9 değeri örneklem gürültüsüydü.
+- Kurt: gece ≈ 9 dk'da bir, gündüz ≈ 24 dk'da bir (Faz 7 Düzce–Bolu: gece ≈ 7 dk). Ayı: ≈ 20 dk'da bir (hem alçak hem yüksek ormanda; hedef ≈ 20 dk).
+- **Karar:** Zonguldak diğer illerle aynı aralıkta; `CREATURES` ayarlanmadı.
+
+### Su erişimi (rastgele yürünebilir kara noktası → en yakın tatlı su)
+
+| Ölçüt | Değer |
+|---|---|
+| Medyan / p90 uzaklık | 35 / 85 oyun m |
+| ≤ 60 m (15 sn yürüyüş) | %73,8 |
+| ≤ 120 m (30 sn) | %98,3 |
+| ≤ 240 m (60 sn) | %100 |
+
+Susuzluk hareketsiz 12, yürürken ~7,5 dk'da biter; Zonguldak'ta her yerden su ≤ 1 dakikalık yürüyüştür. **Su bir kıtlık kaynağı değildir.**
+
+### Yiyecek ve yakıt (nesne yerleşimi, `scatterChunk`, pilot il içi)
+
+| Tür | Adet | | Ölçüt | Yenebilir bitki | Dal / çalı |
+|---|---|---|---|---|---|
+| ağaç (yapraklı / iğne yapraklı) | 8062 / 2509 | | Medyan uzaklık | 12 m | 6 m |
+| çalı / kaya | 5328 / 397 | | p90 uzaklık | 27 m | 12 m |
+| böğürtlen / fındık / kestane / mantar | 694 / 283 / 181 / 593 | | ≤ 60 m (15 sn) | %99,9 | %100 |
+| yerde dal / taş | 2105 / 1473 | | | | |
+
+Yenebilir bitki en yakın ~12 m'dedir (≈ 3 sn yürüyüş); bir böğürtlen çalısı 2–5 toplanış × 3 tokluk (~10 tokluk, 1,2 sn). Tokluk hareketle ~19 dk'da biter. Yani **yiyecek, Zonguldak'ta (ve Faz 4 yerleşim kuralıyla her yerde) neredeyse kıtlık yaratmaz**: avlanma zorunlu değildir, yalnızca verimli bir seçenektir (pişmiş et +30 tokluk). Bu bir **tasarım gözlemi**dir: oyun hissi gerçek oyunda elle denenmeden değiştirilmedi. Aday ayar (uygulanmadı): yenebilir bitki yoğunluklarını (`SCATTER.density`) düşürmek ve/veya verimi (`gatherRules`) azaltmak; bu durumda `scatterRegion`, `gatherIntegration`, `huntChain` ve `latticeGolden` (nesne özetleri) testleri yeniden kaydedilmelidir.
+
+### Gece soğuğu (18:00 → 06:00 oyun saati = 12 gerçek dk; su ve tokluk dolu, ateşsiz ve barınaksız)
+
+| Rakım bandı | Rakım | Gece en düşük ortam | Yatarak: en düşük can / ısı | Yürüyerek: en düşük can / ısı |
+|---|---|---|---|---|
+| medyan | 250 m | 11,7 °C | 100 / 35,4 °C | 100 / 35,9 °C |
+| p90 | 622 m | 9,3 °C | 96 / 34,6 °C | 100 / 35,1 °C |
+| p99 | 967 m | 7,1 °C | 80 / 33,9 °C | 91 / 34,4 °C |
+| en yüksek yürünebilir | 1211 m | 5,5 °C | 64 / 33,4 °C | 78 / 33,9 °C |
+
+Zonguldak'ta (karasının %98,5'i < 1000 m) bir gece hiçbir yerde ölümcül değildir; en kötü durumda can 64'e iner. Soğuk, Zonguldak'ta yalnızca yüksek kesimlerde (≥ 600 m) hissedilir hasar verir. Ateş + barınak etkisi (Faz 4.9) bunu zaten sıfırlar. **Karar:** `CLIMATE` ayarlanmadı (mevsim ve gündüz/gece döngüsü Faz 3'te ölçülmüştü; Zonguldak'ın düşük rakım dağılımıyla uyumlu).
+
+### 8.4 sonucu
+
+Mevcut denge Zonguldak'ta hedef aralıklarda: canlılar (ayı ve kurt dahil) diğer illerle uyumlu, su ve yakıt bol, gece soğuğu yalnızca yüksekte hasarlı. Bilinçli bir tasarım kararı bekleyen tek konu **yiyecek kıtlığının neredeyse olmaması** (yukarıda). Gerçek oyun hissi elle doğrulanmalıdır.
