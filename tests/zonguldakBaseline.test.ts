@@ -251,7 +251,8 @@ describe(`${PILOT} ölçüm tabanı (8.0)`, () => {
   });
 
   it('canlı yoğunluğu: ormanda gündüz av hayvanı, gece kurt, yüksek ormanda ayı', () => {
-    const STARTS = 6;
+    // Varsayılan hızlı örnek; kesin ölçüm için `ZONGULDAK_STARTS=24` (docs/faz-8-zonguldak-olcumler.md 8.4).
+    const STARTS = Math.max(1, Number(process.env.ZONGULDAK_STARTS ?? 6));
     const low = forestStarts(terrain, region, {
       minElevation: 50,
       maxElevation: 700,
