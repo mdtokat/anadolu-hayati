@@ -244,6 +244,37 @@ Elle doğrulanacak (gerçek GPU'lu masaüstü ve hoparlör gerekir; Zonguldak ç
 
 ---
 
+## Faz 9 — İnşa ve Ekipman
+**Branch:** `ccr-dffb10e3-vdy7p4` _(kullanıcı talimatı: "İnşa sistemini geliştir. Bina, sandık, ekipman vb. yapımlar ekle. Ekipmanlara hızlı erişim slotları ekle.")_
+**Amaç:** Yerleştirme sistemini genel bir inşa sistemine çevirmek (yeni yapılar, döndürme, sökme, katı duvarlar), yeni ekipmanlar eklemek ve alet/silah/yapı/yiyeceklere kısayol çubuğuyla hızlı erişim sağlamak. Harita/veri değişmez (genişleme hâlâ durdurulmuş); pilot il kararı aynen sürer.
+
+**Kapsam dışı:** ayrı giysi/zırh slotu (giysiler hâlâ envanterde bulunarak etki eder), alet/silah aşınması, modüler (duvar/zemin parça parça) inşa, kapı açma/kapama, yapı hasarı, hayvanların duvarları algılaması, sandıktaki malzemeyle doğrudan üretim, yeni çalışma zamanı bağımlılığı.
+
+Görevler:
+- [x] **9.1** Yeni yapılar: **Çalışma Tezgâhı** (üretim istasyonu), **Sandık** (16 slot / 60 kg ayrı depo; `E` ile açılır, tıkla-taşı paneli), **Ahşap Kulübe** (kapılı dört duvar + beşik çatı; sundurmadan iyi barınak: soğuk ×0,3, dinlenme ×3 enerji / ×2 can) _(`STRUCTURE_KINDS` sona eklendi; `PLACEMENT.kinds`, `STORAGE`, `SHELTER_EFFECTS.hut`; geometri `structureGeometry.ts`, ölçüler `placement/structureShapes.ts`)_
+- [x] **9.2** İnşa sistemi: hayaleti `R` ile 90° döndürme; büyük yapının oyuncudan ileriye konması (`aimDistance`/`maxReach` tür başına) ve ayak izi engebesi denetimi (`maxRelief`: kulübe duvarlarının altında boşluk kalmasın); bakılan yapıyı `X` basılı tutarak **sökme** (yapı eşya olarak geri gelir, kamp ateşinden 4 taş; dolu sandık sökülmez); katı yapılara Rapier collider'ı (`world/StructureColliders.ts`: sandık, tezgâh, kulübe duvarları; ateş ve sundurma eskisi gibi geçilir) _(testli: `tests/buildSystem`, `tests/structureColliders` — kulübe duvarı oyuncuyu durdurur, kapıdan girilir; `tests/placementController`, `tests/placeRulesRegion`: kara alanının ≈ %21'i kulübeye, ≈ %52–62'si sandık/tezgâha uygun)_
+- [x] **9.3** İstasyonlu üretim: tarifin `station` alanı (`STATIONS.workbench.reach` = 4 m); sandık, kulübe ve kürk pelerin tezgâhın yanında üretilir; envanter panelinde "Yakında: Çalışma Tezgâhı" ve istasyon çipi _(`placement/stations.ts`, `craftStatus(…, context)`, `missing_station`)_
+- [x] **9.4** Ekipman: **Kemik Bıçak** (hızlı ama zayıf silah, leşi en hızlı keser: 2 sn), **Meşale** (elde tutulunca oyuncunun çevresini aydınlatır; tek sabit `PointLight`), **Kürk Pelerin** (envanterde: +2,5 °C ısı, %10 savunma; `EQUIPMENT.clothingWarmthC`) _(`items/equipment.ts`, `COMBAT.weapons.bone_knife`, `LOOT.butcherSecondsKnife`)_
+- [x] **9.5** Hızlı erişim (kısayol) çubuğu: 8 slot (`1`–`8`, fare tekerleği), slotlar envanterdeki eşyaya **bağlantıdır** (adet envanterden okunur); envanter panelinde "Kısayol: 1…8" ile bağlanır, üretilen alet/yapı ilk boş slota kendiliğinden bağlanır. Basınca: silah/alet elde tutulur (saldırı eldeki silahla; el boşsa eskisi gibi en iyi silah), yapı elde tutulur ve hayaleti açılır, yiyecek/dolu su kabı bir tane tüketilir; aynı tuş eli boşaltır. HUD'da alt ortada çubuk ve "Elde: …" _(`items/hotbar.ts`, `ui/hotbarView.ts`, `Hud.setHotbar`; testli: `tests/hotbar`, `tests/hotbarInput`, `tests/hotbarView`, `tests/equipment`)_
+- [x] **9.6** Kayıt v3: kısayol çubuğu ve sandık içerikleri kaydedilir; v2 (ve v1) kayıtlar göçle yüklenir (boş kısayol) _(`SAVE_FORMAT_VERSION` = 3, `migrateV2toV3`; yapı kayıt biçimi yalnızca eklemeli: sandıkta `storage`)_
+- [x] **9.7** Dev tuşları: değiştiricisiz rakamlar artık kısayol çubuğunundur; `TELEPORTS` ışınlanması `T` + `1`–`9`, `0`'a taşındı (`Shift` + rakam aynen), `O` inşa eşyaları verir _(elle doğrulama kılavuzu güncellendi)_
+- [x] **9.8** Belgeler: ROADMAP, `CLAUDE.md` "Mevcut Durum", README, elle doğrulama kılavuzu bölüm 11
+
+Kabul kriterleri:
+- [x] Tezgâh, sandık ve kulübe üretilip kurulabiliyor, döndürülebiliyor ve sökülebiliyor; sandık içeriği kayda giriyor _(testli; başsız Chromium'da kuruldu, sandık açılıp eşya taşındı, kulübe içinde "Kulübede", `X` ile söküldü)_
+- [x] Kulübe duvarları oyuncuyu durduruyor, kapıdan giriliyor; kulübe sundurmadan iyi koruyor _(testli: `tests/structureColliders`, `tests/equipment`)_
+- [x] Kısayol çubuğu: 8 slot, tuş/tekerlek seçimi, elde silahla saldırı, yapı hayaleti, yiyecek tüketme; kayıtta korunuyor _(testli)_
+- [x] Eski kayıtlar (v1, v2) yükleniyor; `SAVE_FORMAT_VERSION` 3 ve göç adımı var _(`tests/saveGame`, `tests/saveMigration`)_
+- [x] Lint, typecheck, Vitest ve build hatasız; dünya verisi ve `tools/` değişmedi
+
+Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulama.md) bölüm 11):
+- [ ] Kısayol çubuğu ve silah seçiminin oyun hissi (tekerlek hızı, el boşken en iyi silah kuralı)
+- [ ] Kulübe: kapı genişliği, yamaçta duvar/çatı görünümü, düz yer bulma zorluğu, gece koruması
+- [ ] Meşale ışığının yeterliliği ve FPS etkisi; kürk pelerinin yüksek illerde etkisi
+- [ ] Malzeme miktarları (tezgâh, sandık, kulübe, pelerin) ve dengesi
+
+---
+
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
 
@@ -270,7 +301,8 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Safranbolu gibi tarihi yerleşimlerde terk edilmiş yapılar ve ganimet
 - Tekne ile kıyı boyunca seyahat
 - Hikâye / görev sistemi
-- Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir)_
+- Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir; Faz 9'da silah/alet seçimi için kısayol çubuğu geldi, giysi slotu hâlâ yok)_
+- İnşa (Faz 9 sonrası): modüler duvar/zemin/çatı parçaları, açılıp kapanan kapı, yapı hasarı/onarımı, hayvanların duvarları algılaması (şimdi içinden geçerler), sandıktaki malzemeyle doğrudan üretim, meşalenin yanma süresi ve kurtları uzak tutması
 - Tuzak ve olta ile av; suyu kaynatma (su kabı doldurma/içme bakım turunda eklendi)
 - Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (ses altyapısı Faz 6'da geldi: `audio/`; hayvan sesleri henüz yok)
 - Hayvan ekolojisi: gerçek dağılım verisi, yavru/üreme, sürü formasyonu, mevsimsel göç, daha çok tür (tilki, geyik, sırtlan…)
