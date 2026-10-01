@@ -3,29 +3,58 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import { SaveError } from '../save/saveGame';
 import type { SaveStore, SlotId, SlotState } from '../save/SaveStore';
+import { icon } from './icons';
 import { SlotPicker } from './SlotPicker';
 import { formatSummary } from './slotFormat';
 
-const CONTROLS: ReadonlyArray<readonly [string, string]> = [
-  ['W A S D', 'Yürü'],
-  ['Shift', 'Koş'],
-  ['Boşluk', 'Zıpla'],
-  ['Fare', 'Etrafa bak'],
-  ['V', '1. / 3. şahıs kamera'],
-  ['E', 'Topla / leş kes / et pişir / ateşe yakıt / su iç, kap doldur (basılı tut)'],
-  ['Sol tık', 'Saldır (yerleştirme hayaleti varken kur)'],
-  ['I / Tab', 'Envanter ve üretim (ye, iç, at)'],
-  ['F', 'Hızlı yemek'],
-  ['C / G', 'Ateş / sundurma yerleştirme hayaleti (aynı tuş iptal)'],
-  ['B', 'İl sınırlarını aç/kapa'],
-  ['Esc', 'Duraklat'],
+/** Kontrol listesi: tuşlar (her biri ayrı tuş simgesi) ve eylem; menünün sağ sütununda gruplanır. */
+type ControlRow = readonly [keys: readonly string[], action: string];
+
+const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly ControlRow[]]> = [
+  [
+    'Hareket',
+    [
+      [['W', 'A', 'S', 'D'], 'Yürü'],
+      [['Shift'], 'Koş'],
+      [['Boşluk'], 'Zıpla'],
+      [['Fare'], 'Etrafa bak'],
+      [['V'], '1. / 3. şahıs kamera'],
+    ],
+  ],
+  [
+    'Hayatta kalma',
+    [
+      [['E'], 'Topla, leş kes, pişir, yakıt at, su iç (basılı tut)'],
+      [['Sol tık'], 'Saldır · hayalet varken kur'],
+      [['F'], 'Hızlı yemek'],
+      [['I', 'Tab'], 'Envanter ve üretim'],
+      [['1–8', 'Tekerlek'], 'Kısayol çubuğu'],
+    ],
+  ],
+  [
+    'İnşa',
+    [
+      [['C', 'G'], 'Ateş / sundurma hayaleti'],
+      [['R'], 'Hayaleti döndür'],
+      [['X'], 'Yapıyı sök (basılı tut)'],
+    ],
+  ],
+  [
+    'Diğer',
+    [
+      [['B'], 'İl sınırları'],
+      [['Esc'], 'Duraklat'],
+    ],
+  ],
 ];
 
 /** Yalnızca geliştirme modunda gösterilen ek kontroller. */
-const DEV_CONTROLS: ReadonlyArray<readonly [string, string]> = [
-  ['1 – 5', 'Işınlan (geliştirici)'],
-  ['[ ]', 'Saati 1 saat geri/ileri (geliştirici)'],
-  ['K', 'Canı sıfırla (geliştirici)'],
+const DEV_CONTROLS: readonly ControlRow[] = [
+  [['T', '1–0'], 'Işınlan'],
+  [['Shift', '1–0'], 'İldeki yerlere ışınlan'],
+  [['P', 'O'], 'Malzeme / inşa eşyası ver'],
+  [['[', ']'], 'Saati ±1 saat'],
+  [['K'], 'Canı sıfırla'],
 ];
 
 /** Menünün oyundan istedikleri; mantık `Game`'dedir, menü yalnızca arayüzdür. */
@@ -97,24 +126,33 @@ export class GameMenu {
     // Panele tıklamak menüyü kapatmaz; yalnızca dış alan (duraklatma menüsünde) devam ettirir.
     panel.addEventListener('click', (event) => event.stopPropagation());
 
+    const brand = document.createElement('div');
+    brand.className = 'pause-menu-brand';
+    const logo = icon(LOGO, 'pause-menu-logo');
     const title = document.createElement('h1');
     title.textContent = 'Anadolu Hayatı';
+    const tagline = document.createElement('p');
+    tagline.className = 'pause-menu-tagline';
+    tagline.textContent = 'Batı Karadeniz’de hayatta kal';
+    brand.append(logo, title, tagline);
     this.subtitle.className = 'pause-menu-subtitle';
     this.latest.className = 'pause-menu-latest';
     this.buttons.className = 'pause-menu-buttons';
     this.hint.className = 'pause-menu-hint';
+    this.hint.setAttribute('role', 'status');
 
-    const controls = document.createElement('dl');
-    const rows = import.meta.env.DEV ? [...CONTROLS, ...DEV_CONTROLS] : CONTROLS;
-    for (const [key, action] of rows) {
-      const dt = document.createElement('dt');
-      dt.textContent = key;
-      const dd = document.createElement('dd');
-      dd.textContent = action;
-      controls.append(dt, dd);
-    }
+    const main = document.createElement('div');
+    main.className = 'pause-menu-main';
+    main.append(brand, this.subtitle, this.latest, this.buttons, this.hint);
 
-    panel.append(title, this.subtitle, this.latest, this.buttons, this.hint, controls);
+    const controls = document.createElement('div');
+    controls.className = 'pause-menu-controls';
+    const groups = import.meta.env.DEV
+      ? [...CONTROL_GROUPS, ['Geliştirici', DEV_CONTROLS] as const]
+      : CONTROL_GROUPS;
+    for (const [heading, rows] of groups) controls.append(controlGroup(heading, rows));
+
+    panel.append(main, controls);
     this.root.append(panel);
     // Dış alana tık: yalnızca duraklatma menüsünde oyuna döner (ana menüde yanlışlıkla başlamasın).
     this.root.addEventListener('click', () => {
@@ -321,6 +359,33 @@ export class GameMenu {
     await this.host.loadFromSlot(slot);
     this.session = true;
   }
+}
+
+/** Menü logosu: favicon'daki dağ ve güneş (sabit SVG). */
+const LOGO =
+  '<rect width="24" height="24" rx="5" fill="#1d3b2a"/><path d="M2.2 19 9 8.4l3.8 5.3 3-3.8 6 9.1z" fill="#6fae5c"/><path d="M9 8.4l1.9 2.6-1.9 1.4-1.6-1.6z" fill="#cfe8c2"/><circle cx="17.3" cy="6" r="2.3" fill="#ffd23f"/>';
+
+/** Kontrol grubu: başlık ve "tuş simgeleri — eylem" satırları. */
+function controlGroup(heading: string, rows: readonly ControlRow[]): HTMLElement {
+  const section = document.createElement('section');
+  section.className = 'controls-group';
+  const h3 = document.createElement('h3');
+  h3.textContent = heading;
+  const list = document.createElement('dl');
+  for (const [keys, action] of rows) {
+    const dt = document.createElement('dt');
+    for (const key of keys) {
+      const kbd = document.createElement('kbd');
+      kbd.className = 'ui-key';
+      kbd.textContent = key;
+      dt.append(kbd);
+    }
+    const dd = document.createElement('dd');
+    dd.textContent = action;
+    list.append(dt, dd);
+  }
+  section.append(h3, list);
+  return section;
 }
 
 function errorMessage(error: unknown): string {

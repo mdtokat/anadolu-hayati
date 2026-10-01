@@ -74,12 +74,13 @@ describe('recipeRows', () => {
     const row = recipeRow(new Inventory(), RECIPES.stone_axe);
     expect(row.craftable).toBe(false);
     expect(row.inputs).toEqual([
-      { name: 'Dal', need: 2, have: 0, ok: false },
-      { name: 'Taş', need: 2, have: 0, ok: false },
-      { name: 'Kav', need: 3, have: 0, ok: false },
+      { id: 'stick', name: 'Dal', need: 2, have: 0, ok: false },
+      { id: 'stone', name: 'Taş', need: 2, have: 0, ok: false },
+      { id: 'tinder', name: 'Kav', need: 3, have: 0, ok: false },
     ]);
     expect(row.reason).toBe('Eksik: 2 Dal, 2 Taş, 3 Kav');
     expect(row.output).toBe('Taş Balta');
+    expect(row).toMatchObject({ outputId: 'stone_axe', outputCount: 1 });
   });
 
   it('malzeme tamamlanınca yapılabilir ve neden boştur', () => {

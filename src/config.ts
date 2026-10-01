@@ -1126,6 +1126,20 @@ export const SURVIVAL_HUD = {
   refreshIntervalMs: 100,
 } as const;
 
+/** Arayüz görünümü (pusula, yük göstergesi); renkler ve ölçüler `ui/ui.css` değişkenlerindedir. */
+export const HUD_STYLE = {
+  /** Pusula şeridinde derece başına piksel (pencere genişliği / bu değer = görünen açı aralığı). */
+  compassPxPerDeg: 2.4,
+  /** Pusula penceresinin genişliği (px; CSS `.hud-compass` genişliğiyle aynı olmalı). */
+  compassWidthPx: 360,
+  /** Pusula tiklerinin aralığı (derece; 45'i bölmeli ki ara yönler tike düşsün). */
+  compassTickStepDeg: 15,
+  /** Pusula kaydırması bu açıdan (derece) küçük değişimlerde yeniden yazılmaz. */
+  compassEpsilonDeg: 0.1,
+  /** Envanter ağırlığı bu oranın üstünde "ağır" (sarı) görünür. */
+  loadHighFraction: 0.85,
+} as const;
+
 /** Envanter sınırları (Faz 4.4). Eşya içerikleri (ağırlık, yığın, etki) `items/itemDefs.ts` tablosundadır. */
 export const INVENTORY = {
   /** Slot sayısı. */

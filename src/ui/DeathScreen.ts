@@ -15,7 +15,9 @@ export interface DeathSummary {
 export class DeathScreen {
   private readonly root = document.createElement('div');
   private readonly cause = document.createElement('p');
-  private readonly detail = document.createElement('p');
+  private readonly detail = document.createElement('div');
+  private readonly day = document.createElement('span');
+  private readonly survived = document.createElement('span');
   private readonly button = document.createElement('button');
 
   constructor(
@@ -31,6 +33,7 @@ export class DeathScreen {
     title.textContent = 'Öldün';
     this.cause.className = 'death-screen-cause';
     this.detail.className = 'death-screen-detail';
+    this.detail.append(stat('Gün', this.day), stat('Hayatta kalınan süre', this.survived));
     this.button.type = 'button';
     this.button.textContent = 'Yeniden Doğ';
     this.button.addEventListener('click', () => this.onRespawn());
@@ -46,7 +49,8 @@ export class DeathScreen {
 
   show(summary: DeathSummary): void {
     this.cause.textContent = deathCauseText(summary.cause);
-    this.detail.textContent = `${formatDay(summary.day)} · ${formatSurvivedTime(summary.survivedSeconds)} hayatta kaldın`;
+    this.day.textContent = formatDay(summary.day);
+    this.survived.textContent = formatSurvivedTime(summary.survivedSeconds);
     this.root.hidden = false;
     this.button.focus({ preventScroll: true });
   }
@@ -58,4 +62,16 @@ export class DeathScreen {
   dispose(): void {
     this.root.remove();
   }
+}
+
+/** Ölüm özetinde bir istatistik kutusu (başlık + değer). */
+function stat(label: string, value: HTMLElement): HTMLElement {
+  const box = document.createElement('div');
+  box.className = 'death-screen-stat';
+  const caption = document.createElement('span');
+  caption.className = 'death-screen-stat-label';
+  caption.textContent = label;
+  value.className = 'death-screen-stat-value';
+  box.append(caption, value);
+  return box;
 }

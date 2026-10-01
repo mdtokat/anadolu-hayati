@@ -1,6 +1,6 @@
 import { craftStatus, NO_STATIONS, type CraftContext, type CraftFailure } from '../items/craft';
 import type { Inventory, ItemStack } from '../items/Inventory';
-import { ITEMS, type ItemId } from '../items/itemDefs';
+import { ITEMS, type ItemCategory, type ItemId } from '../items/itemDefs';
 import { RECIPE_LIST, type Recipe, type RecipeId } from '../items/recipes';
 import { FULL_CONTAINER } from '../items/waterContainer';
 import { WATER_CONTAINER } from '../config';
@@ -18,6 +18,25 @@ export function capacityText(inventory: Inventory): string {
   return `Ağırlık ${formatWeight(inventory.totalWeightG)} / ${formatWeight(inventory.maxWeightG)} · Slot ${used}/${inventory.slotCount}`;
 }
 
+/** Ağırlık satırı (envanter başlığındaki yük göstergesi): "4,2 / 25,0 kg". */
+export function weightText(inventory: Inventory): string {
+  return `${formatWeight(inventory.totalWeightG)} / ${formatWeight(inventory.maxWeightG)}`;
+}
+
+/** Dolu slot sayısı: "7/20". */
+export function slotUsageText(inventory: Inventory): string {
+  const used = inventory.slots.filter((stack) => stack !== null).length;
+  return `${used}/${inventory.slotCount}`;
+}
+
+/** Eşya kategorisinin görünen adı (seçili eşya kartında). */
+export const CATEGORY_LABELS: Readonly<Record<ItemCategory, string>> = {
+  material: 'Malzeme',
+  food: 'Yiyecek',
+  tool: 'Alet ve ekipman',
+  placeable: 'Yapı',
+};
+
 export interface SlotView {
   empty: boolean;
   /** Slotta görünen ad (boşsa ""). */
@@ -31,6 +50,12 @@ export interface SlotView {
   edible: boolean;
   /** Seçiliyken "İç" düğmesi için: içilebilir mi (dolu su kabı)? */
   drinkable: boolean;
+  /** Kategori (boşsa null; slot vurgu rengi ve kart etiketi için). */
+  category: ItemCategory | null;
+  /** Yığının toplam ağırlığı ("0,4 kg"; boşsa ""). */
+  weight: string;
+  /** Yiyecek/içecek etkisi ("Tokluk +4, Su +2"; yoksa ""). */
+  effect: string;
 }
 
 function effectText(id: ItemId): string {
@@ -54,6 +79,9 @@ export function slotView(stack: Readonly<ItemStack> | null): SlotView {
       id: null,
       edible: false,
       drinkable: false,
+      category: null,
+      weight: '',
+      effect: '',
     };
   }
   const def = ITEMS[stack.id];
@@ -67,10 +95,14 @@ export function slotView(stack: Readonly<ItemStack> | null): SlotView {
     id: stack.id,
     edible: def.edible !== undefined,
     drinkable: stack.id === FULL_CONTAINER,
+    category: def.category,
+    weight,
+    effect,
   };
 }
 
 export interface RecipeInputView {
+  id: ItemId;
   name: string;
   need: number;
   have: number;
@@ -86,6 +118,9 @@ export interface RecipeRow {
   /** Yakında bulunması gereken istasyon (Faz 9); yoksa null. */
   station: { name: string; ok: boolean } | null;
   output: string;
+  /** Üretilen eşya (simge için) ve adedi. */
+  outputId: ItemId;
+  outputCount: number;
   craftable: boolean;
   /** Yapılamıyorsa nedeni; yapılabiliyorsa "". */
   reason: string;
@@ -119,13 +154,15 @@ export function recipeRow(
     name: recipe.name,
     inputs: recipe.inputs.map(({ id, count }) => {
       const have = inventory.count(id);
-      return { name: ITEMS[id].name, need: count, have, ok: have >= count };
+      return { id, name: ITEMS[id].name, need: count, have, ok: have >= count };
     }),
     tool: recipe.tool ? { name: ITEMS[recipe.tool].name, ok: inventory.has(recipe.tool) } : null,
     station: recipe.station
       ? { name: ITEMS[recipe.station].name, ok: context.stations.has(recipe.station) }
       : null,
     output: `${ITEMS[recipe.output.id].name}${recipe.output.count > 1 ? ` ×${recipe.output.count}` : ''}`,
+    outputId: recipe.output.id,
+    outputCount: recipe.output.count,
     craftable: status.ok,
     reason: status.ok ? '' : failureText(status),
   };

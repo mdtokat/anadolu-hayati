@@ -24,18 +24,76 @@
         position: fixed;
         inset: 0;
         display: grid;
-        place-items: center;
-        color: #fff;
+        place-content: center;
+        justify-items: center;
+        gap: 14px;
+        color: #f4efe4;
+        background: radial-gradient(ellipse at 50% 40%, #1c2a21, #080b09 75%);
         font:
-          18px/1.4 system-ui,
+          15px/1.4 system-ui,
           sans-serif;
         pointer-events: none;
+      }
+      #loading .loading-logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 14px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      }
+      #loading .loading-title {
+        margin: 0;
+        font:
+          600 30px/1.1 'Palatino Linotype',
+          Palatino,
+          'Book Antiqua',
+          Georgia,
+          serif;
+        letter-spacing: 0.02em;
+      }
+      #loading .loading-bar {
+        position: relative;
+        width: 200px;
+        height: 3px;
+        overflow: hidden;
+        background: rgba(255, 240, 210, 0.12);
+        border-radius: 3px;
+      }
+      #loading .loading-bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        width: 40%;
+        background: linear-gradient(90deg, transparent, #f7cb6e, transparent);
+        animation: loading-slide 1.2s ease-in-out infinite;
+      }
+      #loading .loading-status {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(244, 239, 228, 0.65);
+      }
+      @keyframes loading-slide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(250%);
+        }
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
-    <div id="loading">Yükleniyor…</div>
+    <div id="loading">
+      <svg class="loading-logo" viewBox="0 0 24 24" aria-hidden="true">
+        <rect width="24" height="24" rx="5" fill="#1d3b2a" />
+        <path d="M2.2 19 9 8.4l3.8 5.3 3-3.8 6 9.1z" fill="#6fae5c" />
+        <path d="M9 8.4l1.9 2.6-1.9 1.4-1.6-1.6z" fill="#cfe8c2" />
+        <circle cx="17.3" cy="6" r="2.3" fill="#ffd23f" />
+      </svg>
+      <h1 class="loading-title">Anadolu Hayatı</h1>
+      <div class="loading-bar"></div>
+      <p class="loading-status">Yükleniyor…</p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

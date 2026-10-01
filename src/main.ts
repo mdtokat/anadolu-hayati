@@ -22,6 +22,8 @@ Game.create(container, { world, creatureDemo })
     if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
   })
   .catch((error: unknown) => {
-    if (loading) loading.textContent = 'Oyun başlatılamadı. Ayrıntılar tarayıcı konsolunda.';
+    const status = loading?.querySelector('.loading-status') ?? loading;
+    if (status) status.textContent = 'Oyun başlatılamadı. Ayrıntılar tarayıcı konsolunda.';
+    loading?.querySelector('.loading-bar')?.remove();
     console.error(error);
   });

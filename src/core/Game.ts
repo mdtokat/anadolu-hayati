@@ -1093,6 +1093,7 @@ export class Game {
     this.updateAmbient(now, feet);
     this.updateSurvivalHud(now);
     this.updateHotbarHud();
+    this.hud.setHeading(this.playerCamera.yaw);
     this.updatePrompt();
     if (import.meta.env.DEV) {
       this.hud.setDebugText(
@@ -1173,6 +1174,7 @@ export class Game {
       sheltered: this.exposure.sheltered,
       shelter: this.exposure.shelter,
       defense: defenseFor(this.inventory),
+      daylight: clock.sun.altitudeDeg > 0,
     });
     this.updateHints(now);
   }

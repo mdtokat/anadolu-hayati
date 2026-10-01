@@ -9,7 +9,15 @@ import type { RecipeId } from '../items/recipes';
 import { keyLabel } from '../placement/promptText';
 import { canDrinkContainer } from '../items/waterContainer';
 import type { VitalsState } from '../survival/vitals';
-import { capacityText, recipeRows, slotView, type RecipeRow } from './inventoryView';
+import { CATEGORY_ACCENT, itemIcon, uiIcon, type UiIcon } from './icons';
+import {
+  CATEGORY_LABELS,
+  recipeRows,
+  slotUsageText,
+  slotView,
+  type RecipeRow,
+} from './inventoryView';
+import { closeButton, el, loadMeter, slotButton } from './widgets';
 
 export interface InventoryPanelCallbacks {
   /** Seçili slottaki yiyeceği ye. */
@@ -29,17 +37,6 @@ export interface InventoryPanelCallbacks {
   hotbar?: Hotbar;
   /** `slot`'a `item` bağla (`null`: boşalt). */
   onAssignHotbar?(slot: number, item: ItemId | null): void;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
 }
 
 /**
@@ -102,26 +99,42 @@ export class InventoryPanel {
     if (!this.open) return;
     const vitals = this.callbacks.getVitals();
     const header = el('div', 'inv-header');
-    header.append(
-      el('h2', 'inv-title', 'Envanter ve Üretim'),
-      el('div', 'inv-capacity', capacityText(this.inventory)),
-      el(
-        'div',
-        'inv-vitals',
-        `Sağlık ${Math.round(vitals.health)} · Tokluk ${Math.round(vitals.satiety)} · Su ${Math.round(vitals.hydration)} · Enerji ${Math.round(vitals.energy)}`,
-      ),
+    const titleBox = el('div', 'inv-title-box');
+    titleBox.append(
+      el('h2', 'inv-title', 'Envanter'),
+      el('div', 'inv-title-sub', 'Eşyalar, kısayollar ve üretim'),
     );
-    const close = el('button', 'inv-close', 'Kapat (I)');
-    close.type = 'button';
-    close.addEventListener('click', () => this.callbacks.onClose());
-    header.append(close);
+    const close = closeButton('Kapat', 'I', () => this.callbacks.onClose());
+    header.append(titleBox, close);
+
+    const stats = el('div', 'inv-stats');
+    stats.append(loadMeter(this.inventory), this.buildVitals(vitals));
 
     const body = el('div', 'inv-columns');
     body.append(
       this.buildSlots(vitals),
       this.buildRecipes(this.callbacks.getStations?.() ?? NO_STATIONS),
     );
-    this.panel.replaceChildren(header, body);
+    this.panel.replaceChildren(header, stats, body);
+  }
+
+  /** Üst satırdaki küçük göstergeler (sağlık, tokluk, su, enerji). */
+  private buildVitals(vitals: Readonly<VitalsState>): HTMLElement {
+    const row = el('div', 'inv-vitals');
+    const items: Array<[UiIcon, string, number]> = [
+      ['health', 'Sağlık', vitals.health],
+      ['satiety', 'Tokluk', vitals.satiety],
+      ['hydration', 'Su', vitals.hydration],
+      ['energy', 'Enerji', vitals.energy],
+    ];
+    for (const [key, label, value] of items) {
+      const chip = el('span', 'inv-vital');
+      chip.dataset.gauge = key;
+      chip.title = label;
+      chip.append(uiIcon(key), el('span', '', String(Math.round(value))));
+      row.append(chip);
+    }
+    return row;
   }
 
   dispose(): void {
@@ -130,17 +143,14 @@ export class InventoryPanel {
   }
 
   private buildSlots(vitals: Readonly<VitalsState>): HTMLElement {
-    const section = el('section', 'inv-slots-section');
+    const section = el('section', 'inv-section inv-slots-section');
+    section.append(sectionTitle('Eşyalar', `${slotUsageText(this.inventory)} slot`));
     const grid = el('div', 'inv-slots');
     this.inventory.slots.forEach((stack, index) => {
-      const view = slotView(stack);
-      const slot = el('button', 'inv-slot');
-      slot.type = 'button';
-      slot.title = view.title;
-      slot.dataset.empty = String(view.empty);
+      const slot = slotButton(stack);
       slot.dataset.selected = String(this.selected === index);
-      slot.append(el('span', 'inv-slot-name', view.name), el('span', 'inv-slot-count', view.count));
-      const bound = view.id === null ? null : (this.callbacks.hotbar?.slotOf(view.id) ?? null);
+      const id = stack?.id ?? null;
+      const bound = id === null ? null : (this.callbacks.hotbar?.slotOf(id) ?? null);
       if (bound !== null) {
         slot.append(el('span', 'inv-slot-key', keyLabel(INPUT.bindings.hotbar[bound] ?? '')));
       }
@@ -149,20 +159,37 @@ export class InventoryPanel {
     });
     section.append(grid);
 
-    const actions = el('div', 'inv-actions');
+    const actions = el('div', 'inv-detail');
     const stack = this.selected === null ? null : (this.inventory.slots[this.selected] ?? null);
     if (stack === null) {
+      actions.dataset.empty = 'true';
       actions.append(el('span', 'inv-hint', 'Bir eşyaya tıkla; başka bir slota tıklayarak taşı.'));
     } else {
       const view = slotView(stack);
       const slot = this.selected as number;
-      actions.append(el('span', 'inv-selected', view.title));
+      if (view.category) actions.style.setProperty('--accent', CATEGORY_ACCENT[view.category]);
+      const head = el('div', 'inv-detail-head');
+      const text = el('div', 'inv-detail-text');
+      text.append(
+        el('div', 'inv-detail-name', stack.count > 1 ? `${view.name} ×${stack.count}` : view.name),
+        el(
+          'div',
+          'inv-detail-meta',
+          [view.category ? CATEGORY_LABELS[view.category] : '', view.weight, view.effect]
+            .filter((part) => part !== '')
+            .join(' · '),
+        ),
+      );
+      head.append(itemIcon(stack.id, 'item-icon inv-detail-icon'), text);
+      actions.append(head);
+
+      const buttons = el('div', 'inv-detail-actions');
       if (view.edible) {
         const eat = el('button', 'inv-eat', canEat(vitals, stack.id) ? 'Ye' : 'Tok');
         eat.type = 'button';
         eat.disabled = !canEat(vitals, stack.id);
         eat.addEventListener('click', () => this.callbacks.onEat(slot));
-        actions.append(eat);
+        buttons.append(eat);
       }
       if (view.drinkable) {
         const ok = canDrinkContainer(vitals, this.inventory);
@@ -170,15 +197,13 @@ export class InventoryPanel {
         drink.type = 'button';
         drink.disabled = !ok;
         drink.addEventListener('click', () => this.callbacks.onDrink(slot));
-        actions.append(drink);
+        buttons.append(drink);
       }
-      const assign = this.buildHotbarAssign(stack.id);
-      if (assign) actions.append(assign);
       const drop = el('button', 'inv-drop', 'At');
       drop.type = 'button';
       drop.title = 'Bir adet at (eşya yok olur)';
       drop.addEventListener('click', () => this.callbacks.onDrop(slot, 1));
-      actions.append(drop);
+      buttons.append(drop);
       if (stack.count > 1) {
         const all = el(
           'button',
@@ -186,6 +211,7 @@ export class InventoryPanel {
           this.confirmDropAll ? `Onayla: ${stack.count} adet at` : 'Hepsini At',
         );
         all.type = 'button';
+        if (this.confirmDropAll) all.dataset.confirm = 'true';
         all.addEventListener('click', () => {
           if (!this.confirmDropAll) {
             this.confirmDropAll = true;
@@ -195,8 +221,11 @@ export class InventoryPanel {
           this.confirmDropAll = false;
           this.callbacks.onDrop(slot, stack.count);
         });
-        actions.append(all);
+        buttons.append(all);
       }
+      actions.append(buttons);
+      const assign = this.buildHotbarAssign(stack.id);
+      if (assign) actions.append(assign);
     }
     section.append(actions);
     return section;
@@ -208,7 +237,7 @@ export class InventoryPanel {
     const assign = this.callbacks.onAssignHotbar;
     if (!hotbar || !assign || !isHotbarItem(id)) return null;
     const row = el('div', 'inv-hotbar-assign');
-    row.append(el('span', 'inv-hint', 'Kısayol:'));
+    row.append(el('span', 'inv-hotbar-label', 'Kısayol'));
     const bound = hotbar.slotOf(id);
     hotbar.slots.forEach((current, index) => {
       const label = keyLabel(INPUT.bindings.hotbar[index] ?? '');
@@ -231,37 +260,50 @@ export class InventoryPanel {
   }
 
   private buildRecipes(context: CraftContext): HTMLElement {
-    const section = el('section', 'inv-recipes');
-    section.append(el('h3', 'inv-subtitle', 'Üretim'));
+    const section = el('section', 'inv-section inv-recipes');
+    const rows = recipeRows(this.inventory, context);
+    const ready = rows.filter((row) => row.craftable).length;
+    section.append(sectionTitle('Üretim', `${ready}/${rows.length} hazır`));
     const near = [...context.stations].map((station) => ITEMS[station].name);
-    section.append(
+    const stations = el('div', 'inv-stations');
+    stations.dataset.near = String(near.length > 0);
+    stations.append(
+      uiIcon('hammer'),
       el(
-        'div',
-        'inv-stations',
+        'span',
+        '',
         near.length > 0
           ? `Yakında: ${near.join(', ')}`
           : 'Bazı tarifler Çalışma Tezgâhı yanında üretilir',
       ),
     );
-    for (const row of recipeRows(this.inventory, context)) section.append(this.buildRecipe(row));
+    section.append(stations);
+    const list = el('div', 'inv-recipe-list');
+    for (const row of rows) list.append(this.buildRecipe(row));
+    section.append(list);
     return section;
   }
 
   private buildRecipe(row: RecipeRow): HTMLElement {
     const card = el('div', 'inv-recipe');
     card.dataset.craftable = String(row.craftable);
+    card.style.setProperty('--accent', CATEGORY_ACCENT[ITEMS[row.outputId].category]);
+    const output = el('div', 'inv-recipe-output');
+    output.append(itemIcon(row.outputId));
+    if (row.outputCount > 1) output.append(el('span', 'inv-slot-count', `×${row.outputCount}`));
+
+    const main = el('div', 'inv-recipe-main');
     const head = el('div', 'inv-recipe-head');
     head.append(el('span', 'inv-recipe-name', row.name));
-    const craft = el('button', 'inv-craft', 'Üret');
-    craft.type = 'button';
-    craft.disabled = !row.craftable;
-    craft.addEventListener('click', () => this.callbacks.onCraft(row.id));
-    head.append(craft);
-
     const inputs = el('div', 'inv-recipe-inputs');
     for (const input of row.inputs) {
-      const chip = el('span', 'inv-chip', `${input.name} ${input.have}/${input.need}`);
+      const chip = el('span', 'inv-chip');
       chip.dataset.ok = String(input.ok);
+      chip.title = input.name;
+      chip.append(
+        itemIcon(input.id, 'item-icon inv-chip-icon'),
+        el('span', '', `${input.name} ${input.have}/${input.need}`),
+      );
       inputs.append(chip);
     }
     if (row.tool) {
@@ -274,8 +316,14 @@ export class InventoryPanel {
       station.dataset.ok = String(row.station.ok);
       inputs.append(station);
     }
-    card.append(head, inputs);
-    if (row.reason) card.append(el('div', 'inv-reason', row.reason));
+    main.append(head, inputs);
+    if (row.reason) main.append(el('div', 'inv-reason', row.reason));
+
+    const craft = el('button', 'inv-craft', 'Üret');
+    craft.type = 'button';
+    craft.disabled = !row.craftable;
+    craft.addEventListener('click', () => this.callbacks.onCraft(row.id));
+    card.append(output, main, craft);
     return card;
   }
 
@@ -291,4 +339,11 @@ export class InventoryPanel {
     }
     this.refresh();
   }
+}
+
+/** Bölüm başlığı: ad ve sağda küçük açıklama ("7/20 slot"). */
+function sectionTitle(title: string, meta: string): HTMLElement {
+  const head = el('div', 'inv-section-head');
+  head.append(el('h3', 'inv-subtitle', title), el('span', 'inv-section-meta', meta));
+  return head;
 }
