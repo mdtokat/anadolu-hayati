@@ -365,7 +365,7 @@ export function parseFeatures(json: unknown): RegionFeatures {
   return { water: { lines, polygons, points } };
 }
 
-type FetchLike = (url: string) => Promise<{
+export type FetchLike = (url: string) => Promise<{
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
