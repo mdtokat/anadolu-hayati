@@ -5,6 +5,7 @@ import {
   AMBIENT,
   INTERACT,
   PROVINCE_NOTICE,
+  PILOT,
   QUALITY_PRESETS,
   SAVE,
   PLAYER,
@@ -368,7 +369,10 @@ export class Game {
     return new Game(container, physics, world, options.creatureDemo === true, options.settings);
   }
 
-  /** Geliştirici kısayolu: 1–9 ve 0 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
+  /**
+   * Geliştirici kısayolu: 1–9 ve 0 tuşları TELEPORTS listesindeki noktalara, Shift + 1–9, 0 pilot ilin
+   * yerlerine (`PILOT.places`) ışınlar (yalnızca dev modunda bağlanır).
+   */
   private readonly onDevKey = (event: KeyboardEvent): void => {
     // [ / ]: saati bir saat geri/ileri sar; K: canı ve suyu sıfırla (ölüm ekranını dene).
     if (event.code === 'BracketLeft') this.survival.clock.skipHours(-1);
@@ -382,7 +386,10 @@ export class Game {
       this.inventory.add('log', 2);
     }
     const slot = teleportSlotForKey(event.code);
-    const target = slot === null ? undefined : TELEPORTS[slot];
+    const list: ReadonlyArray<{ name: string; lat: number; lon: number }> = event.shiftKey
+      ? PILOT.places
+      : TELEPORTS;
+    const target = slot === null ? undefined : list[slot];
     if (!target) return;
     const ok = this.teleportToLatLon(target.lat, target.lon);
     console.info(
