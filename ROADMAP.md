@@ -191,8 +191,8 @@ Görevler (numaralar alt görev sırasıdır; **Hesap A = Veri ve karolar**, **H
 - [ ] **7.4** _(A)_ Düzce–Bolu verisini üret + kalite denetimi (sınır sürekliliği, göller, il kapsamı)
 - [x] **7.5** _(B)_ Izgara çapası ve mutlak kimlikler (merkezli-orijin varsayımı kalkar; nesne/canlı yerleşimi birebir korunur) _(testli: `tests/latticeGolden` (eski bölge scatter/doğma golden + geniş dünyada değişmezlik), `latticeGrid` (asimetrik ızgara, negatif chunk, `seedFrom` kilidi))_
 - [ ] **7.6** _(B)_ Dünyayı manifestten yükle; gerçek-bölge testlerini yeni yükleyiciye taşı
-- [ ] **7.7** _(B)_ Kayıt v2 ve göç (Faz 6 kayıtları yeni dünyada yüklenir, kimlikler aynı nesneyi gösterir)
-- [ ] **7.8** _(B)_ Performans ve bellek (288 chunk, su meshi; draw call < 300)
+- [x] **7.7** _(B)_ Kayıt v2 ve göç (Faz 6 kayıtları yeni dünyada yüklenir, kimlikler aynı nesneyi gösterir) _(testli: `tests/saveMigration` — Faz 6 koduyla üretilmiş gerçek v1 kayıt `tests/fixtures/save-v1.json`; başsız tarayıcıda v1 kayıt yüklendi, kesilen ağaç gizli. Yeni dünya verisiyle (S2) yeniden denenecek)_
+- [ ] **7.8** _(B)_ Performans ve bellek (288 chunk, su meshi; draw call < 300) _(altyapı ve sentetik ölçüm tamam: en kötü 160 draw call / ~521 bin üçgen, CPU açılış hazırlığı ~0,5 sn, azaltma gerekmedi — [docs/faz-7-b-olcumler.md](docs/faz-7-b-olcumler.md), `tests/scalePerf`, dev `?world=wide`; S2 sonrası gerçek veriyle yinelenecek)_
 - [ ] **7.9** _(B)_ İçerik: Düzce–Bolu ışınlanma noktaları, kesintisiz yürüme, ekoloji/denge ölçümü
 - [ ] **7.10** Birleştirme: eski bölge verisi/yükleyici temizliği, uçtan uca doğrulama, birleşik performans tablosu
 - [ ] **7.11** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README

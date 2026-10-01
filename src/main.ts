@@ -10,8 +10,14 @@ const query = new URLSearchParams(window.location.search);
 const world = query.get('world') === 'test' ? 'test' : 'region';
 // ?creatures=demo (yalnızca dev) → canlı simülasyonu yerine sahte canlı demosu (görsel doğrulama).
 const creatureDemo = import.meta.env.DEV && query.get('creatures') === 'demo';
+// ?world=wide (yalnızca dev) → Faz 7 kapsamında sentetik büyük dünya (performans ölçümü; tests/helpers).
+const wide = import.meta.env.DEV && query.get('world') === 'wide';
+const regionTransform = wide
+  ? import('../tests/helpers/syntheticWorld').then((m) => m.syntheticWorld)
+  : Promise.resolve(undefined);
 
-Game.create(container, { world, creatureDemo })
+regionTransform
+  .then((transform) => Game.create(container, { world, creatureDemo, regionTransform: transform }))
   .then((game) => {
     loading?.remove();
     game.start();
