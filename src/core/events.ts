@@ -61,4 +61,6 @@ export interface GameEvents {
   'carcass:butchered': { id: CreatureId; kind: CreatureKind; items: ItemStack[] };
   /** Ateşte bir şey pişirilince (`from`: çiğ eşya). */
   'item:cooked': { from: ItemId; item: ItemId; count: number };
+  /** Tatlı su kenarında bir boş su kabı doldurulunca (`item`: dolu kap). */
+  'item:filled': { item: ItemId };
 }

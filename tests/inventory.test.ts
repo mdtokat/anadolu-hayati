@@ -273,3 +273,35 @@ describe("Inventory: değişmezler (seed'li rastgele işlem dizisi)", () => {
     }
   });
 });
+
+describe('Inventory.canExchange / exchange', () => {
+  it('bir eşyayı diğerine atomik dönüştürür', () => {
+    const inv = new Inventory();
+    inv.add('raw_meat', 2);
+    expect(inv.exchange('raw_meat', 'cooked_meat')).toBe(true);
+    expect(inv.count('raw_meat')).toBe(1);
+    expect(inv.count('cooked_meat')).toBe(1);
+    expect(inv.totalWeightG).toBe(500 + 400);
+  });
+
+  it('kaynak yoksa ya da hedef sığmıyorsa hiçbir şey değişmez', () => {
+    const inv = new Inventory();
+    expect(inv.exchange('raw_meat', 'cooked_meat')).toBe(false);
+    inv.add('raw_meat', 2);
+    inv.add('tinder', 19 * 30);
+    const before = inv.toJSON();
+    expect(inv.canExchange('raw_meat', 'cooked_meat')).toBe(false);
+    expect(inv.exchange('raw_meat', 'cooked_meat')).toBe(false);
+    expect(inv.toJSON()).toEqual(before);
+  });
+
+  it('tek adetlik kaynak yığını boşalacağı slotu hedefe bırakır; ağırlık sınırı denetlenir', () => {
+    const inv = new Inventory({ maxWeightG: 1000 });
+    inv.add('water_container_empty', 1);
+    expect(inv.canExchange('water_container_empty', 'water_container_full')).toBe(false); // 1300 g > 1000 g
+    const roomy = new Inventory({ slots: 1 });
+    roomy.add('water_container_empty', 1);
+    expect(roomy.exchange('water_container_empty', 'water_container_full')).toBe(true);
+    expect(roomy.slots[0]).toEqual({ id: 'water_container_full', count: 1 });
+  });
+});

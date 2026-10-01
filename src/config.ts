@@ -969,6 +969,19 @@ export const FOOD = {
   eatMinDeficit: 5,
 } as const;
 
+/**
+ * Su kabı (`water_container_empty/full`): tatlı su kenarında susuzluk giderildikten sonra `E` basılı tutulmaya
+ * devam edilince boş kap dolar; dolu kap envanterden içilir ve boşalır. Kaynatma yok (Fikir Havuzu).
+ */
+export const WATER_CONTAINER = {
+  /** Boş kabın dolma süresi (gerçek sn; `E` basılı). */
+  fillSeconds: 2,
+  /** Dolu kaptan içince su göstergesine eklenen puan (0–100 ölçeğinde; ~1 L). */
+  drinkHydration: 40,
+  /** İçmek için suyun 100'den en az bu kadar düşük olması gerekir (kap boşa harcanmasın). */
+  drinkMinDeficit: 5,
+} as const;
+
 /** Toplama etkileşimi (Faz 4.6): bakılan nesneye `E`. Verim tablosu `interaction/gatherRules.ts`'tedir. */
 export const INTERACT = {
   /** Nesneye en fazla bu yatay uzaklıkta (oyun m) etkileşilir. */
@@ -987,6 +1000,10 @@ export const INTERACT = {
   maxTargetHeight: 1.6,
   /** Toplanınca ekranda gösterilen bildirimin süresi (ms). */
   toastMs: 2000,
+  /** Aynı anda en çok bu kadar bildirim görünür; fazlası gelince en eskisi kalkar (art arda toplama ekranı doldurmasın). */
+  maxToasts: 4,
+  /** Gece/gündüz geçişi bildiriminin süresi (ms). */
+  dayNightToastMs: 4000,
 } as const;
 
 /** Yapı yerleştirme (Faz 4.8): hayalet konumu ve geçerlilik kuralları. */

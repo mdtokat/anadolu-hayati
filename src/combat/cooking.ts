@@ -10,6 +10,8 @@ const COOKED = 'cooked_meat';
 
 /** Yanık ateşin yanında şu an yapılabilecek pişirme (HUD ipucu için). */
 export interface CookOffer {
+  /** `ready`: pişirilebilir; `full`: pişmiş et envantere sığmıyor (slot yok). */
+  status: 'ready' | 'full';
   fireId: StructureId;
   /** Bir adet etin pişme süresi (sn). */
   seconds: number;
@@ -19,6 +21,7 @@ export interface CookOffer {
  * Et pişirme (saf mantık; `FireTender` ile aynı kalıp): yanık bir ateşin `FIRE.refuelReach` yakınında,
  * envanterde çiğ et varken `E` basılı tutulunca `COOKING.seconds` sonra bir çiğ et pişmiş ete döner
  * (`item:cooked`). Tuş basılı kaldıkça sıradaki ete geçer. Ateş sönerse ya da et biterse ilerleme sıfırlanır.
+ * Pişmiş et sığmıyorsa teklif `full` olur ve `E` sıradaki eyleme (yakıt) geçer.
  */
 export class CookingSystem {
   private currentId: StructureId | null = null;
@@ -37,7 +40,7 @@ export class CookingSystem {
 
   /** Pişme ilerlemesi 0–1 (pişirilmiyorsa 0). */
   get progress(): number {
-    return this.currentOffer && this.currentId !== null
+    return this.currentOffer?.status === 'ready' && this.currentId !== null
       ? Math.min(this.elapsed / COOKING.seconds, 1)
       : 0;
   }
@@ -47,10 +50,16 @@ export class CookingSystem {
     const fire = alive ? this.structures.nearestCampfire(pos.x, pos.z, FIRE.refuelReach) : null;
     const lit = fire !== null && isLit(fire);
     this.currentOffer =
-      fire && lit && this.inventory.has(RAW) ? { fireId: fire.id, seconds: COOKING.seconds } : null;
+      fire && lit && this.inventory.has(RAW)
+        ? {
+            status: this.inventory.canExchange(RAW, COOKED) ? 'ready' : 'full',
+            fireId: fire.id,
+            seconds: COOKING.seconds,
+          }
+        : null;
     const offer = this.currentOffer;
 
-    if (!offer || !held) {
+    if (!offer || offer.status !== 'ready' || !held) {
       this.currentId = null;
       this.elapsed = 0;
       return;
@@ -67,11 +76,7 @@ export class CookingSystem {
   }
 
   private complete(): void {
-    if (!this.inventory.remove(RAW, 1)) return;
-    if (this.inventory.add(COOKED, 1) > 0) {
-      this.inventory.add(RAW, 1); // pişmiş et sığmadı (ağırlık): çiğ et kaybolmasın
-      return;
-    }
+    if (!this.inventory.exchange(RAW, COOKED)) return;
     this.events.emit('item:cooked', { from: RAW, item: COOKED, count: 1 });
   }
 }

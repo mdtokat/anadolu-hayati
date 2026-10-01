@@ -53,7 +53,7 @@ export function updateInteractions(
 
   const free = held && !gathering && !butchering;
   systems.cooking.update(dt, free, feet, alive);
-  const cooking = systems.cooking.offer !== null;
+  const cooking = systems.cooking.offer?.status === 'ready';
 
   systems.fireTender.update(dt, free && !cooking, feet, alive);
   const tending = systems.fireTender.offer?.status === 'ready';

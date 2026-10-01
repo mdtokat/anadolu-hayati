@@ -2,6 +2,8 @@ import { craftStatus, type CraftFailure } from '../items/craft';
 import type { Inventory, ItemStack } from '../items/Inventory';
 import { ITEMS, type ItemId } from '../items/itemDefs';
 import { RECIPE_LIST, type Recipe, type RecipeId } from '../items/recipes';
+import { FULL_CONTAINER } from '../items/waterContainer';
+import { WATER_CONTAINER } from '../config';
 
 /** Görünüm modeli (saf, testli): DOM katmanı (`InventoryPanel`) yalnızca bunu çizer. */
 
@@ -27,9 +29,12 @@ export interface SlotView {
   id: ItemId | null;
   /** Seçiliyken "Ye" düğmesi için: yiyecek mi? */
   edible: boolean;
+  /** Seçiliyken "İç" düğmesi için: içilebilir mi (dolu su kabı)? */
+  drinkable: boolean;
 }
 
 function effectText(id: ItemId): string {
+  if (id === FULL_CONTAINER) return `Su +${WATER_CONTAINER.drinkHydration}`;
   const edible = ITEMS[id].edible;
   if (!edible) return '';
   const parts: string[] = [];
@@ -41,7 +46,15 @@ function effectText(id: ItemId): string {
 
 export function slotView(stack: Readonly<ItemStack> | null): SlotView {
   if (stack === null) {
-    return { empty: true, name: '', count: '', title: 'Boş', id: null, edible: false };
+    return {
+      empty: true,
+      name: '',
+      count: '',
+      title: 'Boş',
+      id: null,
+      edible: false,
+      drinkable: false,
+    };
   }
   const def = ITEMS[stack.id];
   const weight = formatWeight(def.weightG * stack.count);
@@ -53,6 +66,7 @@ export function slotView(stack: Readonly<ItemStack> | null): SlotView {
     title: `${def.name} ×${stack.count} · ${weight}${effect ? ` · ${effect}` : ''}`,
     id: stack.id,
     edible: def.edible !== undefined,
+    drinkable: stack.id === FULL_CONTAINER,
   };
 }
 

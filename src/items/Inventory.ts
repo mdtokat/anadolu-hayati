@@ -149,6 +149,34 @@ export class Inventory {
     return { id: stack.id, count: n };
   }
 
+  /**
+   * Bir `from` çıkarılıp yerine bir `to` eklenebilir mi (envanteri değiştirmeden; `exchange` ile aynı sonuç)?
+   * Ağırlık farkı ve slot denetlenir: `remove` son slottan başladığı için oradaki yığın tek adetse o slot boşalır.
+   */
+  canExchange(from: ItemId, to: ItemId): boolean {
+    if (!this.has(from)) return false;
+    const toDef = ITEMS[to];
+    if (this.weightG - ITEMS[from].weightG + toDef.weightG > this.maxWeightG) return false;
+    let lastFrom = -1;
+    for (let i = this.stacks.length - 1; i >= 0 && lastFrom < 0; i--) {
+      if (this.stacks[i]?.id === from) lastFrom = i;
+    }
+    return this.stacks.some(
+      (stack, i) =>
+        stack === null ||
+        (i === lastFrom && stack.count === 1) ||
+        (stack.id === to && stack.count < toDef.stackMax),
+    );
+  }
+
+  /** Bir `from`'u bir `to`'ya dönüştürür (pişirme, su kabı); yapılamıyorsa hiçbir şey değiştirmez (atomik). */
+  exchange(from: ItemId, to: ItemId): boolean {
+    if (!this.canExchange(from, to)) return false;
+    this.remove(from, 1);
+    this.add(to, 1);
+    return true;
+  }
+
   /** Aynı eşyaysa `to` dolana kadar birleştirir (artan `from`'da kalır), değilse takas eder. */
   moveSlot(from: number, to: number): void {
     this.assertSlot(from);
