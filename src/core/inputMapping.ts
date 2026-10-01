@@ -48,8 +48,10 @@ export function actionForKey(code: string): InputAction | null {
   return null;
 }
 
-/** `Digit1`…`Digit9` → 0…8 (geliştirici ışınlanma yuvası); başka tuş için null. */
+/** `Digit1`…`Digit9` → 0…8, `Digit0` → 9 (geliştirici ışınlanma yuvası; klavye sırası); başka tuş için null. */
 export function teleportSlotForKey(code: string): number | null {
-  const match = /^Digit([1-9])$/.exec(code);
-  return match ? Number(match[1]) - 1 : null;
+  const match = /^Digit([0-9])$/.exec(code);
+  if (!match) return null;
+  const digit = Number(match[1]);
+  return digit === 0 ? 9 : digit - 1;
 }

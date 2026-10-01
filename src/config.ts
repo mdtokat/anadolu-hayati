@@ -603,15 +603,21 @@ export const SPAWN_SEARCH = {
 } as const;
 
 /**
- * Geliştirici ışınlanma noktaları (dev modunda 1–5 tuşları). İlki oyunun başlangıç noktasıdır.
- * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur.
+ * Geliştirici ışınlanma noktaları (dev modunda 1–9 ve 0 tuşları, sırayla). İlki oyunun başlangıç noktasıdır.
+ * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur. `province`: noktanın düştüğü il (test
+ * eder). Abant ve Yedigöller noktaları göl kıyısındadır (içine değil): bir iki adımda su içilebilir.
  */
 export const TELEPORTS = [
-  { name: 'Zonguldak merkez', lat: 41.4564, lon: 31.7987 },
-  { name: 'Safranbolu', lat: 41.2517, lon: 32.6939 },
-  { name: 'Amasra', lat: 41.7494, lon: 32.3853 },
-  { name: 'Filyos vadisi', lat: 41.5667, lon: 32.0333 },
-  { name: 'Yenice', lat: 41.2028, lon: 32.3358 },
+  { name: 'Zonguldak merkez', lat: 41.4564, lon: 31.7987, province: 'Zonguldak' },
+  { name: 'Safranbolu', lat: 41.2517, lon: 32.6939, province: 'Karabük' },
+  { name: 'Amasra', lat: 41.7494, lon: 32.3853, province: 'Bartın' },
+  { name: 'Filyos vadisi', lat: 41.5667, lon: 32.0333, province: 'Zonguldak' },
+  { name: 'Yenice', lat: 41.2028, lon: 32.3358, province: 'Karabük' },
+  { name: 'Düzce merkez', lat: 40.8438, lon: 31.1565, province: 'Düzce' },
+  { name: 'Bolu merkez', lat: 40.7392, lon: 31.6089, province: 'Bolu' },
+  { name: 'Abant Gölü', lat: 40.6115, lon: 31.2765, province: 'Bolu' },
+  { name: 'Yedigöller', lat: 40.9441, lon: 31.7497, province: 'Bolu' },
+  { name: 'Akçakoca', lat: 41.0864, lon: 31.1167, province: 'Düzce' },
 ] as const;
 
 /**

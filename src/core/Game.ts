@@ -363,7 +363,7 @@ export class Game {
     return new Game(container, physics, world, options.creatureDemo === true, options.settings);
   }
 
-  /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
+  /** Geliştirici kısayolu: 1–9 ve 0 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
   private readonly onDevKey = (event: KeyboardEvent): void => {
     // [ / ]: saati bir saat geri/ileri sar; K: canı ve suyu sıfırla (ölüm ekranını dene).
     if (event.code === 'BracketLeft') this.survival.clock.skipHours(-1);

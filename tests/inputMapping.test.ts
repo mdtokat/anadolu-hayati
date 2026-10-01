@@ -76,8 +76,10 @@ describe('teleportSlotForKey', () => {
     expect(teleportSlotForKey('Digit5')).toBe(4);
     expect(teleportSlotForKey('Digit9')).toBe(8);
   });
-  it('diğer tuşlar için null (Digit0 dahil)', () => {
-    expect(teleportSlotForKey('Digit0')).toBeNull();
+  it('Digit0 → 9 (onuncu yuva; klavyede 9’dan sonra)', () => {
+    expect(teleportSlotForKey('Digit0')).toBe(9);
+  });
+  it('diğer tuşlar için null', () => {
     expect(teleportSlotForKey('KeyW')).toBeNull();
     expect(teleportSlotForKey('Numpad1')).toBeNull();
   });
