@@ -3,6 +3,7 @@ import {
   COMBAT,
   COMBAT_HUD,
   INTERACT,
+  PROVINCE_NOTICE,
   QUALITY_PRESETS,
   SAVE,
   PLAYER,
@@ -74,6 +75,7 @@ import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
 import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
 import { AUTO_SLOT, SaveStore, type SlotId } from '../save/SaveStore';
+import { ProvinceTracker, provinceNoticeText } from '../world/provinceNotice';
 import { CreatureLayer } from '../world/CreatureLayer';
 import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
@@ -177,6 +179,8 @@ export class Game {
   private demoAnchor: { x: number; z: number } | null = null;
   private lastDangerToast = -Infinity;
   private lastLocationUpdate = -Infinity;
+  /** İl sınırı geçişi bildirimi (yükleme/yeni oyunda sıfırlanır: ilk il sessizce kabul edilir). */
+  private readonly provinceTracker = new ProvinceTracker();
   private lastSurvivalHudUpdate = -Infinity;
   /** Ayak konumundaki ateş ısısı ve barınak etkisi (her sabit adımda yenilenir). */
   private exposure: Readonly<Exposure> = NO_EXPOSURE;
@@ -417,6 +421,7 @@ export class Game {
     this.inventoryPanel.refresh();
     this.lastSurvivalHudUpdate = -Infinity;
     this.lastLocationUpdate = -Infinity;
+    this.provinceTracker.reset();
   }
 
   /**
@@ -749,7 +754,13 @@ export class Game {
     if (!this.world.locationInfo) return;
     if (now - this.lastLocationUpdate < LOCATION_HUD_INTERVAL_MS) return;
     this.lastLocationUpdate = now;
-    this.hud.setLocation(formatLocation(this.world.locationInfo(feet.x, feet.z, feet.y)));
+    const info = this.world.locationInfo(feet.x, feet.z, feet.y);
+    this.hud.setLocation(formatLocation(info));
+    const change = this.provinceTracker.observe(
+      { name: info.province, inRegion: info.inRegion },
+      now / 1000,
+    );
+    if (change) this.hud.showBanner(provinceNoticeText(change), PROVINCE_NOTICE.bannerMs);
   }
 
   /** Göstergeler, saat ve su içme ipucu: saniyede birkaç kez güncellenir. */

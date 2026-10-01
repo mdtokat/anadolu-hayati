@@ -747,6 +747,16 @@ export const SURVIVAL = {
   drinkMinDeficit: 1,
 } as const;
 
+/** İl sınırı geçişi bildirimi (Faz 6.7): sınırda gidip gelmede bildirim yağmasın. */
+export const PROVINCE_NOTICE = {
+  /** Yeni ilde bu kadar süre (gerçek sn) kesintisiz kalınca geçiş sayılır (sınır boyunca yürürken titreme elenir). */
+  confirmSeconds: 2,
+  /** Art arda iki bildirim arasındaki en kısa süre (gerçek sn); araya giren geçişler bildirilmeden işlenir. */
+  cooldownSeconds: 15,
+  /** Bildirimin ekranda kalma süresi (ms). */
+  bannerMs: 4000,
+} as const;
+
 /**
  * Kullanıcı ayarları (Faz 6.4). Ayarlar tarayıcıda (`localStorage`) tutulur; oyun kaydından bağımsızdır.
  * Aralıklar arayüzdeki kaydırıcıları ve yüklenen değerlerin kırpılmasını belirler.
