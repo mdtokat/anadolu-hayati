@@ -67,7 +67,7 @@ Bölge tanımı `tools/regions.yaml`'dadır. Koordinat ve veri formatı sözleş
 
 ## Veri Kaynakları ve Atıflar
 
-Oyun aşağıdaki açık verileri kullanır. Atıflar oyunun içinde (duraklatma menüsü) de gösterilir.
+Oyun aşağıdaki açık verileri kullanır. Atıflar oyunun içinde (menü → **Krediler**) de gösterilir.
 
 | Veri         | Kaynak                                                                                | Lisans / Atıf                                |
 | ------------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -78,3 +78,5 @@ Oyun aşağıdaki açık verileri kullanır. Atıflar oyunun içinde (duraklatma
 | Yol (ileri faz) | [OpenStreetMap](https://www.openstreetmap.org/copyright) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
 
 Yükseklik verisi: _Contains modified Copernicus DEM GLO-30 data (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA; all rights reserved)._
+
+Yazılım: [Three.js](https://github.com/mrdoob/three.js) (MIT) ve [Rapier](https://github.com/dimforge/rapier) (Apache-2.0).

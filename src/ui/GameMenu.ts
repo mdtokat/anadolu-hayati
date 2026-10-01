@@ -3,7 +3,6 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import { SaveError } from '../save/saveGame';
 import type { SaveStore, SlotId, SlotState } from '../save/SaveStore';
-import { CREDITS } from './credits';
 import { SlotPicker } from './SlotPicker';
 import { formatSummary } from './slotFormat';
 
@@ -50,6 +49,7 @@ export interface GameMenuOptions {
   host: GameMenuHost;
   store: SaveStore;
   openSettings: () => void;
+  openCredits: () => void;
   /** Menü şu an gösterilmemeli mi (ör. envanter paneli açıkken oyun duraklıdır ama menü çıkmaz)? */
   isSuppressed?: () => boolean;
 }
@@ -72,6 +72,7 @@ export class GameMenu {
   private readonly host: GameMenuHost;
   private readonly store: SaveStore;
   private readonly openSettings: () => void;
+  private readonly openCredits: () => void;
   private readonly isSuppressed: () => boolean;
   private readonly offs: Array<() => void> = [];
 
@@ -87,6 +88,7 @@ export class GameMenu {
     this.host = options.host;
     this.store = options.store;
     this.openSettings = options.openSettings;
+    this.openCredits = options.openCredits;
     this.isSuppressed = options.isSuppressed ?? (() => false);
 
     this.root.className = 'pause-menu';
@@ -112,20 +114,7 @@ export class GameMenu {
       controls.append(dt, dd);
     }
 
-    const credits = document.createElement('div');
-    credits.className = 'pause-menu-credits';
-    for (const credit of CREDITS) {
-      const paragraph = document.createElement('p');
-      const link = document.createElement('a');
-      link.href = credit.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = credit.label;
-      paragraph.append(link, ` — ${credit.text}`);
-      credits.append(paragraph);
-    }
-
-    panel.append(title, this.subtitle, this.latest, this.buttons, this.hint, controls, credits);
+    panel.append(title, this.subtitle, this.latest, this.buttons, this.hint, controls);
     this.root.append(panel);
     // Dış alana tık: yalnızca duraklatma menüsünde oyuna döner (ana menüde yanlışlıkla başlamasın).
     this.root.addEventListener('click', () => {
@@ -249,6 +238,7 @@ export class GameMenu {
         ),
         this.button('Yükle', !hasSave, false, () => this.picker.open('load')),
         this.button('Ayarlar', false, false, this.openSettings),
+        this.button('Krediler', false, false, this.openCredits),
       );
     } else {
       items.push(
@@ -256,6 +246,7 @@ export class GameMenu {
         this.button('Kaydet', !this.host.canSave(), false, () => this.picker.open('save')),
         this.button('Yükle', !hasSave, false, () => this.picker.open('load')),
         this.button('Ayarlar', false, false, this.openSettings),
+        this.button('Krediler', false, false, this.openCredits),
         this.button('Ana Menüye Dön', false, false, () =>
           this.act(async () => {
             await this.host.autosaveNow();

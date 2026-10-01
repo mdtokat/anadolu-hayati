@@ -367,24 +367,6 @@
   opacity: 0.8;
 }
 
-.pause-menu-credits {
-  max-width: 420px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: left;
-  opacity: 0.7;
-}
-.pause-menu-credits p {
-  margin: 0 0 6px;
-}
-.pause-menu-credits a {
-  color: inherit;
-  font-weight: 600;
-}
-
 /* Ölüm ekranı (duraklatma menüsünün üstünde) */
 .death-screen {
   position: fixed;
@@ -725,4 +707,34 @@
 .slot-hint {
   min-height: 1.4em;
   margin: 12px 0 0;
+}
+
+/* Krediler ekranı (ayarlar penceresinin kabuğunu kullanır; uzun olduğundan kaydırılır) */
+.credits-panel-body {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.credits-section h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  opacity: 0.75;
+}
+.credits-section p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+.credits-section a {
+  color: inherit;
+  font-weight: 600;
+}
+.credits-note {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.65;
 }

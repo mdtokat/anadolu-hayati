@@ -64,6 +64,7 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
+import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
 import type { Settings } from '../settings/settings';
@@ -152,6 +153,7 @@ export class Game {
   private readonly hud: Hud;
   private readonly pauseMenu: GameMenu;
   private readonly settingsPanel: SettingsPanel;
+  private readonly creditsPanel: CreditsPanel;
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
   /** Envanter paneli açık: oyun duraklı (fare serbest) ama duraklatma menüsü çıkmaz. */
@@ -219,9 +221,11 @@ export class Game {
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
     this.settingsPanel = new SettingsPanel(container, this.settings);
+    this.creditsPanel = new CreditsPanel(container);
     this.pauseMenu = new GameMenu(container, this.events, {
       store: this.saves,
       openSettings: () => this.settingsPanel.show(),
+      openCredits: () => this.creditsPanel.show(),
       isSuppressed: () => this.inventoryOpen,
       host: {
         resume: () => this.input.requestLock(),
@@ -520,6 +524,7 @@ export class Game {
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.pauseMenu.dispose();
     this.settingsPanel.dispose();
+    this.creditsPanel.dispose();
     this.inventoryPanel.dispose();
     this.deathScreen.dispose();
     this.hud.dispose();
