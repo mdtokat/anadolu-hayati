@@ -179,17 +179,46 @@ Elle doğrulanacak (bu ortamda gerçek GPU ve ses çıkışı yok):
 
 ---
 
-## Faz 7+ — Genişleme
+## Faz 7 — Genişleme: Düzce – Bolu (Batı Karadeniz)
+**Branch:** `faz-7-0-iskele`, `faz-7-a-veri`, `faz-7-b-calisma` _(iki hesapta paralel yürütülür: bkz. [docs/faz-7-paralel-plan.md](docs/faz-7-paralel-plan.md))_
+**Amaç:** Haritayı batıya ve güneye büyüt: Düzce ve Bolu (Abant, Yedigöller) tam kapsansın, Zonguldak–Bartın–Karabük ile aralarında kesinti olmadan yürünsün. Mimari: **tek koordinat sistemi + diskte 512×512'lik karolar + açılışta belleğe birleştirme** (akış Faz 7 dışı); EPSG:32636 sabit.
+
+Görevler (numaralar alt görev sırasıdır; **Hesap A = Veri ve karolar**, **Hesap B = Çalışma zamanı ve oyun**):
+- [ ] **7.0** İskele: sözleşme sabitleri (`WORLD`), `RegionMeta.gridOrigin`, mutlak kimlik fonksiyonları (`world/chunkKeys.ts`), tipler
+- [ ] **7.1** _(A)_ Karo biçimi ve yükleyici: `world.json` manifesti, `loadWorld`, `tools/worldlib.py`
+- [ ] **7.2** _(A)_ Eski bölgeyi karola (bit-eşdeğer, golden test) — B için kritik bağımlılık
+- [ ] **7.3** _(A)_ Hattı kafes/karo düzenine taşı (`world.yaml`, `build_world.py`, dünya-geneli nicemleme)
+- [ ] **7.4** _(A)_ Düzce–Bolu verisini üret + kalite denetimi (sınır sürekliliği, göller, il kapsamı)
+- [ ] **7.5** _(B)_ Izgara çapası ve mutlak kimlikler (merkezli-orijin varsayımı kalkar; nesne/canlı yerleşimi birebir korunur)
+- [ ] **7.6** _(B)_ Dünyayı manifestten yükle; gerçek-bölge testlerini yeni yükleyiciye taşı
+- [ ] **7.7** _(B)_ Kayıt v2 ve göç (Faz 6 kayıtları yeni dünyada yüklenir, kimlikler aynı nesneyi gösterir)
+- [ ] **7.8** _(B)_ Performans ve bellek (288 chunk, su meshi; draw call < 300)
+- [ ] **7.9** _(B)_ İçerik: Düzce–Bolu ışınlanma noktaları, kesintisiz yürüme, ekoloji/denge ölçümü
+- [ ] **7.10** Birleştirme: eski bölge verisi/yükleyici temizliği, uçtan uca doğrulama, birleşik performans tablosu
+- [ ] **7.11** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
+
+Kabul kriterleri:
+- [ ] Oyuncu Zonguldak'tan Düzce'ye ve Bolu'ya kesintisiz yürüyebiliyor (karo/eski-yeni alan sınırında boşluk, sıçrama, takılma yok)
+- [ ] Düzce ve Bolu gerçek il sınırlarıyla var; "Düzce'ye hoş geldiniz" bildirimi çıkıyor; Abant Gölü ve Yedigöller'de göl var ve içilebiliyor
+- [ ] Heightmap karo dosyalarına bölünmüş (her dosya ≤ 1 MB); eski alan karolardan bit-eşdeğer yüklenir (7.2), yeni alanla ≤ 1 nicem içinde (7.4)
+- [ ] Faz 6 (v1) kayıtları yeni dünyada yüklenir; tükenen ağaçlar ve öldürülen canlı beklemeleri aynı yerde
+- [ ] Performans bütçesi: kare başı draw call < 300 (başsız ölçüm, en kötü konumlar); açılış hazırlığı ölçülmüş _(gerçek FPS elle GPU'lu masaüstünde)_
+- [ ] Veri hattı tek komutla yeniden üretilebilir; Python ve TS testleri geçer
+
+---
+
+## Faz 8+ — Genişleme
 Her genişleme ayrı bir faz olarak planlanır. Olası sıra (komşuluğa göre):
 
-1. **Düzce – Bolu** (batıya ve güneye; Abant, Yedigöller)
-2. **Kastamonu – Çankırı** (doğuya; Ilgaz)
-3. **Sakarya – Kocaeli – Ankara** …
+1. **Kastamonu – Çankırı** (doğuya; Ilgaz) — alan ~+%60: **karo akışı** (oyuncuya göre yükleme/boşaltma) bu fazdan önce gerekli olabilir
+2. **Sakarya – Kocaeli – Ankara** … (EPSG:32636 batıda ~28,5°D'ye kadar yeter; ötesi için ayrı karar)
 
 Genişleme için teknik gereksinimler:
-- [ ] Çoklu bölge desteği ve bölgeler arası kesintisiz geçiş
-- [ ] Heightmap'in diskte chunk dosyalarına bölünmesi (tek dosya yerine)
-- [ ] Doğuya ilerlerken UTM zone değişimi için çözüm (bölge başına zone veya tek Lambert projeksiyonu)
+- [x] Çoklu bölge desteği ve bölgeler arası kesintisiz geçiş _(Faz 7'de tek koordinat sistemi + karolarla çözülür; ayrı "bölge geçişi" gerekmez)_
+- [x] Heightmap'in diskte karo dosyalarına bölünmesi _(Faz 7)_
+- [x] UTM zone değişimi _(Faz 7'de gerekmedi: Düzce–Bolu 30°D'nin doğusunda; EPSG:32636 batıda ~28,5°D'ye, doğuda 36°D'ye kadar yeter)_
+- [ ] Karo akışı (oyuncuya göre karo yükleme/boşaltma; bellek tavanı)
+- [ ] Karo başına özellik dosyaları (su/örtü vektörleri) — `features.json` büyüdüğünde
 
 ---
 
