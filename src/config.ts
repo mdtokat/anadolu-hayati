@@ -611,7 +611,16 @@ export const PILOT = {
   /** `provinces.geojson` içindeki il adı. */
   province: 'Zonguldak',
   /** Yeni oyun başlangıcı (enlem/boylam; en yakın yürünebilir nokta otomatik bulunur): Zonguldak merkez. */
-  start: { lat: 41.4564, lon: 31.7987 },
+  start: {
+    lat: 41.4564,
+    lon: 31.7987,
+    /**
+     * Başlangıç bakış yönü (derece; 0 = kuzey, artış kuzeyden batıya: ileri = (−sin yaw, −cos yaw)). Kuzeye
+     * bakınca (varsayılan) ilk kare 3 m ötede 17° dikleşen bir yamaç duvarıdır; batıya bakış açık (denizi gören)
+     * bir manzaradır (docs/faz-8-zonguldak-olcumler.md "8.6").
+     */
+    yawDeg: 90,
+  },
   /**
    * İl çokgenleri kıyıdan içeride kaldığından kıyı şeridinde hiçbir ile ait olmayan kara hücreleri vardır
    * (Zonguldak'ta ≤ 5,2 oyun m, ölçüm: docs/faz-8-zonguldak-olcumler.md). İlsiz bir kara noktası, en yakın

@@ -119,6 +119,8 @@ export interface GameOptions {
 
 /** Konum HUD'unun güncelleme aralığı (ms). */
 const LOCATION_HUD_INTERVAL_MS = 250;
+/** Pilot ilin başlangıç bakış yönü (radyan): yeni oyunda ve açılış menüsü arka planında. */
+const PILOT_START_YAW = (PILOT.start.yawDeg * Math.PI) / 180;
 
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
@@ -230,6 +232,7 @@ export class Game {
 
     this.player = new Player(this.physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
     this.playerCamera = new PlayerCamera(this.events, world.terrain);
+    if (world instanceof RegionWorld) this.playerCamera.setLook(PILOT_START_YAW, 0);
     this.world.scene.add(this.playerModel.object);
     this.structureLayer = new StructureLayer(this.structureSystem.structures);
     this.world.scene.add(this.structureLayer.group);
@@ -487,7 +490,7 @@ export class Game {
   /** Yeni oyun: durumu başlangıca döndürür (kayıtlara dokunmaz) ve fare kilidi ister. */
   newGame(): void {
     if (this.world instanceof RegionWorld) {
-      this.loadSave(createNewGameSave(WORLD.id, this.world.spawn, new Date()));
+      this.loadSave(createNewGameSave(WORLD.id, this.world.spawn, new Date(), PILOT_START_YAW));
       this.autosaver.reset();
       this.hintTracker.reset();
       writeSeenHints(this.hintStorage, []);

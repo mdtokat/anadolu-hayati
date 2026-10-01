@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PILOT, REGION_PLAYER } from '../src/config';
+import { createNewGameSave } from '../src/save/newGame';
 import type { ProvinceShape, RegionData } from '../src/data/region';
 import { latLonToGame } from '../src/world/geo';
 import { isInPilotProvince, pilotProvince } from '../src/world/pilot';
@@ -98,5 +99,34 @@ describe('pilot il', () => {
   it('config: kıyı tamponu ölçülen en geniş şeritten (5,2 oyun m) geniş, ama kıyıdan taşmayacak kadar dar', () => {
     expect(PILOT.coastBufferM).toBeGreaterThan(5.2);
     expect(PILOT.coastBufferM).toBeLessThan(40);
+  });
+
+  it('başlangıç bakışı açık: ileriye 300 m boyunca arazi görüşü kapatmaz (kuzey yamaç duvarıdır)', () => {
+    const { x, z } = latLonToGame(PILOT.start.lat, PILOT.start.lon, region.meta.originUtm);
+    const start = findSafeSpawn(source, x, z, REGION_PLAYER.maxSlopeDeg)!;
+    const eye = source.heightAt(start.x, start.z) + 1.6; // göz yüksekliği (oyun m)
+    /** Yönde 300 m'ye kadar arazinin göz hizasının üstüne çıkan en büyük açı (derece). */
+    const blockedDeg = (yawDeg: number): number => {
+      const yaw = (yawDeg * Math.PI) / 180;
+      let max = -90;
+      for (let d = 3; d <= 300; d += 3) {
+        const h = source.heightAt(start.x - Math.sin(yaw) * d, start.z - Math.cos(yaw) * d);
+        max = Math.max(max, (Math.atan2(h - eye, d) * 180) / Math.PI);
+      }
+      return max;
+    };
+    expect(blockedDeg(PILOT.start.yawDeg)).toBeLessThan(5);
+    expect(blockedDeg(0)).toBeGreaterThan(10); // varsayılan kuzey bakış yamaca bakar: bu yüzden yaw ayarlı
+  });
+
+  it('yeni oyun kaydı başlangıç bakışını taşır (radyan); varsayılan kuzeydir', () => {
+    const spawn = { x: 1, y: 2, z: 3 };
+    const yaw = (PILOT.start.yawDeg * Math.PI) / 180;
+    expect(createNewGameSave('r', spawn, new Date(0), yaw).player).toEqual({
+      ...spawn,
+      yaw,
+      pitch: 0,
+    });
+    expect(createNewGameSave('r', spawn, new Date(0)).player.yaw).toBe(0);
   });
 });
