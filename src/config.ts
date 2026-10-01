@@ -1490,3 +1490,143 @@ export const CREATURE_LOOK = {
   /** Karelerarası zaman sıçramasını sınırlar: animasyon fazı bu süreden (sn) fazla ilerlemez. */
   maxFrameSeconds: 0.1,
 } as const;
+
+/**
+ * Yerleşimler (Faz 10): il/ilçe merkezleri ve köyler gerçek veriden (`settlements.json`), binalar seed'li düzenle
+ * (`settlements/layout.ts`). Ölçek: 1 oyun m = 50 gerçek m, bu yüzden yerleşim ayak izi **bilinçli olarak
+ * büyütülür** (`footprintScale`; akarsu genişliklerinin abartılması gibi): aksi hâlde 100 binlik bir il merkezi
+ * oyunda ~20 binaya iner. Gerçek konumlar (simge yapılar) aynı ölçekle merkezden uzaklaştırılır.
+ */
+export const SETTLEMENT_LAYOUT = {
+  /** Yerleşim düzeninin tohumu (aynı tohum = aynı kasabalar). */
+  seed: 0x5e771e,
+  /** Ayak izi büyütme çarpanı (merkez etrafında). */
+  footprintScale: { il: 1.8, ilce: 1.6, koy: 1.3 },
+  /** Parsel aralığı (oyun m): bir konut + sokak payı. */
+  lotPitch: { il: 12.5, ilce: 12, koy: 10.5 },
+  /** Il/ilçe: her `blockLots` parselden sonra bir sıra boş kalır (mahalle sokağı). */
+  blockLots: 3,
+  /** Bir parselin dolu olma olasılığı = min(1, n / fullDensity) (n = 100 m hücredeki gerçek bina sayısı). */
+  fullDensity: { il: 5, ilce: 4, koy: 2 },
+  /** n bu değerin üstündeyse "yoğun doku" (apartman ağırlıklı) sayılır. */
+  denseThreshold: 6,
+  /** Yerleşim başına en çok bina. */
+  maxBuildings: { il: 170, ilce: 90, koy: 10 },
+  /** Köy: en az/en çok konut; gerçek bina sayısı / `villageBuildingsPerHouse` kadar. */
+  villageHouses: { min: 3, max: 8 },
+  villageBuildingsPerHouse: 10,
+  /** Yapının altında görünen taş temelin en büyük yüksekliği (oyun m; ön kenar ile en alçak köşe farkı). */
+  maxPlinth: 5,
+  /** Camiler taş set (teras) üstüne oturur: setin en büyük yüksekliği (oyun m). */
+  maxTerrace: 6,
+  /** Yamaç eğimi: parselde ±`slopeProbe` (oyun m) arası fark bundan büyükse kapı aşağı (vadiye) bakar. */
+  slopeProbe: 3,
+  slopeFacingMin: 0.8,
+  /** Köşelerden biri bu gerçek rakımın altındaysa (deniz/kıyı) parsel boş kalır. */
+  minElevationM: 2,
+  /** Yapı kenarı ile yol ekseni arasında, yol yarı genişliğine eklenen pay (oyun m). */
+  roadMargin: 1,
+  /** Yapılar arasındaki en az boşluk (oyun m). */
+  gap: 1.2,
+  /** Yıkık (çatısız) olma olasılığı (rütbeye göre); terk edilmiş havası. */
+  ruinChance: { il: 0.18, ilce: 0.25, koy: 0.35 },
+  /** Bir simge yapının gerçek konumuna en çok bu kadar uzak parsele oturabilir (oyun m). */
+  landmarkSearchRadius: 60,
+  /** Il/ilçe merkezinde ayak izi yarıçapının bu oranı içindeki il-ilçe ve köy yolları çizilmez (kentin içi sokak ızgarasıdır). */
+  innerRoadCut: 0.85,
+  /** Kent sokaklarının genişliği (oyun m) ve örnekleme aralığı. */
+  streetWidth: 3,
+  /** Kaynak bölgenin kıble azimutu için temsilî nokta (enlem, boylam): Batı Karadeniz ortası. */
+  qiblaFrom: { lat: 41.1, lon: 31.9 },
+} as const;
+
+/** Yerleşim üslubu → konut karışımı (yoğun / seyrek doku; olasılıklar toplamı 1). */
+export const SETTLEMENT_STYLES = {
+  kasaba: {
+    dense: { apartment: 0.7, house: 0.3 },
+    sparse: { house: 0.7, konak: 0.15, apartment: 0.15 },
+  },
+  maden: {
+    dense: { apartment: 0.8, lojman: 0.2 },
+    sparse: { lojman: 0.45, house: 0.45, apartment: 0.1 },
+  },
+  sanayi: {
+    dense: { apartment: 0.85, lojman: 0.15 },
+    sparse: { house: 0.5, lojman: 0.3, apartment: 0.2 },
+  },
+  osmanli: {
+    dense: { konak: 0.55, apartment: 0.35, house: 0.1 },
+    sparse: { konak: 0.7, house: 0.3 },
+  },
+  koy: {
+    dense: { house: 0.75, serender: 0.25 },
+    sparse: { house: 0.75, serender: 0.25 },
+  },
+} as const;
+
+/** Yollar (Faz 10): sınıf başına şerit genişliği (oyun m; gerçek genişlikler abartılı) ve renk. */
+export const ROADS = {
+  /** 0 anayol, 1 il-ilçe yolu, 2 köy yolu. */
+  width: [5, 3.6, 2.6],
+  /** Terk edilmiş asfalt (koyu, solgun) ve stabilize köy yolu. */
+  color: [0x4a4a48, 0x56544f, 0x7d6a52],
+  /** Şeridin zeminden yüksekliği (oyun m). */
+  lift: 0.06,
+  /** Şerit noktaları en çok bu aralıkla (oyun m) sıklaştırılır: arazi engebesine oturur. */
+  sampleStep: 3,
+  /** Çizim grupları (oyun m kare): yollar bu karelere bölünür, her kare bir mesh (frustum kırpma). */
+  groupSize: 512,
+  /** Bu uzaklıktan (oyun m) ötedeki yol grupları çizilmez. */
+  drawRadius: 1100,
+  /** Yol sorgularının uzamsal ızgara hücresi (oyun m). */
+  indexCellSize: 32,
+} as const;
+
+/** Yerleşim yapılarının görünümü (Faz 10): renkler 0xRRGGBB, çizim uzaklıkları oyun m. */
+export const BUILDING_LOOK = {
+  colors: {
+    whitewash: 0xd6cfbf,
+    plaster: 0xcbbfa6,
+    konakWall: 0xe4dccb,
+    timber: 0x5b4130,
+    stone: 0x9a917f,
+    cutStone: 0xcdc6b5,
+    darkStone: 0x7c7466,
+    roofTile: 0x8c4a33,
+    roofTileDark: 0x6c3a29,
+    concrete: 0xb3ada2,
+    concreteDark: 0x8f8a80,
+    window: 0x1b1c20,
+    boarded: 0x6a5238,
+    door: 0x47321f,
+    lead: 0x77828c,
+    leadDark: 0x5f6973,
+    gold: 0xb29546,
+    wood: 0x775638,
+    woodLight: 0x9b7a55,
+    marble: 0xdfdacf,
+    shutter: 0x7f8286,
+    awning: 0x7d3b2f,
+    cypress: 0x26402b,
+    brick: 0x7b4636,
+    steel: 0x4c5056,
+    rubble: 0x857c6d,
+    sign: 0x2f4f6f,
+    tank: 0xa7a9ab,
+    clockFace: 0xe9e4d6,
+  },
+  /** Bu uzaklığa kadar ayrıntılı (yakın) geometri, ötesinde kaba (uzak) geometri çizilir. */
+  nearRadius: 260,
+  /** Yapıların çizim yarıçapı. */
+  drawRadius: 1500,
+  /** Oyuncu bu kadar yer değiştirince örnek tamponları yenilenir. */
+  refreshDistance: 20,
+  /** Örnek başına ton çarpanı aralığı (solgunluk çeşitlemesi). */
+  toneRange: [0.82, 1.06],
+  /** Yıkık yapılar bu kadar koyulaşır (is, yosun). */
+  ruinDarken: 0.8,
+  /** Taş temelin zemin altına inen payı (oyun m). */
+  plinthSink: 0.6,
+  /** Collider'lar yalnızca oyuncuya bu yarıçaptaki yapılara kurulur. */
+  colliderRadius: 140,
+} as const;

@@ -13,8 +13,10 @@ import {
   WORLD_MANIFEST_VERSION,
   type WorldExtent,
   type WorldManifest,
+  type WorldFileEntry,
   type WorldTileEntry,
 } from './worldTypes';
+import { parseSettlements } from './settlements';
 
 /** Dünya manifesti + karo verisi yükleyicisi: sözleşme docs/faz-7-paralel-plan.md §3.2–§3.3. */
 
@@ -189,6 +191,18 @@ export function parseWorldManifest(json: unknown): WorldManifest {
     );
   }
 
+  let settlements: WorldFileEntry | null = null;
+  if (json.settlements !== undefined && json.settlements !== null) {
+    if (!isRecord(json.settlements)) fail("'settlements' { file, bytes, sha256 } olmalı");
+    settlements = {
+      file: readRelativePath(json.settlements, 'file'),
+      bytes: readInt(json.settlements, 'bytes'),
+      sha256: readString(json.settlements, 'sha256'),
+    };
+    if (!SHA256_HEX.test(settlements.sha256))
+      fail("'settlements.sha256' 64 haneli onaltılık olmalı");
+  }
+
   return {
     version: WORLD_MANIFEST_VERSION,
     id: readString(json, 'id'),
@@ -209,6 +223,7 @@ export function parseWorldManifest(json: unknown): WorldManifest {
     },
     landcover: { classes },
     sources: readStringList(json, 'sources'),
+    ...(settlements ? { settlements } : {}),
     overtureRelease: readString(json, 'overtureRelease'),
     built: readString(json, 'built'),
   };
@@ -319,12 +334,23 @@ export async function loadWorld(
     }
   };
 
-  const [, provinces, features] = await Promise.all([
+  const loadSettlements = async (entry: WorldFileEntry) => {
+    const buffer = await (await get(entry.file, `?v=${entry.sha256.slice(0, 8)}`)).arrayBuffer();
+    if (buffer.byteLength !== entry.bytes) {
+      fail(`${entry.file} ${buffer.byteLength} bayt, manifestte ${entry.bytes}`);
+    }
+    const sha = await sha256Hex(buffer);
+    if (sha !== null && sha !== entry.sha256) fail(`${entry.file} sha256 uyuşmuyor (bozuk dosya?)`);
+    return parseSettlements(JSON.parse(new TextDecoder().decode(buffer)));
+  };
+
+  const [, provinces, features, settlements] = await Promise.all([
     Promise.all(manifest.tiles.map(loadTile)),
     get(manifest.provinces).then((r) => r.json()),
     manifest.features.layers.length > 0
       ? get(manifest.features.file).then((r) => r.json())
       : Promise.resolve(null),
+    manifest.settlements ? loadSettlements(manifest.settlements) : Promise.resolve(null),
   ]);
 
   const meta: RegionMeta = {
@@ -351,6 +377,7 @@ export async function loadWorld(
     provinces: parseProvinces(provinces),
     features: features === null ? null : parseFeatures(features),
     landcover,
+    settlements,
   };
 }
 
