@@ -75,6 +75,17 @@ export class CarcassButcher {
     return this.currentOffer;
   }
 
+  /**
+   * Tüm durumu sıfırlar (kayıt yüklenince): canlı kimlikleri oturumlar arası sabit olduğundan, eski
+   * kısmi kesim kayıtları yeni doğan bir canlıyla karışabilirdi.
+   */
+  reset(): void {
+    this.currentId = null;
+    this.elapsed = 0;
+    this.currentOffer = null;
+    this.remaining.clear();
+  }
+
   /** Tutma ilerlemesi 0–1 (kesilmiyorsa 0). */
   get progress(): number {
     const offer = this.currentOffer;

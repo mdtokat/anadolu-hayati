@@ -18,7 +18,7 @@ import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
 import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
-import type { GameWorld, LocationInfo } from './GameWorld';
+import type { GameWorld, LocationInfo, WorldQuality } from './GameWorld';
 import { latLonToGame } from './geo';
 import { ProvinceBorders } from './ProvinceBorders';
 import { provinceAt } from './provinces';
@@ -177,6 +177,11 @@ export class RegionWorld implements GameWorld {
       // Deniz tabanı kurgusaldır (bkz. SEABED); rakım deniz seviyesinin altına inmez.
       elevation: Math.max(0, feetY * VERTICAL_SCALE),
     };
+  }
+
+  setQuality(quality: WorldQuality): void {
+    this.chunks.setLodScale(quality.lodScale);
+    this.props?.setDrawRadius(quality.propDrawRadius);
   }
 
   /** Test/HUD için: şu an yüklü collider ve mesh sayıları. */

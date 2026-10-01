@@ -5,6 +5,7 @@ import { CLOCK, SURVIVAL } from '../config';
 import { applyEdible } from '../items/consume';
 import type { CreatureKind } from '../creatures/kinds';
 import type { EdibleEffect, ItemId } from '../items/itemDefs';
+import type { SurvivalSave } from '../save/saveGame';
 import { GameClock, type ClockOptions } from './clock';
 import {
   initialVitals,
@@ -168,6 +169,30 @@ export class SurvivalSystem {
   spendEnergy(amount: number): void {
     if (this.death || !(amount > 0)) return;
     this.vitals = { ...this.vitals, energy: Math.max(this.vitals.energy - amount, 0) };
+  }
+
+  /** Kayıt görüntüsü: göstergeler, bu yaşamın süresi, ölüm sayısı ve oyun saati. Ölüyken kaydedilmez. */
+  toSave(): SurvivalSave {
+    return {
+      vitals: { ...this.vitals },
+      aliveSeconds: this.aliveSeconds,
+      deaths: this.deaths,
+      clockHour: this.clock.hour,
+      clockDay: this.clock.day,
+    };
+  }
+
+  /**
+   * Kaydı yükler: oyuncu canlı olur (ölüm durumu kayda girmez), içme oturumu sıfırlanır, olay yayınlanmaz.
+   * Ortam sıcaklığı bir sonraki `update`te yeni rakımla hesaplanır.
+   */
+  loadSave(save: SurvivalSave): void {
+    this.vitals = { ...save.vitals };
+    this.aliveSeconds = save.aliveSeconds;
+    this.deaths = save.deaths;
+    this.death = null;
+    this.drinkingNow = false;
+    this.clock.restore(save.clockHour, save.clockDay);
   }
 
   /** Geliştirici kısayolu: seviyeleri doğrudan ayarlar (test/hata ayıklama). */

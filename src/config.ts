@@ -747,6 +747,54 @@ export const SURVIVAL = {
   drinkMinDeficit: 1,
 } as const;
 
+/**
+ * Kullanıcı ayarları (Faz 6.4). Ayarlar tarayıcıda (`localStorage`) tutulur; oyun kaydından bağımsızdır.
+ * Aralıklar arayüzdeki kaydırıcıları ve yüklenen değerlerin kırpılmasını belirler.
+ */
+export const SETTINGS = {
+  /** `localStorage` anahtarı. Değişirse oyuncuların ayarları sıfırlanır; değiştirme. */
+  storageKey: 'anadolu-hayati.settings',
+  /** Fare hassasiyeti çarpanı (`INPUT.mouseSensitivity`'e uygulanır; 1 = varsayılan hız). */
+  mouseSensitivity: { min: 0.2, max: 3, step: 0.05, default: 1 },
+  /** Ana ses seviyesi (0 = sessiz, 1 = tam); ortam sesleri 6.8'de bağlanır. */
+  volume: { min: 0, max: 1, step: 0.05, default: 0.7 },
+  /** Varsayılan grafik kalitesi (mevcut davranış korunur; zayıf donanım için "Düşük"/"Orta" seçilir). */
+  defaultQuality: 'high',
+} as const;
+
+/**
+ * Grafik kalitesi ön ayarları. Hepsi çalışma zamanında uygulanır (yeniden başlatma gerekmez):
+ * `maxPixelRatio`: yüksek DPI ekranda piksel oranı üst sınırı; `propDrawRadius`: nesnelerin (ağaç, kaya…)
+ * çizim yarıçapı (oyun m); `lodScale`: arazi LOD geçiş uzaklıklarının (`CHUNK.lodDistances`) çarpanı (< 1 = daha
+ * erken kaba LOD, daha az üçgen). "Yüksek" = Faz 5'in ölçülen davranışı.
+ */
+export const QUALITY_PRESETS = {
+  low: { label: 'Düşük', maxPixelRatio: 1, propDrawRadius: 350, lodScale: 0.6 },
+  medium: { label: 'Orta', maxPixelRatio: 1.5, propDrawRadius: 520, lodScale: 0.8 },
+  high: {
+    label: 'Yüksek',
+    maxPixelRatio: RENDER.maxPixelRatio,
+    propDrawRadius: SCATTER.drawRadius,
+    lodScale: 1,
+  },
+} as const;
+
+export type QualityLevel = keyof typeof QUALITY_PRESETS;
+
+/** Kayıt sistemi (Faz 6): yuvalar, otomatik kayıt ve IndexedDB depolama adları. */
+export const SAVE = {
+  /** Elle kayıt yuvası sayısı (`slot-1` … `slot-N`); otomatik kayıt (`auto`) ayrı bir yuvadır. */
+  manualSlots: 5,
+  /** Otomatik kayıt aralığı (gerçek sn; oyun donukken sayılmaz). Sekme gizlenirken/kapanırken ayrıca kaydedilir. */
+  autosaveIntervalSeconds: 120,
+  /** IndexedDB veritabanı adı. Değişirse eski kayıtlar görünmez olur; değiştirme. */
+  dbName: 'anadolu-hayati',
+  /** IndexedDB şema sürümü (nesne deposu yapısı değişirse artırılır; kayıt formatı sürümüyle ilgisi yok). */
+  dbVersion: 1,
+  /** Kayıtların tutulduğu nesne deposu; anahtar yuva kimliğidir. */
+  storeName: 'saves',
+} as const;
+
 /** Ölüm sonrası yeniden doğma noktası seçimi. */
 export const RESPAWN = {
   /** Rastgele tohumu; ölüm sırası (n) ile birleşir: aynı seed aynı ölümde aynı noktayı verir. */

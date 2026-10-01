@@ -180,3 +180,23 @@ describe('PropLayer', () => {
     expect(layer.group.children).toHaveLength(0);
   });
 });
+
+describe('PropLayer.setDrawRadius', () => {
+  it('yarıçapı küçültünce etkin chunk ve örnek sayısı azalır; geri açınca artar', () => {
+    const layer = makeLayer();
+    layer.prepare(forest.x, forest.z);
+    const full = layer.stats;
+
+    layer.setDrawRadius(SCATTER.drawRadius / 3);
+    layer.update(forest.x, forest.z, Infinity);
+    const small = layer.stats;
+    expect(small.activeChunks).toBeLessThan(full.activeChunks);
+    expect(small.instances).toBeLessThan(full.instances);
+
+    layer.setDrawRadius(SCATTER.drawRadius);
+    layer.update(forest.x, forest.z, Infinity);
+    expect(layer.stats.activeChunks).toBe(full.activeChunks);
+    expect(layer.stats.instances).toBe(full.instances);
+    layer.dispose();
+  });
+});

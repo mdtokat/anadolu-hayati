@@ -3,8 +3,9 @@ import {
   COMBAT,
   COMBAT_HUD,
   INTERACT,
+  QUALITY_PRESETS,
+  SAVE,
   PLAYER,
-  RENDER,
   SURVIVAL,
   SURVIVAL_HUD,
   TELEPORTS,
@@ -63,6 +64,14 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
+import { SettingsPanel } from '../ui/SettingsPanel';
+import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
+import type { Settings } from '../settings/settings';
+import { Autosaver } from '../save/Autosaver';
+import { createBackend } from '../save/backends';
+import { applySave, captureSave, type SaveTargets } from '../save/gameState';
+import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
+import { AUTO_SLOT, SaveStore, type SlotId } from '../save/SaveStore';
 import { CreatureLayer } from '../world/CreatureLayer';
 import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
@@ -83,6 +92,8 @@ export interface GameOptions {
   world?: WorldKind;
   /** Yalnızca dev: canlı simülasyonu yerine sahte canlı demosu çizilir (`?creatures=demo`; görsel doğrulama). */
   creatureDemo?: boolean;
+  /** Kullanıcı ayarları deposu; verilmezse tarayıcının `localStorage`'ı kullanılır (testte sahte verilir). */
+  settings?: SettingsStore;
 }
 
 /** Konum HUD'unun güncelleme aralığı (ms). */
@@ -139,6 +150,7 @@ export class Game {
   private readonly fps: FpsCounter | null;
   private readonly hud: Hud;
   private readonly pauseMenu: PauseMenu;
+  private readonly settingsPanel: SettingsPanel;
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
   /** Envanter paneli açık: oyun duraklı (fare serbest) ama duraklatma menüsü çıkmaz. */
@@ -146,6 +158,17 @@ export class Game {
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
+  /** Yuvalı kayıt deposu (IndexedDB; yoksa bellek). Menüler yuva listesini buradan okur. */
+  readonly saves: SaveStore;
+  private readonly autosaver = new Autosaver(SAVE.autosaveIntervalSeconds, () => {
+    void this.autosave();
+  });
+  private autosaving = false;
+  private autosaveFailed = false;
+  /** Sekme gizlenirken (kapanış, sekme değişimi) otomatik kayıt: kapanışta kaybolan ilerleme olmasın. */
+  private readonly onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') void this.autosave();
+  };
   private demoAnchor: { x: number; z: number } | null = null;
   private lastDangerToast = -Infinity;
   private lastLocationUpdate = -Infinity;
@@ -160,10 +183,13 @@ export class Game {
     private readonly physics: PhysicsWorld,
     world: GameWorld,
     private readonly creatureDemo = false,
+    readonly settings: SettingsStore = createSettingsStore(),
   ) {
     this.world = world;
+    const { backend, persistent } = createBackend();
+    this.saves = new SaveStore(backend, persistent);
     this.renderer = new WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
+    // Piksel oranı ve diğer kalite/hassasiyet ayarları aşağıda `applySettings` ile uygulanır.
     container.appendChild(this.renderer.domElement);
 
     this.player = new Player(this.physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
@@ -189,11 +215,13 @@ export class Game {
     this.input = new Input(this.renderer.domElement, document, this.events, window);
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
+    this.settingsPanel = new SettingsPanel(container, this.settings);
     this.pauseMenu = new PauseMenu(
       container,
       this.events,
       () => this.input.requestLock(),
       () => this.inventoryOpen,
+      () => this.settingsPanel.show(),
     );
     this.inventoryPanel = new InventoryPanel(container, this.inventory, {
       onEat: (slot) => this.eatFromSlot(slot),
@@ -268,7 +296,11 @@ export class Game {
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
     );
+    this.offs.push(this.settings.subscribe((settings) => this.applySettings(settings)));
+    this.applySettings(this.settings.current);
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('pagehide', this.onVisibility);
     if (import.meta.env.DEV) document.addEventListener('keydown', this.onDevKey);
     this.resize();
   }
@@ -286,7 +318,7 @@ export class Game {
       region !== null
         ? new RegionWorld(region, physics)
         : new TestScene(physics, new ProceduralHeightSource());
-    return new Game(container, physics, world, options.creatureDemo === true);
+    return new Game(container, physics, world, options.creatureDemo === true, options.settings);
   }
 
   /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
@@ -328,6 +360,105 @@ export class Game {
     return this.loop.paused;
   }
 
+  /**
+   * Oyunun kayıt görüntüsü. Ölüyken (ölüm durumu kayda girmez) ve gerçek bölge dışındaki dünyalarda
+   * (`?world=test`) kayıt alınamaz: null.
+   */
+  createSave(): SaveGame | null {
+    if (!(this.world instanceof RegionWorld) || !this.survival.alive) return null;
+    return captureSave(this.saveTargets());
+  }
+
+  /**
+   * Ham kaydı (IndexedDB'den okunan) doğrulayıp oyuna yükler. Bozuk, yeni sürümlü ya da başka bölgeye ait
+   * kayıtta `SaveError` fırlatır ve oyun durumu değişmez. Canlılar ve leşler kayda girmez: yükleme onları
+   * temizler, akış çevreye göre yeniden doğurur.
+   */
+  loadSave(raw: unknown): void {
+    if (!(this.world instanceof RegionWorld)) {
+      throw new SaveError('invalid', 'Bu dünyada kayıt yüklenemez (yalnızca gerçek bölge).');
+    }
+    const before = this.gather.toSave().removed;
+    applySave(raw, this.saveTargets());
+
+    // Dünyadan kalkan nesneler kayda göre yeniden işaretlenir (önceki oturumunkiler geri gelir).
+    const removed = new Set(this.gather.toSave().removed);
+    for (const id of before) if (!removed.has(id)) this.world.setPropDepleted(id, false);
+    for (const id of removed) this.world.setPropDepleted(id, true);
+
+    this.placement.cancel();
+    this.butcher.reset();
+    this.deathScreen.hide();
+    this.hud.setPrompt(null);
+    this.inventoryPanel.refresh();
+    this.lastSurvivalHudUpdate = -Infinity;
+    this.lastLocationUpdate = -Infinity;
+  }
+
+  /**
+   * Oyunu `slot` yuvasına kaydeder ve özetini döner. Kayıt alınamıyorsa (ölü ya da test dünyası) `null`;
+   * depolama hatasında `SaveError('storage')` fırlatır.
+   */
+  async saveToSlot(slot: SlotId): Promise<SaveSummary | null> {
+    const save = this.createSave();
+    if (!save) return null;
+    const summary = await this.saves.save(slot, save);
+    this.autosaver.reset();
+    return summary;
+  }
+
+  /** `slot` yuvasındaki kaydı yükler; yuva boşsa `false`. Bozuk kayıtta `SaveError` fırlatır (oyun değişmez). */
+  async loadFromSlot(slot: SlotId): Promise<boolean> {
+    const save = await this.saves.load(slot);
+    if (!save) return false;
+    this.loadSave(save);
+    this.autosaver.reset();
+    return true;
+  }
+
+  /** Otomatik kayıt: örtüşmez, hata oyunu durdurmaz; başarısızlık dizisinde yalnızca bir kez bildirilir. */
+  private async autosave(): Promise<void> {
+    if (this.autosaving) return;
+    const save = this.createSave();
+    if (!save) return;
+    this.autosaving = true;
+    try {
+      await this.saves.save(AUTO_SLOT, save);
+      this.autosaveFailed = false;
+    } catch (error) {
+      console.warn('Otomatik kayıt başarısız', error);
+      if (!this.autosaveFailed) this.hud.notify('Otomatik kayıt başarısız', INTERACT.toastMs);
+      this.autosaveFailed = true;
+    } finally {
+      this.autosaving = false;
+    }
+  }
+
+  private saveTargets(): SaveTargets {
+    return {
+      regionId: REGION_ID,
+      player: {
+        read: () => ({
+          x: this.player.position.x,
+          y: this.player.position.y,
+          z: this.player.position.z,
+          yaw: this.playerCamera.yaw,
+          pitch: this.playerCamera.pitch,
+        }),
+        apply: ({ x, y, z, yaw, pitch }) => {
+          this.world.prepare(x, z); // çevredeki collider'lar hazır olmadan oyuncu düşerdi
+          this.player.teleport({ x, y, z });
+          this.playerCamera.setLook(yaw, pitch);
+        },
+      },
+      survival: this.survival,
+      inventory: this.inventory,
+      structures: this.structureSystem.structures,
+      gather: this.gather,
+      creatures: this.creatures,
+    };
+  }
+
   start(): void {
     this.loop.start();
     this.events.emit('game:started', undefined);
@@ -336,6 +467,8 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('pagehide', this.onVisibility);
     document.removeEventListener('keydown', this.onDevKey);
     for (const off of this.offs) off();
     this.input.dispose();
@@ -349,6 +482,7 @@ export class Game {
     this.physics.dispose();
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.pauseMenu.dispose();
+    this.settingsPanel.dispose();
     this.inventoryPanel.dispose();
     this.deathScreen.dispose();
     this.hud.dispose();
@@ -368,6 +502,7 @@ export class Game {
 
   private update(step: number): void {
     if (!this.survival.alive) return; // ölü: oyun donar, ölüm ekranı gösterilir
+    this.autosaver.update(step);
 
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
     const intent = gateIntent(this.input.pollIntent(), canSprint(this.survival.state));
@@ -717,6 +852,18 @@ export class Game {
     if (this.survival.drinking) return 'İçiyorsun…';
     const missing = SURVIVAL.maxValue - this.survival.state.hydration;
     return missing < SURVIVAL.drinkMinDeficit ? 'Susuzluğun yok' : 'E (basılı tut): Su iç';
+  }
+
+  /**
+   * Kullanıcı ayarlarını uygular (başlangıçta ve her değişimde): piksel oranı, dünya kalitesi (LOD,
+   * nesne yarıçapı), fare hassasiyeti. Ses seviyesi ses sistemi tarafından okunur (`settings.current.volume`).
+   */
+  private applySettings(settings: Readonly<Settings>): void {
+    const preset = QUALITY_PRESETS[settings.quality];
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, preset.maxPixelRatio));
+    this.resize(); // piksel oranı değişince çizim tamponu yeniden boyutlanmalı
+    this.world.setQuality?.(preset);
+    this.playerCamera.setSensitivityScale(settings.mouseSensitivity);
   }
 
   private resize(): void {

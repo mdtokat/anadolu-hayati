@@ -29,6 +29,14 @@ export function applyLook(look: Look, dx: number, dy: number, sensitivity: numbe
   };
 }
 
+/** Bakışı geçerli aralığa getirir (yaw sarılır, pitch ±maxPitch'e kırpılır); kayıttan yüklemede kullanılır. */
+export function normalizeLook(look: Look): Look {
+  return {
+    yaw: wrapAngle(look.yaw),
+    pitch: Math.min(Math.max(look.pitch, -MAX_PITCH), MAX_PITCH),
+  };
+}
+
 /** Bakış yönünün birim vektörü (dünya ekseni: +X doğu, +Y yukarı, −Z kuzey). */
 export function lookDirection(look: Look): Vec3 {
   const cosPitch = Math.cos(look.pitch);

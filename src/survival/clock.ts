@@ -73,6 +73,16 @@ export class GameClock {
     this.moveTo(normalizeHour(hour), false);
   }
 
+  /**
+   * Kayıttan saati ve gün sayısını yükler. Gece/gündüz bayrağı yeniden hesaplanır ama geçiş olayı
+   * yayınlanmaz (yüklemede "gece bastı" bildirimi çıkmasın).
+   */
+  restore(hour: number, day: number): void {
+    this.hourValue = normalizeHour(hour);
+    this.dayCount = Math.max(0, Math.floor(day));
+    this.night = this.computeNight();
+  }
+
   /** `hours` oyun saati ileri (ya da geri) sarar; gün sınırını aşarsa gün sayısı da ilerler. */
   skipHours(hours: number): void {
     this.moveTo(this.hourValue + hours, true);
