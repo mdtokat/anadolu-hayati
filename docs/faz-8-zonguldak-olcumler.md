@@ -3,7 +3,7 @@
 Bu belge [ROADMAP.md](../ROADMAP.md) Faz 8 görev **8.0**'ın çıktısıdır: pilot il Zonguldak'ın ölçülmüş "önce" durumu. Sonraki görevler (8.4 denge, 8.6 performans) değişikliklerini bu sayılarla karşılaştırır. **Hiçbir oyun davranışı değişmedi**; yalnızca ölçüm eklendi. Veri: `public/data/world/bati-karadeniz` (Faz 7, değişmedi). Tarih: 2026-10-01.
 
 Yöntem:
-- **Arazi / örtü / eğim / su / canlı:** `ZONGULDAK_REPORT=1 npx vitest run tests/zonguldakBaseline.test.ts` (Node, WebGL'siz; tablolar stdout'a yazılır; test her çalıştırmada yapısal sayıları gevşek aralıklarla da denetler). "İl içi" = `provinces.geojson` içindeki **Zonguldak** çokgeni (`provinceAt`), 100 m gerçek hücre çözünürlüğünde (oyunda 2 m). Canlı ölçümü `tests/creatureDensity` ile aynı yöntemdir (4 m/s dalgalı yürüyüş, 100 m içine giren benzersiz canlı; ortak kod `tests/helpers/creatureWalk.ts`), ama başlangıçlar yalnızca Zonguldak ormanından seçilir ve örnek küçüktür (6 başlangıç × 10 dk): sayılar **yön gösterir**, hassas değildir (uzun ölçüm için başlangıç sayısını artır).
+- **Arazi / örtü / eğim / su / canlı:** `PROVINCE_REPORT=1 PROVINCE_ONLY=Zonguldak npx vitest run tests/provinceBaseline.test.ts` (Node, WebGL'siz; tablolar stdout'a yazılır; test her çalıştırmada yapısal sayıları gevşek aralıklarla da denetler). "İl içi" = `provinces.geojson` içindeki **Zonguldak** çokgeni (`provinceAt`), 100 m gerçek hücre çözünürlüğünde (oyunda 2 m). Canlı ölçümü `tests/creatureDensity` ile aynı yöntemdir (4 m/s dalgalı yürüyüş, 100 m içine giren benzersiz canlı; ortak kod `tests/helpers/creatureWalk.ts`), ama başlangıçlar yalnızca Zonguldak ormanından seçilir ve örnek küçüktür (6 başlangıç × 10 dk): sayılar **yön gösterir**, hassas değildir (uzun ölçüm için başlangıç sayısını artır).
 - **Draw call / üçgen:** başsız Chromium (yazılımsal WebGL, SwiftShader), dev sunucusunda; betik [faz-7-b-olcumler.md](faz-7-b-olcumler.md) Ek'teki betiktir, yalnızca konum listesi değişti (aşağıdaki tablo). Her konumda 8 yön, en kötü değer. **Gerçek FPS ölçülmedi** (gerçek GPU yok; elle ölçülecek, bkz. ROADMAP Faz 8 "Elle doğrulanacak").
 
 ## Özet
@@ -105,7 +105,7 @@ Gerçek FPS, oyun hissi, ses ve fare kilidi akışı bu ortamda ölçülemez (RO
 
 ## 8.4 Ekoloji ve denge turu (2026-10-01)
 
-Test: `tests/zonguldakEcology.test.ts` (su, yiyecek/yakıt, gece soğuğu; `ZONGULDAK_REPORT=1`), canlılar için `ZONGULDAK_STARTS=24 ZONGULDAK_REPORT=1 npx vitest run tests/zonguldakBaseline.test.ts`. (Canlı tablosundaki sayılar; Zonguldak/Karabük/Bartın karşılaştırması için tek seferlik betikle, farklı tohumlarla alındı: komut aynı büyüklükte sayılar verir, birebir aynı değil.) Örnek: pilot ilde rastgele, kara, eğimi ≤ 45° 1500 nokta. **Sonuç: hiçbir ayar değişikliği gerekmedi** (`CREATURES`, `SCATTER`, `CLIMATE`, `SURVIVAL` aynı).
+Test: `tests/provinceEcology.test.ts` (su, yiyecek/yakıt, gece soğuğu; `PROVINCE_REPORT=1 PROVINCE_ONLY=Zonguldak`), canlılar için `PROVINCE_STARTS=24 PROVINCE_REPORT=1 PROVINCE_ONLY=Zonguldak npx vitest run tests/provinceBaseline.test.ts`. (Canlı tablosundaki sayılar; Zonguldak/Karabük/Bartın karşılaştırması için tek seferlik betikle, farklı tohumlarla alındı: komut aynı büyüklükte sayılar verir, birebir aynı değil.) Örnek: pilot ilde rastgele, kara, eğimi ≤ 45° 1500 nokta. **Sonuç: hiçbir ayar değişikliği gerekmedi** (`CREATURES`, `SCATTER`, `CLIMATE`, `SURVIVAL` aynı).
 
 ### Canlı yoğunluğu (24 başlangıç × 10 dk; diğer hedef illerle karşılaştırmalı)
 

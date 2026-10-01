@@ -648,6 +648,71 @@ export const PILOT = {
 } as const;
 
 /**
+ * Haritadaki diğer hedef illerin bilinen yerleri (ilçe merkezleri ve belirgin yerler; Faz 8'in Zonguldak
+ * çalışmasının Bartın, Karabük, Düzce ve Bolu'ya uygulanması). `PILOT.places` ile aynı biçim ve kurallar: konumlar
+ * yaklaşık enlem/boylamdır (en yakın yürünebilir nokta bulunur), en çok 10 yer, her yer kendi ilinde, karada ve
+ * yürünebilir olmalıdır (`tests/pilotPlaces`). Yeniden doğma/başlangıç yine yalnızca pilot ildedir (`PILOT`).
+ */
+export const OTHER_PROVINCE_PLACES = {
+  Bartın: [
+    { name: 'Bartın merkez', lat: 41.6344, lon: 32.3375 },
+    { name: 'Amasra', lat: 41.7494, lon: 32.3853 },
+    { name: 'Kurucaşile', lat: 41.8433, lon: 32.7253 },
+    { name: 'Ulus', lat: 41.5833, lon: 32.6397 },
+    { name: 'Kozcağız', lat: 41.5917, lon: 32.1583 },
+    { name: 'Güzelcehisar', lat: 41.6556, lon: 32.2831 },
+    { name: 'Çaylıoğlu', lat: 41.6, lon: 32.4 },
+    { name: 'Bartın Irmağı', lat: 41.5667, lon: 32.5 },
+  ],
+  Karabük: [
+    { name: 'Karabük merkez', lat: 41.2061, lon: 32.6204 },
+    { name: 'Safranbolu', lat: 41.2517, lon: 32.6939 },
+    { name: 'Yenice', lat: 41.2028, lon: 32.3358 },
+    { name: 'Eskipazar', lat: 40.9475, lon: 32.5439 },
+    { name: 'Eflani', lat: 41.4278, lon: 32.9553 },
+    { name: 'Ovacık', lat: 41.0728, lon: 32.9319 },
+    { name: 'Yörük köyü', lat: 41.2667, lon: 32.7667 },
+    { name: 'Soğanlı', lat: 41.15, lon: 32.4833 },
+  ],
+  Düzce: [
+    { name: 'Düzce merkez', lat: 40.8438, lon: 31.1565 },
+    { name: 'Akçakoca', lat: 41.0864, lon: 31.1167 },
+    { name: 'Gölyaka', lat: 40.7728, lon: 31.0069 },
+    { name: 'Cumayeri', lat: 40.8697, lon: 30.9511 },
+    { name: 'Kaynaşlı', lat: 40.7728, lon: 31.3167 },
+    { name: 'Yığılca', lat: 40.9561, lon: 31.4506 },
+    { name: 'Çilimli', lat: 40.8947, lon: 31.0239 },
+    { name: 'Gümüşova', lat: 40.85, lon: 30.9333 },
+    { name: 'Efteni Gölü', lat: 40.7978, lon: 31.0533 },
+  ],
+  Bolu: [
+    { name: 'Bolu merkez', lat: 40.7392, lon: 31.6089 },
+    { name: 'Abant Gölü', lat: 40.6115, lon: 31.2765 },
+    { name: 'Yedigöller', lat: 40.9441, lon: 31.7497 },
+    { name: 'Mudurnu', lat: 40.4658, lon: 31.1808 },
+    { name: 'Göynük', lat: 40.3969, lon: 30.7864 },
+    { name: 'Mengen', lat: 40.9317, lon: 32.0958 },
+    { name: 'Gerede', lat: 40.8, lon: 32.1972 },
+    { name: 'Seben', lat: 40.4125, lon: 31.5736 },
+    { name: 'Yeniçağa', lat: 40.7792, lon: 32.03 },
+    { name: 'Kıbrıscık', lat: 40.4178, lon: 31.8528 },
+  ],
+} as const;
+
+/** Bir yer: ad ve yaklaşık enlem/boylam. */
+export interface PlaceDef {
+  readonly name: string;
+  readonly lat: number;
+  readonly lon: number;
+}
+
+/** İl adına göre yerler: pilot il (`PILOT.places`) ve diğer hedef iller. Yer adı bildirimi ve Shift ışınlanması bunu kullanır. */
+export const PROVINCE_PLACES: Readonly<Record<string, readonly PlaceDef[]>> = {
+  [PILOT.province]: PILOT.places,
+  ...OTHER_PROVINCE_PLACES,
+};
+
+/**
  * Geliştirici ışınlanma noktaları (dev modunda 1–9 ve 0 tuşları, sırayla). İlki oyunun başlangıç noktasıdır.
  * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur. `province`: noktanın düştüğü il (test
  * eder). Abant ve Yedigöller noktaları göl kıyısındadır (içine değil): bir iki adımda su içilebilir.

@@ -1,6 +1,6 @@
 # Faz 8 — Elle doğrulama kılavuzu (Zonguldak)
 
-Bu kılavuz, otomatik testlerin ve başsız tarayıcının **ölçemediği** şeyleri (gerçek FPS, oyun hissi, ses, gerçek fare kilidi) pilot il **Zonguldak** üzerinde sıraya koyar. Faz 2–7'den kalan açık "elle doğrulanacak" kriterlerin hepsi buraya toplandı ([ROADMAP.md](../ROADMAP.md) Faz 8). Her adımın yanında **ne yapılacağı**, **beklenen sonuç** ve **sonucu yazacağın yer** var. Bitirince sonuçları (geçti / kaldı + kısa not) bana ilet; ROADMAP'teki kutuları ben işaretlerim.
+Bu kılavuz, otomatik testlerin ve başsız tarayıcının **ölçemediği** şeyleri (gerçek FPS, oyun hissi, ses, gerçek fare kilidi) pilot il **Zonguldak** (bölüm 10: diğer 4 il) üzerinde sıraya koyar. Faz 2–7'den kalan açık "elle doğrulanacak" kriterlerin hepsi buraya toplandı ([ROADMAP.md](../ROADMAP.md) Faz 8). Her adımın yanında **ne yapılacağı**, **beklenen sonuç** ve **sonucu yazacağın yer** var. Bitirince sonuçları (geçti / kaldı + kısa not) bana ilet; ROADMAP'teki kutuları ben işaretlerim.
 
 Süre: tümü için ~1,5–2 saat; bölümler bağımsızdır, istediğin sırayla ya da yalnızca bir kısmını yapabilirsin.
 
@@ -13,7 +13,7 @@ Süre: tümü için ~1,5–2 saat; bölümler bağımsızdır, istediğin sıray
 | Tuş | İş |
 |---|---|
 | `1`–`9`, `0` | `TELEPORTS` noktalarına ışınlan (`1` = Zonguldak merkez, `2` Safranbolu, `3` Amasra, `4` Filyos vadisi, `5` Yenice, `6`–`0` Düzce/Bolu/Abant/Yedigöller/Akçakoca) |
-| `Shift` + `1`–`9`, `0` | **Zonguldak yerlerine** ışınlan: `1` Zonguldak merkez, `2` Kozlu, `3` Kilimli, `4` Çatalağzı, `5` Karadeniz Ereğli, `6` Alaplı, `7` Çaycuma, `8` Filyos vadisi, `9` Devrek, `0` Gökçebey |
+| `Shift` + `1`–`9`, `0` | **Bulunduğun ilin yerlerine** ışınlan (il bilinmiyorsa Zonguldak). Zonguldak: `1` Zonguldak merkez, `2` Kozlu, `3` Kilimli, `4` Çatalağzı, `5` Karadeniz Ereğli, `6` Alaplı, `7` Çaycuma, `8` Filyos vadisi, `9` Devrek, `0` Gökçebey. Diğer iller: bölüm 10 |
 | `[` / `]` | Saati 1 saat geri / ileri sar (gece/gündüz denemek için) |
 | `K` | Canı ve suyu sıfırla (ölüm ekranı ve yeniden doğma denemesi) |
 | `P` | Malzeme ver (kamp ateşi, sundurma, 10 dal, 2 kütük) |
@@ -132,6 +132,31 @@ Chrome, Firefox ve Edge'de ayrı ayrı (en azından Chrome).
 - [ ] İlk yükleme < 10 sn (önbelleksiz).
 - En çok rahatsız eden 3 şey: 1. ____________ 2. ____________ 3. ____________
 - En iyi hissettiren: ____________________
+
+## 10. Diğer iller: Bartın, Karabük, Düzce, Bolu (Faz 8'in genişletilmesi)
+
+Zonguldak'ta yapılan yer adı/ışınlanma, yer adı bildirimi ve ekoloji ölçümü diğer 4 ile de uygulandı ([faz-8-iller-olcumler.md](faz-8-iller-olcumler.md)). **Yeniden doğma ve yeni oyun başlangıcı yine yalnızca Zonguldak'tadır** (pilot il kararı değişmedi). `Shift + 1–9, 0`, **bulunduğun ilin** yerlerine ışınlar: önce o ile `1`–`9`/`0` ile git, sonra `Shift`'li tuşları kullan.
+
+| Tuş | Bartın | Karabük | Düzce | Bolu |
+|---|---|---|---|---|
+| `Shift+1` | Bartın merkez | Karabük merkez | Düzce merkez | Bolu merkez |
+| `Shift+2` | Amasra | Safranbolu | Akçakoca | Abant Gölü |
+| `Shift+3` | Kurucaşile | Yenice | Gölyaka | Yedigöller |
+| `Shift+4` | Ulus | Eskipazar | Cumayeri | Mudurnu |
+| `Shift+5` | Kozcağız | Eflani | Kaynaşlı | Göynük |
+| `Shift+6` | Güzelcehisar | Ovacık | Yığılca | Mengen |
+| `Shift+7` | Çaylıoğlu | Yörük köyü | Çilimli | Gerede |
+| `Shift+8` | Bartın Irmağı | Soğanlı | Gümüşova | Seben |
+| `Shift+9` | — | — | Efteni Gölü | Yeniçağa |
+| `Shift+0` | — | — | — | Kıbrıscık |
+
+- [ ] **Yer örtüşmesi:** her yer adıyla örtüşen bir yere (ilçe/yer merkezine yakın) ışınlıyor mu? Koordinatlar yaklaşıktır, özellikle **Çaylıoğlu, Bartın Irmağı, Yörük köyü, Soğanlı** gibi belirsiz adlar için dikkat et. Yanlış/yanıltıcı olanlar: ____________________
+- [ ] **Yer adı bildirimi:** ışınlanınca ~2 sn sonra yer adı çıkıyor; il bildirimiyle üst üste binmiyor.
+- [ ] **Yeniden doğma:** Bolu'da (`7`) `K` ile öl → yine Zonguldak'ta mı doğuyorsun? (Beklenen: evet.)
+- [ ] **Gece soğuğu** (`]` ile saati gece yap, ateşsiz): **Karabük ve Bolu yüksektir** (medyan rakım ≈ 930 m / ≈ 1160 m); Zonguldak'ta yalnızca ≥ 600 m'de hasar varken burada medyan yerde de can kaybı olur (Bolu'da bir gece sonunda ≈ 68, en yüksek yerde ≈ 1). Ateş + barınak gerçekten gerekli hissettiriyor mu? Çok mu zorlayıcı? (Karar: ☐ olduğu gibi ☐ `CLIMATE` hafifletilsin.)
+- [ ] **Bolu yaylası:** yürürken ağaç yoğunluğu düşük (yapraklı ağaç az, iğne yapraklı baskın; çalı %24 ve tarım %10). Hâlâ orman gibi hissediyor mu? Yenebilir bitki biraz daha seyrek (medyan ≈ 19 m): rahatsız ediyor mu?
+- [ ] **Performans:** Bolu'daki Köroğlu zirvesi (Faz 7: en kötü 176 draw call) ve Abant/Yedigöller çevresinde FPS (bölüm 1 tablosuna ekle). Faz 7 elle doğrulama borcu burada: ___ FPS
+- Notlar: ____________________
 
 ## Sonuçları iletme
 
