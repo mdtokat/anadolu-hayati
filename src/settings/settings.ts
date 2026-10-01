@@ -10,6 +10,8 @@ export interface Settings {
   mouseSensitivity: number;
   /** Ana ses seviyesi 0–1. */
   volume: number;
+  /** İlk dakikalar için ipuçları (Faz 8.5) açık mı? */
+  hints: boolean;
 }
 
 /** Kullanıcının değiştirebildiği alanlar. */
@@ -27,6 +29,7 @@ export function defaultSettings(): Settings {
     quality: SETTINGS.defaultQuality,
     mouseSensitivity: SETTINGS.mouseSensitivity.default,
     volume: SETTINGS.volume.default,
+    hints: SETTINGS.defaultHints,
   };
 }
 
@@ -56,6 +59,7 @@ export function parseSettings(raw: unknown): Settings {
   if (typeof o.volume === 'number' && Number.isFinite(o.volume)) {
     out.volume = snapToRange(o.volume, SETTINGS.volume);
   }
+  if (typeof o.hints === 'boolean') out.hints = o.hints;
   return out;
 }
 
@@ -66,6 +70,9 @@ export function applyPatch(current: Readonly<Settings>, patch: SettingsPatch): S
 
 export function settingsEqual(a: Readonly<Settings>, b: Readonly<Settings>): boolean {
   return (
-    a.quality === b.quality && a.mouseSensitivity === b.mouseSensitivity && a.volume === b.volume
+    a.quality === b.quality &&
+    a.mouseSensitivity === b.mouseSensitivity &&
+    a.volume === b.volume &&
+    a.hints === b.hints
   );
 }
