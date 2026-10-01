@@ -11,7 +11,7 @@ import { LandCoverMap } from '../src/world/LandCoverMap';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { scatterChunk } from '../src/world/scatter';
 import { FreshWaterIndex } from '../src/world/waterIndex';
-import { loadRealRegion } from './helpers/realRegion';
+import { loadLegacyRegion, loadRealWorld } from './helpers/realRegion';
 import { syntheticWorld } from './helpers/syntheticWorld';
 
 /**
@@ -77,8 +77,8 @@ function worldOf(region: RegionData): World {
   };
 }
 
-function scatterDigest(world: World, cx: number, cy: number): { count: number; digest: string } {
-  const props = scatterChunk({
+function scatterOf(world: World, cx: number, cy: number) {
+  return scatterChunk({
     cx,
     cy,
     grid: world.grid,
@@ -87,6 +87,10 @@ function scatterDigest(world: World, cx: number, cy: number): { count: number; d
     height: world.source,
     isWater: (x, z, clearance) => world.water.nearest(x, z, clearance) !== null,
   });
+}
+
+function scatterDigest(world: World, cx: number, cy: number): { count: number; digest: string } {
+  const props = scatterOf(world, cx, cy);
   const h = hasher();
   h.add(props.count);
   for (let i = 0; i < props.count; i++) {
@@ -130,13 +134,16 @@ const EPOCHS = [0, 7, 19];
 
 let legacy: World;
 let wide: World;
+let real: World;
 
 beforeAll(async () => {
-  const region = await loadRealRegion();
+  const region = await loadLegacyRegion();
   legacy = worldOf(region);
   wide = worldOf(syntheticWorld(region));
+  real = worldOf(await loadRealWorld());
 }, 60_000);
 
+/** Faz 6 bölge verisinde (`public/data/regions`, 7.10'a kadar) kesin özetler. */
 describe('eski bölge golden özetleri (7.5 regresyon kapısı)', { timeout: 60_000 }, () => {
   it('scatterChunk: 12 chunk birebir aynı nesneleri üretir', () => {
     const digests: Record<string, string> = {};
@@ -195,6 +202,64 @@ describe('geniş dünyada eski alan yerinde kalır (kafes değişmezliği)', { t
           const b = hasher();
           addCandidates(a, legacy, cx, cy, epoch);
           addCandidates(b, wide, cx, cy, epoch);
+          expect(b.value, `hücre ${cx},${cy}@${epoch}`).toBe(a.value);
+        }
+      }
+    }
+  });
+});
+
+/**
+ * Gerçek Faz 7 dünyası (7.4): eski alan dünya geneli yükseklik aralığıyla yeniden nicemlendi (≤ 1 nicem ≈ 3,7 cm)
+ * ve güneyine/batısına komşu geldi. Ölçülen (7.9): iç chunk'larda (satır ≤ 8) chunk başına en çok ±2 nesne
+ * eşikte değişir (~1000'de), aynı kalanların yüksekliği ≤ 0,05 m oynar; doğma adayları iç hücrelerde birebir
+ * aynıdır. Son satır (cy = 9) artık güneyinde arazi olduğu için değişir (beklenen). Plan §8 risk 5.
+ */
+describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 120_000 }, () => {
+  const interior = (cy: number) => cy <= 8;
+
+  it('gerçek dünyanın ızgarası hedef kapsam: 18 × 16 chunk, ilk chunk (−5, 0)', () => {
+    expect(real.grid).toMatchObject({ cx0: -5, cy0: 0, cols: 18, rows: 16 });
+    expect(chunkRect(real.grid, 3, 2)).toEqual(chunkRect(legacy.grid, 3, 2));
+  });
+
+  it("iç chunk'larda nesnelerin ≥ %99,8'i aynı yerde ve türde; yükseklik farkı ≤ 0,06 m", () => {
+    let legacyTotal = 0;
+    let kept = 0;
+    for (let cy = 0; cy < 10; cy++) {
+      if (!interior(cy)) continue;
+      for (let cx = 0; cx < 13; cx++) {
+        const a = scatterOf(legacy, cx, cy);
+        const b = scatterOf(real, cx, cy);
+        const index = new Map<string, number>();
+        for (let i = 0; i < b.count; i++)
+          index.set(`${b.kind[i]}:${b.x[i]}:${b.z[i]}`, b.y[i] as number);
+        let same = 0;
+        for (let i = 0; i < a.count; i++) {
+          const y = index.get(`${a.kind[i]}:${a.x[i]}:${a.z[i]}`);
+          if (y === undefined) continue;
+          same++;
+          expect(Math.abs(y - (a.y[i] as number))).toBeLessThanOrEqual(0.06);
+        }
+        // eşikteki birkaç aday dışında aynı
+        expect(a.count - same, `chunk ${cx},${cy}`).toBeLessThanOrEqual(3);
+        expect(b.count - same, `chunk ${cx},${cy}`).toBeLessThanOrEqual(3);
+        legacyTotal += a.count;
+        kept += same;
+      }
+    }
+    expect(kept / legacyTotal).toBeGreaterThanOrEqual(0.998);
+  });
+
+  it('iç hücrelerde doğma adayları birebir aynı', () => {
+    for (const epoch of EPOCHS) {
+      for (let cy = 0; cy < 10; cy++) {
+        if (!interior(cy)) continue;
+        for (let cx = 0; cx < 13; cx++) {
+          const a = hasher();
+          const b = hasher();
+          addCandidates(a, legacy, cx, cy, epoch);
+          addCandidates(b, real, cx, cy, epoch);
           expect(b.value, `hücre ${cx},${cy}@${epoch}`).toBe(a.value);
         }
       }

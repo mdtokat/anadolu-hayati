@@ -36,7 +36,7 @@ import { PropLayer } from '../src/world/PropLayer';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { scatterChunk } from '../src/world/scatter';
 import { FreshWaterIndex } from '../src/world/waterIndex';
-import { loadRealRegion } from './helpers/realRegion';
+import { loadLegacyRegion, loadRealRegion } from './helpers/realRegion';
 import { syntheticWorld } from './helpers/syntheticWorld';
 
 /**
@@ -229,7 +229,7 @@ describe(
       return index.get(id);
     }
 
-    it('eski bölgede: her göç edilen kimlik Faz 6 kodunun gördüğü nesnedir (tür ve konum)', () => {
+    it('gerçek Faz 7 dünyasında: her göç edilen kimlik Faz 6 kodunun gördüğü nesnedir (tür ve konum)', () => {
       const save = parseSave(clone(V1));
       for (const prop of EXPECT.props) {
         const id = migratedId(prop);
@@ -242,8 +242,8 @@ describe(
       }
     });
 
-    it('geniş (sentetik) dünyada da aynı nesneleri gösterir (dünya büyüse de kimlik kaymaz)', () => {
-      const wide = syntheticWorld(region);
+    it('Faz 6 verisinden kurulan geniş (sentetik) dünyada da aynı nesneleri gösterir', async () => {
+      const wide = syntheticWorld(await loadLegacyRegion());
       for (const prop of EXPECT.props) {
         const ref = propFor(wide, migratedId(prop));
         expect(ref?.kind, prop.label).toBe(prop.kind);

@@ -78,13 +78,14 @@ export function findWalkablePath(
   const step = source.cell * stride;
   const tan = Math.tan((maxSlopeDeg * Math.PI) / 180);
 
+  // Dizi sütun/satırı orijin tabanlıdır (Faz 7: dünya kafese çapalı, merkezli değil).
   const toNode = (p: Point): number => {
     const c = Math.min(
-      Math.max(Math.round((p.x / source.cell + (source.width - 1) / 2) / stride), 0),
+      Math.max(Math.round((p.x - source.origin.x) / source.cell / stride), 0),
       w - 1,
     );
     const r = Math.min(
-      Math.max(Math.round((p.z / source.cell + (source.height - 1) / 2) / stride), 0),
+      Math.max(Math.round((p.z - source.origin.z) / source.cell / stride), 0),
       h - 1,
     );
     return r * w + c;

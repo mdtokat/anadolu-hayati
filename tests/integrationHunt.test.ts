@@ -37,8 +37,8 @@ beforeAll(async () => {
   // Karaca adayı olan (yani ormanlık, yürünebilir) birkaç gerçek nokta.
   const grid = makeSpawnGrid(terrain.bounds);
   spots = [];
-  for (let cy = 0; cy < grid.rows && spots.length < 5; cy++) {
-    for (let cx = 0; cx < grid.cols && spots.length < 5; cx++) {
+  for (let cy = grid.cy0; cy < grid.cy0 + grid.rows && spots.length < 5; cy++) {
+    for (let cx = grid.cx0; cx < grid.cx0 + grid.cols && spots.length < 5; cx++) {
       const c = candidatesForCell({ grid, terrain, cx, cy, epoch: 0 }).find(
         (x) => x.kind === 'roe_deer',
       );

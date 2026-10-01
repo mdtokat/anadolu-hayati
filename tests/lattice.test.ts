@@ -13,7 +13,7 @@ import {
   tileOf,
   tileRangeOf,
 } from '../src/world/lattice';
-import { loadRealRegion } from './helpers/realRegion';
+import { loadLegacyRegion } from './helpers/realRegion';
 
 /** Faz 7 planında (§1.4) hesaplanan yeni dünya kapsamı. */
 const NEW_EXTENT = { col0: -640, row0: 0, cols: 2228, rows: 1962 } as const;
@@ -86,7 +86,7 @@ describe('kafes matematiği', () => {
 describe('gerçek eski bölge', () => {
   let region: RegionData;
   beforeAll(async () => {
-    region = await loadRealRegion();
+    region = await loadLegacyRegion();
   }, 60_000);
 
   it('parseMeta eski (merkezli) veride gridOrigin’i kafes çapasına eşit türetir', () => {

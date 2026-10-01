@@ -21,7 +21,7 @@ import { chunkKey, chunkRect, makeChunkGrid } from '../src/world/chunks';
 import { PROP_INDEX_LIMIT } from '../src/world/propIndex';
 import { latticeX, latticeZ } from '../src/world/lattice';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
-import { loadRealRegion } from './helpers/realRegion';
+import { loadLegacyRegion } from './helpers/realRegion';
 
 /** Faz 6 (v1) şeması: anahtar `cy · cols + cx` (7.5'te koddan kalktı; göç testleri için burada). */
 function legacyKey(cols: number, cx: number, cy: number): number {
@@ -106,7 +106,7 @@ describe('nesne ve canlı kimlikleri', () => {
 describe('Faz 6 (v1) kimliklerinin göçü', () => {
   let region: RegionData;
   beforeAll(async () => {
-    region = await loadRealRegion();
+    region = await loadLegacyRegion();
   }, 60_000);
 
   it('LEGACY sabitleri gerçek eski ızgarayla uyuşur (13 × 10 chunk ve doğma hücresi)', () => {

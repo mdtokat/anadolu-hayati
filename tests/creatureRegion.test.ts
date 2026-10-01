@@ -37,8 +37,8 @@ beforeAll(async () => {
 
 function allCandidates(epoch: number) {
   const out = [];
-  for (let cy = 0; cy < grid.rows; cy++) {
-    for (let cx = 0; cx < grid.cols; cx++) {
+  for (let cy = grid.cy0; cy < grid.cy0 + grid.rows; cy++) {
+    for (let cx = grid.cx0; cx < grid.cx0 + grid.cols; cx++) {
       out.push(...candidatesForCell({ grid, terrain, cx, cy, epoch }));
     }
   }
@@ -46,9 +46,10 @@ function allCandidates(epoch: number) {
 }
 
 describe('gerçek bölge: doğma kuralları', () => {
-  it('ızgara chunk ızgarasıyla aynı: 13×10 hücre', () => {
-    expect(grid.cols).toBe(13);
-    expect(grid.rows).toBe(10);
+  it('ızgara chunk ızgarasıyla aynı: 18×16 hücre, ilk hücre kafes chunk’ı (−5, 0)', () => {
+    expect(grid.cols).toBe(18);
+    expect(grid.rows).toBe(16);
+    expect([grid.cx0, grid.cy0]).toEqual([-5, 0]);
   });
 
   it('her aday kendi türünün arazi örtüsü/rakım/eğim/su kuralına uyar', () => {
@@ -88,12 +89,20 @@ describe('gerçek bölge: doğma kuralları', () => {
     }
   });
 
-  it('hiçbir aday kar, yerleşim, veri-yok ya da çıplak arazide değil', () => {
+  it('hiçbir aday kar, yerleşim, veri-yok ya da çıplak arazide değil (sürü üyesi kaya kenarında olabilir)', () => {
     const banned = new Set(['snow', 'urban', 'none', 'barren', 'wetland']);
+    // Sürü/grup üyeleri liderin çevresine yalnızca geçilebilirlik denetimiyle dağılır (spawn.ts); Bolu dağlarında
+    // ormanın kaya kenarına düşebilirler (7.9'da gerçek veride görüldü). Kar/yerleşim/veri-yok yine yasak.
+    const memberBanned = new Set(['snow', 'urban', 'none']);
     for (const epoch of [0, 1, 2]) {
+      const leaders = new Set<string>();
       for (const c of allCandidates(epoch)) {
+        const group = `${c.cell}:${c.kind}:${c.u}`;
+        const leader = !leaders.has(group);
+        leaders.add(group);
         if (c.kind === 'wolf' || c.kind === 'brown_bear') {
-          expect(banned.has(terrain.coverAt(c.x, c.z))).toBe(false);
+          const cover = terrain.coverAt(c.x, c.z);
+          expect((leader ? banned : memberBanned).has(cover), `${c.kind} ${cover}`).toBe(false);
         }
         expect(terrain.isSea(c.x, c.z)).toBe(false);
       }
