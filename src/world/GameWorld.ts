@@ -5,6 +5,7 @@ import type { Vec3 } from '../player/movement';
 import type { SkyPosition } from '../survival/astronomy';
 import type { WaterHit } from './waterIndex';
 import type { HeightSource } from './HeightSource';
+import type { PlaceCenter } from './placeNotice';
 import type { PropLayerStats } from './PropLayer';
 import type { PropId, PropRef } from './propKinds';
 
@@ -56,6 +57,8 @@ export interface GameWorld {
   freshWaterNear?(x: number, z: number): WaterHit | null;
   /** n. ölümden sonra yeniden doğma noktası (ayak tabanı); dünya desteklemiyorsa tanımsız. */
   respawnPoint?(deathIndex: number): Vec3 | null;
+  /** Pilot ilin yer merkezleri (yer adı bildirimi, Faz 8.3); desteklemeyen dünyalarda tanımsız. */
+  placeCenters?(): readonly PlaceCenter[];
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */
   locationInfo?(x: number, z: number, feetY: number): LocationInfo;
   /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa; destekleyen dünyalarda. */

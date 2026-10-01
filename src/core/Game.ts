@@ -6,6 +6,7 @@ import {
   INTERACT,
   PROVINCE_NOTICE,
   PILOT,
+  PLACE_NOTICE,
   QUALITY_PRESETS,
   SAVE,
   PLAYER,
@@ -81,6 +82,7 @@ import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
 import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
 import { AUTO_SLOT, SaveStore, type SlotId } from '../save/SaveStore';
+import { PlaceTracker } from '../world/placeNotice';
 import { ProvinceTracker, provinceNoticeText } from '../world/provinceNotice';
 import { CreatureLayer } from '../world/CreatureLayer';
 import { demoViews } from '../world/creatureDemo';
@@ -186,6 +188,10 @@ export class Game {
   private lastLocationUpdate = -Infinity;
   /** İl sınırı geçişi bildirimi (yükleme/yeni oyunda sıfırlanır: ilk il sessizce kabul edilir). */
   private readonly provinceTracker = new ProvinceTracker();
+  /** Pilot il yer adı bildirimi (8.3); yer merkezi olmayan dünyalarda (test arenası) boştur. */
+  private readonly placeTracker: PlaceTracker;
+  /** Son bildirim bannerının gösterildiği an (ms): yer adı, il bildiriminin üstüne binmesin. */
+  private lastBannerAt = Number.NEGATIVE_INFINITY;
   /** Ortam sesleri (rüzgâr, deniz, orman, gece); oyuna girilince başlar, duraklatınca durur. */
   private readonly ambient: AmbientAudio;
   private lastAmbientUpdate = -Infinity;
@@ -203,6 +209,7 @@ export class Game {
     readonly settings: SettingsStore = createSettingsStore(),
   ) {
     this.world = world;
+    this.placeTracker = new PlaceTracker(world.placeCenters?.() ?? []);
     const { backend, persistent } = createBackend();
     this.saves = new SaveStore(backend, persistent);
     this.renderer = new WebGLRenderer({ antialias: true });
@@ -449,6 +456,7 @@ export class Game {
     this.lastSurvivalHudUpdate = -Infinity;
     this.lastLocationUpdate = -Infinity;
     this.provinceTracker.reset();
+    this.placeTracker.reset();
   }
 
   /**
@@ -816,7 +824,16 @@ export class Game {
       { name: info.province, inRegion: info.inRegion },
       now / 1000,
     );
-    if (change) this.hud.showBanner(provinceNoticeText(change), PROVINCE_NOTICE.bannerMs);
+    if (change) {
+      this.lastBannerAt = now;
+      this.hud.showBanner(provinceNoticeText(change), PROVINCE_NOTICE.bannerMs);
+    }
+    // Yer adı (8.3): il bildiriminin gösterildiği sürede çıkarsa sessiz geçilir (üst üste binmesin).
+    const place = this.placeTracker.observe(feet.x, feet.z, now / 1000);
+    if (place !== null && now - this.lastBannerAt >= PROVINCE_NOTICE.bannerMs) {
+      this.lastBannerAt = now;
+      this.hud.showBanner(place, PLACE_NOTICE.bannerMs);
+    }
   }
 
   /** Ortam seslerinin katman seviyelerini konumdan/zamandan günceller (saniyede birkaç kez). */

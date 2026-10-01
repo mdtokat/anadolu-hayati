@@ -861,6 +861,23 @@ export const PROVINCE_NOTICE = {
 } as const;
 
 /**
+ * Pilot il yer adı bildirimi (Faz 8.3): `PILOT.places` merkezlerine yaklaşınca yer adı duyurusu. Merkezler en
+ * yakın yürünebilir noktaya oturtulur; yarıçaplar oyun metresidir (1:50 ölçek: 40 m ≈ 2 km gerçek).
+ */
+export const PLACE_NOTICE = {
+  /** Bir yer merkezine bu kadar yakın olunca "yerde" sayılır (en yakın yer kazanır). */
+  enterRadiusM: 40,
+  /** Yerden çıkış yarıçapı: girişten büyüktür, sınırda gidip gelmede titreme olmasın. */
+  exitRadiusM: 55,
+  /** Yeni yerde bu kadar süre (gerçek sn) kesintisiz kalınca bildirilir. */
+  confirmSeconds: 1.5,
+  /** Art arda iki yer bildirimi arasındaki en kısa süre (gerçek sn); araya giren geçişler sessiz işlenir. */
+  cooldownSeconds: 20,
+  /** Bildirimin ekranda kalma süresi (ms). */
+  bannerMs: 3000,
+} as const;
+
+/**
  * Kullanıcı ayarları (Faz 6.4). Ayarlar tarayıcıda (`localStorage`) tutulur; oyun kaydından bağımsızdır.
  * Aralıklar arayüzdeki kaydırıcıları ve yüklenen değerlerin kırpılmasını belirler.
  */

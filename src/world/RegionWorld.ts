@@ -16,6 +16,7 @@ import { latLonToGame } from './geo';
 import { ProvinceBorders } from './ProvinceBorders';
 import { provinceAt } from './provinces';
 import { RegionHeightSource } from './RegionHeightSource';
+import type { PlaceCenter } from './placeNotice';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial } from './TerrainMaterial';
 import { LandCoverMap } from './LandCoverMap';
@@ -35,6 +36,7 @@ export class RegionWorld implements GameWorld {
   readonly source: RegionHeightSource;
   readonly terrain: RegionHeightSource;
   readonly spawn: Vec3;
+  private placeCentersCache: readonly PlaceCenter[] | null = null;
   readonly maxSlopeDeg = REGION_PLAYER.maxSlopeDeg;
   readonly creatureTerrain: CreatureTerrain;
 
@@ -163,6 +165,16 @@ export class RegionWorld implements GameWorld {
 
   toggleBorders(): void {
     this.borders.toggle();
+  }
+
+  /** Pilot ilin yer merkezleri: `PILOT.places`, en yakın yürünebilir noktaya oturtulmuş (bulunamazsa ham konum). */
+  placeCenters(): readonly PlaceCenter[] {
+    this.placeCentersCache ??= PILOT.places.map((place) => {
+      const point = this.safePointFor(place.lat, place.lon);
+      const raw = latLonToGame(place.lat, place.lon, this.region.meta.originUtm);
+      return { name: place.name, x: point?.x ?? raw.x, z: point?.z ?? raw.z };
+    });
+    return this.placeCentersCache;
   }
 
   locationInfo(x: number, z: number, feetY: number): LocationInfo {
