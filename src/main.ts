@@ -1,4 +1,8 @@
+import { BUILD_INFO, formatBuildInfo } from './buildInfo';
 import { Game } from './core/Game';
+
+// Hata bildirimlerinde hangi derlemenin çalıştığı konsoldan okunabilsin.
+console.info(`Anadolu Hayatı — ${formatBuildInfo(BUILD_INFO)}`);
 
 const container = document.getElementById('app');
 if (!container) throw new Error('#app öğesi bulunamadı');

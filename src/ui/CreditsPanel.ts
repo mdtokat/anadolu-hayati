@@ -1,8 +1,9 @@
 import './ui.css';
+import { BUILD_INFO, formatBuildInfo } from '../buildInfo';
 import { CREDITS, CREDITS_NOTE, SOFTWARE_CREDITS, type Credit } from './credits';
 
 /**
- * Krediler ekranı: veri kaynakları (lisansların şart koştuğu atıflar) ve kullanılan yazılımlar.
+ * Krediler ekranı: veri kaynakları (lisansların şart koştuğu atıflar), kullanılan yazılımlar ve derleme kimliği.
  * Uzun olduğundan kaydırılır; `Esc`, "Kapat" ya da dış alana tıklamak kapatır. Metinler `credits.ts`'tedir
  * (README.md ile tutarlı olmalı; `tests/credits.test.ts` bunu denetler).
  */
@@ -29,6 +30,11 @@ export class CreditsPanel {
     note.className = 'credits-note';
     note.textContent = CREDITS_NOTE;
 
+    // Derleme kimliği: elle doğrulama sonuçları hangi derlemede denendiğiyle birlikte bildirilsin.
+    const build = document.createElement('p');
+    build.className = 'credits-build';
+    build.textContent = formatBuildInfo(BUILD_INFO);
+
     this.closeButton.type = 'button';
     this.closeButton.textContent = 'Kapat';
     this.closeButton.addEventListener('click', () => this.hide());
@@ -41,6 +47,7 @@ export class CreditsPanel {
       this.section('Veri kaynakları', CREDITS),
       this.section('Yazılım', SOFTWARE_CREDITS),
       note,
+      build,
       actions,
     );
     this.root.append(body);
