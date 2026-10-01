@@ -878,6 +878,31 @@ export const PLACE_NOTICE = {
 } as const;
 
 /**
+ * İlk dakikalar için ipucu akışı (Faz 8.5): oyuncuya ihtiyaç sırasıyla (su → yiyecek → ateş → barınak → av) kısa
+ * ipuçları. Yalnızca ipucudur: zorunlu adım, kilit ya da görev yoktur; her ipucu bir kez gösterilir (görülenler
+ * `localStorage`'da tutulur, Yeni Oyun sıfırlar) ve ayarlardan kapatılabilir.
+ */
+export const HINTS = {
+  /** Görülen ipuçlarının `localStorage` anahtarı. Değiştirilirse oyuncular ipuçlarını yeniden görür. */
+  storageKey: 'anadolu-hayati.hints',
+  /** Oyuna girildikten (ilk gözlem) bu kadar sn sonra kontrol özeti gösterilir. */
+  controlsDelaySeconds: 4,
+  /** Art arda iki ipucu arasındaki en kısa süre (gerçek sn). */
+  gapSeconds: 20,
+  /** Bir ipucunun ekranda kalma süresi (ms). */
+  toastMs: 8000,
+  /** Susuzluk/açlık ipuçları, gösterge bu seviyenin altına inince (0–100) çıkar. */
+  waterBelow: 65,
+  foodBelow: 65,
+  /** Vücut ısısı bu değerin altına inince (°C) ya da gece olunca ateş ipucu çıkar. */
+  coldBelowC: 36.3,
+  /** Güneş bu yüksekliğin (derece) altındaysa "gece" sayılır. */
+  nightSunAltitudeDeg: 2,
+  /** Yakınında bu kadar (oyun m) av hayvanı (karaca, yaban domuzu) varsa av ipucu çıkar. */
+  preyRadiusM: 60,
+} as const;
+
+/**
  * Kullanıcı ayarları (Faz 6.4). Ayarlar tarayıcıda (`localStorage`) tutulur; oyun kaydından bağımsızdır.
  * Aralıklar arayüzdeki kaydırıcıları ve yüklenen değerlerin kırpılmasını belirler.
  */
@@ -890,6 +915,8 @@ export const SETTINGS = {
   volume: { min: 0, max: 1, step: 0.05, default: 0.7 },
   /** Varsayılan grafik kalitesi (mevcut davranış korunur; zayıf donanım için "Düşük"/"Orta" seçilir). */
   defaultQuality: 'high',
+  /** İpuçları (Faz 8.5) varsayılan olarak açıktır. */
+  defaultHints: true,
 } as const;
 
 /**

@@ -3,6 +3,7 @@ import {
   COMBAT,
   COMBAT_HUD,
   AMBIENT,
+  HINTS,
   INTERACT,
   PROVINCE_NOTICE,
   PILOT,
@@ -82,6 +83,14 @@ import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
 import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
 import { AUTO_SLOT, SaveStore, type SlotId } from '../save/SaveStore';
+import {
+  HINT_TEXT,
+  HintTracker,
+  browserHintStorage,
+  readSeenHints,
+  writeSeenHints,
+  type HintContext,
+} from '../hints/hints';
 import { PlaceTracker } from '../world/placeNotice';
 import { ProvinceTracker, provinceNoticeText } from '../world/provinceNotice';
 import { CreatureLayer } from '../world/CreatureLayer';
@@ -187,6 +196,9 @@ export class Game {
   private lastDangerToast = -Infinity;
   private lastLocationUpdate = -Infinity;
   /** İl sınırı geçişi bildirimi (yükleme/yeni oyunda sıfırlanır: ilk il sessizce kabul edilir). */
+  /** İlk dakikalar için ipuçları (8.5): görülenler `localStorage`'da kalıcıdır, Yeni Oyun sıfırlar. */
+  private readonly hintStorage = browserHintStorage();
+  private readonly hintTracker = new HintTracker({ seen: readSeenHints(this.hintStorage) });
   private readonly provinceTracker = new ProvinceTracker();
   /** Pilot il yer adı bildirimi (8.3); yer merkezi olmayan dünyalarda (test arenası) boştur. */
   private readonly placeTracker: PlaceTracker;
@@ -457,6 +469,7 @@ export class Game {
     this.lastLocationUpdate = -Infinity;
     this.provinceTracker.reset();
     this.placeTracker.reset();
+    this.hintTracker.restart();
   }
 
   /**
@@ -476,6 +489,8 @@ export class Game {
     if (this.world instanceof RegionWorld) {
       this.loadSave(createNewGameSave(WORLD.id, this.world.spawn, new Date()));
       this.autosaver.reset();
+      this.hintTracker.reset();
+      writeSeenHints(this.hintStorage, []);
     }
     this.input.requestLock();
   }
@@ -867,6 +882,39 @@ export class Game {
       sheltered: this.exposure.sheltered,
       defense: defenseFor(this.inventory),
     });
+    this.updateHints(now);
+  }
+
+  /**
+   * İlk dakikalar için ipucu (8.5): durum koşulu sağlanınca bir kez, kısa bildirimle. Ayardan kapatılabilir; oyun
+   * donukken (menü, envanter, ölüm) ve gerçek bölge dışında çalışmaz.
+   */
+  private updateHints(now: number): void {
+    if (!this.settings.current.hints || !this.survival.alive || this.loop.paused) return;
+    if (this.inventoryOpen || !(this.world instanceof RegionWorld)) return;
+    const feet = this.player.position;
+    const structures = this.structureSystem.structures.all();
+    const { state, clock } = this.survival;
+    const ctx: HintContext = {
+      hydration: state.hydration,
+      satiety: state.satiety,
+      bodyTempC: state.bodyTemp,
+      isNight: clock.sun.altitudeDeg < HINTS.nightSunAltitudeDeg,
+      fireBuilt: structures.some((s) => s.kind === 'campfire'),
+      shelterBuilt: structures.some((s) => s.kind === 'lean_to'),
+      preyNearby: this.creatures
+        .views()
+        .some(
+          (v) =>
+            !v.dead &&
+            (v.kind === 'roe_deer' || v.kind === 'wild_boar') &&
+            Math.hypot(v.x - feet.x, v.z - feet.z) <= HINTS.preyRadiusM,
+        ),
+    };
+    const id = this.hintTracker.update(ctx, now / 1000);
+    if (id === null) return;
+    this.hud.notify(HINT_TEXT[id], HINTS.toastMs);
+    writeSeenHints(this.hintStorage, this.hintTracker.seenIds);
   }
 
   /**

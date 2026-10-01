@@ -19,6 +19,7 @@ describe('varsayılan ayarlar', () => {
       quality: SETTINGS.defaultQuality,
       mouseSensitivity: 1,
       volume: SETTINGS.volume.default,
+      hints: SETTINGS.defaultHints,
     });
     expect(parseSettings(d)).toEqual(d);
   });
@@ -64,7 +65,15 @@ describe('parseSettings: hoşgörülü okuma', () => {
       quality: 'low',
       mouseSensitivity: 1.5,
       volume: 0.25,
+      hints: SETTINGS.defaultHints,
     });
+  });
+
+  it('ipuçları: yalnızca mantıksal değer okunur, bozuk değer varsayılana düşer', () => {
+    expect(parseSettings({ hints: false }).hints).toBe(false);
+    expect(parseSettings({ hints: true }).hints).toBe(true);
+    expect(parseSettings({ hints: 'hayır' }).hints).toBe(SETTINGS.defaultHints);
+    expect(parseSettings({}).hints).toBe(true); // eski kayıtlı ayarlarda alan yoktur: varsayılan açık
   });
 
   it('bozuk alanları tek tek varsayılana düşürür, diğerlerini korur', () => {

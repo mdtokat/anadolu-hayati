@@ -10,7 +10,7 @@ interface Slider {
 }
 
 /**
- * Ayarlar penceresi: grafik kalitesi, fare hassasiyeti, ses. Değişiklikler anında uygulanır ve kaydedilir
+ * Ayarlar penceresi: grafik kalitesi, fare hassasiyeti, ses, ipuçları. Değişiklikler anında uygulanır ve kaydedilir
  * (`SettingsStore`); "Kapat" yalnızca pencereyi kapatır. Duraklatma menüsünün (ve ana menünün) üstünde açılır;
  * `Esc` ya da dış alana tıklamak kapatır.
  */
@@ -20,6 +20,7 @@ export class SettingsPanel {
   private readonly qualityHint = document.createElement('p');
   private readonly mouse: Slider;
   private readonly volume: Slider;
+  private readonly hintButtons = new Map<boolean, HTMLButtonElement>();
   private readonly closeButton = document.createElement('button');
   private readonly offs: Array<() => void> = [];
 
@@ -67,6 +68,30 @@ export class SettingsPanel {
     );
     this.volume = this.makeSlider('Ses', SETTINGS.volume, (v) => this.store.update({ volume: v }));
 
+    // İpuçları (Faz 8.5): ilk dakikalar için kısa yönlendirmeler açık/kapalı
+    const hintsGroup = document.createElement('div');
+    hintsGroup.className = 'settings-row';
+    const hintsLabel = document.createElement('span');
+    hintsLabel.className = 'settings-label';
+    hintsLabel.textContent = 'İpuçları';
+    const hintsSegmented = document.createElement('div');
+    hintsSegmented.className = 'settings-segmented';
+    hintsSegmented.setAttribute('role', 'radiogroup');
+    hintsSegmented.setAttribute('aria-label', 'İpuçları');
+    for (const [enabled, label] of [
+      [true, 'Açık'],
+      [false, 'Kapalı'],
+    ] as const) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'radio');
+      button.textContent = label;
+      button.addEventListener('click', () => this.store.update({ hints: enabled }));
+      this.hintButtons.set(enabled, button);
+      hintsSegmented.append(button);
+    }
+    hintsGroup.append(hintsLabel, hintsSegmented);
+
     const actions = document.createElement('div');
     actions.className = 'settings-actions';
     const reset = document.createElement('button');
@@ -85,6 +110,7 @@ export class SettingsPanel {
       this.qualityHint,
       this.sliderRow('Fare hassasiyeti', this.mouse),
       this.sliderRow('Ses', this.volume),
+      hintsGroup,
       actions,
     );
     this.root.append(panel);
@@ -151,6 +177,11 @@ export class SettingsPanel {
     const s = this.store.current;
     for (const [level, button] of this.qualityButtons) {
       const active = level === s.quality;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-checked', String(active));
+    }
+    for (const [enabled, button] of this.hintButtons) {
+      const active = enabled === s.hints;
       button.classList.toggle('active', active);
       button.setAttribute('aria-checked', String(active));
     }
