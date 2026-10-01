@@ -138,3 +138,44 @@ describe('ChunkManager', () => {
     manager.dispose();
   });
 });
+
+describe('ChunkManager.setLodScale', () => {
+  it("LOD eşiklerini çarpanla küçültür: aynı konumda daha kaba LOD'lar çıkar", () => {
+    const full = makeManager({ maxBuildsPerFrame: 40 });
+    settle(full, 0, 0);
+    const scaled = makeManager({ maxBuildsPerFrame: 40 });
+    scaled.setLodScale(0.5);
+    settle(scaled, 0, 0);
+
+    let fullLodSum = 0;
+    let scaledLodSum = 0;
+    for (let cy = 0; cy < full.grid.rows; cy++) {
+      for (let cx = 0; cx < full.grid.cols; cx++) {
+        fullLodSum += full.lodOf(cx, cy) ?? 0;
+        scaledLodSum += scaled.lodOf(cx, cy) ?? 0;
+      }
+    }
+    expect(scaledLodSum).toBeGreaterThan(fullLodSum);
+    full.dispose();
+    scaled.dispose();
+  });
+
+  it("çarpan çalışma sırasında değişince yüklü chunk'lar yeniden kurulur", () => {
+    const manager = makeManager({ maxBuildsPerFrame: 40 });
+    settle(manager, 0, 0);
+    // Odaktan ~300–600 m uzakta bir chunk: normalde LOD ≥ 1 ama eşikler küçülünce LOD3'e iner.
+    const own = chunkIndexAt(manager.grid, 0, 0);
+    const far = { cx: own.cx + 2, cy: own.cy };
+    expect(distanceToChunk(manager.grid, far.cx, far.cy, 0, 0)).toBeGreaterThan(100);
+    const normal = manager.lodOf(far.cx, far.cy) as number;
+
+    manager.setLodScale(0.001);
+    settle(manager, 0, 0);
+    expect(manager.lodOf(far.cx, far.cy)).toBe(CHUNK.lodDistances.length);
+
+    manager.setLodScale(1);
+    settle(manager, 0, 0);
+    expect(manager.lodOf(far.cx, far.cy)).toBe(normal);
+    manager.dispose();
+  });
+});

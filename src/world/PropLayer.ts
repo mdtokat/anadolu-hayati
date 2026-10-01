@@ -59,6 +59,8 @@ export class PropLayer {
   private lastZ = NaN;
   private dirty = true;
   private pending = 0;
+  /** Çizim yarıçapı (oyun m); varsayılan `SCATTER.drawRadius`, grafik kalitesiyle değişir. */
+  private drawRadius: number = SCATTER.drawRadius;
   private instanceTotal = 0;
   private readonly countByKind = Object.fromEntries(PROP_KINDS.map((k) => [k, 0])) as Record<
     PropKind,
@@ -123,6 +125,14 @@ export class PropLayer {
     }
   }
 
+  /** Çizim yarıçapını değiştirir (grafik kalitesi); etkin chunk kümesi bir sonraki `update`te yenilenir. */
+  setDrawRadius(radius: number): void {
+    if (radius === this.drawRadius) return;
+    this.drawRadius = radius;
+    this.lastX = Number.NaN; // yenilemeyi zorla
+    this.dirty = true;
+  }
+
   /** Işınlanma/doğma öncesi: (x, z) çevresini senkron hazırlar (bütçe yok). */
   prepare(x: number, z: number): void {
     this.selectActive(x, z);
@@ -165,7 +175,7 @@ export class PropLayer {
 
   /** Çizim yarıçapı içindeki chunk'lar, yakından uzağa. */
   private selectActive(x: number, z: number): void {
-    this.active = chunksWithin(this.grid, x, z, SCATTER.drawRadius)
+    this.active = chunksWithin(this.grid, x, z, this.drawRadius)
       .map(({ cx, cy }) => ({
         cx,
         cy,

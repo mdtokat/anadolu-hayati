@@ -17,6 +17,8 @@ export class PlayerCamera {
   readonly camera: PerspectiveCamera;
   private look: Look = { yaw: 0, pitch: 0 };
   private cameraMode: CameraMode = 'firstPerson';
+  /** Kullanıcı ayarından gelen hassasiyet çarpanı (`INPUT.mouseSensitivity` ile çarpılır). */
+  private sensitivityScale = 1;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
@@ -38,6 +40,11 @@ export class PlayerCamera {
     return this.look.pitch;
   }
 
+  /** Fare hassasiyeti çarpanı (1 = varsayılan); geçersiz değerde 1'e döner. */
+  setSensitivityScale(scale: number): void {
+    this.sensitivityScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  }
+
   /** Bakışı doğrudan ayarlar (kayıt yükleme); açılar geçerli aralığa getirilir. */
   setLook(yaw: number, pitch: number): void {
     this.look = normalizeLook({ yaw, pitch });
@@ -46,7 +53,7 @@ export class PlayerCamera {
   /** Fare hareketini (piksel) bakışa uygular. */
   applyMouse(dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
-    this.look = applyLook(this.look, dx, dy, INPUT.mouseSensitivity);
+    this.look = applyLook(this.look, dx, dy, INPUT.mouseSensitivity * this.sensitivityScale);
   }
 
   toggleMode(): void {

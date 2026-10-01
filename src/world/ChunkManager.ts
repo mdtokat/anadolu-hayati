@@ -39,6 +39,8 @@ export class ChunkManager {
   private readonly chunks = new Map<number, ChunkEntry>();
   private readonly viewDistance: number;
   private readonly maxBuilds: number;
+  /** LOD geçiş uzaklıkları (oyun m); `setLodScale` ile `CHUNK.lodDistances` çarpanıyla yeniden hesaplanır. */
+  private lodThresholds: readonly number[] = CHUNK.lodDistances;
 
   constructor(
     private readonly source: RegionHeightSource,
@@ -49,6 +51,14 @@ export class ChunkManager {
     this.viewDistance = options.viewDistance ?? CHUNK.viewDistance;
     this.maxBuilds = options.maxBuildsPerFrame ?? CHUNK.maxBuildsPerFrame;
     this.group.name = 'terrain-chunks';
+  }
+
+  /**
+   * LOD geçiş uzaklıklarını `CHUNK.lodDistances × scale` yapar (grafik kalitesi; < 1 = kabalar daha erken).
+   * Chunk'lar bir sonraki `update`te yeni eşiklere göre kendiliğinden yeniden kurulur.
+   */
+  setLodScale(scale: number): void {
+    this.lodThresholds = CHUNK.lodDistances.map((distance) => distance * scale);
   }
 
   get chunkCount(): number {
@@ -82,7 +92,7 @@ export class ChunkManager {
           continue;
         }
 
-        const lod = lodForDistance(distance, entry?.lod ?? null);
+        const lod = lodForDistance(distance, entry?.lod ?? null, this.lodThresholds);
         if (!entry || entry.lod !== lod) work.push({ cx, cy, lod, distance });
       }
     }

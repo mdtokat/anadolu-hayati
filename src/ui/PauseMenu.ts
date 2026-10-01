@@ -43,6 +43,8 @@ export class PauseMenu {
     private readonly onResume: () => void,
     /** Menü şu an gösterilmemeli mi (ör. envanter paneli açıkken oyun duraklıdır ama menü çıkmaz)? */
     private readonly isSuppressed: () => boolean = () => false,
+    /** Verilirse menüde "Ayarlar" düğmesi çıkar. */
+    onOpenSettings?: () => void,
   ) {
     this.root.className = 'pause-menu';
 
@@ -81,7 +83,20 @@ export class PauseMenu {
       credits.append(paragraph);
     }
 
-    panel.append(title, this.subtitle, this.button, this.hint, controls, credits);
+    const actions: HTMLElement[] = [this.button];
+    if (onOpenSettings) {
+      const settings = document.createElement('button');
+      settings.type = 'button';
+      settings.className = 'secondary';
+      settings.textContent = 'Ayarlar';
+      settings.addEventListener('click', onOpenSettings);
+      actions.push(settings);
+    }
+    const buttons = document.createElement('div');
+    buttons.className = 'pause-menu-buttons';
+    buttons.append(...actions);
+
+    panel.append(title, this.subtitle, buttons, this.hint, controls, credits);
     this.root.append(panel);
     this.root.addEventListener('click', () => this.onResume());
     parent.appendChild(this.root);

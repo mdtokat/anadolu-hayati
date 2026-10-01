@@ -7,6 +7,14 @@ import type { HeightSource } from './HeightSource';
 import type { PropLayerStats } from './PropLayer';
 import type { PropId, PropRef } from './propKinds';
 
+/** Dünyaya çalışma zamanında uygulanan kalite değerleri (`QUALITY_PRESETS`'in dünyayı ilgilendiren kısmı). */
+export interface WorldQuality {
+  /** Nesnelerin (ağaç, kaya…) çizim yarıçapı (oyun m). */
+  propDrawRadius: number;
+  /** Arazi LOD geçiş uzaklıklarının çarpanı. */
+  lodScale: number;
+}
+
 /** Konum hakkında HUD'da gösterilecek bilgi (yalnızca gerçek bölgede vardır). */
 export interface LocationInfo {
   /** Bulunulan il; harita dışı/deniz ise null. */
@@ -49,6 +57,8 @@ export interface GameWorld {
   readonly propStats?: PropLayerStats | null;
   /** Canlıların arazi sorguları (Faz 5); desteklemeyen dünyalarda (test arenası) tanımsız, canlı oluşmaz. */
   readonly creatureTerrain?: CreatureTerrain;
+  /** Grafik kalitesini çalışma zamanında uygular (destekleyen dünyalarda): arazi LOD çarpanı, nesne çizim yarıçapı. */
+  setQuality?(quality: WorldQuality): void;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
   toggleBorders?(): void;
   dispose(): void;

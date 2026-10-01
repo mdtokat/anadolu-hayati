@@ -3,9 +3,9 @@ import {
   COMBAT,
   COMBAT_HUD,
   INTERACT,
+  QUALITY_PRESETS,
   SAVE,
   PLAYER,
-  RENDER,
   SURVIVAL,
   SURVIVAL_HUD,
   TELEPORTS,
@@ -64,6 +64,9 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
+import { SettingsPanel } from '../ui/SettingsPanel';
+import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
+import type { Settings } from '../settings/settings';
 import { Autosaver } from '../save/Autosaver';
 import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
@@ -89,6 +92,8 @@ export interface GameOptions {
   world?: WorldKind;
   /** Yalnızca dev: canlı simülasyonu yerine sahte canlı demosu çizilir (`?creatures=demo`; görsel doğrulama). */
   creatureDemo?: boolean;
+  /** Kullanıcı ayarları deposu; verilmezse tarayıcının `localStorage`'ı kullanılır (testte sahte verilir). */
+  settings?: SettingsStore;
 }
 
 /** Konum HUD'unun güncelleme aralığı (ms). */
@@ -145,6 +150,7 @@ export class Game {
   private readonly fps: FpsCounter | null;
   private readonly hud: Hud;
   private readonly pauseMenu: PauseMenu;
+  private readonly settingsPanel: SettingsPanel;
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
   /** Envanter paneli açık: oyun duraklı (fare serbest) ama duraklatma menüsü çıkmaz. */
@@ -177,12 +183,13 @@ export class Game {
     private readonly physics: PhysicsWorld,
     world: GameWorld,
     private readonly creatureDemo = false,
+    readonly settings: SettingsStore = createSettingsStore(),
   ) {
     this.world = world;
     const { backend, persistent } = createBackend();
     this.saves = new SaveStore(backend, persistent);
     this.renderer = new WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
+    // Piksel oranı ve diğer kalite/hassasiyet ayarları aşağıda `applySettings` ile uygulanır.
     container.appendChild(this.renderer.domElement);
 
     this.player = new Player(this.physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
@@ -208,11 +215,13 @@ export class Game {
     this.input = new Input(this.renderer.domElement, document, this.events, window);
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
+    this.settingsPanel = new SettingsPanel(container, this.settings);
     this.pauseMenu = new PauseMenu(
       container,
       this.events,
       () => this.input.requestLock(),
       () => this.inventoryOpen,
+      () => this.settingsPanel.show(),
     );
     this.inventoryPanel = new InventoryPanel(container, this.inventory, {
       onEat: (slot) => this.eatFromSlot(slot),
@@ -287,6 +296,8 @@ export class Game {
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
     );
+    this.offs.push(this.settings.subscribe((settings) => this.applySettings(settings)));
+    this.applySettings(this.settings.current);
     window.addEventListener('resize', this.onResize);
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('pagehide', this.onVisibility);
@@ -307,7 +318,7 @@ export class Game {
       region !== null
         ? new RegionWorld(region, physics)
         : new TestScene(physics, new ProceduralHeightSource());
-    return new Game(container, physics, world, options.creatureDemo === true);
+    return new Game(container, physics, world, options.creatureDemo === true, options.settings);
   }
 
   /** Geliştirici kısayolu: 1–5 tuşları TELEPORTS listesindeki noktalara ışınlar (yalnızca dev modunda bağlanır). */
@@ -471,6 +482,7 @@ export class Game {
     this.physics.dispose();
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.pauseMenu.dispose();
+    this.settingsPanel.dispose();
     this.inventoryPanel.dispose();
     this.deathScreen.dispose();
     this.hud.dispose();
@@ -840,6 +852,18 @@ export class Game {
     if (this.survival.drinking) return 'İçiyorsun…';
     const missing = SURVIVAL.maxValue - this.survival.state.hydration;
     return missing < SURVIVAL.drinkMinDeficit ? 'Susuzluğun yok' : 'E (basılı tut): Su iç';
+  }
+
+  /**
+   * Kullanıcı ayarlarını uygular (başlangıçta ve her değişimde): piksel oranı, dünya kalitesi (LOD,
+   * nesne yarıçapı), fare hassasiyeti. Ses seviyesi ses sistemi tarafından okunur (`settings.current.volume`).
+   */
+  private applySettings(settings: Readonly<Settings>): void {
+    const preset = QUALITY_PRESETS[settings.quality];
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, preset.maxPixelRatio));
+    this.resize(); // piksel oranı değişince çizim tamponu yeniden boyutlanmalı
+    this.world.setQuality?.(preset);
+    this.playerCamera.setSensitivityScale(settings.mouseSensitivity);
   }
 
   private resize(): void {
