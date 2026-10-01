@@ -1,7 +1,12 @@
 name: GitHub Pages
 
+# Yayın yalnızca main'e yapılan push'un CI'ı (format, lint, typecheck, test, build, derleme
+# denetimi) yeşil bittiğinde çalışır; kırık bir commit yayına çıkmaz. Elle tetikleme
+# (workflow_dispatch) seçilen dalı test çalıştırmadan derler, yalnızca derleme denetimini yapar.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -10,16 +15,30 @@ permissions:
   pages: write
   id-token: write
 
-# Aynı anda tek yayın; devam eden yayın iptal edilmez.
+# Aynı anda tek yayın; devam eden yayın iptal edilmez (bekleyen daha eski yayının yerini yenisi alır).
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
   build:
+    # workflow_run'ın `branches` süzgeci çatal depodaki "main" adlı PR dallarıyla da eşleşir;
+    # yalnızca bu deponun main'ine push'la başlayan, başarılı CI çalışmaları yayınlanır.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # CI'ın denediği commit'in aynısı derlenir (workflow_run'da GITHUB_SHA dalın o anki ucudur);
+      # derleme kimliği (`build-info.json`, Krediler ekranı) de bunu gösterir.
+      BUILD_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BUILD_COMMIT }}
 
       - uses: actions/setup-node@v4
         with:
@@ -27,8 +46,10 @@ jobs:
           cache: npm
 
       - run: npm ci
-      # vite.config.ts: üretim derlemesinde base = /anadolu-hayati/
+      # vite.config.ts: üretim derlemesinde base = /anadolu-hayati/ (scripts/site.ts)
       - run: npm run build
+      - name: Derleme denetimi
+        run: npm run build:check
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -37,6 +58,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

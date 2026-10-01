@@ -13,7 +13,10 @@ permissions:
 
 jobs:
   check:
+    # `npm run check` ile aynı adımlar; ayrı adımlar hangi denetimin kırıldığını görünür kılar.
+    # main'de yeşil biten bu iş akışı GitHub Pages yayınını tetikler (pages.yml).
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -23,15 +26,31 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
 
+      # Bütçe (chunk boyutları, açılış yükü, tahmini ilk yükleme) ve yayın bütünlüğü
+      # (base yolları, public/ kopyası, karo sha256); rapor job özetinde görünür.
+      - name: Derleme denetimi
+        run: npm run build:check
+
+      # Derlenen oyun indirilip yerelde denenebilsin (elle doğrulama): `npx vite preview` ya da
+      # herhangi bir statik sunucuyla `/anadolu-hayati/` altında.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist
+          retention-days: 7
+          if-no-files-found: error
+
   tools:
-    # Veri hattının saf yardımcıları (tools/regionlib.py) için Python testleri.
+    # Veri hattının saf yardımcıları (tools/worldlib.py vb.) için Python testleri.
     # Veri indirme/işleme burada çalışmaz (yüzlerce MB); yalnızca birim testler.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 

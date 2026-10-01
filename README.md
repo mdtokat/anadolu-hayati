@@ -30,7 +30,7 @@ Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`n
 
 ## Gereksinimler
 
-- Node.js **22.12 veya üzeri** (`.nvmrc` içinde `22`)
+- Node.js **22.18 veya üzeri** (`.nvmrc` içinde `22`; derleme betikleri `scripts/*.ts` Node'un yerleşik TypeScript desteğiyle çalışır)
 - Masaüstü tarayıcı (Chrome, Firefox, Edge) — mobil şimdilik kapsam dışı
 
 ## Çalıştırma
@@ -39,12 +39,19 @@ Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`n
 npm install         # bağımlılıkları kur
 npm run dev         # geliştirme sunucusu (sol üstte FPS sayacı görünür)
 npm run build       # üretim derlemesi (dist/)
-npm run preview     # derlemeyi yerelde önizle
+npm run build:check # derleme raporu: boyut bütçesi + yayın bütünlüğü (build'den sonra)
+npm run build:analyze # kaynak haritalı derleme + chunk başına en büyük kaynaklar
+npm run preview     # derlemeyi yerelde önizle (http://localhost:4173/anadolu-hayati/)
+npm run preview:build # derle ve önizle
 npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest
 npm run format      # Prettier ile biçimlendir
+npm run check       # hepsi: format:check + lint + typecheck + test + build + build:check
+npm run clean       # dist/'i sil
 ```
+
+Her derleme kimliğini (sürüm, commit, tarih) taşır: oyunda **Krediler** ekranının altında ve tarayıcı konsolunda görünür, yayındaki sürüm `…/anadolu-hayati/build-info.json` adresinden okunur. Elle denediğin bir sorunu bildirirken bu satırı ekle. CI her push'ta derlenen oyunu (`dist-<commit>`) 7 gün saklar; GitHub Pages yayını yalnızca main'de CI yeşil bitince çıkar.
 
 ### Veri hattı (`tools/`)
 

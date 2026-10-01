@@ -5,17 +5,22 @@
   "type": "module",
   "description": "Türkiye'nin ölçekli gerçek coğrafi verisi üzerinde geçen 3D hayatta kalma oyunu",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:check": "node scripts/check-build.ts",
+    "build:analyze": "tsc --noEmit && vite build --mode analyze && node scripts/check-build.ts",
     "preview": "vite preview",
+    "preview:build": "npm run build && vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run build:check",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",
