@@ -1,3 +1,4 @@
+import { COOK_RECIPES } from '../src/combat/cooking';
 import { describe, expect, it } from 'vitest';
 import { FOOD, INVENTORY } from '../src/config';
 import { ITEM_IDS, ITEMS, isItemId } from '../src/items/itemDefs';
@@ -28,11 +29,16 @@ describe('eşya tablosu', () => {
   it('yenebilir etkiler 0–100 aralığında; yiyecek kategorisi yenebilir, diğerleri değil', () => {
     for (const id of ITEM_IDS) {
       const def = ITEMS[id];
-      expect(def.category === 'food', id).toBe(def.edible !== undefined);
+      // Çiğ erzak (Faz 10) yiyecektir ama tencerede pişirilmeden yenmez.
+      const raw = COOK_RECIPES.some((r) => r.requires && r.from === id);
+      expect(def.category === 'food' && !raw, id).toBe(def.edible !== undefined);
       if (!def.edible) continue;
-      const values = [def.edible.satiety, def.edible.hydration, def.edible.health].filter(
-        (v): v is number => v !== undefined,
-      );
+      const values = [
+        def.edible.satiety,
+        def.edible.hydration,
+        def.edible.health,
+        def.edible.energy,
+      ].filter((v): v is number => v !== undefined);
       expect(values.length, id).toBeGreaterThan(0);
       for (const v of values) expect(v >= -100 && v <= 100, id).toBe(true);
       // Yalnızca tokluk/su negatif olamaz; can negatif olabilir (çiğ et).

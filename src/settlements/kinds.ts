@@ -150,6 +150,16 @@ export const SHAPE_DIMS = {
   factory: { w: 28, d: 16, h: 10, chimney: 30 },
 } as const;
 
+/**
+ * Camilerde harimin (iç mekân) yerel z kayması: önde revak/sundurma olduğundan ayak izinin merkezi harim
+ * merkezinden öndedir; geometri ve collider'lar harimi bu kadar geride kurar.
+ */
+export function mosqueOffset(kind: BuildingKind): number {
+  if (kind === 'mosque_grand' || kind === 'mosque') return -SHAPE_DIMS[kind].portico / 2;
+  if (kind === 'mosque_wooden') return -1;
+  return 0;
+}
+
 function shapeOf(kind: BuildingKind): BuildingShape {
   const d = SHAPE_DIMS;
   const front = (depth: number) => ({ x: 0, z: depth / 2 + 0.6 });
@@ -205,32 +215,57 @@ function shapeOf(kind: BuildingKind): BuildingShape {
     case 'mosque': {
       const s = d[kind];
       // Harim (iç mekân) dört duvar + kapı; son cemaat yeri (revak) önde, geçilebilir; minare sağ ön köşede.
-      const walls = hollowWalls(s.w, s.d, s.h, 2.4);
-      const minaret = box(s.w / 2 + 1.2, s.minaret / 2, s.d / 2 - 1.2, 0.8, s.minaret / 2, 0.8);
+      // Ayak izi (harim + revak) merkezlidir: harim `MOSQUE_OFFSET` kadar geride durur.
+      const oz = mosqueOffset(kind);
+      const walls = hollowWalls(s.w, s.d, s.h, 2.4).map((b) => ({ ...b, cz: b.cz + oz }));
+      const minaret = box(
+        s.w / 2 + 1.2,
+        s.minaret / 2,
+        s.d / 2 - 1.2 + oz,
+        0.8,
+        s.minaret / 2,
+        0.8,
+      );
       return {
-        width: s.w + 3,
+        width: s.w + 4,
         depth: s.d + s.portico,
         height: s.minaret,
         solids: [...walls, minaret],
         enterable: true,
-        interior: { halfWidth: s.w / 2 - WALL, back: -s.d / 2 + WALL, front: s.d / 2 - WALL },
+        interior: {
+          halfWidth: s.w / 2 - WALL,
+          back: -s.d / 2 + WALL + oz,
+          front: s.d / 2 - WALL + oz,
+        },
         searchable: false,
-        door: { x: 0, z: s.d / 2 + 0.4 },
+        door: { x: 0, z: s.d / 2 + 0.4 + oz },
       };
     }
     case 'mosque_wooden': {
       const s = d.mosque_wooden;
-      const walls = hollowWalls(s.w, s.d, s.h, 1.8);
-      const minaret = box(s.w / 2 + 0.7, s.minaret / 2, s.d / 2 - 0.7, 0.5, s.minaret / 2, 0.5);
+      const oz = mosqueOffset(kind);
+      const walls = hollowWalls(s.w, s.d, s.h, 1.8).map((b) => ({ ...b, cz: b.cz + oz }));
+      const minaret = box(
+        s.w / 2 + 0.7,
+        s.minaret / 2,
+        s.d / 2 - 0.7 + oz,
+        0.5,
+        s.minaret / 2,
+        0.5,
+      );
       return {
-        width: s.w + 1.6,
+        width: s.w + 2.6,
         depth: s.d + 2,
         height: s.minaret,
         solids: [...walls, minaret],
         enterable: true,
-        interior: { halfWidth: s.w / 2 - WALL, back: -s.d / 2 + WALL, front: s.d / 2 - WALL },
+        interior: {
+          halfWidth: s.w / 2 - WALL,
+          back: -s.d / 2 + WALL + oz,
+          front: s.d / 2 - WALL + oz,
+        },
         searchable: false,
-        door: { x: 0, z: s.d / 2 + 0.4 },
+        door: { x: 0, z: s.d / 2 + 0.4 + oz },
       };
     }
     case 'han': {
@@ -395,3 +430,12 @@ export const MAX_BURY: Readonly<Record<BuildingKind, number>> = {
   mine_tower: 2,
   factory: 1.6,
 };
+
+/** Hükümet konağının bayrak direği (yerel konum, yükseklik) ve bayrak ölçüleri (2:3). */
+export const GOVERNMENT_FLAG = {
+  poleX: SHAPE_DIMS.government.w / 2 - 1.5,
+  poleZ: SHAPE_DIMS.government.d / 2 + 2.5,
+  poleHeight: 9,
+  width: 1.8,
+  height: 1.2,
+} as const;

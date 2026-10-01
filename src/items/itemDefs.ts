@@ -32,6 +32,22 @@ export const ITEM_IDS = [
   'bone_knife',
   'torch',
   'fur_cloak',
+  // Faz 10: terk edilmiş evlerde bulunan erzak ve eşyalar (Türk mutfağı ve Batı Karadeniz)
+  'bulgur',
+  'tarhana',
+  'dry_beans',
+  'black_tea',
+  'pekmez',
+  'leblebi',
+  'dried_apricot',
+  'peksimet',
+  'bulgur_pilaf',
+  'tarhana_soup',
+  'bean_stew',
+  'brewed_tea',
+  'copper_pot',
+  'wool_blanket',
+  'miner_lamp',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -43,6 +59,8 @@ export interface EdibleEffect {
   hydration?: number;
   /** Negatif olabilir (çiğ et): can düşer ama yemek tek başına öldürmez. */
   health?: number;
+  /** Enerji (Faz 10: demli çay). */
+  energy?: number;
 }
 
 export interface ItemDef {
@@ -186,6 +204,105 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     id: 'fur_cloak',
     name: 'Kürk Pelerin',
     weightG: 3000,
+    stackMax: 1,
+    category: 'tool',
+  },
+  // Faz 10: kiler erzakı. Bulgur, tarhana, kuru fasulye ve kuru çay çiğ yenmez: bakır tencereyle ateşte pişirilir
+  // (`COOK_RECIPES`). Pekmez, leblebi, kuru kayısı ve peksimet olduğu gibi yenir (bozulmaz, hafif).
+  bulgur: { id: 'bulgur', name: 'Bulgur', weightG: 500, stackMax: 6, category: 'food' },
+  tarhana: { id: 'tarhana', name: 'Tarhana', weightG: 300, stackMax: 6, category: 'food' },
+  dry_beans: {
+    id: 'dry_beans',
+    name: 'Kuru Fasulye',
+    weightG: 500,
+    stackMax: 6,
+    category: 'food',
+  },
+  black_tea: { id: 'black_tea', name: 'Rize Çayı', weightG: 100, stackMax: 10, category: 'food' },
+  pekmez: {
+    id: 'pekmez',
+    name: 'Pekmez',
+    weightG: 400,
+    stackMax: 5,
+    category: 'food',
+    edible: { satiety: 12, health: 2 },
+  },
+  leblebi: {
+    id: 'leblebi',
+    name: 'Leblebi',
+    weightG: 150,
+    stackMax: 10,
+    category: 'food',
+    edible: { satiety: 6 },
+  },
+  dried_apricot: {
+    id: 'dried_apricot',
+    name: 'Kuru Kayısı',
+    weightG: 150,
+    stackMax: 10,
+    category: 'food',
+    edible: { satiety: 5, hydration: 1 },
+  },
+  peksimet: {
+    id: 'peksimet',
+    name: 'Peksimet',
+    weightG: 200,
+    stackMax: 10,
+    category: 'food',
+    edible: { satiety: 10 },
+  },
+  bulgur_pilaf: {
+    id: 'bulgur_pilaf',
+    name: 'Bulgur Pilavı',
+    weightG: 600,
+    stackMax: 4,
+    category: 'food',
+    edible: { satiety: 28, health: 2 },
+  },
+  tarhana_soup: {
+    id: 'tarhana_soup',
+    name: 'Tarhana Çorbası',
+    weightG: 600,
+    stackMax: 4,
+    category: 'food',
+    edible: { satiety: 18, hydration: 14, health: 3 },
+  },
+  bean_stew: {
+    id: 'bean_stew',
+    name: 'Kuru Fasulye Yemeği',
+    weightG: 700,
+    stackMax: 4,
+    category: 'food',
+    edible: { satiety: 32, health: 2 },
+  },
+  brewed_tea: {
+    id: 'brewed_tea',
+    name: 'Demli Çay',
+    weightG: 250,
+    stackMax: 6,
+    category: 'food',
+    edible: { hydration: 10, energy: 12 },
+  },
+  copper_pot: {
+    id: 'copper_pot',
+    name: 'Bakır Tencere',
+    weightG: 1500,
+    stackMax: 1,
+    category: 'tool',
+  },
+  // Giysi gibi envanterde bulunarak ısıtır (`EQUIPMENT.clothingWarmthC`).
+  wool_blanket: {
+    id: 'wool_blanket',
+    name: 'Yün Battaniye',
+    weightG: 2000,
+    stackMax: 1,
+    category: 'tool',
+  },
+  // Zonguldak madenlerinden: kısayolda seçiliyken meşale gibi aydınlatır.
+  miner_lamp: {
+    id: 'miner_lamp',
+    name: 'Madenci Lambası',
+    weightG: 900,
     stackMax: 1,
     category: 'tool',
   },

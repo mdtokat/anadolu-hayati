@@ -1,8 +1,9 @@
 import { FRESH_WATER } from '../config';
 import type { WaterFeatures } from '../data/region';
 
+/** Tatlı su türü; `fountain` = yerleşim çeşmesi (Faz 10; veri katmanında yok, `RegionWorld` ekler). */
 export type WaterKind =
-  'river' | 'stream' | 'canal' | 'lake' | 'reservoir' | 'pond' | 'water' | 'spring';
+  'river' | 'stream' | 'canal' | 'lake' | 'reservoir' | 'pond' | 'water' | 'spring' | 'fountain';
 
 /** En yakın tatlı su sorgusunun sonucu. */
 export interface WaterHit {

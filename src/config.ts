@@ -1058,6 +1058,8 @@ export const FRESH_WATER = {
   lineWidth: { river: 3, stream: 1.2, canal: 1.5 },
   /** Uzamsal ızgara hücre boyu (oyun m); sorgu yarıçapından küçük olmamalı. */
   indexCellSize: 40,
+  /** Yerleşim çeşmesinin musluğuna bu uzaklıktan (oyun m) içilir (Faz 10). */
+  fountainReach: 2,
   /** Su rengi (nehir şeridi ve göl yüzeyi). */
   color: 0x3b8fb3,
   opacity: 0.85,
@@ -1265,7 +1267,7 @@ export const HOTBAR = {
  */
 export const EQUIPMENT = {
   /** Giysinin vücut ısısı denge değerine eklediği ısı (°C); ateş gibi normal ısının üstüne çıkarmaz. */
-  clothingWarmthC: { fur_cloak: 2.5 },
+  clothingWarmthC: { fur_cloak: 2.5, wool_blanket: 1.5 },
   /** Giysilerin toplam ısıtma üst sınırı (°C). */
   maxClothingWarmthC: 4,
   /** Elde meşale: ışık rengi, yoğunluğu (candela; decay 2), sönme yarıçapı ve oyuncu ayağından yüksekliği (oyun m). */
@@ -1575,7 +1577,7 @@ export const ROADS = {
   /** Şerit noktaları en çok bu aralıkla (oyun m) sıklaştırılır: arazi engebesine oturur. */
   sampleStep: 3,
   /** Çizim grupları (oyun m kare): yollar bu karelere bölünür, her kare bir mesh (frustum kırpma). */
-  groupSize: 512,
+  groupSize: 1024,
   /** Bu uzaklıktan (oyun m) ötedeki yol grupları çizilmez. */
   drawRadius: 1100,
   /** Yol sorgularının uzamsal ızgara hücresi (oyun m). */

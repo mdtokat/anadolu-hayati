@@ -10,7 +10,7 @@ import {
   TorusGeometry,
 } from 'three';
 import { BUILDING_LOOK } from '../config';
-import { SHAPE_DIMS, type BuildingKind } from '../settlements/kinds';
+import { GOVERNMENT_FLAG, SHAPE_DIMS, mosqueOffset, type BuildingKind } from '../settlements/kinds';
 import { createRandom, type Random } from '../utils/random';
 
 /**
@@ -450,7 +450,15 @@ function governmentParts(random: Random): Part[] {
     ...windows('left', d, w / 2 + 0.02, [1, 4], 3, [0.9, 1.6], random),
     ...windows('right', d, w / 2 + 0.02, [1, 4], 3, [0.9, 1.6], random),
     // bayrak direği (bayrak ayrı çizilir: SettlementLayer)
-    cylinder(0.08, 9, w / 2 - 1.5, 0, d / 2 + 2.5, C.steel, 5),
+    cylinder(
+      0.08,
+      GOVERNMENT_FLAG.poleHeight,
+      GOVERNMENT_FLAG.poleX,
+      0,
+      GOVERNMENT_FLAG.poleZ,
+      C.steel,
+      5,
+    ),
   ];
 }
 
@@ -1002,10 +1010,61 @@ export function buildBuildingGeometry(
   const random = createRandom(0xb1d + kind.length * 131 + floors * 7 + (ruined ? 3 : 0));
   const parts =
     lod === 'near' ? nearParts(kind, ruined, floors, random) : farParts(kind, ruined, floors);
+  // Camide harim ayak izi merkezinden geridedir (önde revak): kinds.ts ile aynı kayma.
+  const oz = mosqueOffset(kind);
+  if (oz !== 0)
+    for (const p of parts) p.geometry.applyMatrix4(new Matrix4().makeTranslation(0, 0, oz));
   return merge(parts, random);
 }
 
 /** Taş temel: 1 × 1 × 1 birim kutu (tabanı y = 0); örnek matrisi ayak izine ve yüksekliğe ölçekler. */
 export function buildPlinthGeometry(): BufferGeometry {
   return merge([box(1, 1, 1, 0, 0, 0, C.stone)], createRandom(5));
+}
+
+/**
+ * Taş merdiven (birim): x ∈ [−0,5; 0,5], y ∈ [0; 1], z ∈ [0; 1]; en yüksek basamak z = 0'da (kapı), en alçak
+ * z = 1'de. Örnek matrisi genişliğe, yüksekliğe (rise) ve uzunluğa (run) ölçekler.
+ */
+export function buildStairsGeometry(steps = 6): BufferGeometry {
+  const parts: Part[] = [];
+  for (let i = 0; i < steps; i++) {
+    const h = (steps - i) / steps;
+    parts.push(box(1, h, 1 / steps, 0, 0, (i + 0.5) / steps, i % 2 ? C.stone : C.darkStone));
+  }
+  return merge(parts, createRandom(9));
+}
+
+/** Türk bayrağını (oran 2:3) kanvasa çizer: kırmızı zemin, beyaz ay-yıldız (2D bağlam yoksa hiçbir şey yapmaz). */
+export function drawTurkishFlag(canvas: HTMLCanvasElement): void {
+  const g = canvas.getContext('2d');
+  if (!g) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  // TS 2994 bayrak ölçüleri (G = yükseklik): ay dış çember 0,5G çapında, merkezi 0,5G'de; iç çember 0,4G
+  // çapında, 0,0625G sağda; yıldız 0,25G çaplı çembere çizili, merkezi ay dış merkezinden 0,333G sağda.
+  g.fillStyle = '#e30a17';
+  g.fillRect(0, 0, w, h);
+  const G = h;
+  const cx = 0.5 * G;
+  const cy = h / 2;
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.arc(cx, cy, 0.25 * G, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#e30a17';
+  g.beginPath();
+  g.arc(cx + 0.0625 * G, cy, 0.2 * G, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#ffffff';
+  const sx = cx + 0.333 * G;
+  const r = 0.125 * G;
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI + (i * Math.PI) / 5; // bir köşe ayı (sola) gösterir
+    const rr = i % 2 === 0 ? r : r * 0.382;
+    g.lineTo(sx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.fill();
 }

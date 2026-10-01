@@ -89,6 +89,36 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
     '<path d="M9.6 21.5 11 11.5h2l1.4 10z" fill="#b07a46"/><path d="M10.5 11.5h3l.4-1.6h-3.8z" fill="#d8c48a"/><path d="M12 1.5c.4 2.4-1 3.4-2 4.6-.8.9-1.3 1.8-1.3 3a3.3 3.3 0 0 0 6.6 0c0-1.3-.6-2.3-1.1-3 0 .9-.3 1.6-.9 1.9.3-2.4-.2-4.4-1.3-6.5z" fill="#f08a2c"/><path d="M12 5.8c1 1 1.5 2 1.5 2.9a1.5 1.5 0 0 1-3 0c0-.9.6-1.9 1.5-2.9z" fill="#ffd24a"/>',
   fur_cloak:
     '<path d="M8 3.5h8l1.5 3C20 12 20.5 17 21 20.5c-3 1-6 1.2-9 1.2s-6-.2-9-1.2C3.5 17 4 12 6.5 6.5z" fill="#7d6a58"/><path d="M8 3.5c1 1.5 2.3 2.3 4 2.3s3-.8 4-2.3" fill="none" stroke="#c8b49a" stroke-width="2.2" stroke-linecap="round"/><path d="M8 10c-1 3-1.5 6-1.6 9M16 10c1 3 1.5 6 1.6 9M12 8v13" stroke="#5f4f40" stroke-width="1.1" fill="none" stroke-linecap="round"/>',
+  bulgur:
+    '<path d="M6 8c-1.5 3-2 7-1 11 2 1.5 12 1.5 14 0 1-4 .5-8-1-11z" fill="#c9a46a"/><path d="M6 8c2-1 10-1 12 0-1-2-2.5-3-2.5-4h-7C8.5 5 7 6 6 8z" fill="#b08a52"/><path d="M8.5 5.5c2 1.2 5 1.2 7 0" stroke="#7a5a30" stroke-width="1.4" fill="none"/><g fill="#f0d68a"><circle cx="9" cy="13" r=".9"/><circle cx="12" cy="12" r=".9"/><circle cx="15" cy="13.5" r=".9"/><circle cx="10.5" cy="16" r=".9"/><circle cx="13.5" cy="16.5" r=".9"/></g>',
+  tarhana:
+    '<path d="M3 18c3-2 15-2 18 0-2 2.5-16 2.5-18 0z" fill="#efe6d2"/><g fill="#d9682e"><path d="M7 15.5l2-2.5 2.5 1.5-1 2.2z"/><path d="M11.5 14l2.5-2 2 2-1.6 2z"/><path d="M14.5 16l2.4-1.4 1.4 1.8-2.6.8z"/><path d="M8.5 11.5l2.2-1.8 1.6 1.6-2.1 1.3z"/></g><path d="M12.6 10.4l1.8-1.2 1.2 1.4-1.6 1z" fill="#c4551f"/>',
+  dry_beans:
+    '<g fill="#efe7d6" stroke="#b9ab90" stroke-width=".7"><ellipse cx="8" cy="15" rx="2.6" ry="1.7" transform="rotate(-20 8 15)"/><ellipse cx="12.5" cy="16.5" rx="2.6" ry="1.7" transform="rotate(10 12.5 16.5)"/><ellipse cx="16.5" cy="14.5" rx="2.6" ry="1.7" transform="rotate(-35 16.5 14.5)"/><ellipse cx="10.5" cy="12" rx="2.6" ry="1.7" transform="rotate(25 10.5 12)"/><ellipse cx="14.5" cy="11" rx="2.6" ry="1.7" transform="rotate(-10 14.5 11)"/></g>',
+  black_tea:
+    '<rect x="6" y="4" width="12" height="16" rx="1.5" fill="#2f7a3e"/><rect x="6" y="4" width="12" height="4" rx="1.5" fill="#c8312a"/><path d="M9 15c0-3.5 3-5.5 6-6-.5 3.5-2.5 6-6 6z" fill="#8fd17a"/><path d="M9 15c1.5-1.5 3-3 5-4.5" stroke="#2f7a3e" stroke-width=".9" fill="none"/>',
+  pekmez:
+    '<path d="M8 7h8v2c2 1 3 3 3 5.5V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-4.5C5 12 6 10 8 9z" fill="#4a2414"/><rect x="7.2" y="3.5" width="9.6" height="3.5" rx="1" fill="#c9a46a"/><path d="M7.5 12.5c.5-1.2 1.4-2 2.6-2.4" stroke="#9a5a36" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+  leblebi:
+    '<g fill="#e8c36a"><circle cx="8" cy="14" r="2.3"/><circle cx="12" cy="12.5" r="2.3"/><circle cx="16" cy="14" r="2.3"/><circle cx="10" cy="17.5" r="2.3"/><circle cx="14" cy="17.5" r="2.3"/><circle cx="12" cy="9" r="2.3"/></g><g fill="#c99a3e"><circle cx="8.6" cy="14.6" r=".6"/><circle cx="12.6" cy="13.1" r=".6"/><circle cx="16.6" cy="14.6" r=".6"/><circle cx="12.6" cy="9.6" r=".6"/></g>',
+  dried_apricot:
+    '<g fill="#e88a2a"><ellipse cx="9" cy="10" rx="4" ry="3.2" transform="rotate(-15 9 10)"/><ellipse cx="15" cy="13" rx="4" ry="3.2" transform="rotate(20 15 13)"/><ellipse cx="10" cy="17" rx="4" ry="3.2"/></g><g stroke="#b85e14" stroke-width="1" fill="none"><path d="M7 10c1.5-.8 3-.8 4 0"/><path d="M13 13c1.5-.6 3-.4 4 .5"/><path d="M8 17c1.5-.7 3-.7 4 0"/></g>',
+  peksimet:
+    '<g><rect x="3.5" y="8" width="11" height="6" rx="2" fill="#d9a352" transform="rotate(-12 9 11)"/><rect x="9" y="12" width="11" height="6" rx="2" fill="#e6b465" transform="rotate(8 14.5 15)"/></g><g fill="#a8742e"><circle cx="7" cy="11" r=".6"/><circle cx="10" cy="10.3" r=".6"/><circle cx="12.5" cy="15" r=".6"/><circle cx="15.5" cy="15.5" r=".6"/><circle cx="18" cy="16" r=".6"/></g>',
+  bulgur_pilaf:
+    '<path d="M3 13h18c-.5 4-4.5 7-9 7s-8.5-3-9-7z" fill="#e9e3d6"/><path d="M4.5 13c1-4 4.5-6 7.5-6s6.5 2 7.5 6z" fill="#e3b94f"/><g fill="#f5d77d"><circle cx="9" cy="11" r=".8"/><circle cx="12" cy="9.5" r=".8"/><circle cx="15" cy="11" r=".8"/></g><path d="M10 11.8h1.6M13 12.2h1.4" stroke="#c84a2a" stroke-width="1.1" stroke-linecap="round"/><path d="M3 13h18" stroke="#b9b1a2" stroke-width="1"/>',
+  tarhana_soup:
+    '<path d="M3 12h18c-.5 4.5-4.5 8-9 8s-8.5-3.5-9-8z" fill="#e9e3d6"/><ellipse cx="12" cy="12" rx="9" ry="2" fill="#d4572a"/><path d="M8 5c-1 1.2 1 2 0 3.3M12 4c-1 1.2 1 2 0 3.3M16 5c-1 1.2 1 2 0 3.3" stroke="#c9c2b6" stroke-width="1.3" fill="none" stroke-linecap="round"/><circle cx="10" cy="12" r=".7" fill="#7aa64a"/>',
+  bean_stew:
+    '<path d="M3 12h18c-.5 4.5-4.5 8-9 8s-8.5-3.5-9-8z" fill="#7a3a22"/><ellipse cx="12" cy="12" rx="9" ry="2" fill="#b8402a"/><g fill="#f2e8d4"><ellipse cx="9" cy="12" rx="1.2" ry=".7"/><ellipse cx="12.5" cy="11.6" rx="1.2" ry=".7"/><ellipse cx="15" cy="12.5" rx="1.2" ry=".7"/><ellipse cx="11" cy="13" rx="1.2" ry=".7"/></g>',
+  brewed_tea:
+    '<path d="M8.5 4h7c.4 2-.6 3.6-1.2 5.2-.8 2 .9 3.5.9 6 0 2.5-1.6 4-3.2 4s-3.2-1.5-3.2-4c0-2.5 1.7-4 .9-6C9.1 7.6 8.1 6 8.5 4z" fill="#f4efe8" fill-opacity=".55" stroke="#d8d2c8" stroke-width=".8"/><path d="M9.6 9.5c.6 1.6-.9 3.2-.9 5.6 0 2 1.4 3.3 3.3 3.3s3.3-1.3 3.3-3.3c0-2.4-1.5-4-.9-5.6z" fill="#b5381c"/><ellipse cx="12" cy="20.5" rx="6.5" ry="1.5" fill="#e9e3d6" stroke="#b9b1a2" stroke-width=".8"/>',
+  copper_pot:
+    '<path d="M5 10h14v6.5c0 2.5-2 4-4.5 4h-5C7 20.5 5 19 5 16.5z" fill="#c26b3a"/><path d="M4 10h16" stroke="#9a4f26" stroke-width="2" stroke-linecap="round"/><path d="M5 12H3M19 12h2" stroke="#9a4f26" stroke-width="2" stroke-linecap="round"/><path d="M7 9c1-2.5 3-3.5 5-3.5s4 1 5 3.5z" fill="#d98252"/><circle cx="12" cy="5" r="1.2" fill="#9a4f26"/><path d="M7.5 13.5c.3 1.6 1.2 3 2.6 3.6" stroke="#ea9a66" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+  wool_blanket:
+    '<rect x="3" y="7" width="18" height="11" rx="1.5" fill="#a83a2e"/><path d="M3 10h18M3 15h18" stroke="#e9c46a" stroke-width="1.6"/><path d="M6 12.5l2-1.5 2 1.5-2 1.5zM11 12.5l1-1 1 1-1 1zM14 12.5l2-1.5 2 1.5-2 1.5z" fill="#f2e6cf"/><path d="M4 18v2M7 18v2M10 18v2M13 18v2M16 18v2M19 18v2" stroke="#e9c46a" stroke-width="1" stroke-linecap="round"/>',
+  miner_lamp:
+    '<path d="M12 2.5c-1.5 0-2.5 1-2.5 2.2" stroke="#7a6a50" stroke-width="1.4" fill="none" stroke-linecap="round"/><rect x="8.5" y="5" width="7" height="2" rx=".6" fill="#b89a4a"/><rect x="8.8" y="7" width="6.4" height="7" rx="1" fill="#fff2b8" fill-opacity=".85" stroke="#b89a4a" stroke-width="1"/><path d="M12 9c.8 1 1 2 0 3-1-1-.8-2 0-3z" fill="#f08a2c"/><path d="M8 14h8l1 6.5H7z" fill="#b89a4a"/><path d="M9 16.5h6" stroke="#8a7232" stroke-width="1"/>',
 };
 
 /** Eşya kategorisinin vurgu rengi (slot kenarı ve çip rengi için CSS değişkeni). */

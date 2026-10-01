@@ -18,6 +18,23 @@ export interface SettlementView {
   radius: number;
 }
 
+/**
+ * Kapı önü taş merdiveni: kat zemini kapı önündeki araziden yüksekse (yamaç, cami terası) kapıya çıkılır.
+ * Yerel kural: merdiven kapıdan dışarı (+z) iner.
+ */
+export interface Stair {
+  building: number;
+  /** Merdivenin kapı kenarındaki ortası (dünya X/Z). */
+  x: number;
+  z: number;
+  yaw: number;
+  /** Alt (zemin) yüksekliği ve yükselti (oyun m). */
+  y0: number;
+  rise: number;
+  run: number;
+  width: number;
+}
+
 /** Barınak/iç mekân sorgusu sonucu. */
 export interface BuildingInterior {
   building: Building;
@@ -59,6 +76,38 @@ export function cutRoads(
   return out;
 }
 
+/** Merdiven eğimi (yükselti / uzunluk) ve en kısa yükselti (altı basamaksız geçilir). */
+const STAIR_SLOPE = 0.7;
+const STAIR_MIN_RISE = 0.3;
+
+/** Girilebilir/aranabilir yapının kapısı zeminden yüksekse taş merdiven. */
+function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
+  const shape = BUILDING_SHAPES[b.kind];
+  if (!shape.enterable && !shape.searchable) return null;
+  const doorX = shape.door.x;
+  const front = shape.depth / 2;
+  const start = buildingLocalToWorld(b, doorX, front);
+  // Merdivenin ucunda zemin: yükseltiye göre uzunluk, ucun zemini yeniden ölçülür (iki adım yakınsar).
+  let rise = b.y - terrain.heightAt(start.x, start.z);
+  if (rise < STAIR_MIN_RISE) return null;
+  let run = Math.max(1, rise / STAIR_SLOPE);
+  for (let k = 0; k < 2; k++) {
+    const end = buildingLocalToWorld(b, doorX, front + run);
+    rise = Math.max(STAIR_MIN_RISE, b.y - terrain.heightAt(end.x, end.z));
+    run = Math.max(1, rise / STAIR_SLOPE);
+  }
+  return {
+    building: b.id,
+    x: start.x,
+    z: start.z,
+    yaw: b.yaw,
+    y0: b.y - rise,
+    rise,
+    run,
+    width: shape.enterable ? 2.6 : 1.6,
+  };
+}
+
 /** Yapı yerel → dünya (yapılarla aynı kural: `mesh.rotation.y = yaw`). */
 export function buildingLocalToWorld(
   b: Building,
@@ -96,6 +145,8 @@ export class SettlementMap {
   readonly roadLines: RoadData[];
   /** Yol + sokak dizini (nesne eleme, insanların yürüyüşü). */
   readonly roads: RoadIndex;
+  /** Kapı önü merdivenleri (görsel + collider). */
+  readonly stairs: Stair[] = [];
   private readonly byId = new Map<number, Building>();
   private readonly grid = new Map<string, Building[]>();
   private readonly cell = 64;
@@ -136,6 +187,10 @@ export class SettlementMap {
     }
     this.roadLines = [...roads, ...streets];
     this.roads = new RoadIndex(this.roadLines);
+    for (const b of this.buildings) {
+      const stair = stairFor(b, terrain);
+      if (stair) this.stairs.push(stair);
+    }
   }
 
   private key(cx: number, cz: number): string {

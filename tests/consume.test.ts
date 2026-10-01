@@ -1,3 +1,4 @@
+import { COOK_RECIPES } from '../src/combat/cooking';
 import { describe, expect, it, vi } from 'vitest';
 import { FOOD, SURVIVAL } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
@@ -12,9 +13,10 @@ const hungry = (satiety = 50): VitalsState => ({ ...initialVitals(), satiety });
 const MAX = SURVIVAL.maxValue;
 
 describe('edibleEffect / canEat', () => {
-  it('yalnızca yiyecekler yenebilir', () => {
+  it('yalnızca yiyecekler yenebilir; çiğ erzak (bulgur, tarhana…) pişirilmeden yenmez', () => {
+    const raw = new Set(COOK_RECIPES.filter((r) => r.requires).map((r) => r.from));
     for (const id of ITEM_IDS) {
-      expect(edibleEffect(id) !== null, id).toBe(ITEMS[id].category === 'food');
+      expect(edibleEffect(id) !== null, id).toBe(ITEMS[id].category === 'food' && !raw.has(id));
     }
   });
 

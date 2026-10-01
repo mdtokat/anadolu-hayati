@@ -54,6 +54,8 @@ export class PropLayer {
   private readonly geometries: BufferGeometry[] = [];
   private readonly tiers: TierMesh[] = [];
   private readonly depleted = new Set<PropId>();
+  /** Yapı/yol üstünde kalan nesneler (Faz 10): görünmez ve toplanamaz; kimlikler değişmez. */
+  private readonly blocked = new Set<PropId>();
   private active: Array<{ cx: number; cy: number; key: number }> = [];
   private lastX = NaN;
   private lastZ = NaN;
@@ -71,6 +73,8 @@ export class PropLayer {
     private readonly source: RegionHeightSource,
     private readonly cover: LandCoverMap,
     private readonly water: FreshWaterIndex | null,
+    /** (x, z) bir yapının ya da yolun üstünde mi (Faz 10 yerleşimleri)? Yoksa hiçbir nesne elenmez. */
+    private readonly isBlocked: ((x: number, z: number) => boolean) | null = null,
   ) {
     this.grid = chunkGridFor(source);
     this.index = new PropIndex(this.grid);
@@ -145,7 +149,9 @@ export class PropLayer {
 
   /** (x, z)'ye `radius` içindeki yüklü nesneler (tükenmişler dahil değil), yakından uzağa. */
   propsNear(x: number, z: number, radius: number): PropRef[] {
-    return this.index.near(x, z, radius).filter((ref) => !this.depleted.has(ref.id));
+    return this.index
+      .near(x, z, radius)
+      .filter((ref) => !this.depleted.has(ref.id) && !this.blocked.has(ref.id));
   }
 
   /** Nesneyi gizler/geri getirir (durumu tutan 4.6'dır; burası yalnızca görseli ve sorguyu yönetir). */
@@ -211,6 +217,13 @@ export class PropLayer {
       });
       this.cache.set(chunk.key, props);
       this.index.set(props);
+      if (this.isBlocked) {
+        for (let i = 0; i < props.count; i++) {
+          if (this.isBlocked(props.x[i] as number, props.z[i] as number)) {
+            this.blocked.add(propId(chunk.key, i));
+          }
+        }
+      }
       built++;
     }
     this.evict();
@@ -255,6 +268,7 @@ export class PropLayer {
         const tier = tierOf.get(`${kind}/${lod}`);
         if (!tier) continue; // uzak kademesi olmayan tür
         if (this.depleted.size > 0 && this.depleted.has(propId(key, i))) continue;
+        if (this.blocked.size > 0 && this.blocked.has(propId(key, i))) continue;
         const n = counts.get(tier) as number;
         if (n >= tier.capacity) continue; // kapasite dolu: uzak chunk'lar sona kaldığından yakınlar önceliklidir
         writeInstance(tier.mesh, n, props, i);

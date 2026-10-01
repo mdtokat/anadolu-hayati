@@ -437,8 +437,8 @@ export class Game {
       this.events.on('carcass:butchered', ({ id, items }) =>
         this.hud.notify(butcheredToast(items, this.butcher.hasRemaining(id)), INTERACT.toastMs),
       ),
-      this.events.on('item:cooked', ({ count }) =>
-        this.hud.notify(cookedToast(count), INTERACT.toastMs),
+      this.events.on('item:cooked', ({ count, item }) =>
+        this.hud.notify(cookedToast(count, item), INTERACT.toastMs),
       ),
       this.events.on('item:filled', () => this.hud.notify('Su kabı doldu', INTERACT.toastMs)),
       this.events.on('time:nightStarted', () =>
@@ -1254,7 +1254,9 @@ export class Game {
     }
     const cook = alive ? this.cooking.offer : null;
     if (cook?.status === 'ready') {
-      this.hud.setPrompt(cookPrompt(this.fireTender.offer?.status === 'ready'));
+      this.hud.setPrompt(
+        cookPrompt(this.fireTender.offer?.status === 'ready', 'ready', cook.recipe),
+      );
       this.hud.setProgress(this.cooking.progress > 0 ? this.cooking.progress : null);
       return;
     }
@@ -1276,7 +1278,7 @@ export class Game {
       drink ??
         (offer ? gatherPrompt(offer) : null) ??
         (butcher ? butcherPrompt(butcher) : null) ??
-        (cook ? cookPrompt(false, cook.status) : null) ??
+        (cook ? cookPrompt(false, cook.status, cook.recipe) : null) ??
         (tend ? tendPrompt(tend) : null) ??
         this.structurePrompt(alive) ??
         this.attackHint(alive),

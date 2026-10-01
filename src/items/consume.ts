@@ -19,7 +19,8 @@ export function applyEdible(state: VitalsState, effect: EdibleEffect): VitalsSta
   // Zararlı yiyecek (negatif can) canı 1'in altına indirmez: yemek tek başına öldürmez (ölüm nedeni göstergelerden doğar).
   const floor = (effect.health ?? 0) < 0 ? Math.min(state.health, 1) : 0;
   const health = Math.min(Math.max(state.health + (effect.health ?? 0), floor), SURVIVAL.maxValue);
-  return { ...next, health };
+  const energy = Math.min(Math.max(state.energy + (effect.energy ?? 0), 0), SURVIVAL.maxValue);
+  return { ...next, health, energy };
 }
 
 /** Yenebilir mi ve tokluk eksiği yeterli mi? (Tok olan yemek yiyemez.) */
