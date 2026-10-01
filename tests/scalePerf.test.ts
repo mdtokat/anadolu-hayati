@@ -11,14 +11,17 @@ import { PropLayer } from '../src/world/PropLayer';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { createTerrainMaterial } from '../src/world/TerrainMaterial';
 import { FreshWaterIndex } from '../src/world/waterIndex';
-import { loadRealRegion } from './helpers/realRegion';
-import { syntheticWorld, TARGET_EXTENT } from './helpers/syntheticWorld';
+import { WORLD } from '../src/config';
+import { loadWorld } from '../src/data/world';
+import { publicFsFetch } from './helpers/fsFetch';
+import { loadLegacyRegion } from './helpers/realRegion';
+import { TARGET_EXTENT } from './helpers/syntheticWorld';
 
 /**
- * 7.8 ölçek ölçümü (CPU, Node; WebGL'siz): Faz 7 kapsamındaki sentetik büyük dünyada (2228 × 1962 örnek, 288
- * chunk) açılış hazırlığının aşamaları ve bellek. Yapısal sayılar kesin denetlenir; süreler gevşek bir tavanla
- * (yavaş CI) denetlenir, `SCALE_REPORT=1` ile tablo olarak yazdırılır. Draw call/üçgen sayımı başsız tarayıcıda
- * yapılır (`?world=wide`, bkz. ROADMAP 7.8 notu). Gerçek veri (7.4) gelince aynı ölçüm gerçek dünyada yinelenir.
+ * 7.8 ölçek ölçümü (CPU, Node; WebGL'siz): gerçek Faz 7 dünyasında (2228 × 1962 örnek, 288 chunk; karolardan
+ * birleştirme dahil) açılış hazırlığının aşamaları ve bellek, Faz 6 bölgesiyle karşılaştırmalı. Yapısal sayılar
+ * kesin denetlenir; süreler gevşek bir tavanla (yavaş CI) denetlenir, `SCALE_REPORT=1` ile tablo olarak
+ * yazdırılır. Draw call/üçgen sayımı başsız tarayıcıda yapılır (docs/faz-7-b-olcumler.md).
  */
 
 interface Phase {
@@ -29,7 +32,7 @@ interface Phase {
 let legacy: RegionData;
 
 beforeAll(async () => {
-  legacy = await loadRealRegion();
+  legacy = await loadLegacyRegion();
 }, 60_000);
 
 function time<T>(phases: Phase[], name: string, fn: () => T): T {
@@ -102,11 +105,11 @@ function prepareWorld(region: RegionData) {
 
 const MB = 1024 * 1024;
 
-describe('Faz 7 ölçeği (sentetik büyük dünya, CPU)', { timeout: 120_000 }, () => {
-  it('288 chunk (18 × 16), bellek bütçesi; açılış hazırlığı ölçülür', () => {
-    const wideStart = performance.now();
-    const wide = syntheticWorld(legacy);
-    const assembleMs = performance.now() - wideStart;
+describe('Faz 7 ölçeği (gerçek dünya, CPU)', { timeout: 120_000 }, () => {
+  it('288 chunk (18 × 16), bellek bütçesi; açılış hazırlığı ölçülür', async () => {
+    const loadStart = performance.now();
+    const wide = await loadWorld(WORLD.id, '/', publicFsFetch());
+    const assembleMs = performance.now() - loadStart;
 
     const old = prepareWorld(legacy);
     const big = prepareWorld(wide);
@@ -124,7 +127,7 @@ describe('Faz 7 ölçeği (sentetik büyük dünya, CPU)', { timeout: 120_000 },
     expect(total / MB).toBeLessThan(100);
 
     // Süre: başsız bütçe 3 sn (ağ ve birleştirme hariç); yavaş CI için gevşek tavan.
-    expect(big.totalMs).toBeLessThan(15_000);
+    expect(big.totalMs + assembleMs).toBeLessThan(15_000);
 
     if (process.env.SCALE_REPORT) {
       const rows = big.phases.map((p, i) => {
@@ -138,7 +141,7 @@ describe('Faz 7 ölçeği (sentetik büyük dünya, CPU)', { timeout: 120_000 },
       process.stdout.write(
         [
           '',
-          `sentetik dünya birleştirme: ${assembleMs.toFixed(0)} ms`,
+          `karolu dünya yükleme (disk okuma + sha256 + birleştirme): ${assembleMs.toFixed(0)} ms`,
           '| Aşama | eski bölge (ms) | geniş dünya (ms) |',
           '|---|---|---|',
           ...rows,

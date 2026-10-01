@@ -8,6 +8,8 @@ import { LandCoverMap } from '../src/world/LandCoverMap';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { FreshWaterIndex } from '../src/world/waterIndex';
 import { loadRealRegion } from './helpers/realRegion';
+import type { RegionData } from '../src/data/region';
+import { provinceAt } from '../src/world/provinces';
 
 /**
  * Doğma yoğunluğu ölçümü (5.5): oyuncu gerçek bölgede ormanda düz yürür (4 m/s), 100 m içine giren canlılar
@@ -23,9 +25,10 @@ const STARTS = 8 * STRESS;
 const MINUTES = 10;
 
 let terrain: CreatureTerrain;
+let region: RegionData;
 
 beforeAll(async () => {
-  const region = await loadRealRegion();
+  region = await loadRealRegion();
   terrain = createRegionCreatureTerrain({
     source: RegionHeightSource.fromRegion(region),
     cover: LandCoverMap.fromRegion(region),
@@ -33,11 +36,17 @@ beforeAll(async () => {
   });
 });
 
-function forestStarts(minElevation: number, maxElevation: number, count: number, seed: number) {
+function forestStarts(
+  minElevation: number,
+  maxElevation: number,
+  count: number,
+  seed: number,
+  provinces?: readonly string[],
+) {
   const rng = createRandom(seed);
   const b = terrain.bounds;
   const out: Array<{ x: number; z: number }> = [];
-  for (let i = 0; i < 20000 && out.length < count; i++) {
+  for (let i = 0; i < 200000 && out.length < count; i++) {
     const x = rng.range(b.minX + 300, b.maxX - 300);
     const z = rng.range(b.minZ + 300, b.maxZ - 300);
     const e = terrain.elevationAt(x, z);
@@ -45,7 +54,8 @@ function forestStarts(minElevation: number, maxElevation: number, count: number,
       terrain.coverAt(x, z) === 'forest' &&
       e > minElevation &&
       e < maxElevation &&
-      terrain.slopeDegAt(x, z) < 30
+      terrain.slopeDegAt(x, z) < 30 &&
+      (!provinces || provinces.includes(provinceAt(region.provinces, x, z)?.name ?? ''))
     ) {
       out.push({ x, z });
     }
@@ -144,6 +154,38 @@ describe('doğma yoğunluğu (gerçek bölge, ormanda yürüyüş)', () => {
       // Gevşek aralık: 5 dk'da bir ile 200 dk'da bir arası (küçük örnek; uzun ölçüm için CREATURE_STRESS).
       expect(bearPerMinute).toBeLessThan(0.2);
       expect(bearPerMinute).toBeGreaterThanOrEqual(0);
+    },
+    300_000 * STRESS,
+  );
+
+  /**
+   * Faz 7.9: yeni alan (Düzce, Bolu) ormanları; aralıklar eski bölgeyle aynı gevşeklikte. Uzun ölçümde
+   * (24 × 10 dk) eski ve yeni alan benzer: gece kurt ~7 dk / ~6,7 dk, yüksek ormanda ayı ~17 dk / ~11 dk'da bir
+   * (docs/faz-7-b-olcumler.md).
+   */
+  it(
+    'Düzce–Bolu ormanı: gündüz av hayvanı, gece kurt; Bolu yaylasında ayı yaşam alanı',
+    () => {
+      const starts = forestStarts(100, 1200, STARTS, 177, ['Düzce', 'Bolu']);
+      expect(starts.length).toBe(STARTS);
+      const day = walk(starts, 50, 11);
+      const night = walk(starts, -30, 12);
+      const dayPrey = day.perMinute.roe_deer + day.perMinute.wild_boar;
+      expect(dayPrey).toBeGreaterThan(0.15);
+      expect(dayPrey).toBeLessThan(1.5);
+      expect(night.perMinute.wolf).toBeGreaterThan(day.perMinute.wolf);
+      expect(night.perMinute.wolf).toBeGreaterThan(0.03);
+
+      const high = forestStarts(1000, 1800, STARTS, 191, ['Bolu']);
+      expect(high.length).toBe(STARTS);
+      const bears = walk(high, 50, 13).perMinute.brown_bear;
+      expect(bears).toBeGreaterThan(0); // Bolu yüksek ormanında ayı görülür
+      expect(bears).toBeLessThan(0.2);
+      if (process.env.SCALE_REPORT) {
+        process.stdout.write(
+          `\nDüzce–Bolu: gündüz ${JSON.stringify(day.perMinute)}\ngece ${JSON.stringify(night.perMinute)}\nBolu ≥1000 m ayı/dk ${bears}\n`,
+        );
+      }
     },
     300_000 * STRESS,
   );

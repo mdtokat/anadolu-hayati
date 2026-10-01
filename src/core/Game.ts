@@ -29,7 +29,6 @@ import type {
   CreatureView,
 } from '../creatures/kinds';
 import { playerWeakness } from '../creatures/perception';
-import type { RegionData } from '../data/region';
 import { loadWorld } from '../data/world';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
@@ -103,11 +102,6 @@ export interface GameOptions {
   creatureDemo?: boolean;
   /** Kullanıcı ayarları deposu; verilmezse tarayıcının `localStorage`'ı kullanılır (testte sahte verilir). */
   settings?: SettingsStore;
-  /**
-   * Yalnızca dev: yüklenen bölge verisini dünya kurulmadan önce dönüştürür (`?world=wide`: Faz 7 kapsamında
-   * sentetik büyük dünya; gerçek Düzce–Bolu verisi gelmeden performans ölçümü için).
-   */
-  regionTransform?: (region: RegionData) => RegionData;
 }
 
 /** Konum HUD'unun güncelleme aralığı (ms). */
@@ -349,11 +343,10 @@ export class Game {
   /** WASM fizik motorunu ve (gerçek bölgede) bölge verisini yükleyip oyunu kurar. */
   static async create(container: HTMLElement, options: GameOptions = {}): Promise<Game> {
     const kind = options.world ?? 'region';
-    const [loaded] = await Promise.all([
+    const [region] = await Promise.all([
       kind === 'region' ? loadWorld(WORLD.id) : null,
       initPhysics(),
     ]);
-    const region = loaded && options.regionTransform ? options.regionTransform(loaded) : loaded;
 
     const physics = new PhysicsWorld();
     const world: GameWorld =
