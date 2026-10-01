@@ -126,6 +126,7 @@ export class SlotPicker {
     const { slot } = state;
     const row = document.createElement('div');
     row.className = 'slot-row';
+    row.dataset.status = state.status;
 
     const name = document.createElement('span');
     name.className = 'slot-name';

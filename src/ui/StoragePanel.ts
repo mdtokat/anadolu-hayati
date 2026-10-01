@@ -1,7 +1,9 @@
 import './ui.css';
 import { INPUT } from '../config';
 import type { Inventory } from '../items/Inventory';
-import { capacityText, slotView } from './inventoryView';
+import { uiIcon } from './icons';
+import { closeButton, el, loadMeter, slotButton } from './widgets';
+import { slotUsageText } from './inventoryView';
 
 export interface StoragePanelCallbacks {
   /** Oyuncu slotundaki yığını sandığa koy. */
@@ -12,17 +14,6 @@ export interface StoragePanelCallbacks {
   onTakeAll(): void;
   /** Panel kapatılmak isteniyor (Kapat, Esc, E, I/Tab, dış alana tıklama). */
   onClose(): void;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
 }
 
 /**
@@ -83,11 +74,17 @@ export class StoragePanel {
     const chest = this.chest;
     if (chest === null) return;
     const header = el('div', 'inv-header');
-    header.append(el('h2', 'inv-title', this.title));
-    const close = el('button', 'inv-close', 'Kapat (E)');
-    close.type = 'button';
-    close.addEventListener('click', () => this.callbacks.onClose());
-    header.append(close);
+    const titleBox = el('div', 'inv-title-box');
+    const title = el('h2', 'inv-title');
+    title.append(uiIcon('chest', 'ui-icon inv-title-icon'), el('span', '', this.title));
+    titleBox.append(
+      title,
+      el('div', 'inv-title-sub', 'Bir eşyaya tıkla: yığın karşı tarafa geçer (sığdığı kadar).'),
+    );
+    header.append(
+      titleBox,
+      closeButton('Kapat', 'E', () => this.callbacks.onClose()),
+    );
 
     const body = el('div', 'inv-columns');
     body.append(
@@ -98,12 +95,7 @@ export class StoragePanel {
         this.callbacks.onTake(i),
       ),
     );
-    const hint = el(
-      'div',
-      'inv-hint',
-      'Bir eşyaya tıkla: yığın karşı tarafa geçer (sığdığı kadar).',
-    );
-    this.panel.replaceChildren(header, body, hint);
+    this.panel.replaceChildren(header, body);
   }
 
   dispose(): void {
@@ -118,25 +110,23 @@ export class StoragePanel {
     onAll: () => void,
     onSlot: (slot: number) => void,
   ): HTMLElement {
-    const section = el('section', 'inv-slots-section');
-    const head = el('div', 'inv-recipe-head');
-    head.append(el('h3', 'inv-subtitle', title));
+    const section = el('section', 'inv-section inv-slots-section');
+    const head = el('div', 'inv-section-head');
+    head.append(
+      el('h3', 'inv-subtitle', title),
+      el('span', 'inv-section-meta', `${slotUsageText(inventory)} slot`),
+    );
     const all = el('button', 'inv-transfer-all', allLabel);
     all.type = 'button';
     all.disabled = inventory.slots.every((stack) => stack === null);
     all.addEventListener('click', () => onAll());
     head.append(all);
-    section.append(head, el('div', 'inv-capacity', capacityText(inventory)));
+    section.append(head, loadMeter(inventory));
 
     const grid = el('div', 'inv-slots');
     inventory.slots.forEach((stack, index) => {
-      const view = slotView(stack);
-      const slot = el('button', 'inv-slot');
-      slot.type = 'button';
-      slot.title = view.title;
-      slot.dataset.empty = String(view.empty);
-      slot.disabled = view.empty;
-      slot.append(el('span', 'inv-slot-name', view.name), el('span', 'inv-slot-count', view.count));
+      const slot = slotButton(stack);
+      slot.disabled = stack === null;
       slot.addEventListener('click', () => onSlot(index));
       grid.append(slot);
     });

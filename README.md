@@ -28,6 +28,8 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | B | İl sınırı çizgilerini aç/kapa |
 | Esc | Duraklat: **Devam Et**, **Kaydet**, **Yükle**, **Ayarlar** (grafik kalitesi, fare hassasiyeti, ses, ipuçları), **Krediler**, **Ana Menüye Dön** |
 
+**Ekran:** sol altta sağlık/tokluk/su/enerji göstergeleri (değerleriyle) ve vücut ısısı, ateş, barınak, savunma durum çipleri; sağ üstte il, rakım, saat (güneş/ay), gün ve hava sıcaklığı; üst ortada pusula (K, KD, D…); altta eşya simgeli kısayol çubuğu. Etkileşim ipuçları tuş simgeleriyle, basılı tutma ilerlemesi imlecin çevresinde halka olarak görünür; kısa bildirimler sağ altta çıkar.
+
 Oyun her 2 dakikada ve sekme gizlenirken **otomatik kayıt** yuvasına kaydeder; kayıtlar tarayıcıda (IndexedDB) tutulur ve sürümlüdür. Ayarlar tarayıcıda (`localStorage`) saklanır.
 
 Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`npm run dev`) **`T` basılıyken** 1–9 ve 0 tuşları on noktaya ışınlar (değiştiricisiz rakamlar kısayol çubuğunundur; `O` inşa eşyaları verir) (Zonguldak, Safranbolu, Amasra, Filyos, Yenice, Düzce, Bolu, Abant Gölü, Yedigöller, Akçakoca); **Shift + 1–9, 0** bulunduğun ilin yerlerine ışınlar (Zonguldak: Zonguldak merkez, Kozlu, Kilimli, Çatalağzı, Karadeniz Ereğli, Alaplı, Çaycuma, Filyos vadisi, Devrek, Gökçebey; Bartın, Karabük, Düzce ve Bolu'nun da kendi 8–10 yeri vardır). `?world=test` adresi Faz 1'in test arenasını açar (30°/60° rampalar, 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru).

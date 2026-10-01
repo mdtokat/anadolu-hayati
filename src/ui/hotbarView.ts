@@ -1,13 +1,15 @@
 import { INPUT } from '../config';
 import { isHoldable, type Hotbar } from '../items/hotbar';
 import type { Inventory } from '../items/Inventory';
-import { ITEMS } from '../items/itemDefs';
+import { ITEMS, type ItemId } from '../items/itemDefs';
 import { keyLabel } from '../placement/promptText';
 
 /** Kısayol çubuğunun bir slotunun görünüm modeli (saf; `Hud` yalnızca bunu çizer). */
 export interface HotbarSlotView {
   /** Tuş etiketi ("1"…"8"). */
   key: string;
+  /** Bağlı eşya (simge için; boşsa null). */
+  id: ItemId | null;
   /** Eşya adı (boşsa ""). */
   name: string;
   /** Envanterdeki adet etiketi ("×3"; tek adette ya da yoksa ""). */
@@ -28,6 +30,7 @@ export function hotbarViews(hotbar: Hotbar, inventory: Inventory): HotbarSlotVie
     if (id === null) {
       return {
         key,
+        id: null,
         name: '',
         count: '',
         empty: true,
@@ -41,6 +44,7 @@ export function hotbarViews(hotbar: Hotbar, inventory: Inventory): HotbarSlotVie
     const use = isHoldable(id) ? 'elde tut' : 'kullan';
     return {
       key,
+      id,
       name,
       count: have > 1 ? `×${have}` : '',
       empty: false,

@@ -1,11 +1,21 @@
 import './ui.css';
-import { COMBAT_HUD, INTERACT } from '../config';
+import { COMBAT_HUD, HUD_STYLE, INTERACT } from '../config';
 import type { VitalsState } from '../survival/vitals';
 import { defenseLabel, type HitMarkerKind } from './combatFormat';
 import type { HotbarSlotView } from './hotbarView';
 import {
+  compassBearing,
+  compassLabel,
+  compassOffset,
+  compassTicks,
+  promptParts,
+  toastKind,
+  warningLevel,
+} from './hudView';
+import { CATEGORY_ACCENT, itemIcon, uiIcon, type UiIcon } from './icons';
+import { ITEMS } from '../items/itemDefs';
+import {
   bodyTempLabel,
-  exposureLabel,
   bodyTempLevel,
   formatTemperature,
   gaugeFraction,
@@ -19,13 +29,14 @@ const GAUGES = [
   ['satiety', 'Tokluk'],
   ['hydration', 'Su'],
   ['energy', 'Enerji'],
-] as const;
+] as const satisfies ReadonlyArray<readonly [UiIcon, string]>;
 
 type GaugeKey = (typeof GAUGES)[number][0];
 
 interface GaugeElements {
   row: HTMLElement;
   fill: HTMLElement;
+  value: HTMLElement;
 }
 
 /** Saat/sıcaklık satırında gösterilen zaman ve ortam bilgisi. */
@@ -44,90 +55,96 @@ export interface SurvivalHudInfo {
   shelter?: 'lean_to' | 'hut' | null;
   /** Giysilerin hasar azaltma oranı (0–1); yoksa 0. */
   defense?: number;
+  /** Güneş ufkun üstünde mi (saat simgesi güneş/ay)? Verilmezse gündüz sayılır. */
+  daylight?: boolean;
 }
 
 /**
- * Oyun içi HUD iskeleti (HTML overlay): artı imleç, hayatta kalma göstergeleri için boş alan
- * ve (yalnızca dev modunda) geliştirici bilgisi.
+ * Oyun içi HUD (HTML overlay): artı imleç ve etkileşim halkası, pusula, konum/saat kartı, hayatta kalma
+ * göstergeleri ve durum çipleri, uyarılar, ipucu (tuş simgeleriyle), bildirimler, duyuru, kısayol çubuğu ve
+ * (yalnızca dev modunda) geliştirici bilgisi. Biçimlendirme mantığı `survivalFormat`/`hudView`'dadır (saf, testli).
  */
 export class Hud {
-  /** Sağlık/tokluk/su/enerji çubukları (sol alt). */
-  readonly gauges = document.createElement('div');
+  /** Sağlık/tokluk/su/enerji kartı (sol alt). */
+  readonly gauges = el('div', 'hud-vitals hud-card');
 
-  private readonly root = document.createElement('div');
+  private readonly root = el('div', 'hud');
   private readonly debug: HTMLElement | null;
-  private readonly location = document.createElement('div');
-  private readonly locationTitle = document.createElement('div');
-  private readonly locationDetail = document.createElement('div');
+  private readonly info = el('div', 'hud-info hud-card');
+  private readonly location = el('div', 'hud-location');
+  private readonly locationTitle = el('span', 'hud-location-title');
+  private readonly locationDetail = el('span', 'hud-location-detail');
   private readonly gaugeElements = new Map<GaugeKey, GaugeElements>();
-  private readonly bodyTemp = document.createElement('div');
-  private readonly defense = document.createElement('div');
-  private readonly damageVignette = document.createElement('div');
-  private readonly hitMarker = document.createElement('div');
-  private readonly clock = document.createElement('div');
-  private readonly warningList = document.createElement('div');
-  private readonly prompt = document.createElement('div');
-  private readonly progress = document.createElement('div');
-  private readonly progressFill = document.createElement('div');
-  private readonly banner = document.createElement('div');
+  private readonly statusChips = el('div', 'hud-chips');
+  private readonly damageVignette = el('div', 'hud-damage');
+  private readonly hitMarker = el('div', 'hud-hitmarker');
+  private readonly clock = el('div', 'hud-clock');
+  private readonly clockIcon = el('span', 'hud-clock-icon');
+  private readonly clockTime = el('span', 'hud-clock-time');
+  private readonly clockDay = el('span', 'hud-clock-day');
+  private readonly clockTemp = el('span', 'hud-clock-temp');
+  private clockDaylight: boolean | null = null;
+  private readonly compass = el('div', 'hud-compass');
+  private readonly compassTape = el('div', 'hud-compass-tape');
+  private readonly compassReadout = el('div', 'hud-compass-readout');
+  private lastBearing = Number.NaN;
+  private readonly warningList = el('div', 'hud-warnings');
+  private readonly prompt = el('div', 'hud-prompt');
+  private readonly progress = el('div', 'hud-ring');
+  private readonly toasts = el('div', 'hud-toasts');
+  private readonly banner = el('div', 'hud-banner');
+  private readonly bannerText = el('span', 'hud-banner-text');
   private bannerTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly toasts = document.createElement('div');
-  private readonly hotbar = document.createElement('div');
-  private readonly hotbarSlots = document.createElement('div');
-  private readonly hotbarHeld = document.createElement('div');
+  private readonly hotbar = el('div', 'hud-hotbar');
+  private readonly hotbarSlots = el('div', 'hud-hotbar-slots');
+  private readonly hotbarHeld = el('div', 'hud-hotbar-held');
   private readonly toastTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(parent: HTMLElement, showDebug: boolean) {
-    this.root.className = 'hud';
     this.root.hidden = true; // başlangıçta menü açık
 
-    const crosshair = document.createElement('div');
-    crosshair.className = 'hud-crosshair';
-    this.damageVignette.className = 'hud-damage';
-    this.hitMarker.className = 'hud-hitmarker';
-    this.gauges.className = 'hud-gauges';
-    this.location.className = 'hud-location';
-    this.locationTitle.className = 'hud-location-title';
-    this.locationDetail.className = 'hud-location-detail';
-    this.location.append(this.locationTitle, this.locationDetail);
-    this.location.hidden = true; // konum bilgisi olmayan dünyalarda (test arenası) görünmez
-    this.buildGauges();
-    this.clock.className = 'hud-clock';
-    this.warningList.className = 'hud-warnings';
-    this.prompt.className = 'hud-prompt';
-    this.prompt.hidden = true;
-    this.progress.className = 'hud-progress';
+    const crosshair = el('div', 'hud-crosshair');
     this.progress.hidden = true;
-    this.progressFill.className = 'hud-progress-fill';
-    this.progress.append(this.progressFill);
-    this.toasts.className = 'hud-toasts';
-    this.banner.className = 'hud-banner';
+
+    // Konum ve saat kartı (sağ üst)
+    this.location.append(
+      uiIcon('pin', 'ui-icon hud-location-icon'),
+      el('span', 'hud-location-text'),
+    );
+    this.location.lastElementChild?.append(this.locationTitle, this.locationDetail);
+    this.location.hidden = true; // konum bilgisi olmayan dünyalarda (test arenası) görünmez
+    const clockMain = el('span', 'hud-clock-main');
+    clockMain.append(this.clockTime, this.clockDay);
+    this.clock.append(this.clockIcon, clockMain, this.clockTemp);
+    this.clock.hidden = true;
+    this.info.append(this.location, this.clock);
+    this.info.hidden = true;
+
+    this.buildCompass();
+    this.buildGauges();
+    this.prompt.hidden = true;
+    this.banner.append(this.bannerText);
     this.banner.hidden = true;
-    this.hotbar.className = 'hud-hotbar';
-    this.hotbarHeld.className = 'hud-hotbar-held';
-    this.hotbarSlots.className = 'hud-hotbar-slots';
     this.hotbar.append(this.hotbarHeld, this.hotbarSlots);
     this.hotbar.hidden = true; // kısayol verisi gelene kadar
     this.gauges.hidden = true; // hayatta kalma verisi gelene kadar (test arenasında da) görünmez
-    this.clock.hidden = true;
     this.root.append(
       this.damageVignette,
       crosshair,
+      this.progress,
       this.hitMarker,
+      this.compass,
       this.gauges,
-      this.location,
-      this.clock,
+      this.info,
       this.warningList,
       this.prompt,
-      this.progress,
       this.toasts,
       this.banner,
       this.hotbar,
     );
 
     if (showDebug) {
-      this.debug = document.createElement('div');
-      this.debug.className = 'hud-debug';
+      this.debug = el('div', 'hud-debug');
       this.root.append(this.debug);
     } else {
       this.debug = null;
@@ -135,57 +152,66 @@ export class Hud {
     parent.appendChild(this.root);
   }
 
+  private buildCompass(): void {
+    this.compass.style.setProperty('--compass-width', `${HUD_STYLE.compassWidthPx}px`);
+    for (const tick of compassTicks()) {
+      const mark = el('span', 'hud-compass-tick');
+      mark.style.left = `${(tick.deg + 180) * HUD_STYLE.compassPxPerDeg}px`;
+      if (tick.label) {
+        mark.dataset.kind = tick.major ? 'major' : 'minor';
+        if (tick.label === 'K') mark.dataset.north = 'true';
+        mark.textContent = tick.label;
+      }
+      this.compassTape.append(mark);
+    }
+    const window = el('div', 'hud-compass-window');
+    window.append(this.compassTape);
+    this.compass.append(window, this.compassReadout);
+    this.compass.hidden = true;
+  }
+
   private buildGauges(): void {
     for (const [key, label] of GAUGES) {
-      const row = document.createElement('div');
-      row.className = 'hud-gauge';
-      const name = document.createElement('span');
-      name.className = 'hud-gauge-label';
-      name.textContent = label;
-      const track = document.createElement('div');
-      track.className = 'hud-gauge-track';
-      const fill = document.createElement('div');
-      fill.className = 'hud-gauge-fill';
+      const row = el('div', 'hud-gauge');
+      row.dataset.gauge = key;
+      row.title = label;
+      const track = el('div', 'hud-gauge-track');
+      const fill = el('div', 'hud-gauge-fill');
       track.append(fill);
-      row.append(name, track);
+      const value = el('span', 'hud-gauge-value');
+      row.append(uiIcon(key, 'ui-icon hud-gauge-icon'), track, value);
       this.gauges.append(row);
-      this.gaugeElements.set(key, { row, fill });
+      this.gaugeElements.set(key, { row, fill, value });
     }
-    this.bodyTemp.className = 'hud-body-temp';
-    this.defense.className = 'hud-defense';
-    this.defense.hidden = true;
-    this.gauges.append(this.bodyTemp, this.defense);
+    this.gauges.append(this.statusChips);
   }
 
   /** Hayatta kalma göstergelerini, saati ve uyarıları günceller. */
   setSurvival(info: SurvivalHudInfo): void {
     this.gauges.hidden = false;
     this.clock.hidden = false;
+    this.info.hidden = false;
     const { vitals } = info;
     for (const [key] of GAUGES) {
       const element = this.gaugeElements.get(key);
       if (!element) continue;
       const value = vitals[key];
-      element.fill.style.width = `${(gaugeFraction(value) * 100).toFixed(1)}%`;
+      const width = `${(gaugeFraction(value) * 100).toFixed(1)}%`;
+      if (element.fill.style.width !== width) element.fill.style.width = width;
+      setText(element.value, String(Math.round(value)));
       setState(element.row, key === 'energy' && vitals.exhausted ? 'critical' : gaugeLevel(value));
     }
+    this.renderChips(info);
 
-    const level = bodyTempLevel(vitals.bodyTemp);
-    setText(
-      this.bodyTemp,
-      [
-        `Vücut: ${formatTemperature(vitals.bodyTemp)} ${bodyTempLabel(vitals.bodyTemp)}`.trim(),
-        exposureLabel(info.warmthC, info.sheltered, info.shelter ?? null),
-      ]
-        .filter((part) => part !== '')
-        .join(' · '),
-    );
-    setState(this.bodyTemp, level);
-    const defense = defenseLabel(info.defense ?? 0);
-    this.defense.hidden = defense === '';
-    setText(this.defense, defense);
-
-    setText(this.clock, `${info.clock} · ${info.day} · ${formatTemperature(info.ambientC)}`);
+    const daylight = info.daylight ?? true;
+    if (this.clockDaylight !== daylight) {
+      this.clockDaylight = daylight;
+      this.clockIcon.replaceChildren(uiIcon(daylight ? 'sun' : 'moon'));
+      this.clock.dataset.daylight = String(daylight);
+    }
+    setText(this.clockTime, info.clock);
+    setText(this.clockDay, info.day);
+    setText(this.clockTemp, formatTemperature(info.ambientC));
 
     const list = warnings(vitals);
     const joined = list.join('\n');
@@ -193,36 +219,79 @@ export class Hud {
       this.warningList.dataset.text = joined;
       this.warningList.replaceChildren(
         ...list.map((text) => {
-          const line = document.createElement('div');
-          line.textContent = text;
+          const line = el('div', 'hud-warning');
+          line.dataset.level = warningLevel(text);
+          line.append(uiIcon('warning'), el('span', '', text));
           return line;
         }),
       );
     }
   }
 
+  /** Durum çipleri: vücut ısısı (her zaman), ateş başında, barınakta/kulübede, savunma. */
+  private renderChips(info: SurvivalHudInfo): void {
+    const temp = info.vitals.bodyTemp;
+    const tempLabel = bodyTempLabel(temp);
+    const chips: Array<{ icon: UiIcon; text: string; state: string }> = [
+      {
+        icon: 'thermometer',
+        text: tempLabel ? `${formatTemperature(temp)} · ${tempLabel}` : formatTemperature(temp),
+        state: bodyTempLevel(temp),
+      },
+    ];
+    if (info.warmthC > 0) chips.push({ icon: 'fire', text: 'Ateş başında', state: 'fire' });
+    if (info.sheltered) {
+      chips.push({
+        icon: 'shelter',
+        text: info.shelter === 'hut' ? 'Kulübede' : 'Barınakta',
+        state: 'shelter',
+      });
+    }
+    const defense = defenseLabel(info.defense ?? 0);
+    if (defense) chips.push({ icon: 'shield', text: defense, state: 'defense' });
+
+    const signature = chips.map((c) => `${c.icon}:${c.text}:${c.state}`).join('|');
+    if (this.statusChips.dataset.signature === signature) return;
+    this.statusChips.dataset.signature = signature;
+    this.statusChips.replaceChildren(
+      ...chips.map((chip) => {
+        const element = el('span', 'hud-chip');
+        element.dataset.state = chip.state;
+        element.append(uiIcon(chip.icon), el('span', '', chip.text));
+        return element;
+      }),
+    );
+  }
+
+  /** Pusulayı kamera yaw'ına (radyan) göre döndürür; her render karesinde çağrılabilir (küçük değişimler atlanır). */
+  setHeading(yaw: number): void {
+    const bearing = compassBearing(yaw);
+    if (Math.abs(bearing - this.lastBearing) < HUD_STYLE.compassEpsilonDeg) return;
+    this.lastBearing = bearing;
+    this.compass.hidden = false;
+    const offset = compassOffset(bearing, HUD_STYLE.compassWidthPx);
+    this.compassTape.style.transform = `translateX(${offset.toFixed(1)}px)`;
+    setText(this.compassReadout, `${compassLabel(bearing)} ${Math.round(bearing) % 360}°`);
+  }
+
   /** Kısayol çubuğunu (alt orta) ve elde tutulan eşyayı çizer. */
   setHotbar(slots: ReadonlyArray<HotbarSlotView>, held: string): void {
     this.hotbar.hidden = false;
     setText(this.hotbarHeld, held);
+    this.hotbarHeld.hidden = held === '';
     this.hotbarSlots.replaceChildren(
       ...slots.map((view) => {
-        const slot = document.createElement('div');
-        slot.className = 'hud-hotbar-slot';
+        const slot = el('div', 'hud-hotbar-slot');
         slot.title = view.title;
         slot.dataset.empty = String(view.empty);
         slot.dataset.missing = String(view.missing);
         slot.dataset.selected = String(view.selected);
-        const key = document.createElement('span');
-        key.className = 'hud-hotbar-key';
-        key.textContent = view.key;
-        const name = document.createElement('span');
-        name.className = 'hud-hotbar-name';
-        name.textContent = view.name;
-        const count = document.createElement('span');
-        count.className = 'hud-hotbar-count';
-        count.textContent = view.count;
-        slot.append(key, name, count);
+        if (view.id !== null) {
+          slot.style.setProperty('--accent', CATEGORY_ACCENT[ITEMS[view.id].category]);
+          slot.append(itemIcon(view.id, 'item-icon hud-hotbar-icon'));
+        }
+        slot.append(el('span', 'hud-hotbar-key', view.key));
+        if (view.count) slot.append(el('span', 'hud-hotbar-count', view.count));
         return slot;
       }),
     );
@@ -239,25 +308,44 @@ export class Hud {
     animateFade(this.hitMarker, 1, COMBAT_HUD.hitMarkerMs);
   }
 
-  /** Ekran ortası altında kısa ipucu (ör. "E: su iç"); `null` gizler. */
+  /** Ekran ortası altında kısa ipucu (ör. "E: su iç"); tuşlar tuş simgesiyle çizilir. `null` gizler. */
   setPrompt(text: string | null): void {
     this.prompt.hidden = text === null;
-    if (text !== null) setText(this.prompt, text);
+    if (text === null || this.prompt.dataset.text === text) return;
+    this.prompt.dataset.text = text;
+    const parts = promptParts(text);
+    this.prompt.replaceChildren(
+      ...parts.map((part, index) => {
+        const element = el('span', 'hud-prompt-part');
+        if (index > 0) element.classList.add('hud-prompt-sep');
+        if (part.key !== null) {
+          const key = el('kbd', 'hud-key', part.key);
+          if (part.hold) key.dataset.hold = 'true';
+          element.append(key);
+        }
+        element.append(el('span', 'hud-prompt-text', part.text));
+        return element;
+      }),
+    );
   }
 
-  /** İpucunun altında ilerleme çubuğu (0–1); `null` gizler. */
+  /** İmleç çevresinde ilerleme halkası (0–1); `null` gizler. */
   setProgress(fraction: number | null): void {
     this.progress.hidden = fraction === null;
     if (fraction === null) return;
-    const width = `${(Math.min(Math.max(fraction, 0), 1) * 100).toFixed(1)}%`;
-    if (this.progressFill.style.width !== width) this.progressFill.style.width = width;
+    const value = (Math.min(Math.max(fraction, 0), 1) * 100).toFixed(1);
+    if (this.progress.dataset.value !== value) {
+      this.progress.dataset.value = value;
+      this.progress.style.setProperty('--progress', `${value}%`);
+    }
   }
 
   /** Kısa süreli bildirim (ör. "+3 Fındık"); `durationMs` sonra kendiliğinden kalkar. */
   notify(text: string, durationMs: number): void {
-    const toast = document.createElement('div');
-    toast.className = 'hud-toast';
-    toast.textContent = text;
+    const toast = el('div', 'hud-toast');
+    toast.dataset.kind = toastKind(text);
+    toast.style.setProperty('--toast-ms', `${durationMs}ms`);
+    toast.append(el('span', 'hud-toast-dot'), el('span', '', text));
     this.toasts.append(toast);
     // Sınır aşılınca en eski bildirim erken kalkar (zamanlayıcısı sonra kopuk öğeyi siler; zararsız).
     while (this.toasts.childElementCount > INTERACT.maxToasts)
@@ -271,9 +359,20 @@ export class Hud {
 
   /** Ekranın üstünde büyük, kendiliğinden sönen duyuru (ör. "Bartın'a hoş geldiniz"); yenisi eskisinin yerini alır. */
   showBanner(text: string, durationMs: number): void {
-    this.banner.textContent = text;
+    this.bannerText.textContent = text;
     this.banner.hidden = false;
-    animateFade(this.banner, 1, durationMs);
+    if (typeof this.banner.animate === 'function') {
+      this.banner.getAnimations?.().forEach((animation) => animation.cancel());
+      this.banner.animate(
+        [
+          { opacity: 0, transform: 'translate(-50%, -8px)', letterSpacing: '0.24em' },
+          { opacity: 1, transform: 'translate(-50%, 0)', letterSpacing: '0.12em', offset: 0.12 },
+          { opacity: 1, transform: 'translate(-50%, 0)', letterSpacing: '0.12em', offset: 0.75 },
+          { opacity: 0, transform: 'translate(-50%, 0)', letterSpacing: '0.12em' },
+        ],
+        { duration: durationMs, easing: 'ease-out', fill: 'forwards' },
+      );
+    }
     if (this.bannerTimer !== null) clearTimeout(this.bannerTimer);
     this.bannerTimer = setTimeout(() => {
       this.banner.hidden = true;
@@ -289,14 +388,13 @@ export class Hud {
   setLocation(location: { title: string; detail: string } | null): void {
     this.location.hidden = location === null;
     if (location === null) return;
-    if (this.locationTitle.textContent !== location.title)
-      this.locationTitle.textContent = location.title;
-    if (this.locationDetail.textContent !== location.detail)
-      this.locationDetail.textContent = location.detail;
+    this.info.hidden = false;
+    setText(this.locationTitle, location.title);
+    setText(this.locationDetail, location.detail);
   }
 
   setDebugText(text: string): void {
-    if (this.debug && this.debug.textContent !== text) this.debug.textContent = text;
+    if (this.debug) setText(this.debug, text);
   }
 
   dispose(): void {
@@ -305,6 +403,17 @@ export class Hud {
     if (this.bannerTimer !== null) clearTimeout(this.bannerTimer);
     this.root.remove();
   }
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
 }
 
 /** Elemanı `peak` opaklığından 0'a `ms` içinde söndürür (Web Animations destekliyse; yoksa etkisiz). */
