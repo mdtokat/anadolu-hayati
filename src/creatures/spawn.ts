@@ -1,5 +1,7 @@
 import { CREATURES } from '../config';
 import { createRandom, seedFrom } from '../utils/random';
+import { absoluteChunkKey } from '../world/chunkKeys';
+import { CHUNK_CELLS, latticeChunkOffset } from '../world/lattice';
 import { darknessOf, angleDiff, yawOf } from './perception';
 import { CREATURE_KINDS, type CreatureId, type CreatureKind, type CreatureTerrain } from './kinds';
 import {
@@ -17,11 +19,19 @@ import {
  * ve yükleme sırasından bağımsızdır. Ekoloji yaklaşıktır.
  */
 
-/** Doğma ızgarası: bölge sınırına hizalı kare hücreler (chunk ızgarasıyla aynı boy ve orijin). */
+/**
+ * Doğma ızgarası: kare hücreler, hücre `(cx, cy)` = `[minX + cx·size, minX + (cx + 1)·size)` (z benzer); geçerli
+ * hücreler `cx0 … cx0 + cols − 1`. Dünya kafese chunk hizalıysa (gerçek veri) hücre ≡ kafes chunk'ı: `minX/minZ`
+ * kafes chunk'ı (0, 0)'ın köşesi, `cx0/cy0` ilk chunk (negatif olabilir); değilse (sentetik arazi) hücreler
+ * arazi sınırının köşesinden 0'dan sayılır.
+ */
 export interface SpawnGrid {
   size: number;
+  /** Hücre (0, 0)'ın kuzeybatı köşesi. */
   minX: number;
   minZ: number;
+  cx0: number;
+  cy0: number;
   cols: number;
   rows: number;
 }
@@ -35,25 +45,36 @@ export function makeSpawnGrid(
   bounds: CreatureTerrain['bounds'],
   size: number = CREATURES.spawnCellSize,
 ): SpawnGrid {
+  // Hücre bir chunk'tır (128 örnek): arazi köşesi kafese chunk hizalıysa indeksler kafes indeksidir.
+  const offset = latticeChunkOffset(bounds.minX, bounds.minZ, size / CHUNK_CELLS);
+  const cx0 = offset?.cx ?? 0;
+  const cy0 = offset?.cy ?? 0;
   return {
     size,
-    minX: bounds.minX,
-    minZ: bounds.minZ,
+    minX: bounds.minX - cx0 * size,
+    minZ: bounds.minZ - cy0 * size,
+    cx0,
+    cy0,
     cols: Math.max(1, Math.ceil((bounds.maxX - bounds.minX) / size)),
     rows: Math.max(1, Math.ceil((bounds.maxZ - bounds.minZ) / size)),
   };
 }
 
-/** Hücre anahtarı (chunk anahtarıyla aynı: `cy * cols + cx`). */
-export function cellKey(grid: SpawnGrid, cx: number, cy: number): number {
-  return cy * grid.cols + cx;
+/** Hücre anahtarı: mutlak chunk anahtarıyla aynı (`absoluteChunkKey(cx, cy)`; ızgara boyutundan bağımsız). */
+export function cellKey(cx: number, cy: number): number {
+  return absoluteChunkKey(cx, cy);
+}
+
+/** Hücre ızgaranın içinde mi? */
+function inGrid(grid: SpawnGrid, cx: number, cy: number): boolean {
+  return cx >= grid.cx0 && cy >= grid.cy0 && cx < grid.cx0 + grid.cols && cy < grid.cy0 + grid.rows;
 }
 
 /** Noktanın hücresi; ızgara dışındaysa null. */
 export function cellOf(grid: SpawnGrid, x: number, z: number): CellIndex | null {
   const cx = Math.floor((x - grid.minX) / grid.size);
   const cy = Math.floor((z - grid.minZ) / grid.size);
-  return cx < 0 || cy < 0 || cx >= grid.cols || cy >= grid.rows ? null : { cx, cy };
+  return inGrid(grid, cx, cy) ? { cx, cy } : null;
 }
 
 /** Hücrenin X/Z kapsamı. */
@@ -65,10 +86,10 @@ export function cellRect(grid: SpawnGrid, cx: number, cy: number) {
 
 /** (x, z) çevresindeki `radius` dairesini kesen hücreler (ızgara içinde kalanlar). */
 export function cellsNear(grid: SpawnGrid, x: number, z: number, radius: number): CellIndex[] {
-  const c0 = Math.max(0, Math.floor((x - radius - grid.minX) / grid.size));
-  const c1 = Math.min(grid.cols - 1, Math.floor((x + radius - grid.minX) / grid.size));
-  const r0 = Math.max(0, Math.floor((z - radius - grid.minZ) / grid.size));
-  const r1 = Math.min(grid.rows - 1, Math.floor((z + radius - grid.minZ) / grid.size));
+  const c0 = Math.max(grid.cx0, Math.floor((x - radius - grid.minX) / grid.size));
+  const c1 = Math.min(grid.cx0 + grid.cols - 1, Math.floor((x + radius - grid.minX) / grid.size));
+  const r0 = Math.max(grid.cy0, Math.floor((z - radius - grid.minZ) / grid.size));
+  const r1 = Math.min(grid.cy0 + grid.rows - 1, Math.floor((z + radius - grid.minZ) / grid.size));
   const cells: CellIndex[] = [];
   for (let cy = r0; cy <= r1; cy++) {
     for (let cx = c0; cx <= c1; cx++) {
@@ -175,7 +196,7 @@ export function candidatesForCell(input: CandidateInput): Candidate[] {
   const { grid, terrain, cx, cy, epoch } = input;
   const seed = input.seed ?? CREATURES.seed;
   const rect = cellRect(grid, cx, cy);
-  const key = cellKey(grid, cx, cy);
+  const key = cellKey(cx, cy);
   const rng = createRandom(seedFrom(seed, cx, cy, epoch));
   const out: Candidate[] = [];
   const attempts = CREATURES.spawnAttemptsPerCell;

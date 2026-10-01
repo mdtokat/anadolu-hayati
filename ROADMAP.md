@@ -189,11 +189,11 @@ Görevler (numaralar alt görev sırasıdır; **Hesap A = Veri ve karolar**, **H
 - [x] **7.2** _(A)_ Eski bölgeyi karola (bit-eşdeğer, golden test) — B için kritik bağımlılık
 - [x] **7.3** _(A)_ Hattı kafes/karo düzenine taşı (`world.yaml`, `build_world.py`, dünya-geneli nicemleme)
 - [x] **7.4** _(A)_ Düzce–Bolu verisini üret + kalite denetimi (sınır sürekliliği, göller, il kapsamı)
-- [ ] **7.5** _(B)_ Izgara çapası ve mutlak kimlikler (merkezli-orijin varsayımı kalkar; nesne/canlı yerleşimi birebir korunur)
-- [ ] **7.6** _(B)_ Dünyayı manifestten yükle; gerçek-bölge testlerini yeni yükleyiciye taşı
-- [ ] **7.7** _(B)_ Kayıt v2 ve göç (Faz 6 kayıtları yeni dünyada yüklenir, kimlikler aynı nesneyi gösterir)
-- [ ] **7.8** _(B)_ Performans ve bellek (288 chunk, su meshi; draw call < 300)
-- [ ] **7.9** _(B)_ İçerik: Düzce–Bolu ışınlanma noktaları, kesintisiz yürüme, ekoloji/denge ölçümü
+- [x] **7.5** _(B)_ Izgara çapası ve mutlak kimlikler (merkezli-orijin varsayımı kalkar; nesne/canlı yerleşimi birebir korunur) _(testli: `tests/latticeGolden` (eski bölge scatter/doğma golden + geniş dünyada değişmezlik), `latticeGrid` (asimetrik ızgara, negatif chunk, `seedFrom` kilidi))_
+- [x] **7.6** _(B)_ Dünyayı manifestten yükle; gerçek-bölge testlerini yeni yükleyiciye taşı _(`Game` → `loadWorld(WORLD.id)`; `tests/helpers/realRegion` `loadRealWorld` (modül önbellekli), `loadRealRegion` takma ad — gerçek veriyi yükleyen 26 test dosyası düzenlenmeden geçti; başsızda yeni oyun, yürüme, kaydet/yükle ve v1 kayıt yükleme denendi)_
+- [x] **7.7** _(B)_ Kayıt v2 ve göç (Faz 6 kayıtları yeni dünyada yüklenir, kimlikler aynı nesneyi gösterir) _(testli: `tests/saveMigration` — Faz 6 koduyla üretilmiş gerçek v1 kayıt `tests/fixtures/save-v1.json`; başsız tarayıcıda v1 kayıt gerçek Faz 7 dünyasında yüklendi, kesilen ağaç gizli)_
+- [x] **7.8** _(B)_ Performans ve bellek (288 chunk, su meshi; draw call < 300) _(gerçek dünyada başsız ölçüm: en kötü 176 draw call (Köroğlu) / ~538 bin üçgen; CPU açılış hazırlığı ~0,6 sn + karo birleştirme ~0,1 sn; bellek dizileri ≈ 79 MB; azaltma gerekmedi — [docs/faz-7-b-olcumler.md](docs/faz-7-b-olcumler.md), `tests/scalePerf`. Gerçek FPS elle GPU'lu masaüstünde)_
+- [x] **7.9** _(B)_ İçerik: Düzce–Bolu ışınlanma noktaları, kesintisiz yürüme, ekoloji/denge ölçümü _(testli: `tests/duzceBolu` — 10 ışınlanma noktası (1–9, 0) doğru ilde, Abant/Yedigöller kıyısında içilebilir su, dikişte sıçrama yok, Zonguldak → Düzce ve → Bolu fizikli yürüyüş; `creatureDensity` Düzce–Bolu ormanı (yoğunluk eski bölgeye benzer, `CREATURES` ayarlanmadı); eğim: dünya karasının %95,4'ü ≤ 60°; gerçek-veri test beklentileri güncellendi)_
 - [ ] **7.10** Birleştirme: eski bölge verisi/yükleyici temizliği, uçtan uca doğrulama, birleşik performans tablosu
 - [ ] **7.11** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
 

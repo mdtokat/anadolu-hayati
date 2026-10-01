@@ -38,6 +38,12 @@ function walk(from: [number, number], to: [number, number], steps = 400): Provin
 }
 
 describe('gerçek il sınırlarında geçiş bildirimi', () => {
+  it('Zonguldak → Düzce yürüyüşünde "Düzce\'ye hoş geldiniz" çıkar', () => {
+    const changes = walk([41.46, 31.8], [40.84, 31.16]);
+    expect(changes.map((c) => c.name)).toContain('Düzce');
+    expect(changes.map(provinceNoticeText)).toContain("Düzce'ye hoş geldiniz");
+  });
+
   it('başlangıç ili bildirilmez; Zonguldak (Yenice yakını) → Karabük sınırı geçilince tek bildirim', () => {
     // Yenice (Karabük) ile Zonguldak merkezi arası: sınırı bir kez geçer.
     const changes = walk([41.46, 31.8], [41.2, 32.34]);
@@ -52,7 +58,19 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
   it('bildirim metinleri gerçek il adlarıyla doğru yönelme ekini kullanır', () => {
     const names = region.provinces.map((p) => p.name).sort();
     expect(names).toEqual(
-      ['Bartın', 'Bolu', 'Karabük', 'Kastamonu', 'Zonguldak', 'Çankırı', 'Düzce'].sort(),
+      [
+        'Ankara',
+        'Bartın',
+        'Bilecik',
+        'Bolu',
+        'Düzce',
+        'Eskişehir',
+        'Karabük',
+        'Kastamonu',
+        'Sakarya',
+        'Zonguldak',
+        'Çankırı',
+      ].sort(),
     );
     const texts = region.provinces.map((p) =>
       provinceNoticeText({ name: p.name, inRegion: p.inRegion }),
@@ -60,8 +78,12 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
     expect(texts).toContain("Bartın'a hoş geldiniz");
     expect(texts).toContain("Karabük'e hoş geldiniz");
     expect(texts).toContain("Zonguldak'a hoş geldiniz");
-    expect(texts).toContain("Bolu'ya girdiniz");
-    expect(texts).toContain("Düzce'ye girdiniz");
+    expect(texts).toContain("Bolu'ya hoş geldiniz");
+    expect(texts).toContain("Düzce'ye hoş geldiniz");
+    expect(texts).toContain("Ankara'ya girdiniz");
+    expect(texts).toContain("Sakarya'ya girdiniz");
+    expect(texts).toContain("Bilecik'e girdiniz");
+    expect(texts).toContain("Eskişehir'e girdiniz");
     expect(texts).toContain("Çankırı'ya girdiniz");
     expect(texts).toContain("Kastamonu'ya girdiniz");
   });

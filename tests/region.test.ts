@@ -224,7 +224,7 @@ describe('loadRegion (sahte fetch)', () => {
   });
 });
 
-describe('gerçek bölge verisi (public/data/regions)', () => {
+describe('gerçek dünya verisi (public/data/world, karolu)', () => {
   let region: RegionData;
   let source: RegionHeightSource;
 
@@ -249,18 +249,19 @@ describe('gerçek bölge verisi (public/data/regions)', () => {
       if (v > max) max = v;
     }
     expect(min).toBe(0);
-    expect(max).toBeGreaterThan(65000); // en yüksek örnek ≈ elevationMax
-    expect(region.meta.elevationMax).toBeGreaterThan(1900);
-    expect(region.meta.elevationMax).toBeLessThan(2100);
+    // Dünya geneli aralık yukarı 100'e yuvarlıdır (7.4: en yüksek ≈ 2368 m, max 2400 m)
+    expect(max).toBeGreaterThan(64000);
+    expect(region.meta.elevationMax).toBeGreaterThan(2300);
+    expect(region.meta.elevationMax).toBeLessThan(2500);
   });
 
-  it('bölge boyutu oyunda ~3,2 × 2,4 km', () => {
+  it('dünya boyutu oyunda ~4,45 × 3,92 km (Faz 7: Düzce–Bolu dahil)', () => {
     const width = source.bounds.maxX - source.bounds.minX;
     const depth = source.bounds.maxZ - source.bounds.minZ;
-    expect(width).toBeGreaterThan(3000);
-    expect(width).toBeLessThan(3400);
-    expect(depth).toBeGreaterThan(2200);
-    expect(depth).toBeLessThan(2500);
+    expect(width).toBeGreaterThan(4400);
+    expect(width).toBeLessThan(4500);
+    expect(depth).toBeGreaterThan(3850);
+    expect(depth).toBeLessThan(4000);
   });
 
   // Python veri hattı + TS koordinat dönüşümü + heightmap okuma birlikte doğrulanır.
@@ -278,6 +279,10 @@ describe('gerçek bölge verisi (public/data/regions)', () => {
     { name: 'Safranbolu', lat: 41.2517, lon: 32.6939, min: 460, max: 560, province: 'Karabük' },
     { name: 'Karabük merkez', lat: 41.2061, lon: 32.6204, min: 250, max: 380, province: 'Karabük' },
     { name: 'Yenice', lat: 41.2028, lon: 32.3358, min: 200, max: 340, province: 'Karabük' },
+    { name: 'Düzce merkez', lat: 40.8438, lon: 31.1565, min: 100, max: 250, province: 'Düzce' },
+    { name: 'Akçakoca (kıyı)', lat: 41.0864, lon: 31.1167, min: 0, max: 80, province: 'Düzce' },
+    { name: 'Bolu merkez', lat: 40.7392, lon: 31.6089, min: 650, max: 850, province: 'Bolu' },
+    { name: 'Abant Gölü', lat: 40.6066, lon: 31.2775, min: 1250, max: 1450, province: 'Bolu' },
   ];
   for (const place of PLACES) {
     it(`${place.name}: rakım makul ve il '${place.province}'`, () => {
@@ -292,15 +297,20 @@ describe('gerçek bölge verisi (public/data/regions)', () => {
 
   it('komşu iller inRegion=false, hedef iller true', () => {
     const byName = new Map(region.provinces.map((p) => [p.name, p]));
-    for (const name of ['Zonguldak', 'Bartın', 'Karabük'])
+    for (const name of ['Zonguldak', 'Bartın', 'Karabük', 'Düzce', 'Bolu'])
       expect(byName.get(name)?.inRegion).toBe(true);
-    for (const name of ['Bolu', 'Düzce', 'Kastamonu', 'Çankırı'])
+    for (const name of ['Kastamonu', 'Çankırı', 'Ankara', 'Sakarya', 'Bilecik', 'Eskişehir'])
       expect(byName.get(name)?.inRegion).toBe(false);
   });
 
-  it('komşu ildeki nokta (Bolu) doğru bulunur; açık deniz null', () => {
+  it('hedef il (Bolu) ve komşu il (Sakarya) noktası doğru bulunur; açık deniz null', () => {
     const bolu = latLonToGame(40.85, 31.6, region.meta.originUtm);
     expect(provinceAt(region.provinces, bolu.x, bolu.z)?.name).toBe('Bolu');
+    const sakarya = latLonToGame(40.78, 30.62, region.meta.originUtm);
+    expect(provinceAt(region.provinces, sakarya.x, sakarya.z)).toMatchObject({
+      name: 'Sakarya',
+      inRegion: false,
+    });
     const sea = latLonToGame(41.9, 32.0, region.meta.originUtm);
     expect(provinceAt(region.provinces, sea.x, sea.z)).toBeNull();
   });

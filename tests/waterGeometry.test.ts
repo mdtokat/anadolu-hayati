@@ -187,16 +187,17 @@ describe('gerçek bölge verisi', () => {
 
     const ribbons = buildRiverRibbons(water.lines, heightAt, () => 1.5, 0.12);
     expect(ribbons.indices.length).toBeGreaterThan(1000);
+    // Tek döngü + tek expect: veri büyüdükçe (Faz 7: su ×2,7) öğe başına expect yavaş CI'da 5 sn'yi aşıyordu.
     const vertexCount = ribbons.positions.length / 3;
-    for (const index of ribbons.indices) expect(index).toBeLessThan(vertexCount);
-    for (const value of ribbons.positions) expect(Number.isFinite(value)).toBe(true);
+    expect(ribbons.indices.filter((index) => index >= vertexCount).length).toBe(0);
+    expect(ribbons.positions.filter((value) => !Number.isFinite(value)).length).toBe(0);
     // Keskin meandrların iç tarafında birkaç üçgen katlanır (FrontSide ile çizilmez); oran küçük kalmalı.
     expect(foldedFraction(ribbons)).toBeLessThan(0.05);
 
     const lakes = buildLakeMeshes(water.polygons, heightAt, 0.12);
     expect(lakes.indices.length).toBeGreaterThan(30);
     const lakeVertices = lakes.positions.length / 3;
-    for (const index of lakes.indices) expect(index).toBeLessThan(lakeVertices);
+    expect(lakes.indices.filter((index) => index >= lakeVertices).length).toBe(0);
     expect(allFaceUp(lakes)).toBe(true);
   });
 });

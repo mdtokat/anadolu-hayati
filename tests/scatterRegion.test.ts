@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { REGION_PLAYER, SCATTER } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { FRESH_WATER } from '../src/config';
-import { chunkIndexAt, makeChunkGrid, type ChunkGrid } from '../src/world/chunks';
+import { chunkGridFor, chunkIndexAt, type ChunkGrid } from '../src/world/chunks';
 import { LandCoverMap } from '../src/world/LandCoverMap';
 import { PROP_KINDS, type PropKind } from '../src/world/propKinds';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
@@ -38,11 +38,11 @@ beforeAll(async () => {
   if (!map) throw new Error('landcover.bin gerekli');
   cover = map;
   water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
-  grid = makeChunkGrid(source.width, source.height, source.cell);
+  grid = chunkGridFor(source);
 
   all = [];
-  for (let cy = 0; cy < grid.rows; cy++) {
-    for (let cx = 0; cx < grid.cols; cx++) {
+  for (let cy = grid.cy0; cy < grid.cy0 + grid.rows; cy++) {
+    for (let cx = grid.cx0; cx < grid.cx0 + grid.cols; cx++) {
       const start = performance.now();
       all.push(scatterChunk(inputFor(cx, cy)));
       const ms = performance.now() - start;
