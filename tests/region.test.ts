@@ -36,6 +36,21 @@ describe('parseMeta', () => {
     expect(meta.originUtm).toEqual([500000, 4500000]);
   });
 
+  it('gridOrigin yoksa (eski, orijin-merkezli veri) merkezli değeri türetir', () => {
+    // 3 × 2 örnek, hücre 100 m / 50 = 2 oyun m: x = −(3−1)/2·2 = −2, z = −(2−1)/2·2 = −1
+    expect(parseMeta(VALID_META).gridOrigin).toEqual({ x: -2, z: -1 });
+  });
+
+  it('gridOrigin varsa (kafese çapalı dünya) olduğu gibi okur ve doğrular', () => {
+    expect(parseMeta({ ...VALID_META, gridOrigin: { x: -2867, z: -1175 } }).gridOrigin).toEqual({
+      x: -2867,
+      z: -1175,
+    });
+    expect(() => parseMeta({ ...VALID_META, gridOrigin: 5 })).toThrow(/gridOrigin/);
+    expect(() => parseMeta({ ...VALID_META, gridOrigin: { x: 1 } })).toThrow(/'z'/);
+    expect(() => parseMeta({ ...VALID_META, gridOrigin: { x: 'a', z: 0 } })).toThrow(/'x'/);
+  });
+
   it('yatay ölçek uyuşmazlığını reddeder', () => {
     expect(() => parseMeta({ ...VALID_META, horizontalScale: HORIZONTAL_SCALE * 2 })).toThrow(
       /yatay ölçeği/,
