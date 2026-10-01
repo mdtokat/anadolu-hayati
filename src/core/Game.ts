@@ -63,11 +63,12 @@ import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
-import { PauseMenu } from '../ui/PauseMenu';
+import { GameMenu } from '../ui/GameMenu';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
 import type { Settings } from '../settings/settings';
 import { Autosaver } from '../save/Autosaver';
+import { createNewGameSave } from '../save/newGame';
 import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
 import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
@@ -149,7 +150,7 @@ export class Game {
   private readonly loop: GameLoop;
   private readonly fps: FpsCounter | null;
   private readonly hud: Hud;
-  private readonly pauseMenu: PauseMenu;
+  private readonly pauseMenu: GameMenu;
   private readonly settingsPanel: SettingsPanel;
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
@@ -163,6 +164,8 @@ export class Game {
   private readonly autosaver = new Autosaver(SAVE.autosaveIntervalSeconds, () => {
     void this.autosave();
   });
+  /** Oyuna girildi mi (fare kilidi en az bir kez alındı)? Girilmeden otomatik kayıt yazılmaz: ana menüdeki taze durum mevcut kaydın üstüne yazılmasın. */
+  private sessionActive = false;
   private autosaving = false;
   private autosaveFailed = false;
   /** Sekme gizlenirken (kapanış, sekme değişimi) otomatik kayıt: kapanışta kaybolan ilerleme olmasın. */
@@ -216,13 +219,27 @@ export class Game {
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
     this.settingsPanel = new SettingsPanel(container, this.settings);
-    this.pauseMenu = new PauseMenu(
-      container,
-      this.events,
-      () => this.input.requestLock(),
-      () => this.inventoryOpen,
-      () => this.settingsPanel.show(),
-    );
+    this.pauseMenu = new GameMenu(container, this.events, {
+      store: this.saves,
+      openSettings: () => this.settingsPanel.show(),
+      isSuppressed: () => this.inventoryOpen,
+      host: {
+        resume: () => this.input.requestLock(),
+        newGame: () => this.newGame(),
+        continueLatest: () => this.continueLatest(),
+        saveToSlot: async (slot) => {
+          if ((await this.saveToSlot(slot)) === null) {
+            throw new SaveError('invalid', 'Şu an kaydedilemez (ölüyken kayıt alınmaz).');
+          }
+        },
+        loadFromSlot: async (slot) => {
+          if (!(await this.loadFromSlot(slot))) throw new SaveError('invalid', 'Bu yuva boş.');
+          this.input.requestLock();
+        },
+        canSave: () => this.survival.alive && this.world instanceof RegionWorld,
+        autosaveNow: () => this.autosave(),
+      },
+    });
     this.inventoryPanel = new InventoryPanel(container, this.inventory, {
       onEat: (slot) => this.eatFromSlot(slot),
       onCraft: (recipe) => this.craftRecipe(recipe),
@@ -245,7 +262,10 @@ export class Game {
         this.hud.setVisible(this.inventoryOpen);
         this.placement.cancel();
       }),
-      this.events.on('game:resumed', () => this.hud.setVisible(true)),
+      this.events.on('game:resumed', () => {
+        this.sessionActive = true;
+        this.hud.setVisible(true);
+      }),
       this.events.on('input:action', ({ action }) => {
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
         if (action === 'toggleBorders') this.world.toggleBorders?.();
@@ -407,6 +427,23 @@ export class Game {
     return summary;
   }
 
+  /** Yeni oyun: durumu başlangıca döndürür (kayıtlara dokunmaz) ve fare kilidi ister. */
+  newGame(): void {
+    if (this.world instanceof RegionWorld) {
+      this.loadSave(createNewGameSave(REGION_ID, this.world.spawn, new Date()));
+      this.autosaver.reset();
+    }
+    this.input.requestLock();
+  }
+
+  /** En son kayıttan devam eder ve fare kilidi ister; okunabilir kayıt yoksa `false`. */
+  async continueLatest(): Promise<boolean> {
+    const slot = await this.saves.latestSlot();
+    if (slot === null || !(await this.loadFromSlot(slot))) return false;
+    this.input.requestLock();
+    return true;
+  }
+
   /** `slot` yuvasındaki kaydı yükler; yuva boşsa `false`. Bozuk kayıtta `SaveError` fırlatır (oyun değişmez). */
   async loadFromSlot(slot: SlotId): Promise<boolean> {
     const save = await this.saves.load(slot);
@@ -418,7 +455,7 @@ export class Game {
 
   /** Otomatik kayıt: örtüşmez, hata oyunu durdurmaz; başarısızlık dizisinde yalnızca bir kez bildirilir. */
   private async autosave(): Promise<void> {
-    if (this.autosaving) return;
+    if (this.autosaving || !this.sessionActive) return;
     const save = this.createSave();
     if (!save) return;
     this.autosaving = true;
