@@ -2,11 +2,12 @@ import { CHUNK } from '../config';
 import { createChunkHeightfieldDesc } from '../physics/heightfield';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import {
+  chunkCol0,
+  chunkGridFor,
   chunkKey,
+  chunkRect,
+  chunkRow0,
   distanceToChunk,
-  makeChunkGrid,
-  sampleX,
-  sampleZ,
   type ChunkGrid,
 } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
@@ -25,7 +26,7 @@ export class ChunkColliders {
     private readonly source: RegionHeightSource,
     private readonly radius: number = CHUNK.physicsRadius,
   ) {
-    this.grid = makeChunkGrid(source.width, source.height, source.cell);
+    this.grid = chunkGridFor(source);
   }
 
   get count(): number {
@@ -33,7 +34,7 @@ export class ChunkColliders {
   }
 
   has(cx: number, cy: number): boolean {
-    return this.colliders.has(chunkKey(this.grid, cx, cy));
+    return this.colliders.has(chunkKey(cx, cy));
   }
 
   /** `radius` içindeki tüm collider'ları hemen kurar (ışınlanma / ilk doğma). */
@@ -61,8 +62,9 @@ export class ChunkColliders {
   /** Henüz olmayan ve yarıçap içindeki chunk'lar, en yakın önce. */
   private wanted(x: number, z: number): Array<{ cx: number; cy: number; distance: number }> {
     const list: Array<{ cx: number; cy: number; distance: number }> = [];
-    for (let cy = 0; cy < this.grid.rows; cy++) {
-      for (let cx = 0; cx < this.grid.cols; cx++) {
+    const { cx0, cy0, cols, rows } = this.grid;
+    for (let cy = cy0; cy < cy0 + rows; cy++) {
+      for (let cx = cx0; cx < cx0 + cols; cx++) {
         const distance = distanceToChunk(this.grid, cx, cy, x, z);
         if (distance <= this.radius && !this.has(cx, cy)) list.push({ cx, cy, distance });
       }
@@ -73,9 +75,10 @@ export class ChunkColliders {
   private removeFar(x: number, z: number): number {
     let removed = 0;
     const limit = this.radius * CHUNK.physicsRemoveFactor;
-    for (let cy = 0; cy < this.grid.rows; cy++) {
-      for (let cx = 0; cx < this.grid.cols; cx++) {
-        const key = chunkKey(this.grid, cx, cy);
+    const { cx0, cy0, cols, rows } = this.grid;
+    for (let cy = cy0; cy < cy0 + rows; cy++) {
+      for (let cx = cx0; cx < cx0 + cols; cx++) {
+        const key = chunkKey(cx, cy);
         const collider = this.colliders.get(key);
         if (collider && distanceToChunk(this.grid, cx, cy, x, z) > limit) {
           this.physics.removeCollider(collider);
@@ -88,20 +91,23 @@ export class ChunkColliders {
   }
 
   private add(cx: number, cy: number): boolean {
-    const key = chunkKey(this.grid, cx, cy);
+    const key = chunkKey(cx, cy);
     if (this.colliders.has(key)) return false;
 
     const { cells } = this.grid;
+    const col0 = chunkCol0(this.grid, cx);
+    const row0 = chunkRow0(this.grid, cy);
     const n = cells + 1;
     const heights = new Float32Array(n * n);
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
-        heights[r * n + c] = this.source.sample(cx * cells + c, cy * cells + r);
+        heights[r * n + c] = this.source.sample(col0 + c, row0 + r);
       }
     }
     const size = cells * this.grid.cellSize;
-    const centerX = (sampleX(this.grid, cx * cells) + sampleX(this.grid, (cx + 1) * cells)) / 2;
-    const centerZ = (sampleZ(this.grid, cy * cells) + sampleZ(this.grid, (cy + 1) * cells)) / 2;
+    const rect = chunkRect(this.grid, cx, cy);
+    const centerX = (rect.minX + rect.maxX) / 2;
+    const centerZ = (rect.minZ + rect.maxZ) / 2;
     this.colliders.set(
       key,
       this.physics.addStaticCollider(

@@ -50,21 +50,20 @@ describe('pickRespawnPoint (gerçek bölge)', () => {
     expect(JSON.stringify(pick(3, 111))).not.toBe(JSON.stringify(pick(3, 222)));
   });
 
-  it('üç ile de dağılır (Zonguldak, Bartın, Karabük hepsi görülür)', () => {
+  it('beş hedef ilin hepsine dağılır (Zonguldak, Bartın, Karabük, Düzce, Bolu)', () => {
     const seen = new Set<string>();
     for (let n = 0; n < 80; n++) {
       const p = pick(n) as { x: number; z: number };
       seen.add(provinceAt(region.provinces, p.x, p.z)?.name ?? '?');
     }
-    expect([...seen].sort()).toEqual(['Bartın', 'Karabük', 'Zonguldak']);
+    expect([...seen].sort()).toEqual(['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak']);
   });
 
   it('komşu illere (inRegion=false) doğmaz', () => {
     for (let n = 0; n < 60; n++) {
       const p = pick(n) as { x: number; z: number };
-      expect(['Bolu', 'Düzce', 'Kastamonu', 'Çankırı']).not.toContain(
-        provinceAt(region.provinces, p.x, p.z)?.name,
-      );
+      const neighbors = ['Kastamonu', 'Çankırı', 'Ankara', 'Sakarya', 'Bilecik', 'Eskişehir'];
+      expect(neighbors).not.toContain(provinceAt(region.provinces, p.x, p.z)?.name);
     }
   });
 

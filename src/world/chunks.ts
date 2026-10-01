@@ -1,7 +1,17 @@
 import { CHUNK } from '../config';
+import { absoluteChunkKey } from './chunkKeys';
+import { latticeChunkOffset } from './lattice';
 
-/** Bölge ızgarasının chunk'lara bölünmesi. Chunk (cx, cy), örnek sütunları [cx·N, (cx+1)·N] kapsar. */
+/**
+ * Dünya örnek dizisinin chunk'lara bölünmesi. Dizinin `(0, 0)` örneği `origin`'dedir (`RegionMeta.gridOrigin`);
+ * chunk `(cx, cy)` dizi sütunları `[(cx − cx0)·N, (cx − cx0 + 1)·N]` aralığını kapsar. Dizi kafese chunk hizalıysa
+ * (gerçek veri) `cx0/cy0` ilk chunk'ın **kafes** indeksidir (negatif olabilir; docs/faz-7-paralel-plan.md §3.1),
+ * böylece `(cx, cy)` dünya kapsamı büyüse de aynı yeri gösterir; değilse (sentetik test ızgarası) 0'dır.
+ */
 export interface ChunkGrid {
+  /** İlk chunk'ın indeksi; geçerli aralık `cx0 … cx0 + cols − 1` (satır benzer). */
+  cx0: number;
+  cy0: number;
   /** Chunk sütun/satır sayısı. */
   cols: number;
   rows: number;
@@ -11,6 +21,9 @@ export interface ChunkGrid {
   sampleWidth: number;
   sampleHeight: number;
   cellSize: number;
+  /** Dizinin (0, 0) örneğinin konumu (oyun m). */
+  originX: number;
+  originZ: number;
 }
 
 export interface ChunkIndex {
@@ -26,13 +39,26 @@ export interface ChunkRect {
   maxZ: number;
 }
 
+/** Orijin merkezli dizinin (eski bölge biçimi) (0, 0) örneği. */
+export function centeredOrigin(
+  sampleWidth: number,
+  sampleHeight: number,
+  cellSize: number,
+): { x: number; z: number } {
+  return { x: (-(sampleWidth - 1) / 2) * cellSize, z: (-(sampleHeight - 1) / 2) * cellSize };
+}
+
 export function makeChunkGrid(
   sampleWidth: number,
   sampleHeight: number,
   cellSize: number,
+  origin: { x: number; z: number } = centeredOrigin(sampleWidth, sampleHeight, cellSize),
   cells: number = CHUNK.cells,
 ): ChunkGrid {
+  const offset = cells === CHUNK.cells ? latticeChunkOffset(origin.x, origin.z, cellSize) : null;
   return {
+    cx0: offset?.cx ?? 0,
+    cy0: offset?.cy ?? 0,
     // Son chunk kısmi olabilir (örnekler kenara sıkıştırılır): yukarı yuvarla.
     cols: Math.ceil((sampleWidth - 1) / cells),
     rows: Math.ceil((sampleHeight - 1) / cells),
@@ -40,40 +66,74 @@ export function makeChunkGrid(
     sampleWidth,
     sampleHeight,
     cellSize,
+    originX: origin.x,
+    originZ: origin.z,
   };
 }
 
-/** Sütun c → dünya X (orijin merkezli, simetrik). */
+/** Yükseklik kaynağının (`RegionHeightSource`) ızgarası. */
+export function chunkGridFor(source: {
+  width: number;
+  height: number;
+  cell: number;
+  origin: { x: number; z: number };
+}): ChunkGrid {
+  return makeChunkGrid(source.width, source.height, source.cell, source.origin);
+}
+
+/** Chunk `(0, 0)`'ın kuzeybatı köşesi (oyun m): doğma hücresi ızgarası bunu paylaşır (hücre ≡ chunk). */
+export function chunkAnchor(grid: ChunkGrid): { x: number; z: number } {
+  const size = grid.cells * grid.cellSize;
+  return { x: grid.originX - grid.cx0 * size, z: grid.originZ - grid.cy0 * size };
+}
+
+/** Chunk ızgaranın içinde mi? */
+export function inChunkGrid(grid: ChunkGrid, cx: number, cy: number): boolean {
+  return cx >= grid.cx0 && cy >= grid.cy0 && cx < grid.cx0 + grid.cols && cy < grid.cy0 + grid.rows;
+}
+
+/** Chunk'ın ilk örneğinin dizi sütunu/satırı. */
+export function chunkCol0(grid: ChunkGrid, cx: number): number {
+  return (cx - grid.cx0) * grid.cells;
+}
+
+export function chunkRow0(grid: ChunkGrid, cy: number): number {
+  return (cy - grid.cy0) * grid.cells;
+}
+
+/** Dizi sütunu c → dünya X. */
 export function sampleX(grid: ChunkGrid, col: number): number {
-  return (col - (grid.sampleWidth - 1) / 2) * grid.cellSize;
+  return grid.originX + col * grid.cellSize;
 }
 
-/** Satır r → dünya Z. */
+/** Dizi satırı r → dünya Z. */
 export function sampleZ(grid: ChunkGrid, row: number): number {
-  return (row - (grid.sampleHeight - 1) / 2) * grid.cellSize;
+  return grid.originZ + row * grid.cellSize;
 }
 
-/** Tekil sayı anahtarı (Map için). */
-export function chunkKey(grid: ChunkGrid, cx: number, cy: number): number {
-  return cy * grid.cols + cx;
+/** Tekil, ızgara boyutundan bağımsız anahtar (Map için; mutlak: `chunkKeys.absoluteChunkKey`). */
+export function chunkKey(cx: number, cy: number): number {
+  return absoluteChunkKey(cx, cy);
 }
 
 export function chunkRect(grid: ChunkGrid, cx: number, cy: number): ChunkRect {
+  const col0 = chunkCol0(grid, cx);
+  const row0 = chunkRow0(grid, cy);
   return {
-    minX: sampleX(grid, cx * grid.cells),
-    maxX: sampleX(grid, (cx + 1) * grid.cells),
-    minZ: sampleZ(grid, cy * grid.cells),
-    maxZ: sampleZ(grid, (cy + 1) * grid.cells),
+    minX: sampleX(grid, col0),
+    maxX: sampleX(grid, col0 + grid.cells),
+    minZ: sampleZ(grid, row0),
+    maxZ: sampleZ(grid, row0 + grid.cells),
   };
 }
 
 /** Dünya konumunu içeren chunk (kapsam dışıysa en yakın kenar chunk'ı). */
 export function chunkIndexAt(grid: ChunkGrid, x: number, z: number): ChunkIndex {
-  const col = x / grid.cellSize + (grid.sampleWidth - 1) / 2;
-  const row = z / grid.cellSize + (grid.sampleHeight - 1) / 2;
+  const col = (x - grid.originX) / grid.cellSize;
+  const row = (z - grid.originZ) / grid.cellSize;
   return {
-    cx: Math.min(Math.max(Math.floor(col / grid.cells), 0), grid.cols - 1),
-    cy: Math.min(Math.max(Math.floor(row / grid.cells), 0), grid.rows - 1),
+    cx: grid.cx0 + Math.min(Math.max(Math.floor(col / grid.cells), 0), grid.cols - 1),
+    cy: grid.cy0 + Math.min(Math.max(Math.floor(row / grid.cells), 0), grid.rows - 1),
   };
 }
 
@@ -94,8 +154,8 @@ export function distanceToChunk(
 /** Noktaya `radius` içindeki tüm chunk'lar. */
 export function chunksWithin(grid: ChunkGrid, x: number, z: number, radius: number): ChunkIndex[] {
   const result: ChunkIndex[] = [];
-  for (let cy = 0; cy < grid.rows; cy++) {
-    for (let cx = 0; cx < grid.cols; cx++) {
+  for (let cy = grid.cy0; cy < grid.cy0 + grid.rows; cy++) {
+    for (let cx = grid.cx0; cx < grid.cx0 + grid.cols; cx++) {
       if (distanceToChunk(grid, cx, cy, x, z) <= radius) result.push({ cx, cy });
     }
   }

@@ -5,6 +5,7 @@ import type { Inventory } from '../items/Inventory';
 import { ITEMS, type ItemId } from '../items/itemDefs';
 import type { WorldSave } from '../save/saveGame';
 import { createRandom, seedFrom } from '../utils/random';
+import { decodeAbsoluteChunkKey, decodeAbsolutePropId } from '../world/chunkKeys';
 import type { PropId, PropRef } from '../world/propKinds';
 import { GATHER_RULES, type GatherYield } from './gatherRules';
 
@@ -19,13 +20,18 @@ export interface GatherOffer {
   seconds: number;
 }
 
-/** Nesne kimliğinden deterministik verim: aynı nesne + eylem her seferinde aynı miktarı verir. */
+/**
+ * Nesne kimliğinden deterministik verim: aynı nesne + eylem her seferinde aynı miktarı verir. Tohum kimliğin
+ * bileşenlerinden `(cx, cy, indeks)` türer: mutlak kimlik 2⁴⁸'e uzanır, `seedFrom` 32 bit'e keser.
+ */
 export function rollYield(
   propId: PropId,
   action: GatherAction,
   yieldDef: GatherYield,
 ): Array<{ id: ItemId; count: number }> {
-  const random = createRandom(seedFrom(SCATTER.seed, propId, action === 'axe' ? 1 : 0));
+  const { chunkKey, index } = decodeAbsolutePropId(propId);
+  const { cx, cy } = decodeAbsoluteChunkKey(chunkKey);
+  const random = createRandom(seedFrom(SCATTER.seed, cx, cy, index, action === 'axe' ? 1 : 0));
   return yieldDef.items.map((item) => ({ id: item.id, count: random.int(item.min, item.max) }));
 }
 

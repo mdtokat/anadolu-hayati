@@ -2,18 +2,18 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { CHUNK } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { buildChunkMesh } from '../src/world/chunkGeometry';
-import { makeChunkGrid, sampleX, sampleZ } from '../src/world/chunks';
+import { chunkCol0, chunkGridFor, chunkRow0, sampleX, sampleZ } from '../src/world/chunks';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { loadRealRegion } from './helpers/realRegion';
 
 let region: RegionData;
 let source: RegionHeightSource;
-let grid: ReturnType<typeof makeChunkGrid>;
+let grid: ReturnType<typeof chunkGridFor>;
 
 beforeAll(async () => {
   region = await loadRealRegion();
   source = RegionHeightSource.fromRegion(region);
-  grid = makeChunkGrid(source.width, source.height, source.cell);
+  grid = chunkGridFor(source);
 });
 
 /** Bir sıra chunk yüzey köşesi: (c, r) → [x, y, z] */
@@ -66,8 +66,8 @@ describe('buildChunkMesh: konum ve yükseklikler', () => {
       [128, 128],
       [37, 91],
     ] as const) {
-      const col = cx * grid.cells + c;
-      const row = cy * grid.cells + r;
+      const col = chunkCol0(grid, cx) + c;
+      const row = chunkRow0(grid, cy) + r;
       const [x, y, z] = vertex(data, c, r);
       expect(x).toBeCloseTo(sampleX(grid, col), 3);
       expect(z).toBeCloseTo(sampleZ(grid, row), 3);

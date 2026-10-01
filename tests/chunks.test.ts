@@ -50,7 +50,7 @@ describe('örnek ve chunk konumları', () => {
   it('chunkKey her chunk için benzersizdir', () => {
     const keys = new Set<number>();
     for (let cy = 0; cy < grid.rows; cy++)
-      for (let cx = 0; cx < grid.cols; cx++) keys.add(chunkKey(grid, cx, cy));
+      for (let cx = 0; cx < grid.cols; cx++) keys.add(chunkKey(cx, cy));
     expect(keys.size).toBe(grid.cols * grid.rows);
   });
 });

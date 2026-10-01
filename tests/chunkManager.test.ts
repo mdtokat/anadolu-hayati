@@ -55,8 +55,8 @@ describe('ChunkManager', () => {
     settle(manager, 0, 0);
     const own = chunkIndexAt(manager.grid, 0, 0);
     expect(manager.lodOf(own.cx, own.cy)).toBe(0);
-    for (let cy = 0; cy < manager.grid.rows; cy++) {
-      for (let cx = 0; cx < manager.grid.cols; cx++) {
+    for (let cy = manager.grid.cy0; cy < manager.grid.cy0 + manager.grid.rows; cy++) {
+      for (let cx = manager.grid.cx0; cx < manager.grid.cx0 + manager.grid.cols; cx++) {
         const d = distanceToChunk(manager.grid, cx, cy, 0, 0);
         const lod = manager.lodOf(cx, cy) as number;
         if (d < CHUNK.lodDistances[0] * (1 - CHUNK.lodHysteresis)) expect(lod).toBe(0);
@@ -149,8 +149,8 @@ describe('ChunkManager.setLodScale', () => {
 
     let fullLodSum = 0;
     let scaledLodSum = 0;
-    for (let cy = 0; cy < full.grid.rows; cy++) {
-      for (let cx = 0; cx < full.grid.cols; cx++) {
+    for (let cy = full.grid.cy0; cy < full.grid.cy0 + full.grid.rows; cy++) {
+      for (let cx = full.grid.cx0; cx < full.grid.cx0 + full.grid.cols; cx++) {
         fullLodSum += full.lodOf(cx, cy) ?? 0;
         scaledLodSum += scaled.lodOf(cx, cy) ?? 0;
       }

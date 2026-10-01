@@ -7,7 +7,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { SCATTER } from '../config';
-import { chunkKey, chunksWithin, distanceToChunk, makeChunkGrid, type ChunkGrid } from './chunks';
+import { chunkGridFor, chunkKey, chunksWithin, distanceToChunk, type ChunkGrid } from './chunks';
 import type { LandCoverMap } from './LandCoverMap';
 import { buildPropGeometry, type PropLod } from './propGeometry';
 import { PropIndex, propId } from './propIndex';
@@ -72,7 +72,7 @@ export class PropLayer {
     private readonly cover: LandCoverMap,
     private readonly water: FreshWaterIndex | null,
   ) {
-    this.grid = makeChunkGrid(source.width, source.height, source.cell);
+    this.grid = chunkGridFor(source);
     this.index = new PropIndex(this.grid);
     this.group.name = 'props';
 
@@ -179,7 +179,7 @@ export class PropLayer {
       .map(({ cx, cy }) => ({
         cx,
         cy,
-        key: chunkKey(this.grid, cx, cy),
+        key: chunkKey(cx, cy),
         distance: distanceToChunk(this.grid, cx, cy, x, z),
       }))
       .sort((a, b) => a.distance - b.distance);

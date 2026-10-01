@@ -59,3 +59,24 @@ export function tileRangeOf(extent: WorldExtent): {
   const last = tileOf(extent.col0 + extent.cols - 1, extent.row0 + extent.rows - 1);
   return { tx0: first.tx, tx1: last.tx, ty0: first.ty, ty1: last.ty };
 }
+
+/**
+ * Kuzeybatı örneği `(x, z)`'de olan bir ızgara kafese **chunk hizalı** mı (7.5)? Öyleyse ızgaranın ilk
+ * chunk'ının kafes indeksini verir (negatif olabilir): chunk/doğma hücresi indeksleri ve dolayısıyla nesne
+ * yerleşim tohumları (`seedFrom(seed, cx, cy)`) ve mutlak kimlikler dünyanın kapsamından bağımsız olur. Gerçek
+ * veri her zaman hizalıdır (yükleyici batı/kuzey kenarı 128 örneğe hizalar; eski merkezli bölge `(0, 0)`).
+ * Hizalı değilse (testlerdeki küçük sentetik ızgaralar, `?world=test`) `null`: çağıran yerel indeks kullanır.
+ */
+export function latticeChunkOffset(
+  x: number,
+  z: number,
+  cellSize: number = LATTICE_CELL,
+): { cx: number; cy: number } | null {
+  if (Math.abs(cellSize - LATTICE_CELL) > 1e-9) return null;
+  const cx = latticeCol(x) / CHUNK_CELLS;
+  const cy = latticeRow(z) / CHUNK_CELLS;
+  const rx = Math.round(cx);
+  const ry = Math.round(cy);
+  if (Math.abs(cx - rx) > 1e-9 || Math.abs(cy - ry) > 1e-9) return null;
+  return { cx: rx, cy: ry };
+}

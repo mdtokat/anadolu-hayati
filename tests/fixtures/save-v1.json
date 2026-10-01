@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "savedAt": "2026-09-30T18:00:00.000Z",
+  "regionId": "zonguldak-bartin-karabuk",
+  "player": {
+    "x": -687.3393313348176,
+    "y": 9.043269941364409,
+    "z": -277.18424142189326,
+    "yaw": 1.2,
+    "pitch": -0.1
+  },
+  "survival": {
+    "vitals": {
+      "health": 100,
+      "satiety": 100,
+      "hydration": 100,
+      "energy": 100,
+      "bodyTemp": 37,
+      "exhausted": false
+    },
+    "aliveSeconds": 0,
+    "deaths": 0,
+    "clockHour": 9,
+    "clockDay": 0
+  },
+  "inventory": {
+    "version": 1,
+    "slots": [
+      {
+        "id": "stone_axe",
+        "count": 1
+      },
+      {
+        "id": "log",
+        "count": 2
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "structures": {
+    "version": 1,
+    "nextId": 2,
+    "structures": [
+      {
+        "id": 1,
+        "kind": "campfire",
+        "x": -685.3393313348176,
+        "y": 9.043269941364409,
+        "z": -275.18424142189326,
+        "yaw": 0.4,
+        "fuelSeconds": 600
+      }
+    ]
+  },
+  "world": {
+    "handDone": [2752629, 2752603, 4653911, 4850010],
+    "axeDone": [2752629, 4653911],
+    "removed": [2752629, 4653911]
+  },
+  "creatures": {
+    "killed": [
+      {
+        "cell": 42,
+        "remainingSeconds": 411.5
+      },
+      {
+        "cell": 71,
+        "remainingSeconds": 72
+      }
+    ]
+  }
+}

@@ -3,6 +3,7 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { CreaturesSave } from '../save/saveGame';
 import { createRandom, seedFrom, type Random } from '../utils/random';
+import { decodeAbsoluteChunkKey } from '../world/chunkKeys';
 import {
   createBrain,
   forceWander,
@@ -223,7 +224,7 @@ export class CreatureSystem {
     if (!grid || !terrain) return null;
     const cell = cellOf(grid, x, z);
     if (!cell) return null;
-    const key = cellKey(grid, cell.cx, cell.cy);
+    const key = cellKey(cell.cx, cell.cy);
     for (let index = MAX_CREATURES_PER_CELL - 1; index >= MAX_CREATURES_PER_CELL / 2; index--) {
       const id = creatureId(key, index);
       if (this.records.has(id)) continue;
@@ -339,7 +340,7 @@ export class CreatureSystem {
     let newCells = 0;
 
     for (const { cx, cy } of cellsNear(grid, player.x, player.z, CREATURES.simRadius)) {
-      const key = cellKey(grid, cx, cy);
+      const key = cellKey(cx, cy);
       if ((this.killedUntil.get(key) ?? 0) > this.time) continue;
       if (!this.candidateCache.has(`${cx},${cy},${epoch}`)) {
         // Yeni hücrenin adaylarını üretmek pahalıdır: denetim başına sınırlı sayıda.
@@ -366,7 +367,10 @@ export class CreatureSystem {
   }
 
   private spawn(candidate: Candidate, terrain: CreatureTerrain): void {
-    const rng = createRandom(seedFrom(CREATURES.seed, candidate.id));
+    // Tohum kimliğin bileşenlerinden: mutlak kimlik 2⁴⁰'a uzanır, `seedFrom` 32 bit'e keser.
+    const { cellKey: cell, index } = decodeCreatureId(candidate.id);
+    const { cx, cy } = decodeAbsoluteChunkKey(cell);
+    const rng = createRandom(seedFrom(CREATURES.seed, cx, cy, index));
     const brain = createBrain(candidate.kind, candidate.x, candidate.z, candidate.yaw, rng);
     const species = SPECIES[candidate.kind];
     const y = terrain.heightAt(candidate.x, candidate.z);

@@ -1,7 +1,8 @@
-import { INVENTORY } from '../config';
+import { INVENTORY, WORLD } from '../config';
 import { Inventory, type InventorySave } from '../items/Inventory';
 import { StructureSet, type StructureSave } from '../placement/structures';
 import type { VitalsState } from '../survival/vitals';
+import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkKeys';
 
 /**
  * Kayıt formatı (saf mantık; Three.js/IndexedDB'ye bağımlı değil). Bu dosya kayıt şemasının tek
@@ -9,8 +10,12 @@ import type { VitalsState } from '../survival/vitals';
  * çeviren bir adım eklenir; eski kayıtlar böylece yüklenebilir kalır.
  */
 
-/** Geçerli kayıt sürümü. Şema değiştikçe artırılır, hiçbir zaman geri alınmaz. */
-export const SAVE_FORMAT_VERSION = 1;
+/**
+ * Geçerli kayıt sürümü. Şema değiştikçe artırılır, hiçbir zaman geri alınmaz.
+ * - v1 (Faz 6): bölge `zonguldak-bartin-karabuk`, kimlikler 13 × 10 chunk ızgarasına bağlı (`cy · 13 + cx`).
+ * - v2 (Faz 7): dünya `WORLD.id`, nesne kimlikleri ve canlı hücre anahtarları mutlak (`world/chunkKeys.ts`).
+ */
+export const SAVE_FORMAT_VERSION = 2;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -34,7 +39,7 @@ export interface SurvivalSave {
   clockDay: number;
 }
 
-/** Dünyada oturum boyunca değişen nesneler (`PropId`'ler oturumlar arası sabittir). */
+/** Dünyada oturum boyunca değişen nesneler (`PropId`'ler mutlaktır: oturumlar ve dünya genişlemeleri arası sabit). */
 export interface WorldSave {
   /** Elle toplanıp tükenen nesneler. */
   handDone: number[];
@@ -44,7 +49,10 @@ export interface WorldSave {
   removed: number[];
 }
 
-/** Canlı simülasyonundan yalnızca kalıcı olan kısım: öldürülen canlının hücresindeki yeniden doğma beklemesi. */
+/**
+ * Canlı simülasyonundan yalnızca kalıcı olan kısım: öldürülen canlının hücresindeki yeniden doğma beklemesi
+ * (`cell` mutlak chunk anahtarıdır).
+ */
 export interface CreaturesSave {
   killed: Array<{ cell: number; remainingSeconds: number }>;
 }
@@ -53,7 +61,7 @@ export interface SaveGame {
   version: typeof SAVE_FORMAT_VERSION;
   /** Kaydın alındığı an (ISO 8601). */
   savedAt: string;
-  /** Kaydın ait olduğu bölge (`meta.json` `id`). */
+  /** Kaydın ait olduğu dünya (`WORLD.id`; v1'de bölge kimliğiydi, göçte çevrilir). */
   regionId: string;
   player: PlayerSave;
   survival: SurvivalSave;
@@ -105,11 +113,67 @@ export class SaveError extends Error {
 type RawSave = Record<string, unknown>;
 
 /**
- * Sürüm `n` kaydını `n + 1`'e çeviren adımlar. Şimdilik yok (v1 ilk sürümdür); bir adım girdisini
- * değiştirmemeli, yeni nesne döndürmelidir. Adım yalnızca yapıyı çevirir; değerleri doğrulamak
+ * v1 → v2 (Faz 7, docs/faz-7-paralel-plan.md §3.5): bölge kimliği `WORLD.legacyRegionId` → `WORLD.id`; tükenen
+ * nesne kimlikleri ve öldürülen canlı hücreleri eski 13 × 10 ızgara anahtarından mutlak anahtara. Kafes çapası
+ * eski ızgaranın kuzeybatı köşesi olduğundan aynı kimlik aynı nesneyi/hücreyi gösterir; oyuncu, yapı, envanter,
+ * gösterge ve saat aynen kalır (orijin değişmedi). Eski ızgara dışındaki (v1'de zaten var olamayacak) kimlikler
+ * atılır; tam sayı olmayan bozuk değerler dokunulmadan bırakılır ki `parseSave` reddetsin.
+ */
+function migrateV1toV2(raw: RawSave): RawSave {
+  if (raw.regionId !== WORLD.legacyRegionId) {
+    throw new SaveError(
+      'invalid',
+      `Kayıt tanınmayan bir bölgeye ait (${String(raw.regionId)}); yalnızca ${WORLD.legacyRegionId} kayıtları taşınabilir.`,
+    );
+  }
+  const out: RawSave = { ...raw, regionId: WORLD.id };
+
+  if (isRecord(raw.world)) {
+    const world: RawSave = { ...raw.world };
+    for (const key of ['handDone', 'axeDone', 'removed'] as const) {
+      const list = raw.world[key];
+      if (Array.isArray(list)) world[key] = mapIds(list, legacyPropIdToAbsolute);
+    }
+    out.world = world;
+  }
+
+  if (isRecord(raw.creatures) && Array.isArray(raw.creatures.killed)) {
+    const killed: unknown[] = [];
+    for (const entry of raw.creatures.killed as unknown[]) {
+      if (!isRecord(entry) || !Number.isInteger(entry.cell)) {
+        killed.push(entry);
+        continue;
+      }
+      const cell = legacyCellKeyToAbsolute(entry.cell as number);
+      if (cell !== null) killed.push({ ...entry, cell });
+    }
+    out.creatures = { ...raw.creatures, killed };
+  }
+  return out;
+}
+
+/** Eski kimlik listesini çevirir: geçersiz (ızgara dışı) kimlik atılır, tam sayı olmayan değer korunur. */
+function mapIds(list: unknown[], map: (old: number) => number | null): unknown[] {
+  const out: unknown[] = [];
+  for (const value of list) {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+      out.push(value);
+      continue;
+    }
+    const mapped = map(value);
+    if (mapped !== null) out.push(mapped);
+  }
+  return out;
+}
+
+/**
+ * Sürüm `n` kaydını `n + 1`'e çeviren adımlar; bir adım girdisini değiştirmemeli, yeni nesne döndürmelidir.
+ * Adım yalnızca yapıyı çevirir (taşınamayan kayıtta `SaveError` fırlatabilir); değerleri doğrulamak
  * `parseSave`'in işidir.
  */
-export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {};
+export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
+  1: migrateV1toV2,
+};
 
 /**
  * Ham kaydı `current` sürümüne taşır (sürüm zinciri: `n → n+1 → … → current`). Kaydın sürümü
@@ -283,7 +347,7 @@ function nonNegative(value: unknown, name: string): number {
 
 function nonNegativeInt(value: unknown, name: string): number {
   const n = nonNegative(value, name);
-  if (!Number.isInteger(n)) throw invalid(`${name} tam sayı değil`);
+  if (!Number.isSafeInteger(n)) throw invalid(`${name} tam sayı değil`);
   return n;
 }
 

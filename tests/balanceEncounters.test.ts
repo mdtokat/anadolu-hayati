@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runEncounter } from './helpers/encounter';
+import { fakeTerrain } from './helpers/fakeTerrain';
 
 /**
  * Denge sözleşmesi (5.12): gerçek `CreatureSystem`/`CombatSystem`/`SurvivalSystem` ile bot karşılaşmaları.
@@ -163,14 +164,21 @@ describe('karşılaşma dengesi (düz orman, başsız)', () => {
     expect(behind.kills).toBe(1);
     expect(behind.damageTaken).toBe(0);
 
-    const head = runEncounter({
-      kind: 'roe_deer',
-      distance: 100,
-      policy: 'ambush',
-      weapon: 'stone_spear',
-      facing: 'toward',
-      seconds: 90,
-    });
-    expect(head.kills).toBe(0);
+    // Önden yaklaşma: tek örnek canlının rastgele dolaşmasına bağlı; 20 farklı doğma hücresinde (farklı beyin
+    // tohumu) oran ölçülür. Ölçülen: Faz 5 tohumlarıyla 40'ta 3, 7.5 (kafes) tohumlarıyla 40'ta 4.
+    let headKills = 0;
+    for (let k = 0; k < 20; k++) {
+      const head = runEncounter({
+        kind: 'roe_deer',
+        distance: 100,
+        policy: 'ambush',
+        weapon: 'stone_spear',
+        facing: 'toward',
+        seconds: 90,
+        terrain: fakeTerrain({ half: 3000 + k * 256, cover: 'urban' }),
+      });
+      headKills += head.kills;
+    }
+    expect(headKills).toBeLessThanOrEqual(4);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WORLD } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { CreatureSystem } from '../src/creatures/CreatureSystem';
@@ -10,7 +11,7 @@ import { SaveError, type PlayerSave } from '../src/save/saveGame';
 import { SurvivalSystem } from '../src/survival/SurvivalSystem';
 import type { PropRef } from '../src/world/propKinds';
 
-const REGION = 'zonguldak-bartin-karabuk';
+const REGION = WORLD.id;
 const NOW = new Date('2026-10-01T10:00:00.000Z');
 const DT = 1 / 60;
 
@@ -212,11 +213,11 @@ describe('applySave: hata durumu', () => {
     expect(captureSave(g.targets, NOW)).toEqual(before);
   });
 
-  it('başka bölgenin kaydı reddedilir ve oyun durumu değişmez', () => {
+  it('başka dünyanın kaydı reddedilir ve oyun durumu değişmez', () => {
     const g = playedGame();
     const before = captureSave(g.targets, NOW);
     const other = { ...captureSave(makeGame().targets, NOW), regionId: 'duzce-bolu' };
-    expect(() => applySave(other, g.targets)).toThrow(/başka bir bölge/);
+    expect(() => applySave(other, g.targets)).toThrow(/başka bir dünya/);
     expect(captureSave(g.targets, NOW)).toEqual(before);
   });
 });

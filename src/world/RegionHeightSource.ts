@@ -13,8 +13,9 @@ export interface Bounds {
 /**
  * Gerçek bölge yüksekliği: heightmap örneklerinden bilinear aradeğerlenen oyun yüksekliği (y).
  *
- * Örnekler ızgara köşesidir (piksel merkezi) ve orijin etrafında simetriktir:
- *   x = (c − (W − 1) / 2) · cell,  z = (r − (H − 1) / 2) · cell,  cell = cellSizeReal / HORIZONTAL_SCALE.
+ * Örnekler ızgara köşesidir (piksel merkezi); dizinin (0, 0) örneği `meta.gridOrigin`'dedir:
+ *   x = origin.x + c · cell,  z = origin.z + r · cell,  cell = cellSizeReal / HORIZONTAL_SCALE.
+ * Eski (merkezli) bölgede `origin = −(W − 1) / 2 · cell` (z benzer); Faz 7 dünyasında kafese çapalıdır.
  * Izgara dışında en yakın kenar değeri kullanılır.
  *
  * Deniz (heightmap'te 0'a kırpılı hücreler) çalışma zamanında kıyıdan uzaklığa göre çukurlaştırılır
@@ -26,6 +27,8 @@ export class RegionHeightSource implements HeightSource {
   readonly width: number;
   readonly height: number;
   readonly bounds: Bounds;
+  /** Dizinin (0, 0) örneğinin konumu (oyun m): `meta.gridOrigin`. */
+  readonly origin: { x: number; z: number };
   /** Oyun yüksekliği (y = metre / VERTICAL_SCALE), satır satır. */
   private readonly game: Float32Array;
 
@@ -46,9 +49,13 @@ export class RegionHeightSource implements HeightSource {
 
     this.applySeabed(heights);
 
-    const halfX = ((this.width - 1) / 2) * this.cell;
-    const halfZ = ((this.height - 1) / 2) * this.cell;
-    this.bounds = { minX: -halfX, maxX: halfX, minZ: -halfZ, maxZ: halfZ };
+    this.origin = { x: meta.gridOrigin.x, z: meta.gridOrigin.z };
+    this.bounds = {
+      minX: this.origin.x,
+      maxX: this.origin.x + (this.width - 1) * this.cell,
+      minZ: this.origin.z,
+      maxZ: this.origin.z + (this.height - 1) * this.cell,
+    };
   }
 
   /** Deniz hücrelerini (uint16 değeri 0) kıyıdan uzaklığa göre aşağı indirir. */
@@ -72,12 +79,12 @@ export class RegionHeightSource implements HeightSource {
 
   /** Sütun c için dünya X'i. */
   xAt(col: number): number {
-    return (col - (this.width - 1) / 2) * this.cell;
+    return this.origin.x + col * this.cell;
   }
 
   /** Satır r için dünya Z'si. */
   zAt(row: number): number {
-    return (row - (this.height - 1) / 2) * this.cell;
+    return this.origin.z + row * this.cell;
   }
 
   /** Tam sayı örnek (kenara sıkıştırılmış): oyun yüksekliği. */
@@ -88,8 +95,8 @@ export class RegionHeightSource implements HeightSource {
   }
 
   heightAt(x: number, z: number): number {
-    const fc = Math.min(Math.max(x / this.cell + (this.width - 1) / 2, 0), this.width - 1);
-    const fr = Math.min(Math.max(z / this.cell + (this.height - 1) / 2, 0), this.height - 1);
+    const fc = Math.min(Math.max((x - this.origin.x) / this.cell, 0), this.width - 1);
+    const fr = Math.min(Math.max((z - this.origin.z) / this.cell, 0), this.height - 1);
     const c0 = Math.floor(fc);
     const r0 = Math.floor(fr);
     const c1 = Math.min(c0 + 1, this.width - 1);
@@ -116,8 +123,8 @@ export class RegionHeightSource implements HeightSource {
       this.height,
       (i) => (this.game[i] as number) >= 0,
     );
-    const col = Math.round(x / this.cell + (this.width - 1) / 2);
-    const row = Math.round(z / this.cell + (this.height - 1) / 2);
+    const col = Math.round((x - this.origin.x) / this.cell);
+    const row = Math.round((z - this.origin.z) / this.cell);
     if (col < 0 || row < 0 || col >= this.width || row >= this.height)
       return Number.POSITIVE_INFINITY;
     return (this.seaDistanceCells[row * this.width + col] as number) * this.cell;

@@ -1,20 +1,21 @@
+import { absolutePropId, decodeAbsolutePropId, PROP_ID_STRIDE } from './chunkKeys';
 import { chunkIndexAt, chunkKey, chunkRect, type ChunkGrid } from './chunks';
 import { PROP_KINDS, type PropId, type PropRef } from './propKinds';
 import type { ChunkProps } from './scatter';
 
 /** Bir chunk'taki en fazla nesne sayısı (kimlik kodlaması: `chunkKey · 65536 + indeks`). */
-export const PROP_INDEX_LIMIT = 65536;
+export const PROP_INDEX_LIMIT = PROP_ID_STRIDE;
 
-/** `PropId`: aynı seed → aynı kimlik (oturumlar ve yeniden yüklemeler arasında sabit). */
+/**
+ * `PropId = mutlakChunkAnahtarı · 65536 + indeks` (< 2⁴⁸): aynı seed → aynı kimlik (oturumlar, yeniden
+ * yüklemeler ve dünya genişlemeleri arasında sabit; `chunkKeys.absolutePropId`).
+ */
 export function propId(key: number, index: number): PropId {
-  if (!Number.isInteger(index) || index < 0 || index >= PROP_INDEX_LIMIT) {
-    throw new RangeError(`Nesne indeksi 0–${PROP_INDEX_LIMIT - 1} aralığında olmalı: ${index}`);
-  }
-  return key * PROP_INDEX_LIMIT + index;
+  return absolutePropId(key, index);
 }
 
 export function decodePropId(id: PropId): { chunkKey: number; index: number } {
-  return { chunkKey: Math.floor(id / PROP_INDEX_LIMIT), index: id % PROP_INDEX_LIMIT };
+  return decodeAbsolutePropId(id);
 }
 
 /**
@@ -32,15 +33,15 @@ export class PropIndex {
 
   set(props: ChunkProps): void {
     if (props.count > PROP_INDEX_LIMIT) throw new RangeError('Chunk başına nesne sınırı aşıldı');
-    this.chunks.set(chunkKey(this.grid, props.cx, props.cy), props);
+    this.chunks.set(chunkKey(props.cx, props.cy), props);
   }
 
   delete(cx: number, cy: number): void {
-    this.chunks.delete(chunkKey(this.grid, cx, cy));
+    this.chunks.delete(chunkKey(cx, cy));
   }
 
   has(cx: number, cy: number): boolean {
-    return this.chunks.has(chunkKey(this.grid, cx, cy));
+    return this.chunks.has(chunkKey(cx, cy));
   }
 
   /** Kimliğin gösterdiği nesne; chunk yüklü değilse ya da indeks yoksa null. */
@@ -60,7 +61,7 @@ export class PropIndex {
 
     for (let cy = from.cy; cy <= to.cy; cy++) {
       for (let cx = from.cx; cx <= to.cx; cx++) {
-        const key = chunkKey(this.grid, cx, cy);
+        const key = chunkKey(cx, cy);
         const props = this.chunks.get(key);
         if (!props) continue;
         const rect = chunkRect(this.grid, cx, cy);

@@ -19,7 +19,7 @@ export interface PlayerPose {
 
 /** Kaydın okunduğu ve yazıldığı canlı sistemler. */
 export interface SaveTargets {
-  /** Kaydın ait olduğu bölge (`meta.json` `id`). */
+  /** Oynanan dünya (`WORLD.id`); kayıt başka bir dünyaya aitse yüklenmez. */
   regionId: string;
   player: PlayerPose;
   survival: Pick<SurvivalSystem, 'toSave' | 'loadSave'>;
@@ -53,7 +53,7 @@ export function applySave(raw: unknown, targets: SaveTargets): SaveGame {
   if (save.regionId !== targets.regionId) {
     throw new SaveError(
       'invalid',
-      `Kayıt başka bir bölgeye ait (${save.regionId}); bu oyun ${targets.regionId} bölgesini oynuyor.`,
+      `Kayıt başka bir dünyaya ait (${save.regionId}); bu oyun ${targets.regionId} dünyasını oynuyor.`,
     );
   }
   targets.survival.loadSave(save.survival);

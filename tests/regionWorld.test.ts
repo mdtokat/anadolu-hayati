@@ -1,18 +1,16 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { REGION_PLAYER, TELEPORTS } from '../src/config';
+import { TELEPORTS } from '../src/config';
 import type { MoveIntent } from '../src/core/inputMapping';
 import type { RegionData } from '../src/data/region';
-import { initPhysics, PhysicsWorld } from '../src/physics/PhysicsWorld';
-import { Player } from '../src/player/Player';
+import { initPhysics } from '../src/physics/PhysicsWorld';
 import { latLonToGame } from '../src/world/geo';
 import { provinceAt } from '../src/world/provinces';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
-import { RegionWorld } from '../src/world/RegionWorld';
 import { findSafeSpawn } from '../src/world/spawn';
 import { loadRealRegion } from './helpers/realRegion';
-import { findWalkablePath, type Point } from './helpers/pathfinding';
+import type { Point } from './helpers/pathfinding';
+import { routeBetween, setupWorld, walkPath } from './helpers/walker';
 
-const DT = 1 / 60;
 const idle: MoveIntent = { forward: 0, strafe: 0, run: false, jump: false };
 
 let region: RegionData;
@@ -24,25 +22,7 @@ beforeAll(async () => {
   heightSource = RegionHeightSource.fromRegion(region);
 });
 
-function setup() {
-  const physics = new PhysicsWorld();
-  const world = new RegionWorld(region, physics);
-  const player = new Player(physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
-  const step = (intent: MoveIntent, yaw: number) => {
-    player.update(DT, intent, yaw);
-    physics.step();
-    world.update(player.position.x, player.position.z, 0);
-  };
-  const dispose = () => {
-    player.dispose();
-    world.dispose();
-    physics.dispose();
-  };
-  return { physics, world, player, step, dispose };
-}
-
-/** yaw: −Z (kuzey) = 0; ileri = (−sin yaw, −cos yaw). Hedefe bakan yaw. */
-const yawToward = (dx: number, dz: number) => Math.atan2(-dx, -dz);
+const setup = () => setupWorld(region);
 
 describe('RegionWorld (gerçek bölge, fizik)', () => {
   it('doğma noktası Zonguldak yakınında, yürünebilir ve oyuncu zeminde durur', () => {
@@ -128,96 +108,12 @@ describe('RegionWorld (gerçek bölge, fizik)', () => {
 });
 
 describe('üç il boyunca kesintisiz yürüyüş', () => {
-  /**
-   * Oyuncuyu waypoint'ler boyunca fizik motoruyla yürütür. Dönen: ziyaret edilen iller, en büyük
-   * konum sıçraması (ışınlanma/respawn tespiti), takılma sayısı ve hedefe varış.
-   */
-  function walk(path: Point[], maxSeconds: number) {
-    const ctx = setup();
-    const { world, player, physics, step, dispose } = ctx;
-    const first = path[0] as Point;
-    const spawn = findSafeSpawn(world.source, first.x, first.z, world.maxSlopeDeg);
-    if (!spawn) throw new Error('rota başlangıcı yürünebilir değil');
-    world.prepare(spawn.x, spawn.z);
-    player.teleport(spawn);
-    physics.step();
-
-    const provinces = new Set<string>();
-    const goal = path[path.length - 1] as Point;
-    const dist = (p: Point) => Math.hypot(p.x - player.position.x, p.z - player.position.z);
-    const LOOKAHEAD = 8; // oyun m
-    const ARRIVAL = 10; // varış toleransı (oyun m = 500 gerçek m); oyuncu son düğümün çevresinde salınır
-    let index = 0;
-    let maxJump = 0;
-    let stuck = 0;
-    let slowSteps = 0;
-    let jumpFor = 0;
-    let last = { ...player.position };
-    let steps = 0;
-
-    for (; steps < maxSeconds * 60; steps++) {
-      // Pure pursuit: en yakın waypoint'e ilerle, sonra `LOOKAHEAD` kadar ötesini hedefle.
-      // (Waypoint'in yakınından biraz uzaktan geçmek oyuncuyu daire çizdirmesin.)
-      while (
-        index < path.length - 1 &&
-        dist(path[index + 1] as Point) <= dist(path[index] as Point)
-      )
-        index++;
-      // Hedef her zaman en yakın waypoint'ten SONRAKİ olmalı (arkada kalanı hedeflemek salınım yaratır).
-      let target = Math.min(index + 1, path.length - 1);
-      while (target < path.length - 1 && dist(path[target] as Point) < LOOKAHEAD) target++;
-      const ahead = path[target] as Point;
-      const dx = ahead.x - player.position.x;
-      const dz = ahead.z - player.position.z;
-
-      // Takılırsa kısa süre zıpla
-      const speed = Math.hypot(player.currentVelocity.x, player.currentVelocity.z);
-      slowSteps = speed < 0.6 ? slowSteps + 1 : 0;
-      if (slowSteps > 90) {
-        jumpFor = 20;
-        slowSteps = 0;
-        stuck++;
-      }
-      const jump = jumpFor > 0;
-      if (jump) jumpFor--;
-
-      step({ forward: 1, strafe: 0, run: true, jump }, yawToward(dx, dz));
-
-      const pos = player.position;
-      maxJump = Math.max(maxJump, Math.hypot(pos.x - last.x, pos.y - last.y, pos.z - last.z));
-      last = { ...pos };
-      if (steps % 30 === 0) {
-        const name = provinceAt(region.provinces, pos.x, pos.z)?.name;
-        if (name) provinces.add(name);
-      }
-      if (dist(goal) < ARRIVAL) break;
-    }
-
-    const end = player.position;
-    const reached = Math.hypot(end.x - goal.x, end.z - goal.z) < ARRIVAL + 2;
-    dispose();
-    return {
-      provinces,
-      maxJump,
-      stuck,
-      reached,
-      seconds: steps / 60,
-      remaining: Math.hypot(end.x - goal.x, end.z - goal.z),
-      end: { x: end.x, y: end.y, z: end.z },
-      goal,
-    };
-  }
+  const walk = (path: Point[], maxSeconds: number) => walkPath(region, path, maxSeconds);
 
   function route(from: [number, number], to: [number, number]): Point[] {
-    const a = latLonToGame(from[0], from[1], region.meta.originUtm);
-    const b = latLonToGame(to[0], to[1], region.meta.originUtm);
-    const source = heightSource;
-    const start = findSafeSpawn(source, a.x, a.z, REGION_PLAYER.maxSlopeDeg) as Point;
-    const goal = findSafeSpawn(source, b.x, b.z, REGION_PLAYER.maxSlopeDeg) as Point;
-    const path = findWalkablePath(source, start, goal, 50);
+    const path = routeBetween(heightSource, region, from, to);
     expect(path, 'heightmap üzerinde yürünebilir rota bulunmalı').not.toBeNull();
-    // ~16 m (oyun) arayla waypoint: her ikinci düğümü al
-    return (path as Point[]).filter((_, i, all) => i % 2 === 0 || i === all.length - 1);
+    return path as Point[];
   }
 
   it('Zonguldak → Amasra (Bartın): rota var ve oyuncu fizikle varır', () => {
