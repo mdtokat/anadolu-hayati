@@ -158,9 +158,9 @@ describe('migrateSave: sürüm göçü', () => {
     expect(order).toEqual([2]);
   });
 
-  it('gerçek zincir: v1 adımı tanımlı (Faz 7 göçü; ayrıntı tests/saveMigration)', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(2);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1]);
+  it('gerçek zincir: v1 (Faz 7) ve v2 (Faz 9) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
+    expect(SAVE_FORMAT_VERSION).toBe(3);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2]);
   });
 
   it('zincirde adım eksikse no_migration verir', () => {
@@ -178,5 +178,61 @@ describe('summarizeSave', () => {
       health: 80,
       deaths: 2,
     });
+  });
+});
+
+describe('kayıt v2 → v3 göçü (Faz 9: kısayol çubuğu, inşa)', () => {
+  /** Faz 7–8 biçiminde (v2) bir kayıt: kısayol yok, yalnızca eski yapı türleri. */
+  function v2(): Bad {
+    const save: Bad = clone(sample());
+    delete save.hotbar;
+    save.version = 2;
+    save.structures.structures = save.structures.structures.filter(
+      (s: { kind: string }) => s.kind === 'campfire' || s.kind === 'lean_to',
+    );
+    return save;
+  }
+
+  it('v2 kayıt yüklenir: boş kısayol eklenir, geri kalanı aynen kalır', () => {
+    const raw = v2();
+    const parsed = parseSave(raw);
+    expect(parsed.version).toBe(SAVE_FORMAT_VERSION);
+    expect(parsed.hotbar.selected).toBeNull();
+    expect(parsed.hotbar.slots.every((id) => id === null)).toBe(true);
+    expect(parsed.structures).toEqual(raw.structures);
+    expect(parsed.inventory).toEqual(raw.inventory);
+    expect(parsed.player).toEqual(raw.player);
+    expect(raw.hotbar).toBeUndefined(); // göç girdiyi değiştirmez
+  });
+
+  it('v3 kayıtta sandık içeriği ve kısayol korunur', () => {
+    const parsed = parseSave(clone(sample()));
+    const chest = parsed.structures.structures.find((s) => s.kind === 'storage_chest');
+    expect(chest?.storage?.slots.some((s) => s?.id === 'log')).toBe(true);
+    expect(parsed.hotbar.slots[0]).toBe('stone_axe');
+    expect(parsed.hotbar.selected).toBe(0);
+  });
+
+  it.each([
+    ['yok', undefined],
+    [
+      'malzeme bağlı',
+      { slots: ['stick', null, null, null, null, null, null, null], selected: null },
+    ],
+    ['seçim sınır dışı', { slots: Array(8).fill(null), selected: 9 }],
+  ])('bozuk kısayol (%s) reddedilir', (_name, hotbar) => {
+    const save: Bad = clone(sample());
+    save.hotbar = hotbar;
+    expect(codeOf(() => parseSave(save))).toBe('invalid');
+  });
+
+  it('sandık olmayan yapıda içerik reddedilir', () => {
+    const save: Bad = clone(sample());
+    const chest = save.structures.structures.find(
+      (s: { kind: string }) => s.kind === 'storage_chest',
+    );
+    const fire = save.structures.structures.find((s: { kind: string }) => s.kind === 'campfire');
+    fire.storage = chest.storage;
+    expect(codeOf(() => parseSave(save))).toBe('invalid');
   });
 });

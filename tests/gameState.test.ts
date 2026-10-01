@@ -4,6 +4,7 @@ import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { CreatureSystem } from '../src/creatures/CreatureSystem';
 import { GatherSystem } from '../src/interaction/gather';
+import { Hotbar } from '../src/items/hotbar';
 import { Inventory } from '../src/items/Inventory';
 import { StructureSet } from '../src/placement/structures';
 import { applySave, captureSave, type SaveTargets } from '../src/save/gameState';
@@ -34,6 +35,7 @@ function makeGame() {
     structures,
     gather,
     creatures,
+    hotbar: new Hotbar(),
   };
   const hold = (prop: PropRef, seconds: number) => {
     for (let i = 0; i < Math.round(seconds / DT); i++) gather.update(DT, true, prop);

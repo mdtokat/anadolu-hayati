@@ -132,6 +132,15 @@ export const INPUT = {
     /** Yerleştirme hayaleti: kamp ateşi / sundurma (aynı tuş iptal eder); sol tık yerleştirir. */
     placeCampfire: ['KeyC'],
     placeShelter: ['KeyG'],
+    /** Yerleştirme hayaletini 90° döndür (Faz 9). */
+    rotatePlacement: ['KeyR'],
+    /** Bakılan yapıyı sök (basılı tutulur; Faz 9). */
+    dismantle: ['KeyX'],
+    /**
+     * Hızlı erişim (kısayol) çubuğu: dizideki sıra slot sırasıdır (`Digit1` → 1. slot). Fare tekerleği seçimi
+     * kaydırır. Dev modunda Shift + rakam ve `T` + rakam ışınlanmaya ayrılmıştır (kısayol seçmez).
+     */
+    hotbar: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -140,6 +149,8 @@ export const INPUT = {
    * alındığı anda tek seferlik dev bir delta gönderir; bu sınır kamerayı sıçratmasını önler.
    */
   maxMouseDeltaPerEvent: 250,
+  /** Fare tekerleğiyle kısayol kaydırmada iki adım arası en kısa süre (ms): dokunmatik yüzeyin olay yağmuru seçimi uçurmasın. */
+  hotbarWheelCooldownMs: 90,
 } as const;
 
 /** Test ortamındaki engeller: elle yerleştirilmiş parkur + seed'li kayalar. */
@@ -1178,9 +1189,80 @@ export const PLACEMENT = {
   kinds: {
     campfire: { maxSlopeDeg: 45, radius: 0.9 },
     lean_to: { maxSlopeDeg: 40, radius: 2 },
+    // Faz 9: inşa. Büyük yapı (kulübe) oyuncunun içinde doğmasın diye daha ileriye (`aimDistance`) konur ve
+    // erişimi (`maxReach`) buna göre uzundur; tanımsızsa yukarıdaki genel değerler geçerlidir.
+    storage_chest: { maxSlopeDeg: 40, radius: 0.6 },
+    workbench: { maxSlopeDeg: 35, radius: 0.9 },
+    // `maxRelief`: ayak izi çevresindeki (8 nokta, `reliefRadius`) zeminin merkeze göre en büyük yükseklik farkı
+    // (oyun m): duvarların zemine gömülü kısmını (`HUT.skirt` = 1 m) aşmasın, duvar altında boşluk kalmasın.
+    wooden_hut: {
+      maxSlopeDeg: 22,
+      radius: 2.9,
+      aimDistance: 4.6,
+      maxReach: 6.5,
+      maxRelief: 0.9,
+      reliefRadius: 2,
+    },
   },
   /** İki yapının merkezleri arasındaki en az uzaklık: yarıçapların toplamı + bu pay (oyun m). */
   spacingMargin: 0.3,
+} as const;
+
+/** Sandık (Faz 9): yapıya bağlı ayrı envanter; `E` ile açılır. */
+export const STORAGE = {
+  /** Sandığın slot sayısı. */
+  slots: 16,
+  /** Sandığın taşıyabileceği en çok ağırlık (gram; tam sayı). */
+  maxWeightG: 60_000,
+  /** Sandığı açmak için yapının kenarına en çok bu yatay uzaklık (oyun m). */
+  reach: 2,
+  /** Bakış yönü ile sandık arasındaki en büyük yatay açı (derece); çok yakında aranmaz. */
+  viewConeDeg: 45,
+} as const;
+
+/** Üretim istasyonları (Faz 9): tarifin `station` alanı, istasyonun bu yarıçapında (oyun m) olmayı ister. */
+export const STATIONS = {
+  workbench: { reach: 4 },
+} as const;
+
+/**
+ * Yapı sökme (Faz 9): bakılan yapıya `X` basılı tutulur. Kamp ateşi dışındaki yapılar eşya olarak geri gelir
+ * (yeniden kurulabilir); kamp ateşinden yalnızca taşlar döner (yanmış odun/kav kaybolur). Sandık boş olmalıdır.
+ */
+export const DISMANTLE = {
+  /** `X`'in basılı tutulacağı süre (sn). */
+  seconds: 1.2,
+  /** Yapının kenarına en çok bu yatay uzaklıktan sökülür (oyun m). */
+  reach: 2.5,
+  /** Bakış konisi (derece, yatay). */
+  viewConeDeg: 45,
+  /** Kamp ateşinden geri dönen eşyalar. */
+  campfireReturns: [{ id: 'stone', count: 4 }],
+} as const;
+
+/** Hızlı erişim (kısayol) çubuğu (Faz 9): slot sayısı, kısayol tuşlarının (`INPUT.bindings.hotbar`) sayısıdır. */
+export const HOTBAR = {
+  slots: INPUT.bindings.hotbar.length,
+} as const;
+
+/**
+ * Ekipman (Faz 9). Giysiler (deri yelek, kürk pelerin) envanterde bulunarak etki eder (ayrı giysi slotu yok);
+ * meşale elde (kısayolda seçili) tutulunca oyuncunun çevresini aydınlatır.
+ */
+export const EQUIPMENT = {
+  /** Giysinin vücut ısısı denge değerine eklediği ısı (°C); ateş gibi normal ısının üstüne çıkarmaz. */
+  clothingWarmthC: { fur_cloak: 2.5 },
+  /** Giysilerin toplam ısıtma üst sınırı (°C). */
+  maxClothingWarmthC: 4,
+  /** Elde meşale: ışık rengi, yoğunluğu (candela; decay 2), sönme yarıçapı ve oyuncu ayağından yüksekliği (oyun m). */
+  torch: {
+    lightColor: 0xffa860,
+    intensity: 18,
+    distance: 16,
+    height: 1.7,
+    flicker: 0.12,
+    flickerSpeed: 11,
+  },
 } as const;
 
 /** Kamp ateşi yakıtı (Faz 4.8). Süreler gerçek saniyedir (24 gerçek dk = 1 oyun günü). */
@@ -1228,6 +1310,19 @@ export const SHELTER_EFFECTS = {
     /** Dinlenirken can yenilenme çarpanı. */
     restHealthFactor: 1.5,
   },
+  /**
+   * Ahşap kulübe (Faz 9): dört duvarlı, kapılı bina; sundurmadan daha iyi korur. Altlık yerel karedir (duvarların
+   * iç yüzü); diğer alanlar sundurmadakiyle aynı anlamdadır.
+   */
+  hut: {
+    halfWidth: 1.85,
+    back: -1.85,
+    front: 1.85,
+    verticalReach: 2.5,
+    coldFactor: 0.3,
+    restRefillFactor: 3,
+    restHealthFactor: 2,
+  },
 } as const;
 
 /** Yapıların (kamp ateşi, sundurma) görünümü ve ateş ışığı (Faz 4.8). Geometri `world/structureGeometry.ts`'tedir. */
@@ -1244,6 +1339,12 @@ export const STRUCTURE_LOOK = {
     flameOuter: 0xff6a1a,
     flameInner: 0xffb830,
     flameCore: 0xfff0a0,
+    // Faz 9: sandık, tezgâh, kulübe.
+    plank: 0x8a6440,
+    darkPlank: 0x6a4a2e,
+    iron: 0x3d3b38,
+    wall: 0x7a5634,
+    hutRoof: 0x5b4a3a,
   },
   /** Yüz başına ton oynaması (düz gölgeli görünüm için). */
   faceShade: 0.06,
@@ -1282,9 +1383,11 @@ export const COMBAT = {
     fist: { damage: 4, reach: 1.8, cooldownSeconds: 0.7, energyCost: 2 },
     stone_axe: { damage: 18, reach: 2, cooldownSeconds: 1, energyCost: 4 },
     stone_spear: { damage: 28, reach: 2.8, cooldownSeconds: 1.2, energyCost: 4 },
+    // Faz 9: hızlı ama zayıf; asıl işi leş kesmektir (`LOOT.butcherSecondsKnife`).
+    bone_knife: { damage: 10, reach: 1.6, cooldownSeconds: 0.5, energyCost: 2 },
   },
   /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
-  defense: { hide_vest: 0.2 },
+  defense: { hide_vest: 0.2, fur_cloak: 0.1 },
   /**
    * İsabet testi (`combat/melee.ts`; `INTERACT` gibi gevşek, çünkü gerçek yamaçlar ×3,3 dikleşir): yatay
    * koni (canlının açısal genişliği ayrıca eklenir), bakış eğimi ile hedefe yükselti açısı arasındaki en
@@ -1326,6 +1429,8 @@ export const LOOT = {
   butcherSeconds: 6,
   /** Taş baltayla kesme süresi (sn). */
   butcherSecondsAxe: 3,
+  /** Kemik bıçakla kesme süresi (sn; Faz 9): en hızlı alet. */
+  butcherSecondsKnife: 2,
 } as const;
 
 /** Et pişirme (Faz 5, Hesap B'nin bloğu). Yanık ateşin yanında `E` basılı tutulur. */

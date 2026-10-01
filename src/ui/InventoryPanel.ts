@@ -1,8 +1,12 @@
 import './ui.css';
 import { INPUT } from '../config';
 import { canEat } from '../items/consume';
+import { NO_STATIONS, type CraftContext } from '../items/craft';
+import { isHotbarItem, type Hotbar } from '../items/hotbar';
 import type { Inventory } from '../items/Inventory';
+import { ITEMS, type ItemId } from '../items/itemDefs';
 import type { RecipeId } from '../items/recipes';
+import { keyLabel } from '../placement/promptText';
 import { canDrinkContainer } from '../items/waterContainer';
 import type { VitalsState } from '../survival/vitals';
 import { capacityText, recipeRows, slotView, type RecipeRow } from './inventoryView';
@@ -19,6 +23,12 @@ export interface InventoryPanelCallbacks {
   onClose(): void;
   /** Güncel göstergeler (yemek düğmesinin "tok" denetimi ve üst satır için). */
   getVitals(): Readonly<VitalsState>;
+  /** Oyuncunun yanındaki üretim istasyonları (Faz 9; tezgâh tarifleri); verilmezse yok. */
+  getStations?(): CraftContext;
+  /** Kısayol çubuğu (Faz 9): seçili eşya bir slota bağlanabilir. */
+  hotbar?: Hotbar;
+  /** `slot`'a `item` bağla (`null`: boşalt). */
+  onAssignHotbar?(slot: number, item: ItemId | null): void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -107,7 +117,10 @@ export class InventoryPanel {
     header.append(close);
 
     const body = el('div', 'inv-columns');
-    body.append(this.buildSlots(vitals), this.buildRecipes());
+    body.append(
+      this.buildSlots(vitals),
+      this.buildRecipes(this.callbacks.getStations?.() ?? NO_STATIONS),
+    );
     this.panel.replaceChildren(header, body);
   }
 
@@ -127,6 +140,10 @@ export class InventoryPanel {
       slot.dataset.empty = String(view.empty);
       slot.dataset.selected = String(this.selected === index);
       slot.append(el('span', 'inv-slot-name', view.name), el('span', 'inv-slot-count', view.count));
+      const bound = view.id === null ? null : (this.callbacks.hotbar?.slotOf(view.id) ?? null);
+      if (bound !== null) {
+        slot.append(el('span', 'inv-slot-key', keyLabel(INPUT.bindings.hotbar[bound] ?? '')));
+      }
       slot.addEventListener('click', () => this.onSlotClick(index));
       grid.append(slot);
     });
@@ -155,6 +172,8 @@ export class InventoryPanel {
         drink.addEventListener('click', () => this.callbacks.onDrink(slot));
         actions.append(drink);
       }
+      const assign = this.buildHotbarAssign(stack.id);
+      if (assign) actions.append(assign);
       const drop = el('button', 'inv-drop', 'At');
       drop.type = 'button';
       drop.title = 'Bir adet at (eşya yok olur)';
@@ -183,10 +202,48 @@ export class InventoryPanel {
     return section;
   }
 
-  private buildRecipes(): HTMLElement {
+  /** Seçili eşya için "Kısayol: 1 2 … 8" düğmeleri (bağlı slot vurgulu; tekrar tıklamak çözer). */
+  private buildHotbarAssign(id: ItemId): HTMLElement | null {
+    const hotbar = this.callbacks.hotbar;
+    const assign = this.callbacks.onAssignHotbar;
+    if (!hotbar || !assign || !isHotbarItem(id)) return null;
+    const row = el('div', 'inv-hotbar-assign');
+    row.append(el('span', 'inv-hint', 'Kısayol:'));
+    const bound = hotbar.slotOf(id);
+    hotbar.slots.forEach((current, index) => {
+      const label = keyLabel(INPUT.bindings.hotbar[index] ?? '');
+      const button = el('button', 'inv-hotbar-key', label);
+      button.type = 'button';
+      button.dataset.bound = String(bound === index);
+      button.title =
+        bound === index
+          ? `${label}. kısayoldan çıkar`
+          : current
+            ? `${label}. kısayola bağla (${ITEMS[current].name} yerine)`
+            : `${label}. kısayola bağla`;
+      button.addEventListener('click', () => {
+        assign(index, bound === index ? null : id);
+        this.refresh();
+      });
+      row.append(button);
+    });
+    return row;
+  }
+
+  private buildRecipes(context: CraftContext): HTMLElement {
     const section = el('section', 'inv-recipes');
     section.append(el('h3', 'inv-subtitle', 'Üretim'));
-    for (const row of recipeRows(this.inventory)) section.append(this.buildRecipe(row));
+    const near = [...context.stations].map((station) => ITEMS[station].name);
+    section.append(
+      el(
+        'div',
+        'inv-stations',
+        near.length > 0
+          ? `Yakında: ${near.join(', ')}`
+          : 'Bazı tarifler Çalışma Tezgâhı yanında üretilir',
+      ),
+    );
+    for (const row of recipeRows(this.inventory, context)) section.append(this.buildRecipe(row));
     return section;
   }
 
@@ -211,6 +268,11 @@ export class InventoryPanel {
       const tool = el('span', 'inv-chip', `Alet: ${row.tool.name}`);
       tool.dataset.ok = String(row.tool.ok);
       inputs.append(tool);
+    }
+    if (row.station) {
+      const station = el('span', 'inv-chip', `Yanında: ${row.station.name}`);
+      station.dataset.ok = String(row.station.ok);
+      inputs.append(station);
     }
     card.append(head, inputs);
     if (row.reason) card.append(el('div', 'inv-reason', row.reason));

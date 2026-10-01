@@ -40,8 +40,15 @@ describe('yerleştirme metinleri', () => {
   });
 
   it('hayalet ipucu: geçerliyse kur/iptal tuşları, değilse neden', () => {
-    expect(aimPrompt(ghost())).toBe('Sol tık: Kamp Ateşi kur · C: iptal');
-    expect(aimPrompt(ghost({ kind: 'lean_to' }))).toBe('Sol tık: Sundurma kur · G: iptal');
+    expect(aimPrompt(ghost())).toBe('Sol tık: Kamp Ateşi kur · R: döndür · C: iptal');
+    expect(aimPrompt(ghost({ kind: 'lean_to' }))).toBe(
+      'Sol tık: Sundurma kur · R: döndür · G: iptal',
+    );
+    // Kısayoldan açılan hayaletin iptal tuşu o slotun tuşudur; doğrudan tuşu olmayan yapıda verilmezse yazılmaz.
+    expect(aimPrompt(ghost({ kind: 'storage_chest' }), '3')).toBe(
+      'Sol tık: Sandık kur · R: döndür · 3: iptal',
+    );
+    expect(aimPrompt(ghost({ kind: 'wooden_hut' }))).toBe('Sol tık: Ahşap Kulübe kur · R: döndür');
     expect(aimPrompt(ghost({ valid: false, reason: 'too_steep' }))).toBe('Zemin çok dik');
   });
 

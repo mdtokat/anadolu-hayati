@@ -1,8 +1,7 @@
-import { PLACEMENT } from '../config';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
-import { validatePlacement, type PlaceFailure } from './placeRules';
+import { aimDistanceOf, validatePlacement, type PlaceFailure } from './placeRules';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
 /** Denetleyicinin dünyaya bakışı (Three.js'siz). */
@@ -53,6 +52,8 @@ export class PlacementController {
   private kind: StructureKind | null = null;
   private pose: AimPose | null = null;
   private current: Ghost | null = null;
+  /** Hayaletin bakış yönüne göre ek dönüşü (radyan; `R` ile 90° adımlarla, Faz 9). */
+  private rotation = 0;
 
   constructor(private readonly deps: PlacementDeps) {}
 
@@ -74,6 +75,7 @@ export class PlacementController {
     if (!this.deps.inventory.has(kind)) return 'no_item';
     this.kind = kind;
     this.current = null;
+    this.rotation = 0;
     if (this.pose) this.update(this.pose);
     return 'started';
   }
@@ -81,6 +83,15 @@ export class PlacementController {
   cancel(): void {
     this.kind = null;
     this.current = null;
+    this.rotation = 0;
+  }
+
+  /** Hayaleti 90° döndürür (yalnızca hedeflerken); döndürdüyse true. */
+  rotate(): boolean {
+    if (this.kind === null) return false;
+    this.rotation = (this.rotation + Math.PI / 2) % (Math.PI * 2);
+    if (this.pose) this.update(this.pose);
+    return true;
   }
 
   /** Bir sabit adım: hayaleti oyuncunun önüne koyar ve doğrular. */
@@ -98,7 +109,7 @@ export class PlacementController {
       x: target.x,
       y: this.deps.world.heightAt(target.x, target.z),
       z: target.z,
-      yaw: pose.yaw,
+      yaw: pose.yaw + this.rotation,
       valid: check.ok,
       reason: check.ok ? null : check.reason,
     };
@@ -134,9 +145,10 @@ export class PlacementController {
   }
 
   private targetFor(pose: AimPose): { x: number; z: number } {
+    const distance = this.kind === null ? 0 : aimDistanceOf(this.kind);
     return {
-      x: pose.x - Math.sin(pose.yaw) * PLACEMENT.aimDistance,
-      z: pose.z - Math.cos(pose.yaw) * PLACEMENT.aimDistance,
+      x: pose.x - Math.sin(pose.yaw) * distance,
+      z: pose.z - Math.cos(pose.yaw) * distance,
     };
   }
 

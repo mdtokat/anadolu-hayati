@@ -1,7 +1,13 @@
 import { INPUT } from '../config';
 import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
-import { actionForKey, mapKeysToIntent, type MoveIntent } from './inputMapping';
+import {
+  DEV_TELEPORT_KEY,
+  actionForKey,
+  hotbarSlotForKey,
+  mapKeysToIntent,
+  type MoveIntent,
+} from './inputMapping';
 
 /** Pointer lock isteyebilen öğe (canvas/konteyner). */
 export interface InputTarget extends EventTarget {
@@ -17,6 +23,20 @@ export interface InputDocument extends EventTarget {
 interface KeyLikeEvent extends Event {
   code: string;
   repeat: boolean;
+  shiftKey?: boolean;
+}
+
+interface WheelLikeEvent extends Event {
+  deltaY: number;
+  timeStamp: number;
+}
+
+export interface InputOptions {
+  /**
+   * Dev modu: Shift + rakam ve `T` + rakam geliştirici ışınlanmasına ayrılır, kısayol seçmez (Faz 9). Üretimde
+   * kapalıdır; orada Shift (koşu) basılıyken de kısayol seçilir.
+   */
+  devTeleportKeys?: boolean;
 }
 
 interface MouseLikeEvent extends Event {
@@ -38,6 +58,9 @@ export class Input {
   private lookY = 0;
   /** Zıplama tuşuna basıldı ama henüz bir mantık adımı bunu görmedi (çok kısa dokunuşlar kaybolmasın). */
   private jumpLatched = false;
+  /** Etkileşim tuşuna (E) yeni basıldı; bir mantık adımı `consumeInteractPress` ile alana kadar durur (sandık açma). */
+  private interactLatched = false;
+  private lastWheelAt = Number.NEGATIVE_INFINITY;
   private readonly cleanups: Array<() => void> = [];
 
   constructor(
@@ -45,8 +68,10 @@ export class Input {
     private readonly doc: InputDocument,
     private readonly events: EventBus<GameEvents>,
     windowLike?: EventTarget,
+    private readonly options: InputOptions = {},
   ) {
     this.listen(doc, 'keydown', (e) => this.onKeyDown(e as KeyLikeEvent));
+    this.listen(doc, 'wheel', (e) => this.onWheel(e as WheelLikeEvent));
     this.listen(doc, 'keyup', (e) => this.pressed.delete((e as KeyLikeEvent).code));
     this.listen(doc, 'mousemove', (e) => this.onMouseMove(e as MouseLikeEvent));
     this.listen(doc, 'mousedown', (e) => this.onMouseDown(e as ButtonLikeEvent));
@@ -69,6 +94,23 @@ export class Input {
   /** Etkileşim tuşu (E) şu an basılı mı? */
   get interactHeld(): boolean {
     return INPUT.bindings.interact.some((code) => this.pressed.has(code));
+  }
+
+  /** Bir tuş (`KeyboardEvent.code`) şu an basılı mı? */
+  isHeld(code: string): boolean {
+    return this.pressed.has(code);
+  }
+
+  /** Sökme tuşu (X) şu an basılı mı? (Faz 9) */
+  get dismantleHeld(): boolean {
+    return INPUT.bindings.dismantle.some((code) => this.pressed.has(code));
+  }
+
+  /** E'ye son çağrıdan beri yeni basıldı mı (basılı tutma değil, basış anı)? Okununca sıfırlanır. */
+  consumeInteractPress(): boolean {
+    const pressed = this.interactLatched;
+    this.interactLatched = false;
+    return pressed;
   }
 
   /** Pointer lock'u bırakır (ölüm ekranı gibi fareyle tıklanan arayüzler için). */
@@ -120,12 +162,33 @@ export class Input {
     this.pressed.add(event.code);
     if (event.repeat) return;
     if (this.intent().jump) this.jumpLatched = true;
+    if (this.pointerLocked && (INPUT.bindings.interact as readonly string[]).includes(event.code)) {
+      this.interactLatched = true;
+    }
+    const slot = hotbarSlotForKey(event.code);
+    if (slot !== null && this.pointerLocked && !this.devTeleportHeld(event)) {
+      this.events.emit('input:hotbarSelect', { slot });
+    }
     const action = actionForKey(event.code);
     // Eylemler yalnızca oyun kontrolündeyken (pointer lock) tetiklenir.
     if (action && this.pointerLocked) {
       if (action === 'toggleInventory') event.preventDefault?.(); // Tab odağı kaydırmasın
       this.events.emit('input:action', { action });
     }
+  }
+
+  /** Dev modunda ışınlanma değiştiricisi (Shift ya da `T`) basılı mı? Üretimde hep false. */
+  private devTeleportHeld(event: KeyLikeEvent): boolean {
+    if (!this.options.devTeleportKeys) return false;
+    return event.shiftKey === true || this.pressed.has(DEV_TELEPORT_KEY);
+  }
+
+  /** Fare tekerleği: kısayol seçimini kaydırır (aşağı = sonraki). Yalnızca oyun kontrolündeyken. */
+  private onWheel(event: WheelLikeEvent): void {
+    if (!this.pointerLocked || event.deltaY === 0) return;
+    if (event.timeStamp - this.lastWheelAt < INPUT.hotbarWheelCooldownMs) return;
+    this.lastWheelAt = event.timeStamp;
+    this.events.emit('input:hotbarCycle', { step: event.deltaY > 0 ? 1 : -1 });
   }
 
   private onMouseMove(event: MouseLikeEvent): void {
@@ -147,6 +210,7 @@ export class Input {
       // Kilit kalkınca (ör. Esc) basılı tuşlar ve bekleyen bakış sıfırlanır: takılı tuş kalmasın.
       this.pressed.clear();
       this.jumpLatched = false;
+      this.interactLatched = false;
       this.lookX = 0;
       this.lookY = 0;
     }

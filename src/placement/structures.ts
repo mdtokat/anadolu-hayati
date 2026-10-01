@@ -1,11 +1,33 @@
-import { FIRE } from '../config';
+import { FIRE, STORAGE } from '../config';
+import { Inventory, type InventorySave } from '../items/Inventory';
 
-/** Yerleştirilebilir yapı türleri; eşya kimliğiyle aynı adı taşır (`campfire`, `lean_to`). */
-export const STRUCTURE_KINDS = ['campfire', 'lean_to'] as const;
+/**
+ * Yerleştirilebilir yapı türleri; eşya kimliğiyle aynı adı taşır. Liste yalnızca sona eklenir (kayıtlar türü
+ * yazar). Faz 9: sandık, çalışma tezgâhı, ahşap kulübe.
+ */
+export const STRUCTURE_KINDS = [
+  'campfire',
+  'lean_to',
+  'workbench',
+  'storage_chest',
+  'wooden_hut',
+] as const;
 export type StructureKind = (typeof STRUCTURE_KINDS)[number];
 
 export function isStructureKind(value: unknown): value is StructureKind {
   return typeof value === 'string' && (STRUCTURE_KINDS as readonly string[]).includes(value);
+}
+
+/** İçinde eşya saklanan yapılar (her biri kendi `Inventory`'sine sahiptir). */
+export const STORAGE_KINDS = ['storage_chest'] as const satisfies readonly StructureKind[];
+
+export function isStorageKind(kind: StructureKind): boolean {
+  return (STORAGE_KINDS as readonly StructureKind[]).includes(kind);
+}
+
+/** Sandık envanterinin sınırları. */
+export function storageOptions(): { slots: number; maxWeightG: number } {
+  return { slots: STORAGE.slots, maxWeightG: STORAGE.maxWeightG };
 }
 
 export type StructureId = number;
@@ -22,14 +44,27 @@ export interface Structure {
   fuelSeconds?: number;
 }
 
-/** Kayıt formatı (sürümlü): Faz 6 kayıt sistemine hazırlık. */
+/** Kayıttaki yapı girdisi: sandıklarda içerik de yazılır (Faz 9; alan yalnızca sandıkta bulunur). */
+export interface StructureSaveEntry extends Structure {
+  storage?: InventorySave;
+}
+
+/**
+ * Kayıt formatı (sürümlü). Faz 9'da yalnızca eklemeli değişti (yeni türler, sandık içeriği): sürüm 1 kalır;
+ * eski oyun yeni kaydı zaten kayıt biçimi sürümünden (`SAVE_FORMAT_VERSION`) tanıyıp reddeder.
+ */
 export interface StructureSave {
   version: 1;
   nextId: number;
-  structures: Structure[];
+  structures: StructureSaveEntry[];
 }
 
 export const STRUCTURE_SAVE_VERSION = 1;
+
+/** Yapının yerleşim imzası: kayıt yüklenince aynı kimlik başka bir yapıyı gösterebilir (görsel/collider yenilenir). */
+export function placementKey(s: Readonly<Structure>): string {
+  return `${s.kind}|${s.x}|${s.y}|${s.z}|${s.yaw}`;
+}
 
 /** Yanan bir ateş mi? */
 export function isLit(structure: Readonly<Structure>): boolean {
@@ -42,6 +77,8 @@ export function isLit(structure: Readonly<Structure>): boolean {
  */
 export class StructureSet {
   private readonly items = new Map<StructureId, Structure>();
+  /** Sandık içerikleri (yapı kimliğine göre). */
+  private readonly storages = new Map<StructureId, Inventory>();
   private nextId = 1;
   private revision = 0;
 
@@ -62,13 +99,27 @@ export class StructureSet {
     return this.items.get(id);
   }
 
-  /** Yeni yapı ekler; kamp ateşi `FIRE.burnSeconds` yakıtla yanık başlar. */
+  /** Yeni yapı ekler; kamp ateşi `FIRE.burnSeconds` yakıtla yanık başlar, sandık boş envanterle gelir. */
   add(kind: StructureKind, x: number, y: number, z: number, yaw = 0): Readonly<Structure> {
     const structure: Structure = { id: this.nextId++, kind, x, y, z, yaw };
     if (kind === 'campfire') structure.fuelSeconds = FIRE.burnSeconds;
     this.items.set(structure.id, structure);
+    if (isStorageKind(kind)) this.storages.set(structure.id, new Inventory(storageOptions()));
     this.revision += 1;
     return structure;
+  }
+
+  /** Yapıyı kaldırır (sökme); varsa true. Sandık içeriği de silinir: çağıran önce boşaltmalıdır. */
+  remove(id: StructureId): boolean {
+    if (!this.items.delete(id)) return false;
+    this.storages.delete(id);
+    this.revision += 1;
+    return true;
+  }
+
+  /** Sandığın envanteri (yerinde değiştirilir); sandık değilse null. */
+  storageOf(id: StructureId): Inventory | null {
+    return this.storages.get(id) ?? null;
   }
 
   /** (x, z)'ye yatay `radius` içindeki yapılar, yakından uzağa. */
@@ -122,7 +173,10 @@ export class StructureSet {
     return {
       version: STRUCTURE_SAVE_VERSION,
       nextId: this.nextId,
-      structures: [...this.items.values()].map((s) => ({ ...s })),
+      structures: [...this.items.values()].map((s) => {
+        const storage = this.storages.get(s.id);
+        return storage ? { ...s, storage: storage.toJSON() } : { ...s };
+      }),
     };
   }
 
@@ -134,11 +188,13 @@ export class StructureSet {
     const loaded = StructureSet.fromJSON(data);
     this.items.clear();
     for (const [id, structure] of loaded.items) this.items.set(id, structure);
+    this.storages.clear();
+    for (const [id, storage] of loaded.storages) this.storages.set(id, storage);
     this.nextId = loaded.nextId;
     this.revision += 1;
   }
 
-  /** Kayıttan kurar; bozuk veride (sürüm, tür, sayılar, yakıt, kimlik) `Error` fırlatır. */
+  /** Kayıttan kurar; bozuk veride (sürüm, tür, sayılar, yakıt, kimlik, sandık içeriği) `Error` fırlatır. */
   static fromJSON(data: unknown): StructureSet {
     if (typeof data !== 'object' || data === null) throw new Error('Yapı kaydı nesne değil');
     const save = data as { version?: unknown; nextId?: unknown; structures?: unknown };
@@ -153,7 +209,7 @@ export class StructureSet {
     const set = new StructureSet();
     set.nextId = save.nextId as number;
     for (const raw of save.structures as unknown[]) {
-      const s = raw as Partial<Structure> | null;
+      const s = raw as Partial<StructureSaveEntry> | null;
       if (typeof s !== 'object' || s === null) throw new Error('Yapı girdisi nesne değil');
       if (!Number.isInteger(s.id) || (s.id as number) < 1 || (s.id as number) >= set.nextId) {
         throw new Error(`Geçersiz yapı kimliği: ${String(s.id)}`);
@@ -186,6 +242,16 @@ export class StructureSet {
         structure.fuelSeconds = fuel;
       } else if (s.fuelSeconds !== undefined) {
         throw new Error(`Yapı ${s.id}: ${s.kind} yakıt taşımaz`);
+      }
+      if (isStorageKind(s.kind)) {
+        // İçeriksiz sandık (elle yazılmış/eski kayıt) boş sayılır.
+        const storage =
+          s.storage === undefined
+            ? new Inventory(storageOptions())
+            : Inventory.fromJSON(s.storage, storageOptions());
+        set.storages.set(structure.id, storage);
+      } else if (s.storage !== undefined) {
+        throw new Error(`Yapı ${s.id}: ${s.kind} eşya saklamaz`);
       }
       set.items.set(structure.id, structure);
     }

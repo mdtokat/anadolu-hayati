@@ -1,7 +1,16 @@
 import { Inventory, type ItemStack } from './Inventory';
-import type { Recipe } from './recipes';
+import type { Recipe, StationKind } from './recipes';
+
+/** Üretimin yapıldığı yer: yakındaki istasyonlar (Faz 9; `placement/stations.ts` hesaplar). */
+export interface CraftContext {
+  stations: ReadonlySet<StationKind>;
+}
+
+/** İstasyonsuz bağlam (açık arazi): yalnızca elle/aletle yapılan tarifler. */
+export const NO_STATIONS: CraftContext = { stations: new Set() };
 
 export type CraftFailure =
+  | { ok: false; reason: 'missing_station'; missing: ItemStack[]; station: StationKind }
   | { ok: false; reason: 'missing_tool'; missing: ItemStack[] }
   | { ok: false; reason: 'missing_inputs'; missing: ItemStack[] }
   | { ok: false; reason: 'no_space'; missing: ItemStack[] };
@@ -11,11 +20,18 @@ export type CraftStatus = { ok: true } | CraftFailure;
 export type CraftResult = { ok: true; output: ItemStack } | CraftFailure;
 
 /**
- * Tarif yapılabilir mi? Sırayla: alet, malzeme, çıktıya yer. Başarısızlıkta `missing` arayüzün
- * göstereceği eksikleri verir (alet: 1 adet, malzeme: eksik adetler; `no_space`: boş).
+ * Tarif yapılabilir mi? Sırayla: istasyon, alet, malzeme, çıktıya yer. Başarısızlıkta `missing` arayüzün
+ * göstereceği eksikleri verir (istasyon: boş, alet: 1 adet, malzeme: eksik adetler; `no_space`: boş).
  * Envanteri değiştirmez.
  */
-export function craftStatus(inventory: Inventory, recipe: Recipe): CraftStatus {
+export function craftStatus(
+  inventory: Inventory,
+  recipe: Recipe,
+  context: CraftContext = NO_STATIONS,
+): CraftStatus {
+  if (recipe.station && !context.stations.has(recipe.station)) {
+    return { ok: false, reason: 'missing_station', missing: [], station: recipe.station };
+  }
   if (recipe.tool && !inventory.has(recipe.tool)) {
     return { ok: false, reason: 'missing_tool', missing: [{ id: recipe.tool, count: 1 }] };
   }
@@ -37,16 +53,24 @@ export function craftStatus(inventory: Inventory, recipe: Recipe): CraftStatus {
   return { ok: true };
 }
 
-export function canCraft(inventory: Inventory, recipe: Recipe): boolean {
-  return craftStatus(inventory, recipe).ok;
+export function canCraft(
+  inventory: Inventory,
+  recipe: Recipe,
+  context: CraftContext = NO_STATIONS,
+): boolean {
+  return craftStatus(inventory, recipe, context).ok;
 }
 
 /**
  * Tarifi uygular: malzemeyi düşer, çıktıyı ekler. Atomiktir: yapılamıyorsa envanter hiç değişmez.
- * Alet tüketilmez.
+ * Alet ve istasyon tüketilmez.
  */
-export function craft(inventory: Inventory, recipe: Recipe): CraftResult {
-  const status = craftStatus(inventory, recipe);
+export function craft(
+  inventory: Inventory,
+  recipe: Recipe,
+  context: CraftContext = NO_STATIONS,
+): CraftResult {
+  const status = craftStatus(inventory, recipe, context);
   if (!status.ok) return status;
 
   inventory.take(recipe.inputs);

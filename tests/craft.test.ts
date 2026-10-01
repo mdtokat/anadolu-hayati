@@ -18,8 +18,10 @@ describe('craft: başarılı üretim', () => {
   it.each(RECIPE_LIST.map((r) => [r.id]))('%s: girdiler düşer, çıktı eklenir', (id) => {
     const r = RECIPES[id as keyof typeof RECIPES];
     const inv = stocked(r.id);
-    expect(canCraft(inv, r)).toBe(true);
-    const result = craft(inv, r);
+    // İstasyonlu tarifler (Faz 9) tezgâhın yanında üretilir.
+    const ctx = { stations: new Set(r.station ? [r.station] : []) };
+    expect(canCraft(inv, r, ctx)).toBe(true);
+    const result = craft(inv, r, ctx);
     expect(result).toEqual({ ok: true, output: r.output });
     for (const { id: item } of r.inputs) expect(inv.count(item), item).toBe(0);
     expect(inv.count(r.output.id)).toBe(r.output.count);

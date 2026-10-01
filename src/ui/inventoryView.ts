@@ -1,4 +1,4 @@
-import { craftStatus, type CraftFailure } from '../items/craft';
+import { craftStatus, NO_STATIONS, type CraftContext, type CraftFailure } from '../items/craft';
 import type { Inventory, ItemStack } from '../items/Inventory';
 import { ITEMS, type ItemId } from '../items/itemDefs';
 import { RECIPE_LIST, type Recipe, type RecipeId } from '../items/recipes';
@@ -83,6 +83,8 @@ export interface RecipeRow {
   inputs: RecipeInputView[];
   /** Gerekli alet (tüketilmez); yoksa null. */
   tool: { name: string; ok: boolean } | null;
+  /** Yakında bulunması gereken istasyon (Faz 9); yoksa null. */
+  station: { name: string; ok: boolean } | null;
   output: string;
   craftable: boolean;
   /** Yapılamıyorsa nedeni; yapılabiliyorsa "". */
@@ -95,6 +97,8 @@ export function failureText(failure: CraftFailure): string {
     .map((m) => (m.count > 1 ? `${m.count} ${ITEMS[m.id].name}` : ITEMS[m.id].name))
     .join(', ');
   switch (failure.reason) {
+    case 'missing_station':
+      return `${ITEMS[failure.station].name} yanında üretilir`;
     case 'missing_tool':
       return `${list} gerekir`;
     case 'missing_inputs':
@@ -104,8 +108,12 @@ export function failureText(failure: CraftFailure): string {
   }
 }
 
-export function recipeRow(inventory: Inventory, recipe: Recipe): RecipeRow {
-  const status = craftStatus(inventory, recipe);
+export function recipeRow(
+  inventory: Inventory,
+  recipe: Recipe,
+  context: CraftContext = NO_STATIONS,
+): RecipeRow {
+  const status = craftStatus(inventory, recipe, context);
   return {
     id: recipe.id,
     name: recipe.name,
@@ -114,12 +122,15 @@ export function recipeRow(inventory: Inventory, recipe: Recipe): RecipeRow {
       return { name: ITEMS[id].name, need: count, have, ok: have >= count };
     }),
     tool: recipe.tool ? { name: ITEMS[recipe.tool].name, ok: inventory.has(recipe.tool) } : null,
+    station: recipe.station
+      ? { name: ITEMS[recipe.station].name, ok: context.stations.has(recipe.station) }
+      : null,
     output: `${ITEMS[recipe.output.id].name}${recipe.output.count > 1 ? ` ×${recipe.output.count}` : ''}`,
     craftable: status.ok,
     reason: status.ok ? '' : failureText(status),
   };
 }
 
-export function recipeRows(inventory: Inventory): RecipeRow[] {
-  return RECIPE_LIST.map((recipe) => recipeRow(inventory, recipe));
+export function recipeRows(inventory: Inventory, context: CraftContext = NO_STATIONS): RecipeRow[] {
+  return RECIPE_LIST.map((recipe) => recipeRow(inventory, recipe, context));
 }

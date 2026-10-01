@@ -1,6 +1,10 @@
 import type { ItemStack } from './Inventory';
 import type { ItemId } from './itemDefs';
 
+/** Üretim istasyonları (Faz 9): tarifin yapılması için yakında bulunması gereken yapı (`STATIONS`). */
+export const STATION_KINDS = ['workbench'] as const;
+export type StationKind = (typeof STATION_KINDS)[number];
+
 export const RECIPE_IDS = [
   'stone_axe',
   'water_container',
@@ -8,6 +12,12 @@ export const RECIPE_IDS = [
   'lean_to',
   'stone_spear',
   'hide_vest',
+  'workbench',
+  'storage_chest',
+  'wooden_hut',
+  'bone_knife',
+  'torch',
+  'fur_cloak',
 ] as const;
 export type RecipeId = (typeof RECIPE_IDS)[number];
 
@@ -19,6 +29,8 @@ export interface Recipe {
   inputs: ReadonlyArray<ItemStack>;
   /** Üretimde envanterde bulunması gereken ama tüketilmeyen alet. */
   tool?: ItemId;
+  /** Üretimde yakında (`STATIONS[station].reach`) bulunması gereken istasyon yapısı. */
+  station?: StationKind;
   output: ItemStack;
 }
 
@@ -88,6 +100,76 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     ],
     tool: 'stone_axe',
     output: { id: 'hide_vest', count: 1 },
+  },
+  // Faz 9: inşa. Tezgâh baltayla her yerde yapılır; sandık, kulübe ve pelerin tezgâhın yanında üretilir.
+  // Kulübenin malzemesi tek seferde ancak taşınır (5 kütük = 15 kg): sandıkta biriktirip tezgâhın yanında üret.
+  workbench: {
+    id: 'workbench',
+    name: 'Çalışma Tezgâhı',
+    inputs: [
+      { id: 'log', count: 2 },
+      { id: 'stick', count: 4 },
+      { id: 'stone', count: 2 },
+    ],
+    tool: 'stone_axe',
+    output: { id: 'workbench', count: 1 },
+  },
+  storage_chest: {
+    id: 'storage_chest',
+    name: 'Sandık',
+    inputs: [
+      { id: 'log', count: 2 },
+      { id: 'stick', count: 6 },
+      { id: 'bark', count: 4 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'storage_chest', count: 1 },
+  },
+  wooden_hut: {
+    id: 'wooden_hut',
+    name: 'Ahşap Kulübe',
+    inputs: [
+      { id: 'log', count: 5 },
+      { id: 'stick', count: 10 },
+      { id: 'bark', count: 10 },
+      { id: 'stone', count: 4 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'wooden_hut', count: 1 },
+  },
+  // Faz 9: ekipman.
+  bone_knife: {
+    id: 'bone_knife',
+    name: 'Kemik Bıçak',
+    inputs: [
+      { id: 'bone', count: 1 },
+      { id: 'stone', count: 1 },
+      { id: 'tinder', count: 2 },
+    ],
+    output: { id: 'bone_knife', count: 1 },
+  },
+  torch: {
+    id: 'torch',
+    name: 'Meşale',
+    inputs: [
+      { id: 'stick', count: 1 },
+      { id: 'bark', count: 2 },
+      { id: 'tinder', count: 2 },
+    ],
+    output: { id: 'torch', count: 1 },
+  },
+  fur_cloak: {
+    id: 'fur_cloak',
+    name: 'Kürk Pelerin',
+    inputs: [
+      { id: 'hide', count: 3 },
+      { id: 'bone', count: 2 },
+      { id: 'tinder', count: 4 },
+    ],
+    station: 'workbench',
+    output: { id: 'fur_cloak', count: 1 },
   },
 };
 

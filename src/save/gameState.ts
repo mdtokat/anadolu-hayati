@@ -1,5 +1,6 @@
 import type { CreatureSystem } from '../creatures/CreatureSystem';
 import type { GatherSystem } from '../interaction/gather';
+import type { Hotbar } from '../items/hotbar';
 import type { Inventory } from '../items/Inventory';
 import type { StructureSet } from '../placement/structures';
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
@@ -27,6 +28,7 @@ export interface SaveTargets {
   structures: Pick<StructureSet, 'toJSON' | 'loadSave'>;
   gather: Pick<GatherSystem, 'toSave' | 'loadSave'>;
   creatures: Pick<CreatureSystem, 'toSave' | 'loadSave'>;
+  hotbar: Pick<Hotbar, 'toSave' | 'loadSave'>;
 }
 
 /** Canlı oyun durumunun kayıt görüntüsünü alır. Ölüyken çağrılmamalıdır (ölüm durumu kayda girmez). */
@@ -41,6 +43,7 @@ export function captureSave(targets: SaveTargets, now: Date = new Date()): SaveG
     structures: targets.structures.toJSON(),
     world: targets.gather.toSave(),
     creatures: targets.creatures.toSave(),
+    hotbar: targets.hotbar.toSave(),
   };
 }
 
@@ -61,6 +64,7 @@ export function applySave(raw: unknown, targets: SaveTargets): SaveGame {
   targets.structures.loadSave(save.structures);
   targets.gather.loadSave(save.world);
   targets.creatures.loadSave(save.creatures);
+  targets.hotbar.loadSave(save.hotbar);
   targets.player.apply(save.player);
   return save;
 }

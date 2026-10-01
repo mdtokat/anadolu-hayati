@@ -6,7 +6,14 @@ import type { Inventory } from '../items/Inventory';
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import { COMBAT } from '../config';
 import { defenseFor, InvulnerabilityTimer, mitigate } from './damage';
-import { bestWeapon, pickMeleeTarget, type MeleeAim, type MeleeHit, type WeaponId } from './melee';
+import type { ItemId } from '../items/itemDefs';
+import {
+  activeWeapon,
+  pickMeleeTarget,
+  type MeleeAim,
+  type MeleeHit,
+  type WeaponId,
+} from './melee';
 
 /** `attack()` sonucu: neden saldırılamadığı ya da isabet durumu. */
 export interface AttackResult {
@@ -40,6 +47,8 @@ export class CombatSystem {
     private readonly inventory: Inventory,
     private readonly creatures: CreatureSystem,
     private readonly survival: SurvivalSystem,
+    /** Elde (kısayolda seçili) tutulan eşya (Faz 9); verilmezse hep en iyi silah kullanılır. */
+    private readonly heldItem: () => ItemId | null = () => null,
   ) {
     this.offs.push(
       this.events.on('creature:attacked', ({ kind, damage }) => this.receiveHit(damage, kind)),
@@ -58,15 +67,20 @@ export class CombatSystem {
     return this.cooldownLeft;
   }
 
-  /** Şu an vurulabilecek canlı (envanterdeki en iyi silahın menzili ve bakış koni/dikey toleransıyla); yoksa null. */
+  /** Şu an kullanılacak silah: elde silah varsa o, yoksa envanterdeki en iyisi. */
+  get weapon(): WeaponId {
+    return activeWeapon(this.inventory, this.heldItem());
+  }
+
+  /** Şu an vurulabilecek canlı (kullanılan silahın menzili ve bakış koni/dikey toleransıyla); yoksa null. */
   target(aim: MeleeAim): MeleeHit | null {
-    const weapon = COMBAT.weapons[bestWeapon(this.inventory)];
+    const weapon = COMBAT.weapons[this.weapon];
     const candidates = this.creatures.near(aim.x, aim.z, weapon.reach + COMBAT.aim.searchMargin);
     return pickMeleeTarget(candidates, aim, weapon);
   }
 
   /**
-   * Oyuncu saldırısı (sol tık): envanterdeki en güçlü silahla `aim` yönüne vurur. Ölüyken, beklemedeyken ya
+   * Oyuncu saldırısı (sol tık): eldeki silahla (yoksa envanterdeki en güçlüsüyle) `aim` yönüne vurur. Ölüyken, beklemedeyken ya
    * da bitkinken (enerji tükenmiş) saldırı yoktur. Iskalasa da silah bekleme ve enerji maliyeti işler;
    * `player:attacked` her gerçek salınışta bir kez yayınlanır (`hitId`: isabet edilen canlı ya da null).
    */
@@ -76,7 +90,7 @@ export class CombatSystem {
     const { energy, exhausted } = this.survival.state;
     if (exhausted || energy <= 0) return NO_ATTACK('exhausted');
 
-    const weaponId = bestWeapon(this.inventory);
+    const weaponId = this.weapon;
     const weapon = COMBAT.weapons[weaponId];
     this.cooldownLeft = weapon.cooldownSeconds;
     this.survival.spendEnergy(weapon.energyCost);

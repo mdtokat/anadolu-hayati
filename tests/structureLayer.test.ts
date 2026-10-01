@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Group, Mesh, PointLight, type Material, type BufferGeometry } from 'three';
 import { FIRE, STRUCTURE_LOOK } from '../src/config';
 import type { Ghost } from '../src/placement/PlacementController';
-import { StructureSet } from '../src/placement/structures';
+import { STRUCTURE_KINDS, StructureSet } from '../src/placement/structures';
 import { StructureLayer, flickerAt } from '../src/world/StructureLayer';
 
 const POOL = STRUCTURE_LOOK.fire.lightPool;
@@ -208,7 +208,7 @@ describe('StructureLayer.dispose', () => {
     for (const m of materials) m.addEventListener('dispose', () => disposedMaterials++);
     layer.dispose();
 
-    expect(geometries.size).toBe(3); // ateş, sundurma, alev
+    expect(geometries.size).toBe(STRUCTURE_KINDS.length + 1); // her yapı türü (hayaletler dahil) + alev
     expect(disposedGeometries).toBe(geometries.size);
     expect(materials.size).toBe(4); // gövde, alev, geçerli/geçersiz hayalet
     expect(disposedMaterials).toBe(materials.size);

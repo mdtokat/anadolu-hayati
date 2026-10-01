@@ -25,6 +25,13 @@ export const ITEM_IDS = [
   'bone',
   'stone_spear',
   'hide_vest',
+  // Faz 9: inşa (yerleştirilebilir) ve ekipman
+  'workbench',
+  'storage_chest',
+  'wooden_hut',
+  'bone_knife',
+  'torch',
+  'fur_cloak',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -144,6 +151,44 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
   },
   // Giysi: envanterde bulunması savunma verir (`COMBAT.defense`); ayrı ekipman slotu yok (Fikir Havuzu).
   hide_vest: { id: 'hide_vest', name: 'Deri Yelek', weightG: 1800, stackMax: 1, category: 'tool' },
+  // Faz 9: inşa. Kulübe ağırdır (taşıması zor): genellikle tezgâhın yanında üretilip hemen kurulur.
+  workbench: {
+    id: 'workbench',
+    name: 'Çalışma Tezgâhı',
+    weightG: 9000,
+    stackMax: 1,
+    category: 'placeable',
+  },
+  storage_chest: {
+    id: 'storage_chest',
+    name: 'Sandık',
+    weightG: 8000,
+    stackMax: 1,
+    category: 'placeable',
+  },
+  wooden_hut: {
+    id: 'wooden_hut',
+    name: 'Ahşap Kulübe',
+    weightG: 14_000,
+    stackMax: 1,
+    category: 'placeable',
+  },
+  // Faz 9: ekipman. Bıçak leşi en hızlı keser; meşale elde tutulunca aydınlatır; pelerin ısıtır ve biraz korur.
+  bone_knife: {
+    id: 'bone_knife',
+    name: 'Kemik Bıçak',
+    weightG: 400,
+    stackMax: 1,
+    category: 'tool',
+  },
+  torch: { id: 'torch', name: 'Meşale', weightG: 500, stackMax: 1, category: 'tool' },
+  fur_cloak: {
+    id: 'fur_cloak',
+    name: 'Kürk Pelerin',
+    weightG: 3000,
+    stackMax: 1,
+    category: 'tool',
+  },
 };
 
 export function isItemId(value: unknown): value is ItemId {

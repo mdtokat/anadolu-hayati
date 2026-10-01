@@ -447,6 +447,73 @@
   background: #c14535;
 }
 
+/* Kısayol (hızlı erişim) çubuğu: alt orta (Faz 9) */
+.hud-hotbar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+.hud-hotbar[hidden] {
+  display: none;
+}
+.hud-hotbar-held {
+  min-height: 18px;
+  font-size: 13px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.hud-hotbar-slots {
+  display: flex;
+  gap: 4px;
+}
+.hud-hotbar-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 46px;
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.hud-hotbar-slot[data-empty='true'] {
+  background: rgba(0, 0, 0, 0.25);
+}
+.hud-hotbar-slot[data-missing='true'] {
+  opacity: 0.45;
+}
+.hud-hotbar-slot[data-selected='true'] {
+  border-color: #ffd23f;
+  box-shadow: 0 0 0 1px #ffd23f;
+  background: rgba(60, 50, 10, 0.6);
+}
+.hud-hotbar-key {
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+.hud-hotbar-count {
+  position: absolute;
+  right: 4px;
+  bottom: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffd23f;
+}
+
 /* Envanter ve üretim paneli (oyun donar; duraklatma menüsünün altında) */
 .inv-panel {
   position: fixed;
@@ -610,6 +677,37 @@
   margin-top: 4px;
   font-size: 12px;
   color: #ffd23f;
+}
+.inv-slot-key {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  color: #ffd23f;
+}
+.inv-hotbar-assign {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.inv-panel button.inv-hotbar-key {
+  min-width: 28px;
+  padding: 3px 6px;
+  font-size: 12px;
+  background: #3a4a5c;
+}
+.inv-panel button.inv-hotbar-key[data-bound='true'] {
+  background: #8a6d12;
+}
+.inv-stations {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.inv-panel button.inv-transfer-all {
+  background: #3a5c3a;
 }
 
 /* Ayarlar penceresi (duraklatma ve ölüm ekranının üstünde) */

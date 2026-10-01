@@ -1,5 +1,7 @@
 import { CLOCK, INPUT } from '../config';
+import type { ItemStack } from '../items/Inventory';
 import { ITEMS } from '../items/itemDefs';
+import type { DismantleOffer } from './dismantle';
 import type { ConfirmFailure, Ghost, ToggleResult } from './PlacementController';
 import type { StructureKind } from './structures';
 import type { TendOffer } from './tend';
@@ -21,15 +23,33 @@ export function placeFailureText(reason: ConfirmFailure): string {
   return FAILURE_TEXT[reason];
 }
 
-const KEY_FOR_KIND: Record<StructureKind, string> = {
-  campfire: INPUT.bindings.placeCampfire[0].replace('Key', ''),
-  lean_to: INPUT.bindings.placeShelter[0].replace('Key', ''),
+/** Doğrudan yerleştirme tuşu olan yapılar (diğerleri kısayol çubuğundan seçilir). */
+const KEY_FOR_KIND: Partial<Record<StructureKind, string>> = {
+  campfire: keyLabel(INPUT.bindings.placeCampfire[0]),
+  lean_to: keyLabel(INPUT.bindings.placeShelter[0]),
 };
 
-/** Hayalet ipucu: geçerliyse "Sol tık: … kur · F: iptal", değilse engel nedeni. */
-export function aimPrompt(ghost: Readonly<Ghost>): string {
+/** `KeyC` → "C", `Digit3` → "3". */
+export function keyLabel(code: string): string {
+  return code.replace(/^(Key|Digit)/, '');
+}
+
+const ROTATE_KEY = keyLabel(INPUT.bindings.rotatePlacement[0]);
+
+/**
+ * Hayalet ipucu: geçerliyse "Sol tık: … kur · R: döndür · C: iptal", değilse engel nedeni. `cancelKey`: hayaleti
+ * kapatan tuş (kısayoldan açıldıysa o slotun tuşu); verilmezse türün doğrudan tuşu.
+ */
+export function aimPrompt(ghost: Readonly<Ghost>, cancelKey?: string): string {
   if (!ghost.valid && ghost.reason) return placeFailureText(ghost.reason);
-  return `Sol tık: ${ITEMS[ghost.kind].name} kur · ${KEY_FOR_KIND[ghost.kind]}: iptal`;
+  const cancel = cancelKey ?? KEY_FOR_KIND[ghost.kind];
+  return [
+    `Sol tık: ${ITEMS[ghost.kind].name} kur`,
+    `${ROTATE_KEY}: döndür`,
+    cancel ? `${cancel}: iptal` : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' · ');
 }
 
 /** Hedeflemeyi başlatamama bildirimi; başarıda ya da ölüyken gösterilecek bir şey yok (null). */
@@ -58,4 +78,37 @@ export function tendPrompt(offer: TendOffer): string | null {
   }
   if (offer.status === 'noFuel') return 'Ateşe atacak dal veya kütük yok';
   return null;
+}
+
+const INTERACT_KEY = keyLabel(INPUT.bindings.interact[0]);
+const DISMANTLE_KEY = keyLabel(INPUT.bindings.dismantle[0]);
+const INVENTORY_KEY = keyLabel(INPUT.bindings.toggleInventory[0]);
+
+/** Saklama yapısını açma eylemi (Türkçe belirtme hâliyle). */
+const OPEN_TEXT: Partial<Record<StructureKind, string>> = { storage_chest: 'Sandığı aç' };
+
+/** Sandığa bakarken: "E: Sandığı aç · X (basılı tut): sök". */
+export function storagePrompt(kind: StructureKind): string {
+  const open = OPEN_TEXT[kind] ?? `${ITEMS[kind].name}: aç`;
+  return `${INTERACT_KEY}: ${open} · ${DISMANTLE_KEY} (basılı tut): sök`;
+}
+
+/** Bakılan yapı (başka ipucu yokken): adı, tezgâhta üretim hatırlatması ve sökme tuşu. */
+export function structureHint(kind: StructureKind): string {
+  const name = ITEMS[kind].name;
+  const craft = kind === 'workbench' ? ` · ${INVENTORY_KEY}: tezgâhta üret` : '';
+  return `${name}${craft} · ${DISMANTLE_KEY} (basılı tut): sök`;
+}
+
+/** `X` basılıyken: sökülüyor ya da neden sökülemiyor. */
+export function dismantlePrompt(offer: DismantleOffer): string {
+  if (offer.status === 'not_empty')
+    return `Önce ${ITEMS[offer.kind].name.toLowerCase()} boşaltılmalı`;
+  if (offer.status === 'no_space') return 'Envanterde yer yok: sökülen eşya sığmıyor';
+  return `Sökülüyor: ${ITEMS[offer.kind].name}`;
+}
+
+/** Sökme bildirimi: "Söküldü: +1 Sandık". */
+export function dismantledToast(items: ReadonlyArray<ItemStack>): string {
+  return `Söküldü: ${items.map((i) => `+${i.count} ${ITEMS[i.id].name}`).join(', ')}`;
 }

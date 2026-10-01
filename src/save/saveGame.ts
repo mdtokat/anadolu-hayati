@@ -1,4 +1,5 @@
-import { INVENTORY, WORLD } from '../config';
+import { HOTBAR, INVENTORY, WORLD } from '../config';
+import { Hotbar, type HotbarSave } from '../items/hotbar';
 import { Inventory, type InventorySave } from '../items/Inventory';
 import { StructureSet, type StructureSave } from '../placement/structures';
 import type { VitalsState } from '../survival/vitals';
@@ -14,8 +15,9 @@ import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkK
  * Geçerli kayıt sürümü. Şema değiştikçe artırılır, hiçbir zaman geri alınmaz.
  * - v1 (Faz 6): bölge `zonguldak-bartin-karabuk`, kimlikler 13 × 10 chunk ızgarasına bağlı (`cy · 13 + cx`).
  * - v2 (Faz 7): dünya `WORLD.id`, nesne kimlikleri ve canlı hücre anahtarları mutlak (`world/chunkKeys.ts`).
+ * - v3 (Faz 9): kısayol çubuğu (`hotbar`); yapılarda yeni türler (tezgâh, sandık, kulübe) ve sandık içeriği.
  */
-export const SAVE_FORMAT_VERSION = 2;
+export const SAVE_FORMAT_VERSION = 3;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -69,6 +71,8 @@ export interface SaveGame {
   structures: StructureSave;
   world: WorldSave;
   creatures: CreaturesSave;
+  /** Kısayol çubuğu: slot bağlantıları ve seçili slot (Faz 9). */
+  hotbar: HotbarSave;
 }
 
 /** Yuva listesinde gösterilen kısa özet. */
@@ -166,6 +170,19 @@ function mapIds(list: unknown[], map: (old: number) => number | null): unknown[]
   return out;
 }
 
+/** Boş kısayol çubuğu (yeni oyun ve v2 → v3 göçü). */
+export function emptyHotbarSave(): HotbarSave {
+  return new Hotbar(HOTBAR.slots).toSave();
+}
+
+/**
+ * v2 → v3 (Faz 9): kısayol çubuğu eklendi (boş başlar). Yapı biçimi yalnızca eklemeli değişti (yeni türler,
+ * sandık içeriği); v2 kaydında bunlar bulunmadığından yapılar aynen kalır.
+ */
+function migrateV2toV3(raw: RawSave): RawSave {
+  return { ...raw, hotbar: emptyHotbarSave() };
+}
+
 /**
  * Sürüm `n` kaydını `n + 1`'e çeviren adımlar; bir adım girdisini değiştirmemeli, yeni nesne döndürmelidir.
  * Adım yalnızca yapıyı çevirir (taşınamayan kayıtta `SaveError` fırlatabilir); değerleri doğrulamak
@@ -173,6 +190,7 @@ function mapIds(list: unknown[], map: (old: number) => number | null): unknown[]
  */
 export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   1: migrateV1toV2,
+  2: migrateV2toV3,
 };
 
 /**
@@ -240,6 +258,12 @@ export function parseSave(raw: unknown): SaveGame {
   } catch (error) {
     throw invalid(`yapılar: ${messageOf(error)}`, error);
   }
+  let hotbar: HotbarSave;
+  try {
+    hotbar = Hotbar.parse(save.hotbar, HOTBAR.slots);
+  } catch (error) {
+    throw invalid(`kısayol: ${messageOf(error)}`, error);
+  }
 
   return {
     version: SAVE_FORMAT_VERSION,
@@ -251,6 +275,7 @@ export function parseSave(raw: unknown): SaveGame {
     structures,
     world,
     creatures,
+    hotbar,
   };
 }
 

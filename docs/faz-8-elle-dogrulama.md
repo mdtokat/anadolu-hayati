@@ -1,6 +1,6 @@
 # Faz 8 — Elle doğrulama kılavuzu (Zonguldak)
 
-Bu kılavuz, otomatik testlerin ve başsız tarayıcının **ölçemediği** şeyleri (gerçek FPS, oyun hissi, ses, gerçek fare kilidi) pilot il **Zonguldak** (bölüm 10: diğer 4 il) üzerinde sıraya koyar. Faz 2–7'den kalan açık "elle doğrulanacak" kriterlerin hepsi buraya toplandı ([ROADMAP.md](../ROADMAP.md) Faz 8). Her adımın yanında **ne yapılacağı**, **beklenen sonuç** ve **sonucu yazacağın yer** var. Bitirince sonuçları (geçti / kaldı + kısa not) bana ilet; ROADMAP'teki kutuları ben işaretlerim.
+Bu kılavuz, otomatik testlerin ve başsız tarayıcının **ölçemediği** şeyleri (gerçek FPS, oyun hissi, ses, gerçek fare kilidi) pilot il **Zonguldak** (bölüm 10: diğer 4 il) üzerinde sıraya koyar (bölüm 11: Faz 9 inşa ve ekipman). Faz 2–7'den kalan açık "elle doğrulanacak" kriterlerin hepsi buraya toplandı ([ROADMAP.md](../ROADMAP.md) Faz 8). Her adımın yanında **ne yapılacağı**, **beklenen sonuç** ve **sonucu yazacağın yer** var. Bitirince sonuçları (geçti / kaldı + kısa not) bana ilet; ROADMAP'teki kutuları ben işaretlerim.
 
 Süre: tümü için ~1,5–2 saat; bölümler bağımsızdır, istediğin sırayla ya da yalnızca bir kısmını yapabilirsin.
 
@@ -12,11 +12,12 @@ Süre: tümü için ~1,5–2 saat; bölümler bağımsızdır, istediğin sıray
 
 | Tuş | İş |
 |---|---|
-| `1`–`9`, `0` | `TELEPORTS` noktalarına ışınlan (`1` = Zonguldak merkez, `2` Safranbolu, `3` Amasra, `4` Filyos vadisi, `5` Yenice, `6`–`0` Düzce/Bolu/Abant/Yedigöller/Akçakoca) |
+| `T` + `1`–`9`, `0` | (`T` basılıyken rakam; Faz 9'dan beri değiştiricisiz rakamlar kısayol çubuğunundur) `TELEPORTS` noktalarına ışınlan (`1` = Zonguldak merkez, `2` Safranbolu, `3` Amasra, `4` Filyos vadisi, `5` Yenice, `6`–`0` Düzce/Bolu/Abant/Yedigöller/Akçakoca) |
 | `Shift` + `1`–`9`, `0` | **Bulunduğun ilin yerlerine** ışınlan (il bilinmiyorsa Zonguldak). Zonguldak: `1` Zonguldak merkez, `2` Kozlu, `3` Kilimli, `4` Çatalağzı, `5` Karadeniz Ereğli, `6` Alaplı, `7` Çaycuma, `8` Filyos vadisi, `9` Devrek, `0` Gökçebey. Diğer iller: bölüm 10 |
 | `[` / `]` | Saati 1 saat geri / ileri sar (gece/gündüz denemek için) |
 | `K` | Canı ve suyu sıfırla (ölüm ekranı ve yeniden doğma denemesi) |
 | `P` | Malzeme ver (kamp ateşi, sundurma, 10 dal, 2 kütük) |
+| `O` | İnşa denemesi (Faz 9): çalışma tezgâhı, sandık ve ahşap kulübe ver (ağırlık sınırı kadar; kısayola bağlanır) |
 | `B`, `V` | İl sınırı çizgileri, kamera (1./3. şahıs) |
 
 - **Konsol:** tarayıcıda `F12` → Konsol. `window.__game` oyun nesnesidir. **Hata sayfası/kırmızı hata** görürsen kopyala; her bölümün sonunda "Konsolda hata var mı?" diye soruyorum.
@@ -87,7 +88,7 @@ Zonguldak ormanında (ör. Devrek, Gökçebey, Alaplı çevresi) yürü; gündü
 ## 5. Ölüm, yeniden doğma ve il çerçevesi (Faz 8.1–8.3)
 
 - [ ] `K` ile öl → ölüm ekranı → **Yeniden Doğ**: oyuncu **Zonguldak içinde** güvenli bir noktada doğuyor. 5–6 kez öl: her seferinde Zonguldak (kıyı şeridi dahil)? Hiç Bartın/Karabük/Düzce/Bolu'ya doğmuyor mu?
-- [ ] Başka ile (ör. `7` Bolu merkez, `5` Yenice) ışınlanıp `K` ile öl: yine Zonguldak'ta mı doğuyorsun?
+- [ ] Başka ile (ör. `T+7` Bolu merkez, `T+5` Yenice) ışınlanıp `K` ile öl: yine Zonguldak'ta mı doğuyorsun?
 - [ ] **Yer adı bildirimi** _(8.3)_: `Shift+2` (Kozlu) … `Shift+0`: ışınlanınca ~2 sn sonra yer adı belirip kayboluyor. Yürüyerek bir yere yaklaşınca da çıkıyor mu? Üst üste binme / çok sık çıkma var mı? Oyun başlangıcında ve yüklemede bildirim yok (doğru).
 - [ ] **Il bildirimi:** Zonguldak'tan Karabük/Bartın'a yürürken "…'a girdiniz/hoş geldiniz" çıkıyor.
 - [ ] **Işınlanma yerleri** _(8.2)_: 10 yerin her biri gerçekten adıyla örtüşen bir yere (şehir/ilçe merkezine yakın) mi ışınlıyor? Koordinat yaklaşık; yanlış/yanıltıcı olan: ____________________
@@ -135,7 +136,7 @@ Chrome, Firefox ve Edge'de ayrı ayrı (en azından Chrome).
 
 ## 10. Diğer iller: Bartın, Karabük, Düzce, Bolu (Faz 8'in genişletilmesi)
 
-Zonguldak'ta yapılan yer adı/ışınlanma, yer adı bildirimi ve ekoloji ölçümü diğer 4 ile de uygulandı ([faz-8-iller-olcumler.md](faz-8-iller-olcumler.md)). **Yeniden doğma ve yeni oyun başlangıcı yine yalnızca Zonguldak'tadır** (pilot il kararı değişmedi). `Shift + 1–9, 0`, **bulunduğun ilin** yerlerine ışınlar: önce o ile `1`–`9`/`0` ile git, sonra `Shift`'li tuşları kullan.
+Zonguldak'ta yapılan yer adı/ışınlanma, yer adı bildirimi ve ekoloji ölçümü diğer 4 ile de uygulandı ([faz-8-iller-olcumler.md](faz-8-iller-olcumler.md)). **Yeniden doğma ve yeni oyun başlangıcı yine yalnızca Zonguldak'tadır** (pilot il kararı değişmedi). `Shift + 1–9, 0`, **bulunduğun ilin** yerlerine ışınlar: önce o ile `T` + `1`–`9`/`0` ile git, sonra `Shift`'li tuşları kullan.
 
 | Tuş | Bartın | Karabük | Düzce | Bolu |
 |---|---|---|---|---|
@@ -152,7 +153,7 @@ Zonguldak'ta yapılan yer adı/ışınlanma, yer adı bildirimi ve ekoloji ölç
 
 - [ ] **Yer örtüşmesi:** her yer adıyla örtüşen bir yere (ilçe/yer merkezine yakın) ışınlıyor mu? Koordinatlar yaklaşıktır, özellikle **Çaylıoğlu, Bartın Irmağı, Yörük köyü, Soğanlı** gibi belirsiz adlar için dikkat et. Yanlış/yanıltıcı olanlar: ____________________
 - [ ] **Yer adı bildirimi:** ışınlanınca ~2 sn sonra yer adı çıkıyor; il bildirimiyle üst üste binmiyor.
-- [ ] **Yeniden doğma:** Bolu'da (`7`) `K` ile öl → yine Zonguldak'ta mı doğuyorsun? (Beklenen: evet.)
+- [ ] **Yeniden doğma:** Bolu'da (`T+7`) `K` ile öl → yine Zonguldak'ta mı doğuyorsun? (Beklenen: evet.)
 - [ ] **Gece soğuğu** (`]` ile saati gece yap, ateşsiz): **Karabük ve Bolu yüksektir** (medyan rakım ≈ 930 m / ≈ 1160 m); Zonguldak'ta yalnızca ≥ 600 m'de hasar varken burada medyan yerde de can kaybı olur (Bolu'da bir gece sonunda ≈ 68, en yüksek yerde ≈ 1). Ateş + barınak gerçekten gerekli hissettiriyor mu? Çok mu zorlayıcı? (Karar: ☐ olduğu gibi ☐ `CLIMATE` hafifletilsin.)
 - [ ] **Bolu yaylası:** yürürken ağaç yoğunluğu düşük (yapraklı ağaç az, iğne yapraklı baskın; çalı %24 ve tarım %10). Hâlâ orman gibi hissediyor mu? Yenebilir bitki biraz daha seyrek (medyan ≈ 19 m): rahatsız ediyor mu?
 - [ ] **Performans:** Bolu'daki Köroğlu zirvesi (Faz 7: en kötü 176 draw call) ve Abant/Yedigöller çevresinde FPS (bölüm 1 tablosuna ekle). Faz 7 elle doğrulama borcu burada: ___ FPS
@@ -161,3 +162,18 @@ Zonguldak'ta yapılan yer adı/ışınlanma, yer adı bildirimi ve ekoloji ölç
 ## Sonuçları iletme
 
 Doldurduğun kutuları ve notları (ör. "FPS tablosu şöyle, 4. bölümde yiyecek çok bol, azalt") mesaj olarak yaz. Ben: geçenleri ROADMAP'te `[x]` yaparım, kalanları ayrı alt görevlere bölerim (ayar değişikliği gerekiyorsa ilgili testleri yeniden çalıştırıp kaydederim).
+
+## 11. İnşa, ekipman ve kısayol çubuğu (Faz 9)
+
+Dev tuşu `O` tezgâh, sandık ve kulübe verir (kısayola bağlar); `P` ateş/sundurma + dal/kütük verir. Gerçek akışı da dene: taş balta → tezgâh (her yerde) → tezgâhın yanında sandık, kulübe, kürk pelerin.
+
+- [ ] **Kısayol çubuğu** (ekranın altı, 1–8): envanterde (`I`) eşyayı seç → "Kısayol: 1…8" ile bağla. Rakama basınca silah elde kalıyor mu ("Elde: Taş Mızrak")? Yiyecek tuşu bir tane yiyor mu? Aynı tuşa tekrar basmak eli boşaltıyor mu? Fare tekerleği seçimi kaydırıyor mu (dokunmatik yüzeyde çok hızlı mı)?
+- [ ] **Silah seçimi:** elde mızrak / balta / bıçak varken sol tık gerçekten o silahla mı vuruyor (menzil, hız farkı hissediliyor mu)? El boşken en iyi silah kullanılır (eski davranış) — kafa karıştırıyor mu?
+- [ ] **Yerleştirme:** kısayoldan yapı seçince hayalet açılıyor; `R` 90° döndürüyor; sol tık kuruyor, kurulunca el boşalıyor. Kulübe 4,6 m ileriye konuyor: kurarken oyuncu duvarın içinde kalmıyor mu?
+- [ ] **Kulübe:** kapıdan rahat giriliyor mu (1,2 m)? Duvarlar oyuncuyu durduruyor mu (yamaçta duvar altında boşluk / havada kalan köşe var mı)? İçeride HUD "Kulübede" diyor mu; soğuk gecede (`]`) vücut ısısı sundurmadakinden iyi mi? Düz yer bulmak çok mu zor (kara alanının ≈ %21'i uygun)?
+- [ ] **Sandık:** `E` ile açılıyor; tıklayınca yığın karşı tarafa geçiyor; "Hepsini koy / al" çalışıyor; kaydedip yükleyince içerik duruyor mu?
+- [ ] **Tezgâh:** yanındayken (`I`) "Yakında: Çalışma Tezgâhı" yazıyor ve sandık/kulübe/pelerin üretilebiliyor; uzaklaşınca "Çalışma Tezgâhı yanında üretilir".
+- [ ] **Sökme:** yapıya bakıp `X` basılı tut (1,2 sn): yapı eşya olarak geri geliyor (kamp ateşinden yalnızca 4 taş); dolu sandık sökülmüyor ("Önce sandık boşaltılmalı").
+- [ ] **Meşale:** gece elde (kısayolda seçili) meşale çevreyi yeterince aydınlatıyor mu? FPS etkisi: ___
+- [ ] **Kürk pelerin:** Bolu/Karabük yükseklerinde (`T+7`) ateşsiz bir gecede fark ediliyor mu (+2,5 °C)?
+- Notlar: ____________________

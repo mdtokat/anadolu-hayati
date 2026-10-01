@@ -45,11 +45,17 @@ export function bodyTempLabel(bodyTempC: number): string {
   }
 }
 
-/** Ateş ısısı ve barınak için kısa durum yazısı ("Ateş başında · Barınakta"); etki yoksa boş. */
-export function exposureLabel(warmthC: number, sheltered: boolean): string {
+/**
+ * Ateş ısısı ve barınak için kısa durum yazısı ("Ateş başında · Barınakta"; kulübede "Kulübede"); etki yoksa boş.
+ */
+export function exposureLabel(
+  warmthC: number,
+  sheltered: boolean,
+  shelter: 'lean_to' | 'hut' | null = null,
+): string {
   const parts: string[] = [];
   if (warmthC > 0) parts.push('Ateş başında');
-  if (sheltered) parts.push('Barınakta');
+  if (sheltered) parts.push(shelter === 'hut' ? 'Kulübede' : 'Barınakta');
   return parts.join(' · ');
 }
 

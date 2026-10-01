@@ -3,11 +3,11 @@ import { Inventory } from '../items/Inventory';
 import { StructureSet } from '../placement/structures';
 import type { Vec3 } from '../player/movement';
 import { initialVitals } from '../survival/vitals';
-import { SAVE_FORMAT_VERSION, type SaveGame } from './saveGame';
+import { SAVE_FORMAT_VERSION, emptyHotbarSave, type SaveGame } from './saveGame';
 
 /**
  * Yeni oyunun başlangıç durumunu kayıt biçiminde verir: oyuncu `spawn`'da, göstergeler dolu, saat
- * `CLOCK.startHour`, envanter/yapılar/tükenen nesneler boş. "Yeni Oyun" bu kaydı `Game.loadSave` ile uygular;
+ * `CLOCK.startHour`, envanter/yapılar/tükenen nesneler/kısayol çubuğu boş. "Yeni Oyun" bu kaydı `Game.loadSave` ile uygular;
  * böylece sıfırlama, yüklemeyle aynı (testli) yoldan geçer ve başlangıç durumu tek yerde tanımlı kalır.
  */
 export function createNewGameSave(
@@ -32,5 +32,6 @@ export function createNewGameSave(
     structures: new StructureSet().toJSON(),
     world: { handDone: [], axeDone: [], removed: [] },
     creatures: { killed: [] },
+    hotbar: emptyHotbarSave(),
   };
 }

@@ -26,6 +26,8 @@ export interface SurvivalContext {
   warmthC?: number;
   /** Barınak altında mı? Yoksa `false`. */
   sheltered?: boolean;
+  /** Barınağın türü (Faz 9; kulübe daha iyi korur). */
+  shelter?: 'lean_to' | 'hut' | null;
 }
 
 /** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */
@@ -107,6 +109,7 @@ export class SurvivalSystem {
         drinking: this.drinkingNow,
         warmthC: context.warmthC,
         sheltered: context.sheltered,
+        shelter: context.shelter,
       },
       dt,
     );

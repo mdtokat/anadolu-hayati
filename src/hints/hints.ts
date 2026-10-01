@@ -7,12 +7,12 @@ export type HintId = (typeof HINT_IDS)[number];
 /** İpucu metinleri (tek yerde; tuşlar `config.ts` → `INPUT.bindings` ile uyumlu). */
 export const HINT_TEXT: Readonly<Record<HintId, string>> = {
   controls:
-    'Yürü: W A S D · Bak: fare · Koş: Shift · Zıpla: Boşluk · Envanter: I · Etkileşim: E (basılı tut)',
+    'Yürü: W A S D · Bak: fare · Koş: Shift · Zıpla: Boşluk · Envanter: I · Etkileşim: E (basılı tut) · Kısayol: 1–8 / tekerlek',
   water: 'Susuyorsun: bir nehir, dere ya da göl kenarına git ve E tuşunu basılı tutarak su iç.',
   food: 'Acıkıyorsun: böğürtlen, fındık, kestane ya da mantar topla (E basılı tut), F ile ye.',
   fire: 'Hava soğuyor: dal ve kütük topla, I ile taş balta üret, C ile kamp ateşi kur; yakıtı E ile ekle.',
   shelter:
-    'Sundurma (G) soğuğu azaltır. Ateşin yanında ve barınakta hareketsiz durarak dinlen: can ve enerji daha hızlı dolar.',
+    'Sundurma (G) soğuğu azaltır; çalışma tezgâhının yanında üretilen ahşap kulübe daha iyi korur. Ateşin yanında ve barınakta hareketsiz durarak dinlen: can ve enerji daha hızlı dolar.',
   hunt: 'Yakında av hayvanı var: sol tık saldırır (taş balta ya da mızrak daha güçlü); leşi E basılı tutarak kes, ateşte pişir. Yaban domuzu yumrukla tehlikelidir, ayıdan uzak dur.',
 };
 

@@ -15,7 +15,7 @@ export const CREATURE_NAMES: Readonly<Record<CreatureKind, string>> = {
 /** Leş kesme ipucu: "E (basılı tut): Karacayı kes" / "Envanter dolu". */
 export function butcherPrompt(offer: ButcherOffer): string {
   if (offer.status === 'full') return 'Envanter dolu';
-  const tool = offer.withAxe ? ' (baltayla)' : '';
+  const tool = offer.tool === 'bone_knife' ? ' (bıçakla)' : offer.withAxe ? ' (baltayla)' : '';
   return `E (basılı tut): ${CREATURE_NAMES[offer.kind]} leşini kes${tool}`;
 }
 
