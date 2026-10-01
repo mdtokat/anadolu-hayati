@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Overture Maps `base/land_cover` katmanından (ESA WorldCover 2021 türevi) bölgenin arazi örtüsünü çeker.
 
-Kullanım:  python fetch_landcover.py [bölge-id]      (varsayılan: zonguldak-bartin-karabuk)
+Kullanım:  python fetch_landcover.py [dünya-id]      (varsayılan: bati-karadeniz)
 Çıktı:     tools/raw/landcover/<bölge-id>.parquet    (WGS84; sütunlar: subtype, geometry [WKB]; commit edilmez)
 
 Overture veri kümesi küresel ve yüzlerce GB'dır; Parquet dosyaları HTTP Range istekleriyle okunur
@@ -24,13 +24,13 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from fetch_dem import load_region
+from fetch_dem import load_world
 from fetch_water import BBox, BUCKET_URL, OVERTURE_RELEASE, list_parquet_files, row_groups_for_bbox
 from rangefile import HttpRangeFile
 
 TOOLS = Path(__file__).resolve().parent
 RAW_LANDCOVER = TOOLS / "raw" / "landcover"
-DEFAULT_REGION = "zonguldak-bartin-karabuk"
+DEFAULT_WORLD = "bati-karadeniz"
 LANDCOVER_PREFIX = "release/{release}/theme=base/type=land_cover/"
 COLUMNS = ["subtype", "geometry", "bbox", "cartography"]
 #: Overture arazi örtüsünü çoklu detay düzeyinde tutar: `cartography.min_zoom` < 8 olan satırlar gezegen ölçeğinde
@@ -95,15 +95,15 @@ def extract_landcover(
 
 
 def main(argv: list[str]) -> int:
-    region_id = argv[1] if len(argv) > 1 else DEFAULT_REGION
-    bbox = tuple(load_region(region_id)["bbox"])
-    print(f"{region_id}: Overture {OVERTURE_RELEASE} arazi örtüsü (ESA WorldCover), bbox {bbox}")
+    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
+    bbox = tuple(load_world(world_id)["bbox"])
+    print(f"{world_id}: Overture {OVERTURE_RELEASE} arazi örtüsü (ESA WorldCover), bbox {bbox}")
 
     keys = list_parquet_files(LANDCOVER_PREFIX.format(release=OVERTURE_RELEASE))
     print(f"  {len(keys)} dosya taranıyor (yalnızca altbilgiler ve ilgili satır grupları indirilir)")
     table, downloaded = extract_landcover(bbox, keys)  # type: ignore[arg-type]
 
-    dest = RAW_LANDCOVER / f"{region_id}.parquet"
+    dest = RAW_LANDCOVER / f"{world_id}.parquet"
     dest.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(table, dest, compression="zstd")
     counts = Counter(table.column("subtype").to_pylist())

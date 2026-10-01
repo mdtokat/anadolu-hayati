@@ -1,4 +1,4 @@
-# Dünya tanımı — Faz 7 veri hattının (build_world.py) girdisi. Eski regions.yaml 7.10'a kadar durur.
+# Dünya tanımı — Faz 7 veri hattının (build_world.py) girdisi.
 # Çıktı: public/data/world/<id>/ (world.json + tiles/ + provinces.geojson + features.json; bkz. CLAUDE.md "Bölge Veri Formatı").
 # Kafes (WORLD.lattice), karo boyu ve orijin sözleşmedir (src/config.ts → WORLD, tools/worldlib.py); burada tanımlanmaz.
 worlds:

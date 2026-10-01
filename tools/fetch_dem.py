@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bir bölge için Copernicus GLO-30 DEM karolarını indirir (AWS Open Data, anonim).
 
-Kullanım:  python fetch_dem.py [bölge-id]      (varsayılan: zonguldak-bartin-karabuk)
+Kullanım:  python fetch_dem.py [dünya-id]      (varsayılan: bati-karadeniz)
 Çıktı:     tools/raw/dem/<karo>.tif             (tools/raw/ .gitignore'dadır, commit edilmez)
 
 Lisans/atıf: Copernicus DEM GLO-30 — © DLR e.V. 2010–2014 ve © Airbus Defence and Space GmbH
@@ -20,25 +20,22 @@ import regionlib
 
 TOOLS = Path(__file__).resolve().parent
 RAW_DEM = TOOLS / "raw" / "dem"
-DEFAULT_REGION = "zonguldak-bartin-karabuk"
+DEFAULT_WORLD = "bati-karadeniz"
 
 
-def load_region(region_id: str) -> dict:
-    """Bölge (regions.yaml) ya da dünya (world.yaml) tanımını döndürür; ikisi de `bbox` içerir."""
-    regions = yaml.safe_load((TOOLS / "regions.yaml").read_text(encoding="utf-8"))["regions"]
+def load_world(world_id: str) -> dict:
+    """Dünya tanımını (world.yaml) döndürür; `bbox` içerir."""
     worlds = yaml.safe_load((TOOLS / "world.yaml").read_text(encoding="utf-8"))["worlds"]
-    if region_id in worlds:
-        return worlds[region_id]
-    if region_id in regions:
-        return regions[region_id]
-    raise SystemExit(f"Bilinmeyen bölge/dünya: {region_id!r}. Tanımlılar: {', '.join([*worlds, *regions])}")
+    if world_id not in worlds:
+        raise SystemExit(f"Bilinmeyen dünya: {world_id!r}. Tanımlılar: {', '.join(worlds)}")
+    return worlds[world_id]
 
 
 def main(argv: list[str]) -> int:
-    region_id = argv[1] if len(argv) > 1 else DEFAULT_REGION
-    region = load_region(region_id)
-    tiles = regionlib.tiles_for_bbox(*region["bbox"])
-    print(f"{region_id}: {len(tiles)} karo gerekli")
+    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
+    world = load_world(world_id)
+    tiles = regionlib.tiles_for_bbox(*world["bbox"])
+    print(f"{world_id}: {len(tiles)} karo gerekli")
 
     for name in tiles:
         url = regionlib.tile_url(name)

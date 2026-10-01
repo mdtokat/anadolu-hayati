@@ -204,28 +204,3 @@ def test_lattice_grid_matches_regionlib_grid_interface():
     legacy = regionlib.Grid(1588, 1176, 100, *wl.ORIGIN_UTM)
     for attr in ("width", "height", "cell", "origin_e", "origin_n", "left", "top", "right", "bottom"):
         assert getattr(g, attr) == getattr(legacy, attr), attr
-
-
-def test_compare_with_legacy_detects_within_and_beyond_one_step():
-    rng = np.random.default_rng(11)
-    legacy_extent = wl.Extent(0, 0, 40, 30)
-    new_extent = wl.Extent(-128, 0, 300, 100)
-    elevation = rng.uniform(0, 1990, size=(30, 40))
-    legacy_h = wl.quantize_with_range(elevation, 0.0, 1996.0)
-    new_h = np.zeros((new_extent.rows, new_extent.cols), np.uint16)
-    new_h[0:30, 128:168] = wl.quantize_with_range(elevation, 0.0, 2500.0)
-    ok = wl.compare_with_legacy(new_h, new_extent, 2500.0, legacy_h, 1996.0, legacy_extent)
-    assert ok["within_one_step"] and ok["max_diff_m"] <= ok["step_m"]
-    new_h[5, 130 + 3] += 200  # ≈ 7,6 m sapma
-    bad = wl.compare_with_legacy(new_h, new_extent, 2500.0, legacy_h, 1996.0, legacy_extent)
-    assert not bad["within_one_step"]
-
-
-def test_compare_with_legacy_rejects_area_outside_world():
-    import pytest
-
-    with pytest.raises(wl.WorldDataError):
-        wl.compare_with_legacy(
-            np.zeros((10, 10), np.uint16), wl.Extent(0, 0, 10, 10), 100.0, np.zeros((30, 40), np.uint16), 100.0,
-            wl.Extent(0, 0, 40, 30),
-        )

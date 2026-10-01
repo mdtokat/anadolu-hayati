@@ -4,7 +4,7 @@ geopandas
 numpy
 pyproj
 shapely
-# regions.yaml okumak için
+# world.yaml okumak için
 pyyaml
 # Overture Parquet dosyalarını okumak için (fetch_water.py)
 pyarrow

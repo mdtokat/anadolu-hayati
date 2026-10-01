@@ -342,35 +342,3 @@ def grid_for_lattice(
     cols = raw.col0 + raw.cols - col0
     rows = raw.row0 + raw.rows - row0
     return LatticeGrid(Extent(col0, row0, cols, rows))
-
-
-def compare_with_legacy(
-    new_heights: np.ndarray,
-    new_extent: Extent,
-    new_max: float,
-    legacy_heights: np.ndarray,
-    legacy_max: float,
-    legacy_extent: Extent = Extent(0, 0, 1588, 1176),
-) -> dict:
-    """Yeni dünyanın eski alana düşen kısmını eski bölgeyle (metre cinsinden) karşılaştırır.
-
-    İki nicemleme farklı aralıklarla yuvarlandığı için fark ≤ 1 nicem (yeni aralıkta `new_max / 65535` m) olmalıdır.
-    Dönüş: {"max_diff_m", "step_m", "within_one_step", "differing_cells"}.
-    """
-    c0 = legacy_extent.col0 - new_extent.col0
-    r0 = legacy_extent.row0 - new_extent.row0
-    if c0 < 0 or r0 < 0 or c0 + legacy_extent.cols > new_extent.cols or r0 + legacy_extent.rows > new_extent.rows:
-        raise WorldDataError("eski alan yeni dünyanın içinde değil")
-    window = new_heights[r0 : r0 + legacy_extent.rows, c0 : c0 + legacy_extent.cols]
-    if window.shape != legacy_heights.shape:
-        raise WorldDataError(f"eski heightmap boyutu {legacy_heights.shape}, pencere {window.shape}")
-    new_m = window.astype(np.float64) / UINT16_MAX * new_max
-    old_m = legacy_heights.astype(np.float64) / UINT16_MAX * legacy_max
-    diff = np.abs(new_m - old_m)
-    step = new_max / UINT16_MAX
-    return {
-        "max_diff_m": float(diff.max()),
-        "step_m": step,
-        "within_one_step": bool(diff.max() <= step + 1e-9),
-        "differing_cells": int((diff > 1e-9).sum()),
-    }

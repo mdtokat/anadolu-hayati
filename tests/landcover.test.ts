@@ -1,13 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { HORIZONTAL_SCALE } from '../src/config';
 import { classesMatch, LANDCOVER_CLASSES, LANDCOVER_VALUE } from '../src/data/landcover';
-import {
-  loadRegion,
-  parseLandCover,
-  parseMeta,
-  RegionDataError,
-  type RegionData,
-} from '../src/data/region';
+import { parseLandCover, parseMeta, RegionDataError, type RegionData } from '../src/data/region';
 import { latLonToGame } from '../src/world/geo';
 import { LandCoverMap } from '../src/world/LandCoverMap';
 import { loadRealRegion } from './helpers/realRegion';
@@ -83,33 +77,6 @@ describe('parseLandCover', () => {
   });
 });
 
-describe('loadRegion landcover.bin', () => {
-  it('meta.landcover varsa dosyayı ister ve yükler; yoksa istemez', async () => {
-    const requested: string[] = [];
-    const make = (metaJson: unknown) => async (url: string) => {
-      requested.push(url.split('/').pop() as string);
-      const name = url.split('/').pop();
-      return {
-        ok: true,
-        status: 200,
-        json: async () =>
-          name === 'meta.json' ? metaJson : { type: 'FeatureCollection', features: [] },
-        arrayBuffer: async () =>
-          name === 'heightmap.bin' ? new ArrayBuffer(16) : new Uint8Array(8).buffer,
-      };
-    };
-
-    const withCover = await loadRegion('test', '/', make(VALID_META));
-    expect(requested).toContain('landcover.bin');
-    expect(withCover.landcover).toHaveLength(8);
-
-    requested.length = 0;
-    const noCover = await loadRegion('test', '/', make(withoutLandCover()));
-    expect(requested).not.toContain('landcover.bin');
-    expect(noCover.landcover).toBeNull();
-  });
-});
-
 describe('LandCoverMap', () => {
   // 4×2 ızgara, hücre 100 m gerçek = 2 oyun m; satır 0 kuzeyde (z negatif)
   //   kuzey: none forest shrub grass
@@ -152,7 +119,7 @@ describe('LandCoverMap', () => {
   });
 });
 
-describe('gerçek bölge arazi örtüsü (public/data/regions)', () => {
+describe('gerçek dünya arazi örtüsü (public/data/world)', () => {
   let region: RegionData;
   let map: LandCoverMap;
 
