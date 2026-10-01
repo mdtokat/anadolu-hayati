@@ -11,6 +11,7 @@ import type { Ghost } from '../placement/PlacementController';
 import {
   STRUCTURE_KINDS,
   isLit,
+  placementKey,
   type StructureId,
   type StructureKind,
   type StructureSet,
@@ -27,6 +28,8 @@ export interface StructureLayerStats {
 }
 
 interface Node {
+  /** Yerleşim imzası (`placementKey`): kayıt yüklenince aynı kimlikli başka yapı yeniden kurulur. */
+  key: string;
   root: Group;
   /** Yalnızca kamp ateşinde. */
   flame: Mesh | null;
@@ -35,10 +38,10 @@ interface Node {
 const FIRE = STRUCTURE_LOOK.fire;
 
 /**
- * Yerleştirilmiş yapıların (kamp ateşi, sundurma) ve yerleştirme hayaletinin çizimi. Her yapı kendi küçük
+ * Yerleştirilmiş yapıların (kamp ateşi, sundurma; Faz 9: tezgâh, sandık, kulübe) ve yerleştirme hayaletinin çizimi. Her yapı kendi küçük
  * `Group`'udur (geometri türe göre paylaşılır); yanık ateşte alev görünür ve en yakın `lightPool` ateşe
- * sabit bir `PointLight` havuzundan ışık atanır (ışık sayısı değişmez: shader yeniden derlenmez). Yapıların
- * collider'ı yoktur. Kaynakları `dispose()` eder.
+ * sabit bir `PointLight` havuzundan ışık atanır (ışık sayısı değişmez: shader yeniden derlenmez). Katı yapıların
+ * collider'ları ayrıdır (`StructureColliders`). Kaynakları `dispose()` eder.
  */
 export class StructureLayer {
   readonly group = new Group();
@@ -69,10 +72,9 @@ export class StructureLayer {
   private assigned = 0;
 
   constructor(private readonly structures: StructureSet) {
-    this.geometries = {
-      campfire: buildStructureGeometry('campfire'),
-      lean_to: buildStructureGeometry('lean_to'),
-    };
+    this.geometries = Object.fromEntries(
+      STRUCTURE_KINDS.map((kind) => [kind, buildStructureGeometry(kind)]),
+    ) as Record<StructureKind, BufferGeometry>;
     for (let i = 0; i < FIRE.lightPool; i++) {
       const light = new PointLight(FIRE.lightColor, 0, FIRE.distance, 2);
       this.lights.push(light);
@@ -131,9 +133,14 @@ export class StructureLayer {
     this.litCount = 0;
     for (const s of this.structures.all()) {
       present.add(s.id);
+      const key = placementKey(s);
       let node = this.nodes.get(s.id);
+      if (node && node.key !== key) {
+        node.root.removeFromParent();
+        node = undefined;
+      }
       if (!node) {
-        node = this.createNode(s.kind, s.x, s.y, s.z, s.yaw);
+        node = this.createNode(key, s.kind, s.x, s.y, s.z, s.yaw);
         this.nodes.set(s.id, node);
       }
       const lit = isLit(s);
@@ -147,7 +154,14 @@ export class StructureLayer {
     }
   }
 
-  private createNode(kind: StructureKind, x: number, y: number, z: number, yaw: number): Node {
+  private createNode(
+    key: string,
+    kind: StructureKind,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+  ): Node {
     const root = new Group();
     root.position.set(x, y, z);
     root.rotation.y = yaw;
@@ -158,7 +172,7 @@ export class StructureLayer {
       root.add(flame);
     }
     this.group.add(root);
-    return { root, flame };
+    return { key, root, flame };
   }
 
   /** Yanık ateşleri odağa yakınlığa göre sıralar; en yakın `lightPool` tanesine ışık verir, kalanları söndürür. */

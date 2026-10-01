@@ -215,3 +215,49 @@ describe('StructureSystem', () => {
     expect(out).toHaveBeenCalledWith({ id: fire.id });
   });
 });
+
+describe('PlacementController: Faz 9 (döndürme, büyük yapılar)', () => {
+  it('R hayaleti 90° döndürür; yeni hedeflemede dönüş sıfırlanır; hedeflemiyorken etkisiz', () => {
+    const { controller, inventory } = setup();
+    expect(controller.rotate()).toBe(false);
+    inventory.add('storage_chest', 1);
+    controller.toggle('storage_chest');
+    controller.update(NORTH);
+    expect(controller.ghost?.yaw).toBeCloseTo(0, 9);
+    expect(controller.rotate()).toBe(true);
+    expect(controller.ghost?.yaw).toBeCloseTo(Math.PI / 2, 9);
+    controller.rotate();
+    controller.rotate();
+    controller.rotate();
+    expect(controller.ghost?.yaw).toBeCloseTo(0, 9);
+    controller.rotate();
+    const placed = controller.confirm();
+    expect(placed.ok && placed.structure.yaw).toBeCloseTo(Math.PI / 2, 9);
+    inventory.add('storage_chest', 1);
+    controller.toggle('storage_chest');
+    controller.update(NORTH);
+    expect(controller.ghost?.yaw).toBeCloseTo(0, 9);
+  });
+
+  it('kulübe oyuncunun daha ilerisine konur (oyuncu duvarların içinde kalmasın) ve kurulur', () => {
+    const { controller, inventory, structures } = setup();
+    inventory.add('wooden_hut', 1);
+    controller.toggle('wooden_hut');
+    controller.update(NORTH);
+    const aim = PLACEMENT.kinds.wooden_hut.aimDistance;
+    expect(controller.ghost?.z).toBeCloseTo(-aim, 6);
+    expect(aim).toBeGreaterThan(PLACEMENT.kinds.wooden_hut.radius + 1);
+    expect(controller.confirm().ok).toBe(true);
+    expect(structures.all()[0]?.kind).toBe('wooden_hut');
+  });
+
+  it('kulübe engebeli ayak izine kurulmaz (merkez eğimi düşük olsa da)', () => {
+    // Merkezde düz, 1,5 m ötede basamak: yerel eğim düşük ama ayak izi engebeli.
+    const step = (x: number, z: number) => (Math.hypot(x, z + 4.6) > 1.5 ? 1.5 : 0) + FLAT_Y;
+    const { controller, inventory } = setup({ heightAt: step });
+    inventory.add('wooden_hut', 1);
+    controller.toggle('wooden_hut');
+    controller.update(NORTH);
+    expect(controller.ghost).toMatchObject({ valid: false, reason: 'too_steep' });
+  });
+});

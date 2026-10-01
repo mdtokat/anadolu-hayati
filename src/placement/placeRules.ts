@@ -14,6 +14,56 @@ export type PlaceFailure = 'too_far' | 'in_sea' | 'too_steep' | 'near_water' | '
 export type PlaceCheck =
   { ok: true; y: number; slopeDeg: number } | { ok: false; reason: PlaceFailure };
 
+type KindSpec = {
+  maxSlopeDeg: number;
+  radius: number;
+  aimDistance?: number;
+  maxReach?: number;
+  maxRelief?: number;
+  reliefRadius?: number;
+};
+
+/** Ayak izi engebesi için örneklenen yön sayısı (çember üzerinde eşit aralıklı). */
+const RELIEF_SAMPLES = 8;
+
+/** (x, z) çevresinde `radius` çemberindeki zeminin merkeze göre en büyük mutlak yükseklik farkı (oyun m). */
+export function footprintRelief(
+  heightAt: (x: number, z: number) => number,
+  x: number,
+  z: number,
+  radius: number,
+): number {
+  const center = heightAt(x, z);
+  let relief = 0;
+  for (let i = 0; i < RELIEF_SAMPLES; i++) {
+    const a = (i / RELIEF_SAMPLES) * Math.PI * 2;
+    relief = Math.max(
+      relief,
+      Math.abs(heightAt(x + Math.cos(a) * radius, z + Math.sin(a) * radius) - center),
+    );
+  }
+  return relief;
+}
+
+function specOf(kind: StructureKind): KindSpec {
+  return PLACEMENT.kinds[kind] as KindSpec;
+}
+
+/** Hayaletin oyuncunun önüne konduğu yatay uzaklık (oyun m): büyük yapılarda daha ileri (Faz 9). */
+export function aimDistanceOf(kind: StructureKind): number {
+  return specOf(kind).aimDistance ?? PLACEMENT.aimDistance;
+}
+
+/** Oyuncu ile hedef arasındaki en büyük yatay uzaklık (oyun m). */
+export function maxReachOf(kind: StructureKind): number {
+  return specOf(kind).maxReach ?? PLACEMENT.maxReach;
+}
+
+/** Yapının kaplama yarıçapı (oyun m; aralık kuralı ve sökme/odak menzili). */
+export function radiusOf(kind: StructureKind): number {
+  return specOf(kind).radius;
+}
+
 /**
  * Zemin eğimi (derece, oyun uzayı): hedef çevresinde ±adım örneklenen yüksekliklerin merkezi farkı.
  * `HeightSource` yalnızca yükseklik verdiği için dünyadan bağımsız hesaplanır.
@@ -30,8 +80,8 @@ export function slopeDegAt(
 }
 
 /**
- * Yapı (`target`) konumuna konabilir mi? Sırayla: erişim, deniz/kıyı, eğim, tatlı su, başka yapıya
- * yakınlık. Geçerliyse zemin yüksekliği (`y`) ve eğim döner.
+ * Yapı (`target`) konumuna konabilir mi? Sırayla: erişim, deniz/kıyı, eğim (büyük yapıda ayak izi engebesi de),
+ * tatlı su, başka yapıya yakınlık. Geçerliyse zemin yüksekliği (`y`) ve eğim döner.
  */
 export function validatePlacement(
   kind: StructureKind,
@@ -39,8 +89,8 @@ export function validatePlacement(
   player: { x: number; z: number },
   ctx: PlaceContext,
 ): PlaceCheck {
-  const spec = PLACEMENT.kinds[kind];
-  if (Math.hypot(target.x - player.x, target.z - player.z) > PLACEMENT.maxReach) {
+  const spec = specOf(kind);
+  if (Math.hypot(target.x - player.x, target.z - player.z) > maxReachOf(kind)) {
     return { ok: false, reason: 'too_far' };
   }
 
@@ -49,6 +99,13 @@ export function validatePlacement(
 
   const slope = slopeDegAt(ctx.heightAt, target.x, target.z);
   if (slope > spec.maxSlopeDeg) return { ok: false, reason: 'too_steep' };
+  if (
+    spec.maxRelief !== undefined &&
+    footprintRelief(ctx.heightAt, target.x, target.z, spec.reliefRadius ?? spec.radius) >
+      spec.maxRelief
+  ) {
+    return { ok: false, reason: 'too_steep' };
+  }
 
   if (ctx.nearFreshWater?.(target.x, target.z)) return { ok: false, reason: 'near_water' };
 

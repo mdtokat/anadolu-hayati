@@ -21,6 +21,9 @@ export function sampleSave(): SaveGame {
   const structures = new StructureSet();
   structures.add('campfire', 12.5, 3, -40, 1.2);
   structures.add('lean_to', 20, 3.5, -38, 0);
+  const chest = structures.add('storage_chest', 15, 3.2, -44, 0.5);
+  structures.storageOf(chest.id)?.add('log', 2);
+  structures.add('wooden_hut', 30, 3.6, -30, 1.57);
   return {
     version: SAVE_FORMAT_VERSION,
     savedAt: '2026-10-01T09:30:00.000Z',
@@ -41,5 +44,6 @@ export function sampleSave(): SaveGame {
       removed: [SAMPLE_IDS.tree],
     },
     creatures: { killed: [{ cell: SAMPLE_IDS.cell, remainingSeconds: 411.5 }] },
+    hotbar: { slots: ['stone_axe', null, 'campfire', null, null, null, null, null], selected: 0 },
   };
 }

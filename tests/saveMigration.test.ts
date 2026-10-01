@@ -9,6 +9,7 @@ import { createRegionCreatureTerrain } from '../src/creatures/regionTerrain';
 import { cellKey, cellOf, makeSpawnGrid } from '../src/creatures/spawn';
 import type { RegionData } from '../src/data/region';
 import { GatherSystem } from '../src/interaction/gather';
+import { Hotbar } from '../src/items/hotbar';
 import { Inventory } from '../src/items/Inventory';
 import { StructureSet } from '../src/placement/structures';
 import { MemoryBackend } from '../src/save/backends';
@@ -88,20 +89,24 @@ function makeTargets() {
     structures: new StructureSet(),
     gather,
     creatures,
+    hotbar: new Hotbar(),
   };
   return { targets, gather, creatures, state };
 }
 
 describe('kayıt v1 → v2 göçü (yapı)', () => {
-  it('fixture gerçekten v1 ve geçerli sürüm 2', () => {
+  it('fixture gerçekten v1 ve geçerli sürüm 3 (v1 → v2 → v3 zinciri)', () => {
     expect(V1.version).toBe(1);
     expect(V1.regionId).toBe(WORLD.legacyRegionId);
-    expect(SAVE_FORMAT_VERSION).toBe(2);
+    expect(SAVE_FORMAT_VERSION).toBe(3);
   });
 
   it('bölge kimliği dünya kimliğine, nesne ve hücre kimlikleri mutlak anahtara çevrilir', () => {
     const save = parseSave(clone(V1));
-    expect(save.version).toBe(2);
+    expect(save.version).toBe(SAVE_FORMAT_VERSION);
+    // v2 → v3 (Faz 9): kısayol çubuğu boş eklenir.
+    expect(save.hotbar.selected).toBeNull();
+    expect(save.hotbar.slots.every((id) => id === null)).toBe(true);
     expect(save.regionId).toBe(WORLD.id);
 
     const byOld = new Map(EXPECT.props.map((p) => [p.id, migratedId(p)]));
@@ -175,7 +180,7 @@ describe('kayıt v1 → v2 göçü (yapı)', () => {
     expect(() => applySave(other, targets)).toThrow(/başka bir dünyaya/);
   });
 
-  it('SaveStore: depoda kalmış v1 kayıt listelenir ve yüklenince v2 olur', async () => {
+  it('SaveStore: depoda kalmış v1 kayıt listelenir ve yüklenince güncel sürüme taşınır', async () => {
     const backend = new MemoryBackend();
     await backend.put('auto', clone(V1));
     const store = new SaveStore(backend);
@@ -183,7 +188,7 @@ describe('kayıt v1 → v2 göçü (yapı)', () => {
     expect(auto?.status).toBe('ok');
     expect(auto && auto.status === 'ok' ? auto.summary.regionId : null).toBe(WORLD.id);
     const loaded = await store.load('auto');
-    expect(loaded?.version).toBe(2);
+    expect(loaded?.version).toBe(SAVE_FORMAT_VERSION);
     expect(latestOk(await store.list())).toBe('auto');
   });
 });

@@ -2,6 +2,7 @@ import './ui.css';
 import { COMBAT_HUD, INTERACT } from '../config';
 import type { VitalsState } from '../survival/vitals';
 import { defenseLabel, type HitMarkerKind } from './combatFormat';
+import type { HotbarSlotView } from './hotbarView';
 import {
   bodyTempLabel,
   exposureLabel,
@@ -39,6 +40,8 @@ export interface SurvivalHudInfo {
   /** Yakındaki ateşlerin ısıtması (°C) ve barınak altında olma durumu. */
   warmthC: number;
   sheltered: boolean;
+  /** Barınak türü (Faz 9: kulübe ayrı yazılır). */
+  shelter?: 'lean_to' | 'hut' | null;
   /** Giysilerin hasar azaltma oranı (0–1); yoksa 0. */
   defense?: number;
 }
@@ -69,6 +72,9 @@ export class Hud {
   private readonly banner = document.createElement('div');
   private bannerTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly toasts = document.createElement('div');
+  private readonly hotbar = document.createElement('div');
+  private readonly hotbarSlots = document.createElement('div');
+  private readonly hotbarHeld = document.createElement('div');
   private readonly toastTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(parent: HTMLElement, showDebug: boolean) {
@@ -97,6 +103,11 @@ export class Hud {
     this.toasts.className = 'hud-toasts';
     this.banner.className = 'hud-banner';
     this.banner.hidden = true;
+    this.hotbar.className = 'hud-hotbar';
+    this.hotbarHeld.className = 'hud-hotbar-held';
+    this.hotbarSlots.className = 'hud-hotbar-slots';
+    this.hotbar.append(this.hotbarHeld, this.hotbarSlots);
+    this.hotbar.hidden = true; // kısayol verisi gelene kadar
     this.gauges.hidden = true; // hayatta kalma verisi gelene kadar (test arenasında da) görünmez
     this.clock.hidden = true;
     this.root.append(
@@ -111,6 +122,7 @@ export class Hud {
       this.progress,
       this.toasts,
       this.banner,
+      this.hotbar,
     );
 
     if (showDebug) {
@@ -163,7 +175,7 @@ export class Hud {
       this.bodyTemp,
       [
         `Vücut: ${formatTemperature(vitals.bodyTemp)} ${bodyTempLabel(vitals.bodyTemp)}`.trim(),
-        exposureLabel(info.warmthC, info.sheltered),
+        exposureLabel(info.warmthC, info.sheltered, info.shelter ?? null),
       ]
         .filter((part) => part !== '')
         .join(' · '),
@@ -187,6 +199,33 @@ export class Hud {
         }),
       );
     }
+  }
+
+  /** Kısayol çubuğunu (alt orta) ve elde tutulan eşyayı çizer. */
+  setHotbar(slots: ReadonlyArray<HotbarSlotView>, held: string): void {
+    this.hotbar.hidden = false;
+    setText(this.hotbarHeld, held);
+    this.hotbarSlots.replaceChildren(
+      ...slots.map((view) => {
+        const slot = document.createElement('div');
+        slot.className = 'hud-hotbar-slot';
+        slot.title = view.title;
+        slot.dataset.empty = String(view.empty);
+        slot.dataset.missing = String(view.missing);
+        slot.dataset.selected = String(view.selected);
+        const key = document.createElement('span');
+        key.className = 'hud-hotbar-key';
+        key.textContent = view.key;
+        const name = document.createElement('span');
+        name.className = 'hud-hotbar-name';
+        name.textContent = view.name;
+        const count = document.createElement('span');
+        count.className = 'hud-hotbar-count';
+        count.textContent = view.count;
+        slot.append(key, name, count);
+        return slot;
+      }),
+    );
   }
 
   /** Hasar vinyeti: kenarlar kısa süre kızarır (`strength` 0–1). */

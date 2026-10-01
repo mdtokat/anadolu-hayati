@@ -34,6 +34,8 @@ export interface GameEvents {
   };
   /** Bir yapı yerleştirilince (eşya envanterden düşülmüştür). */
   'structure:placed': { id: StructureId; kind: StructureKind; x: number; z: number };
+  /** Bir yapı sökülünce (Faz 9): geri dönen eşyalar envantere eklenmiştir. */
+  'structure:dismantled': { id: StructureId; kind: StructureKind; items: ItemStack[] };
   /** Bir kamp ateşinin yakıtı bitip söndüğünde. */
   'structure:extinguished': { id: StructureId };
   /** Ateşe yakıt atılınca: atılan eşya ve gerçekten eklenen yanma süresi (sn). */
@@ -41,6 +43,10 @@ export interface GameEvents {
   /** Bir tarif üretilince: tarif kimliği ve çıktı. */
   'item:crafted': { recipe: RecipeId; item: ItemId; count: number };
   'camera:modeChanged': { mode: 'firstPerson' | 'thirdPerson' };
+  /** Kısayol tuşu (Faz 9): `slot` 0'dan başlar (`INPUT.bindings.hotbar` sırası). */
+  'input:hotbarSelect': { slot: number };
+  /** Fare tekerleği (Faz 9): kısayol seçimini bir sonraki (+1) / önceki (−1) slota kaydırır. */
+  'input:hotbarCycle': { step: 1 | -1 };
 
   // ── Faz 5: Canlılar (Hesap A yayınlar; bu bölüme yalnızca A ekler) ──
   /** Bir canlı oyuncuya saldırınca (vuruş anında, bir kez): `damage` savunma öncesi ham hasar. */

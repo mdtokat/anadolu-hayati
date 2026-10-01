@@ -4,6 +4,7 @@ import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { CreatureSystem } from '../src/creatures/CreatureSystem';
 import { GatherSystem } from '../src/interaction/gather';
+import { Hotbar } from '../src/items/hotbar';
 import { Inventory } from '../src/items/Inventory';
 import { StructureSet } from '../src/placement/structures';
 import { applySave, captureSave, type SaveTargets } from '../src/save/gameState';
@@ -28,6 +29,7 @@ function makeTargets(pose: PlayerSave = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }) 
     structures: new StructureSet(),
     gather: new GatherSystem(events, inventory),
     creatures: new CreatureSystem(events),
+    hotbar: new Hotbar(),
   };
   return { targets, state };
 }

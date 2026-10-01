@@ -1,9 +1,12 @@
-import { WebGLRenderer } from 'three';
+import { PointLight, WebGLRenderer } from 'three';
 import {
   COMBAT,
   COMBAT_HUD,
   AMBIENT,
+  DISMANTLE,
+  EQUIPMENT,
   HINTS,
+  INPUT,
   INTERACT,
   PROVINCE_NOTICE,
   PILOT,
@@ -11,6 +14,7 @@ import {
   PLACE_NOTICE,
   QUALITY_PRESETS,
   SAVE,
+  STORAGE,
   PLAYER,
   SURVIVAL,
   SURVIVAL_HUD,
@@ -39,15 +43,34 @@ import { GatherSystem } from '../interaction/gather';
 import { collectedToast, gatherPrompt } from '../interaction/promptText';
 import { craft } from '../items/craft';
 import { eatItem, quickEat } from '../items/eatItem';
+import { clothingWarmth, torchLit } from '../items/equipment';
+import { Hotbar, hotbarUse } from '../items/hotbar';
 import { Inventory } from '../items/Inventory';
+import type { ItemId } from '../items/itemDefs';
 import { ContainerFiller, drinkFromContainer } from '../items/waterContainer';
-import { isLit, type StructureKind } from '../placement/structures';
+import {
+  STORAGE_KINDS,
+  isLit,
+  isStructureKind,
+  type Structure,
+  type StructureId,
+  type StructureKind,
+} from '../placement/structures';
+import { Dismantler } from '../placement/dismantle';
+import { stationsNear } from '../placement/stations';
+import { transferAll, transferSlot } from '../placement/storage';
+import { structureInView, type FocusPose } from '../placement/structureFocus';
 import { PlacementController } from '../placement/PlacementController';
 import {
   aimPrompt,
+  dismantlePrompt,
+  dismantledToast,
   fuelToast,
+  keyLabel,
   placeFailureText,
   placedToast,
+  storagePrompt,
+  structureHint,
   tendPrompt,
   toggleToast,
 } from '../placement/promptText';
@@ -69,6 +92,8 @@ import { FpsCounter } from '../ui/FpsCounter';
 import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../ui/combatFormat';
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
+import { StoragePanel } from '../ui/StoragePanel';
+import { heldLabel, hotbarSignature, hotbarViews } from '../ui/hotbarView';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
@@ -99,13 +124,14 @@ import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
 import { ProceduralHeightSource } from '../world/ProceduralHeightSource';
 import { RegionWorld } from '../world/RegionWorld';
+import { StructureColliders } from '../world/StructureColliders';
 import { StructureLayer } from '../world/StructureLayer';
 import { TestScene } from '../world/TestScene';
 import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import { GameLoop } from './GameLoop';
 import { Input } from './Input';
-import { teleportSlotForKey } from './inputMapping';
+import { DEV_TELEPORT_KEY, teleportSlotForKey } from './inputMapping';
 
 /** Hangi dünyanın oynanacağı: gerçek bölge ya da Faz 1 test arenası (`?world=test`). */
 export type WorldKind = 'region' | 'test';
@@ -149,8 +175,22 @@ export class Game {
   readonly placement: PlacementController;
   /** Canlıların simülasyonu (saf mantık; Faz 5, Hesap A). */
   readonly creatures = new CreatureSystem(this.events);
-  /** Oyuncu tarafı savaş ve av mantığı (saf mantık; Faz 5, Hesap B). */
-  readonly combat = new CombatSystem(this.events, this.inventory, this.creatures, this.survival);
+  /** Hızlı erişim (kısayol) çubuğu: seçili slot elde tutulan eşyadır (saf mantık; Faz 9). */
+  readonly hotbar = new Hotbar();
+  /** Oyuncu tarafı savaş ve av mantığı (saf mantık; Faz 5, Hesap B). Eldeki silah kısayoldan okunur (Faz 9). */
+  readonly combat = new CombatSystem(
+    this.events,
+    this.inventory,
+    this.creatures,
+    this.survival,
+    () => this.hotbar.selectedItem,
+  );
+  /** Bakılan yapıya `X` ile sökme (saf mantık; Faz 9). */
+  readonly dismantler = new Dismantler(
+    this.events,
+    this.inventory,
+    this.structureSystem.structures,
+  );
 
   /** Bakılan leşe `E` ile kesme (saf mantık; Faz 5, Hesap B). */
   readonly butcher = new CarcassButcher(this.events, this.inventory, this.creatures);
@@ -167,6 +207,15 @@ export class Game {
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
   private readonly structureLayer: StructureLayer;
+  /** Katı yapıların (sandık, tezgâh, kulübe duvarları) fizik collider'ları (Faz 9). */
+  private readonly structureColliders: StructureColliders;
+  /** Elde meşale ışığı (Faz 9): sahnede hep vardır (ışık sayısı sabit; shader yeniden derlenmez), sönükken 0. */
+  private readonly torchLight = new PointLight(
+    EQUIPMENT.torch.lightColor,
+    0,
+    EQUIPMENT.torch.distance,
+    2,
+  );
   private readonly creatureLayer: CreatureLayer;
   private readonly input: Input;
   private readonly loop: GameLoop;
@@ -177,8 +226,18 @@ export class Game {
   private readonly creditsPanel: CreditsPanel;
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
+  private readonly storagePanel: StoragePanel;
   /** Envanter paneli açık: oyun duraklı (fare serbest) ama duraklatma menüsü çıkmaz. */
   private inventoryOpen = false;
+  /** Açık sandığın kimliği (Faz 9; sandık paneli açıkken oyun envanterdeki gibi duraklıdır). */
+  private storageOpenId: StructureId | null = null;
+  /** Bu adımda `E` ile açılabilecek sandık (ipucu ve su içme engeli için). */
+  private storageTarget: Readonly<Structure> | null = null;
+  /** Bu adımda bakılan (sökülebilecek) yapı. */
+  private dismantleTarget: Readonly<Structure> | null = null;
+  /** Kısayoldan açılan yerleştirme: yapı türü ve slotu (hayalet kapanınca seçim de kalkar). */
+  private heldPlacement: { kind: StructureKind; slot: number } | null = null;
+  private lastHotbarSignature = '';
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
@@ -239,6 +298,8 @@ export class Game {
     this.world.scene.add(this.playerModel.object);
     this.structureLayer = new StructureLayer(this.structureSystem.structures);
     this.world.scene.add(this.structureLayer.group);
+    this.structureColliders = new StructureColliders(this.physics, this.structureSystem.structures);
+    this.world.scene.add(this.torchLight);
     this.creatureLayer = new CreatureLayer();
     this.world.scene.add(this.creatureLayer.group);
     this.placement = new PlacementController({
@@ -254,7 +315,9 @@ export class Game {
       isAlive: () => this.survival.alive,
     });
 
-    this.input = new Input(this.renderer.domElement, document, this.events, window);
+    this.input = new Input(this.renderer.domElement, document, this.events, window, {
+      devTeleportKeys: import.meta.env.DEV,
+    });
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
     this.hud = new Hud(container, import.meta.env.DEV);
     this.settingsPanel = new SettingsPanel(container, this.settings);
@@ -264,7 +327,7 @@ export class Game {
       store: this.saves,
       openSettings: () => this.settingsPanel.show(),
       openCredits: () => this.creditsPanel.show(),
-      isSuppressed: () => this.inventoryOpen,
+      isSuppressed: () => this.overlayOpen,
       host: {
         resume: () => this.input.requestLock(),
         newGame: () => this.newGame(),
@@ -289,6 +352,16 @@ export class Game {
       onDrop: (slot, count) => this.dropFromSlot(slot, count),
       onClose: () => this.closeInventory(),
       getVitals: () => this.survival.state,
+      getStations: () => this.stationsHere(),
+      hotbar: this.hotbar,
+      onAssignHotbar: (slot, item) => this.assignHotbar(slot, item),
+    });
+    this.storagePanel = new StoragePanel(container, this.inventory, {
+      onStore: (slot) => this.moveToStorage(slot),
+      onTake: (slot) => this.takeFromStorage(slot),
+      onStoreAll: () => this.moveAllStorage('store'),
+      onTakeAll: () => this.moveAllStorage('take'),
+      onClose: () => this.closeStorage(),
     });
     this.deathScreen = new DeathScreen(container, () => this.respawnPlayer());
 
@@ -304,7 +377,7 @@ export class Game {
       // Envanter açıkken göstergeler görünür kalır (yemek yerken izlenir).
       this.events.on('game:paused', () => {
         this.ambient.stop();
-        this.hud.setVisible(this.inventoryOpen);
+        this.hud.setVisible(this.overlayOpen);
         this.placement.cancel();
       }),
       this.events.on('game:resumed', () => {
@@ -317,10 +390,13 @@ export class Game {
         if (action === 'toggleBorders') this.world.toggleBorders?.();
         if (action === 'placeCampfire') this.togglePlacement('campfire');
         if (action === 'placeShelter') this.togglePlacement('lean_to');
+        if (action === 'rotatePlacement') this.placement.rotate();
         if (action === 'primaryAction') this.primaryAction();
         if (action === 'toggleInventory') this.openInventory();
         if (action === 'eat') this.quickEatFood();
       }),
+      this.events.on('input:hotbarSelect', ({ slot }) => this.activateHotbar(slot)),
+      this.events.on('input:hotbarCycle', ({ step }) => this.cycleHotbar(step)),
       this.events.on('player:died', (death) => {
         this.placement.cancel();
         this.hud.setPrompt(null);
@@ -334,13 +410,19 @@ export class Game {
       this.events.on('structure:placed', ({ kind }) =>
         this.hud.notify(placedToast(kind), INTERACT.toastMs),
       ),
+      this.events.on('structure:dismantled', ({ items }) =>
+        this.hud.notify(dismantledToast(items), INTERACT.toastMs),
+      ),
       this.events.on('structure:refueled', ({ seconds }) =>
         this.hud.notify(fuelToast(seconds), INTERACT.toastMs),
       ),
       this.events.on('structure:extinguished', ({ id }) => this.notifyExtinguished(id)),
       this.events.on('item:crafted', ({ item, count }) => {
+        const slot = this.hotbar.autoAssign(item);
+        const key =
+          slot === null ? '' : ` · kısayol ${keyLabel(INPUT.bindings.hotbar[slot] ?? '')}`;
         this.hud.notify(
-          `Üretildi: ${ITEMS[item].name}${count > 1 ? ` ×${count}` : ''}`,
+          `Üretildi: ${ITEMS[item].name}${count > 1 ? ` ×${count}` : ''}${key}`,
           INTERACT.toastMs,
         );
         this.inventoryPanel.refresh();
@@ -395,8 +477,9 @@ export class Game {
   }
 
   /**
-   * Geliştirici kısayolu: 1–9 ve 0 tuşları TELEPORTS listesindeki noktalara, Shift + 1–9, 0 oyuncunun
-   * bulunduğu ilin yerlerine (`PROVINCE_PLACES`; ili bilinmiyorsa pilot il) ışınlar (yalnızca dev modunda bağlanır).
+   * Geliştirici kısayolu: `T` + 1–9, 0 TELEPORTS listesindeki noktalara, Shift + 1–9, 0 oyuncunun bulunduğu ilin
+   * yerlerine (`PROVINCE_PLACES`; ili bilinmiyorsa pilot il) ışınlar (yalnızca dev modunda bağlanır). Değiştiricisiz
+   * rakamlar kısayol çubuğunundur (Faz 9).
    */
   private readonly onDevKey = (event: KeyboardEvent): void => {
     // [ / ]: saati bir saat geri/ileri sar; K: canı ve suyu sıfırla (ölüm ekranını dene).
@@ -410,6 +493,14 @@ export class Game {
       this.inventory.add('stick', 10);
       this.inventory.add('log', 2);
     }
+    // O: inşa denemek için tezgâh, sandık ve kulübe ver (Faz 9; ağırlık sınırı kadar).
+    if (event.code === 'KeyO') {
+      for (const id of ['workbench', 'storage_chest', 'wooden_hut'] as const) {
+        if (this.inventory.add(id, 1) === 0) this.hotbar.autoAssign(id);
+      }
+    }
+    // Rakamlar kısayol çubuğunundur: ışınlanma yalnızca `T` ya da Shift basılıyken (Faz 9).
+    if (!event.shiftKey && !this.input.isHeld(DEV_TELEPORT_KEY)) return;
     const slot = teleportSlotForKey(event.code);
     const list: ReadonlyArray<{ name: string; lat: number; lon: number }> = event.shiftKey
       ? (PROVINCE_PLACES[this.lastProvince ?? PILOT.province] ?? PILOT.places)
@@ -466,8 +557,11 @@ export class Game {
     for (const id of removed) this.world.setPropDepleted(id, true);
 
     this.placement.cancel();
+    this.heldPlacement = null;
     this.butcher.reset();
     this.filler.reset();
+    this.dismantler.reset();
+    this.closeStorage(false);
     this.deathScreen.hide();
     this.hud.setPrompt(null);
     this.inventoryPanel.refresh();
@@ -558,6 +652,7 @@ export class Game {
       structures: this.structureSystem.structures,
       gather: this.gather,
       creatures: this.creatures,
+      hotbar: this.hotbar,
     };
   }
 
@@ -577,6 +672,9 @@ export class Game {
     this.playerModel.dispose();
     this.player.dispose();
     this.structureLayer.dispose();
+    this.structureColliders.dispose();
+    this.torchLight.removeFromParent();
+    this.torchLight.dispose();
     this.creatureLayer.dispose();
     this.combat.dispose();
     this.creatures.dispose();
@@ -588,6 +686,7 @@ export class Game {
     this.ambient.dispose();
     this.creditsPanel.dispose();
     this.inventoryPanel.dispose();
+    this.storagePanel.dispose();
     this.deathScreen.dispose();
     this.hud.dispose();
     this.fps?.dispose();
@@ -607,6 +706,7 @@ export class Game {
   private update(step: number): void {
     if (!this.survival.alive) return; // ölü: oyun donar, ölüm ekranı gösterilir
     this.autosaver.update(step);
+    this.structureColliders.sync(); // yeni/sökülen katı yapılar oyuncu hareketinden önce
 
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
     const intent = gateIntent(this.input.pollIntent(), canSprint(this.survival.state));
@@ -614,7 +714,9 @@ export class Game {
     this.physics.step();
 
     const feet = this.player.position;
-    this.placement.update({ x: feet.x, z: feet.z, yaw: this.playerCamera.yaw });
+    const pose: FocusPose = { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw };
+    this.syncHeldPlacement();
+    this.placement.update(pose);
     this.structureSystem.update(step);
     this.creatures.update(step, this.creatureContext(activityFromIntent(intent)));
     this.combat.update(step);
@@ -650,19 +752,48 @@ export class Game {
       },
     );
 
+    // Sandık (Faz 9): `E`'yi başka eylem almadıysa bakılan sandık açılır (basış anında; basılı tutma değil).
+    const structures = this.structureSystem.structures;
+    const interactPressed = this.input.consumeInteractPress();
+    this.storageTarget =
+      interaction.taker === null
+        ? structureInView(structures, pose, {
+            reach: STORAGE.reach,
+            viewConeDeg: STORAGE.viewConeDeg,
+            kinds: STORAGE_KINDS,
+          })
+        : null;
+    if (this.storageTarget && interactPressed) this.openStorage(this.storageTarget.id);
+    const drinkAllowed = interaction.drinkAllowed && this.storageTarget === null;
+    // Sökme (Faz 9): bakılan yapıya `X` basılı (yerleştirme hayaleti açıkken yok).
+    this.dismantleTarget = this.placement.aiming
+      ? null
+      : structureInView(structures, pose, {
+          reach: DISMANTLE.reach,
+          viewConeDeg: DISMANTLE.viewConeDeg,
+        });
+    this.dismantler.update(
+      step,
+      this.input.dismantleHeld,
+      this.dismantleTarget,
+      this.survival.alive,
+    );
+
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
-    this.exposure = exposureAt(this.structureSystem.structures, feet.x, feet.y, feet.z);
+    this.exposure = exposureAt(structures, feet.x, feet.y, feet.z);
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
-      drinking: water !== null && interaction.drinkAllowed,
-      warmthC: this.exposure.warmthC,
+      drinking: water !== null && drinkAllowed,
+      // Giysi ısısı (kürk pelerin) ateşinkiyle aynı kurala uyar: normal ısının üstüne çıkarmaz.
+      warmthC: this.exposure.warmthC + clothingWarmth(this.inventory),
       sheltered: this.exposure.sheltered,
+      shelter: this.exposure.shelter,
     });
     // Su kabı: susuzluk giderildikten sonra (içmiyorken) `E` basılı kalırsa boş kap dolar.
     this.filler.update(step, {
-      held: interaction.drinkAllowed,
+      held: drinkAllowed,
       nearWater: water !== null,
       drinking: this.survival.drinking,
       alive: this.survival.alive,
@@ -704,7 +835,7 @@ export class Game {
 
   /** Envanter/üretim panelini açar: oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken (fare kilitli). */
   private openInventory(): void {
-    if (this.inventoryOpen || !this.survival.alive || this.loop.paused) return;
+    if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
     this.inventoryOpen = true; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
     this.inventoryPanel.show();
     this.input.exitLock();
@@ -715,12 +846,163 @@ export class Game {
     if (!this.inventoryOpen) return;
     this.inventoryOpen = false;
     this.inventoryPanel.hide();
+    this.resumeAfterOverlay();
+  }
+
+  /** Envanter ya da sandık paneli açık mı (oyun duraklı ama duraklatma menüsü çıkmaz)? */
+  private get overlayOpen(): boolean {
+    return this.inventoryOpen || this.storageOpenId !== null;
+  }
+
+  /** Panel kapanınca fare kilidini ister; kilit verilmezse duraklatma menüsü devreye girer. */
+  private resumeAfterOverlay(): void {
     this.input.requestLock();
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.lockFallback = setTimeout(() => {
       this.lockFallback = null;
-      if (this.loop.paused && !this.inventoryOpen && !this.pauseMenu.visible) this.pauseMenu.show();
+      if (this.loop.paused && !this.overlayOpen && !this.pauseMenu.visible) this.pauseMenu.show();
     }, 500);
+  }
+
+  /** Sandık panelini açar (Faz 9): oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken. */
+  private openStorage(id: StructureId): void {
+    if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
+    const chest = this.structureSystem.structures.storageOf(id);
+    const structure = this.structureSystem.structures.get(id);
+    if (!chest || !structure) return;
+    this.storageOpenId = id; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
+    this.placement.cancel();
+    this.storagePanel.show(chest, ITEMS[structure.kind].name);
+    this.input.exitLock();
+  }
+
+  /** Sandık panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
+  private closeStorage(resume = true): void {
+    if (this.storageOpenId === null) return;
+    this.storageOpenId = null;
+    this.storagePanel.hide();
+    if (resume) this.resumeAfterOverlay();
+  }
+
+  private openChest(): Inventory | null {
+    return this.storageOpenId === null
+      ? null
+      : this.structureSystem.structures.storageOf(this.storageOpenId);
+  }
+
+  private moveToStorage(slot: number): void {
+    const chest = this.openChest();
+    if (!chest) return;
+    if (transferSlot(this.inventory, slot, chest) === 0) {
+      this.hud.notify('Sandık dolu', INTERACT.toastMs);
+    }
+    this.storagePanel.refresh();
+  }
+
+  private takeFromStorage(slot: number): void {
+    const chest = this.openChest();
+    if (!chest) return;
+    if (transferSlot(chest, slot, this.inventory) === 0) {
+      this.hud.notify('Envanter dolu', INTERACT.toastMs);
+    }
+    this.storagePanel.refresh();
+  }
+
+  private moveAllStorage(direction: 'store' | 'take'): void {
+    const chest = this.openChest();
+    if (!chest) return;
+    if (direction === 'store') transferAll(this.inventory, chest);
+    else transferAll(chest, this.inventory);
+    this.storagePanel.refresh();
+  }
+
+  /** Oyuncunun yanındaki üretim istasyonları (tezgâh). */
+  private stationsHere() {
+    const feet = this.player.position;
+    return stationsNear(this.structureSystem.structures, feet.x, feet.z);
+  }
+
+  /** Envanter panelinden kısayol bağlama (Faz 9); seçili slottaki eşya değişirse yerleştirme biter. */
+  private assignHotbar(slot: number, item: ItemId | null): void {
+    if (!this.hotbar.assign(slot, item)) return;
+    if (this.heldPlacement?.slot === slot && item !== this.heldPlacement.kind) {
+      this.placement.cancel();
+      this.heldPlacement = null;
+    }
+  }
+
+  /**
+   * Kısayol tuşu (Faz 9): bağlı eşyaya göre — yiyecek/dolu su kabı tüketilir (seçim değişmez); silah/alet elde
+   * tutulur; yapı elde tutulur ve yerleştirme hayaleti açılır. Seçili slota yeniden basmak eli boşaltır.
+   */
+  private activateHotbar(slot: number): void {
+    if (!this.survival.alive || slot >= this.hotbar.slotCount) return;
+    const id = this.hotbar.slots[slot] ?? null;
+    if (id !== null && hotbarUse(id) === 'consume') {
+      this.consumeFromHotbar(id);
+      return;
+    }
+    if (id !== null && hotbarUse(id) === 'none') {
+      this.hud.notify(`${ITEMS[id].name}: tatlı su kenarında E ile doldur`, INTERACT.toastMs);
+      return;
+    }
+    this.hotbar.select(this.hotbar.selected === slot ? null : slot);
+    this.onHeldChanged();
+  }
+
+  /** Fare tekerleği: seçimi kaydırır. */
+  private cycleHotbar(step: 1 | -1): void {
+    if (!this.survival.alive) return;
+    this.hotbar.cycle(step);
+    this.onHeldChanged(false);
+  }
+
+  /**
+   * Elde tutulan değişince: yapıysa (ve envanterde varsa) yerleştirme hayaleti açılır, değilse kısayoldan açılmış
+   * hayalet kapanır. `notifyMissing`: yapı envanterde yoksa bildir (tekerlekle geçerken sessiz).
+   */
+  private onHeldChanged(notifyMissing = true): void {
+    const slot = this.hotbar.selected;
+    const id = this.hotbar.selectedItem;
+    if (slot !== null && id !== null && isStructureKind(id)) {
+      if (this.placement.aiming !== id) {
+        const result = this.placement.toggle(id);
+        const text = toggleToast(result, id);
+        if (text && notifyMissing) this.hud.notify(text, INTERACT.toastMs);
+      }
+      this.heldPlacement = this.placement.aiming === id ? { kind: id, slot } : null;
+      return;
+    }
+    if (this.heldPlacement && this.placement.aiming === this.heldPlacement.kind) {
+      this.placement.cancel();
+    }
+    this.heldPlacement = null;
+  }
+
+  /** Kısayoldan açılan hayalet kapandıysa (kuruldu, iptal, C/G ile başka tür) seçili yapı da elden bırakılır. */
+  private syncHeldPlacement(): void {
+    const held = this.heldPlacement;
+    if (held === null || this.placement.aiming === held.kind) return;
+    this.heldPlacement = null;
+    if (this.hotbar.selected === held.slot) this.hotbar.select(null);
+  }
+
+  /** Kısayoldan yiyecek ye ya da dolu su kabından iç. */
+  private consumeFromHotbar(id: ItemId): void {
+    if (!this.inventory.has(id)) {
+      this.hud.notify(`Envanterinde ${ITEMS[id].name} yok`, INTERACT.toastMs);
+      return;
+    }
+    if (id === 'water_container_full') {
+      const result = drinkFromContainer(this.inventory, this.survival, this.events);
+      this.hud.notify(
+        result.ok ? `Su kabından içtin (+${Math.round(result.amount)} Su)` : 'Susuz değilsin',
+        INTERACT.toastMs,
+      );
+      return;
+    }
+    const eaten = eatItem(this.inventory, this.survival, id);
+    this.hud.notify(eaten ? `Yedin: ${ITEMS[eaten].name}` : 'Tokluk dolu', INTERACT.toastMs);
   }
 
   /** `F`: en çok tokluk veren yiyeceği ye; olmazsa nedenini bildir. */
@@ -762,7 +1044,7 @@ export class Game {
   }
 
   private craftRecipe(id: RecipeId): void {
-    const result = craft(this.inventory, RECIPES[id]);
+    const result = craft(this.inventory, RECIPES[id], this.stationsHere());
     if (result.ok) {
       this.events.emit('item:crafted', {
         recipe: id,
@@ -802,6 +1084,7 @@ export class Game {
     this.playerModel.update(feet, this.playerCamera.yaw);
     this.structureLayer.update(now / 1000, feet.x, feet.z);
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
+    this.updateTorch(now / 1000, feet);
     this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
@@ -809,6 +1092,7 @@ export class Game {
     this.updateLocationHud(now, feet);
     this.updateAmbient(now, feet);
     this.updateSurvivalHud(now);
+    this.updateHotbarHud();
     this.updatePrompt();
     if (import.meta.env.DEV) {
       this.hud.setDebugText(
@@ -887,6 +1171,7 @@ export class Game {
       ambientC: this.survival.ambientC,
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
+      shelter: this.exposure.shelter,
       defense: defenseFor(this.inventory),
     });
     this.updateHints(now);
@@ -898,7 +1183,7 @@ export class Game {
    */
   private updateHints(now: number): void {
     if (!this.settings.current.hints || !this.survival.alive || this.loop.paused) return;
-    if (this.inventoryOpen || !(this.world instanceof RegionWorld)) return;
+    if (this.overlayOpen || !(this.world instanceof RegionWorld)) return;
     const feet = this.player.position;
     const structures = this.structureSystem.structures.all();
     const { state, clock } = this.survival;
@@ -908,7 +1193,7 @@ export class Game {
       bodyTempC: state.bodyTemp,
       isNight: clock.sun.altitudeDeg < HINTS.nightSunAltitudeDeg,
       fireBuilt: structures.some((s) => s.kind === 'campfire'),
-      shelterBuilt: structures.some((s) => s.kind === 'lean_to'),
+      shelterBuilt: structures.some((s) => s.kind === 'lean_to' || s.kind === 'wooden_hut'),
       preyNearby: this.creatures
         .views()
         .some(
@@ -929,7 +1214,7 @@ export class Game {
    * toplanabilir nesne, sonra su içme, sonra "balta gerekir"/"envanter dolu" gibi engeller.
    */
   private updatePrompt(): void {
-    if (this.inventoryOpen) {
+    if (this.overlayOpen) {
       this.hud.setPrompt(null);
       this.hud.setProgress(null);
       return;
@@ -938,7 +1223,19 @@ export class Game {
     const ghost = alive ? this.placement.ghost : null;
     if (ghost) {
       this.hud.setProgress(null);
-      this.hud.setPrompt(aimPrompt(ghost));
+      const held = this.heldPlacement;
+      const cancelKey =
+        held && held.kind === ghost.kind
+          ? keyLabel(INPUT.bindings.hotbar[held.slot] ?? '')
+          : undefined;
+      this.hud.setPrompt(aimPrompt(ghost, cancelKey));
+      return;
+    }
+    // Sökme (Faz 9): `X` basılıyken ilerleme ya da engel nedeni her şeyden önce.
+    const dismantle = alive && this.input.dismantleHeld ? this.dismantler.offer : null;
+    if (dismantle) {
+      this.hud.setPrompt(dismantlePrompt(dismantle));
+      this.hud.setProgress(this.dismantler.progress > 0 ? this.dismantler.progress : null);
       return;
     }
     const offer = alive ? this.gather.offer : null;
@@ -965,6 +1262,12 @@ export class Game {
       this.hud.setProgress(this.fireTender.progress > 0 ? this.fireTender.progress : null);
       return;
     }
+    const storage = alive ? this.storageTarget : null;
+    if (storage) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(storagePrompt(storage.kind));
+      return;
+    }
     this.hud.setProgress(this.filler.progress > 0 ? this.filler.progress : null);
     const drink = this.drinkPrompt();
     this.hud.setPrompt(
@@ -973,7 +1276,42 @@ export class Game {
         (butcher ? butcherPrompt(butcher) : null) ??
         (cook ? cookPrompt(false, cook.status) : null) ??
         (tend ? tendPrompt(tend) : null) ??
+        this.structurePrompt(alive) ??
         this.attackHint(alive),
+    );
+  }
+
+  /** Bakılan yapının adı ve sökme ipucu; içinde durulan barınak için gösterilmez (sürekli görünmesin). */
+  private structurePrompt(alive: boolean): string | null {
+    const target = alive ? this.dismantleTarget : null;
+    if (!target) return null;
+    const isShelter = target.kind === 'lean_to' || target.kind === 'wooden_hut';
+    if (isShelter && this.exposure.sheltered) return null;
+    return structureHint(target.kind);
+  }
+
+  /** Elde meşale varsa ışığı oyuncunun üstünde titretir; yoksa söndürür (ışık sahnede kalır). */
+  private updateTorch(time: number, feet: { x: number; y: number; z: number }): void {
+    const torch = EQUIPMENT.torch;
+    const lit = this.survival.alive && torchLit(this.inventory, this.hotbar.selectedItem);
+    if (!lit) {
+      this.torchLight.intensity = 0;
+      return;
+    }
+    const t = time * torch.flickerSpeed;
+    const flicker = 0.6 * Math.sin(t) + 0.4 * Math.sin(t * 2.7 + 1.3);
+    this.torchLight.position.set(feet.x, feet.y + torch.height, feet.z);
+    this.torchLight.intensity = torch.intensity * (1 + torch.flicker * flicker);
+  }
+
+  /** Kısayol çubuğu: kısayol ya da envanter değiştiyse yeniden çizilir. */
+  private updateHotbarHud(): void {
+    const signature = hotbarSignature(this.hotbar, this.inventory);
+    if (signature === this.lastHotbarSignature) return;
+    this.lastHotbarSignature = signature;
+    this.hud.setHotbar(
+      hotbarViews(this.hotbar, this.inventory),
+      heldLabel(this.hotbar, this.inventory),
     );
   }
 
@@ -1021,7 +1359,7 @@ export class Game {
 
   /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
   private attack(): void {
-    if (!this.survival.alive || this.inventoryOpen || this.loop.paused) return;
+    if (!this.survival.alive || this.overlayOpen || this.loop.paused) return;
     const result = this.combat.attack(this.meleeAim());
     if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
   }

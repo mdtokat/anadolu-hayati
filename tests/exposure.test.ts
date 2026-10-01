@@ -57,7 +57,11 @@ describe('isUnderShelter', () => {
 
 describe('exposureAt', () => {
   it('yapı yokken etki yok', () => {
-    expect(exposureAt(new StructureSet(), 0, 0, 0)).toEqual({ warmthC: 0, sheltered: false });
+    expect(exposureAt(new StructureSet(), 0, 0, 0)).toEqual({
+      warmthC: 0,
+      sheltered: false,
+      shelter: null,
+    });
   });
 
   it('yanık ateş ısıtır; sönük ateş ısıtmaz', () => {
@@ -95,7 +99,7 @@ describe('exposureAt', () => {
   it('barınak altında sheltered; ateşle birlikte ikisi birden', () => {
     const set = new StructureSet();
     set.add('lean_to', 0, 0, 0, 0);
-    expect(exposureAt(set, 0, 0, 0)).toEqual({ warmthC: 0, sheltered: true });
+    expect(exposureAt(set, 0, 0, 0)).toEqual({ warmthC: 0, sheltered: true, shelter: 'lean_to' });
     expect(exposureAt(set, 3, 0, 0).sheltered).toBe(false);
     set.add('campfire', 0, 0, 2);
     const both = exposureAt(set, 0, 0, 0);

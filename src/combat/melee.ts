@@ -30,6 +30,20 @@ const RAD = 180 / Math.PI;
 
 const WEAPON_IDS = Object.keys(COMBAT.weapons) as WeaponId[];
 
+/** Eşya bir silah mı (`COMBAT.weapons` anahtarı)? */
+export function isWeapon(id: ItemId | null): id is ItemId & WeaponId {
+  return id !== null && (WEAPON_IDS as readonly string[]).includes(id);
+}
+
+/**
+ * Saldırıda kullanılan silah (Faz 9): elde (kısayolda seçili) bir silah varsa ve envanterdeyse o; yoksa
+ * envanterdeki en iyi silah (`bestWeapon`). Böylece kısayolsuz oynayan oyuncu eskisi gibi en iyi silahla vurur.
+ */
+export function activeWeapon(inventory: Pick<Inventory, 'has'>, held: ItemId | null): WeaponId {
+  if (isWeapon(held) && inventory.has(held)) return held;
+  return bestWeapon(inventory);
+}
+
 /** Envanterdeki en çok hasar veren silah (yoksa yumruk). */
 export function bestWeapon(inventory: Pick<Inventory, 'has'>): WeaponId {
   let best: WeaponId = 'fist';

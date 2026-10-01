@@ -8,6 +8,8 @@ export type InputAction =
   | 'eat'
   | 'placeCampfire'
   | 'placeShelter'
+  /** Yerleştirme hayaletini döndür (Faz 9). */
+  | 'rotatePlacement'
   /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirme hayaleti varsa onayla, yoksa saldır. */
   | 'primaryAction';
 
@@ -45,13 +47,26 @@ export function actionForKey(code: string): InputAction | null {
   if ((bindings.eat as readonly string[]).includes(code)) return 'eat';
   if ((bindings.placeCampfire as readonly string[]).includes(code)) return 'placeCampfire';
   if ((bindings.placeShelter as readonly string[]).includes(code)) return 'placeShelter';
+  if ((bindings.rotatePlacement as readonly string[]).includes(code)) return 'rotatePlacement';
   return null;
 }
 
-/** `Digit1`…`Digit9` → 0…8, `Digit0` → 9 (geliştirici ışınlanma yuvası; klavye sırası); başka tuş için null. */
+/** Kısayol tuşu → slot (0'dan; `INPUT.bindings.hotbar` sırası); kısayol tuşu değilse null. */
+export function hotbarSlotForKey(code: string): number | null {
+  const index = (INPUT.bindings.hotbar as readonly string[]).indexOf(code);
+  return index < 0 ? null : index;
+}
+
+/**
+ * `Digit1`…`Digit9` → 0…8, `Digit0` → 9 (geliştirici ışınlanma yuvası; klavye sırası); başka tuş için null.
+ * Dev modunda rakamlar kısayol çubuğuyla paylaşılır: ışınlanma `T` ya da Shift basılıyken çalışır (`DEV_TELEPORT`).
+ */
 export function teleportSlotForKey(code: string): number | null {
   const match = /^Digit([0-9])$/.exec(code);
   if (!match) return null;
   const digit = Number(match[1]);
   return digit === 0 ? 9 : digit - 1;
 }
+
+/** Dev ışınlanması (Faz 9): bu tuş basılıyken rakamlar `TELEPORTS`'a, Shift basılıyken ilin yerlerine ışınlar. */
+export const DEV_TELEPORT_KEY = 'KeyT';

@@ -7,6 +7,7 @@ import {
   Vector3,
 } from 'three';
 import { STRUCTURE_LOOK } from '../config';
+import { CHEST, HUT, WORKBENCH } from '../placement/structureShapes';
 import type { StructureKind } from '../placement/structures';
 import { createRandom } from '../utils/random';
 import { blob, merge, place, type Part } from './propGeometry';
@@ -148,10 +149,125 @@ function leanToParts(): Part[] {
   return parts;
 }
 
+/** Kutu parçası: alt-üst sınırlarla (yerel uzay). */
+function slab(
+  minX: number,
+  maxX: number,
+  minY: number,
+  maxY: number,
+  minZ: number,
+  maxZ: number,
+  color: number,
+): Part {
+  return {
+    geometry: place(
+      new BoxGeometry(maxX - minX, maxY - minY, maxZ - minZ),
+      (minX + maxX) / 2,
+      (minY + maxY) / 2,
+      (minZ + maxZ) / 2,
+    ),
+    color,
+  };
+}
+
+/** Sandık (Faz 9): tahta gövde, koyu kapak, demir kuşaklar ve kilit; zemine gömülü etek. */
+function chestParts(): Part[] {
+  const w = CHEST.width / 2;
+  const d = CHEST.depth / 2;
+  const h = CHEST.height;
+  const lid = h * 0.3;
+  return [
+    slab(-w, w, -0.35, h - lid, -d, d, C.plank),
+    slab(-w - 0.02, w + 0.02, h - lid, h, -d - 0.02, d + 0.02, C.darkPlank),
+    slab(-w + 0.12, -w + 0.2, -0.05, h + 0.01, -d - 0.03, d + 0.03, C.iron),
+    slab(w - 0.2, w - 0.12, -0.05, h + 0.01, -d - 0.03, d + 0.03, C.iron),
+    slab(-0.06, 0.06, h - lid - 0.12, h - lid + 0.04, d, d + 0.05, C.iron),
+  ];
+}
+
+/** Çalışma tezgâhı (Faz 9): kalın tabla, dört bacak, üstünde taş örs ve dal demeti. */
+function workbenchParts(): Part[] {
+  const w = WORKBENCH.width / 2;
+  const d = WORKBENCH.depth / 2;
+  const h = WORKBENCH.height;
+  const parts: Part[] = [slab(-w, w, h - 0.12, h, -d, d, C.plank)];
+  for (const x of [-w + 0.1, w - 0.1]) {
+    for (const z of [-d + 0.1, d - 0.1]) {
+      parts.push(slab(x - 0.06, x + 0.06, -0.5, h - 0.12, z - 0.06, z + 0.06, C.darkPlank));
+    }
+  }
+  parts.push(slab(-w + 0.08, w - 0.08, 0.18, 0.24, -d + 0.08, d - 0.08, C.darkPlank)); // alt raf
+  parts.push(blob(0.16, 0, [1.3, 0.7, 1], [w * 0.45, h + 0.08, 0], C.stone, 0.25, SEED + 40));
+  parts.push(beam([-w * 0.8, h + 0.05, -0.12], [-w * 0.1, h + 0.05, -0.15], 0.04, C.log, 5));
+  parts.push(beam([-w * 0.8, h + 0.05, 0.02], [-w * 0.15, h + 0.05, 0.06], 0.04, C.log, 5));
+  return parts;
+}
+
+/**
+ * Ahşap kulübe (Faz 9): dört duvar (önde kapı boşluğu ve lento), iki eğik çatı yüzü ve iki üçgen alın; duvarlar
+ * zeminin altına iner (yamaç). Ölçüler `HUT` (collider'larla aynı).
+ */
+function hutParts(): Part[] {
+  const { inner, wallThickness: t, wallHeight: top, skirt, doorWidth, doorHeight } = HUT;
+  const outer = inner + t;
+  const bottom = -skirt;
+  const door = doorWidth / 2;
+  const parts: Part[] = [
+    slab(-outer, outer, bottom, top, -outer, -inner, C.wall),
+    slab(-outer, -inner, bottom, top, -outer, outer, C.wall),
+    slab(inner, outer, bottom, top, -outer, outer, C.wall),
+    slab(-outer, -door, bottom, top, inner, outer, C.wall),
+    slab(door, outer, bottom, top, inner, outer, C.wall),
+    slab(-door, door, doorHeight, top, inner, outer, C.wall), // lento
+    slab(-door, door, bottom, 0.02, inner, outer, C.darkPlank), // eşik
+  ];
+  // Köşe direkleri (koyu): duvar birleşimlerini belirginleştirir.
+  for (const x of [-outer, outer]) {
+    for (const z of [-outer, outer]) {
+      parts.push(slab(x - 0.12, x + 0.12, bottom, top + 0.05, z - 0.12, z + 0.12, C.darkPlank));
+    }
+  }
+  // Yatay kütük çizgileri (dış yüzde ince şeritler).
+  for (let y = 0.45; y < top; y += 0.55) {
+    parts.push(slab(-outer - 0.03, outer + 0.03, y, y + 0.06, -outer - 0.03, -outer, C.darkPlank));
+    parts.push(slab(-outer - 0.03, -outer, y, y + 0.06, -outer, outer, C.darkPlank));
+    parts.push(slab(outer, outer + 0.03, y, y + 0.06, -outer, outer, C.darkPlank));
+  }
+  // Çatı: mahya X ekseni boyunca; ön (+Z) ve arka (−Z) eğik yüzler.
+  const eave = outer + HUT.roofOverhang;
+  const rise = HUT.ridgeHeight - top;
+  const slope = Math.atan2(rise, eave);
+  const length = Math.hypot(rise, eave) + 0.1;
+  for (const side of [1, -1]) {
+    const roof = new BoxGeometry(eave * 2 + 0.1, 0.1, length);
+    rotate(roof, new Matrix4().makeRotationX(side * slope));
+    parts.push({
+      geometry: place(roof, 0, top + rise / 2 + 0.05, (side * eave) / 2),
+      color: C.hutRoof,
+    });
+  }
+  // Alınlar: yan duvarların üstünde üçgen (çatıyla duvar arası kapansın).
+  for (const x of [-outer + t / 2, outer - t / 2]) {
+    const gable = new CylinderGeometry(0.0001, outer * Math.SQRT2, rise, 4, 1);
+    rotate(gable, new Matrix4().makeRotationY(Math.PI / 4));
+    gable.scale(t / (outer * 2), 1, 1);
+    parts.push({ geometry: place(gable, x, top + rise / 2, 0), color: C.wall });
+  }
+  return parts;
+}
+
+const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
+  campfire: campfireParts,
+  lean_to: leanToParts,
+  workbench: workbenchParts,
+  storage_chest: chestParts,
+  wooden_hut: hutParts,
+};
+
 /** Yapı türünün gövde geometrisi (alev hariç). */
 export function buildStructureGeometry(kind: StructureKind): BufferGeometry {
-  const random = createRandom(SEED + (kind === 'campfire' ? 1 : 2));
-  return merge(kind === 'campfire' ? campfireParts() : leanToParts(), random);
+  const random = createRandom(SEED + (kind === 'campfire' ? 1 : kind === 'lean_to' ? 2 : 10));
+  return merge(PARTS[kind](), random);
 }
 
 /** Kamp ateşi alevi (yerel uzay; gövdeyle aynı orijin). Köşe rengi var, doku yok. */

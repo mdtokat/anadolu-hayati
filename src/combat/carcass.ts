@@ -7,8 +7,14 @@ import type { Inventory, ItemStack } from '../items/Inventory';
 import { lootFor } from './loot';
 import { aimAt, type MeleeAim, type MeleeHit } from './melee';
 
-/** Leşi kesmek için kullanılabilecek alet: envanterde varsa süre kısalır. */
-const BUTCHER_TOOL = 'stone_axe';
+/** Leşi kesmek için kullanılabilecek aletler, en hızlısı önce: envanterde varsa süre kısalır (Faz 9: bıçak). */
+export const BUTCHER_TOOLS = ['bone_knife', 'stone_axe'] as const;
+export type ButcherTool = (typeof BUTCHER_TOOLS)[number];
+
+const BUTCHER_SECONDS: Readonly<Record<ButcherTool, number>> = {
+  bone_knife: LOOT.butcherSecondsKnife,
+  stone_axe: LOOT.butcherSecondsAxe,
+};
 
 /** Bir leşle şu an yapılabilecek eylem (HUD ipucu için). */
 export interface ButcherOffer {
@@ -16,8 +22,11 @@ export interface ButcherOffer {
   status: 'ready' | 'full';
   id: CreatureId;
   kind: CreatureKind;
-  /** Kesme süresi (sn); baltalıysa kısa. */
+  /** Kesme süresi (sn); aletle kısa. */
   seconds: number;
+  /** Kullanılan alet (yoksa ya da tanımsızsa elle). */
+  tool?: ButcherTool | null;
+  /** Baltayla mı (eski alan; `tool === 'stone_axe'`). */
   withAxe: boolean;
 }
 
@@ -106,14 +115,15 @@ export class CarcassButcher {
   /** Bir leşle yapılabilecek eylem (HUD ipucu); hiçbir eşyaya yer yoksa `full`. */
   inspect(view: Pick<CreatureView, 'id' | 'kind' | 'dead'>): ButcherOffer | null {
     if (!view.dead) return null;
-    const withAxe = this.inventory.has(BUTCHER_TOOL);
+    const tool = BUTCHER_TOOLS.find((id) => this.inventory.has(id)) ?? null;
     const fits = this.pending(view).some((stack) => this.inventory.capacityFor(stack.id) >= 1);
     return {
       status: fits ? 'ready' : 'full',
       id: view.id,
       kind: view.kind,
-      seconds: withAxe ? LOOT.butcherSecondsAxe : LOOT.butcherSeconds,
-      withAxe,
+      seconds: tool ? BUTCHER_SECONDS[tool] : LOOT.butcherSeconds,
+      tool,
+      withAxe: tool === 'stone_axe',
     };
   }
 

@@ -1,17 +1,34 @@
 import { SHELTER_EFFECTS } from '../config';
 import { isLit, type Structure, type StructureSet } from './structures';
 
-const { fireWarmth, shelter } = SHELTER_EFFECTS;
+const { fireWarmth } = SHELTER_EFFECTS;
+
+/** Korunma sağlayan yapılar (Faz 9: ahşap kulübe sundurmadan iyi korur). */
+export type ShelterKind = 'lean_to' | 'hut';
+
+/** Yapı türünden barınak türü; barınak değilse null. */
+function shelterKindOf(structure: Readonly<Structure>): ShelterKind | null {
+  if (structure.kind === 'lean_to') return 'lean_to';
+  if (structure.kind === 'wooden_hut') return 'hut';
+  return null;
+}
+
+/** Barınak türünün etkileri (`SHELTER_EFFECTS.shelter` sundurma, `.hut` kulübe). */
+export function shelterEffects(kind: ShelterKind) {
+  return kind === 'hut' ? SHELTER_EFFECTS.hut : SHELTER_EFFECTS.shelter;
+}
 
 /** Oyuncunun bulunduğu yerde yapıların hayatta kalma üzerindeki etkisi. */
 export interface Exposure {
   /** Yanık ateşlerin vücut ısısı denge değerine eklediği ısı (°C). */
   warmthC: number;
-  /** Bir sundurmanın altında mı? */
+  /** Bir barınağın (sundurma, kulübe) altında mı? */
   sheltered: boolean;
+  /** Altında bulunulan en iyi barınak (kulübe › sundurma); yoksa null. */
+  shelter: ShelterKind | null;
 }
 
-export const NO_EXPOSURE: Readonly<Exposure> = { warmthC: 0, sheltered: false };
+export const NO_EXPOSURE: Readonly<Exposure> = { warmthC: 0, sheltered: false, shelter: null };
 
 /** Bir ateşin `distance` (oyun m, yatay) uzaktaki ısıtması (°C): çekirdekte tam, dışa doğru doğrusal azalır. */
 export function fireWarmthAt(distance: number): number {
@@ -22,8 +39,8 @@ export function fireWarmthAt(distance: number): number {
 }
 
 /**
- * (x, z) noktası sundurmanın dikdörtgen altlığında mı? Altlık, yapının yerel eksenlerindedir
- * (`mesh.rotation.y = yaw`; yerel +z = açık ön yüz). Yükseklik farkı `verticalReach`'i aşıyorsa dışarıdadır.
+ * (x, z) noktası barınağın (sundurma ya da kulübe) dikdörtgen altlığında mı? Altlık, yapının yerel eksenlerindedir
+ * (`mesh.rotation.y = yaw`; yerel +z = açık ön yüz / kapı). Yükseklik farkı `verticalReach`'i aşıyorsa dışarıdadır.
  */
 export function isUnderShelter(
   structure: Readonly<Structure>,
@@ -31,29 +48,43 @@ export function isUnderShelter(
   y: number,
   z: number,
 ): boolean {
-  if (structure.kind !== 'lean_to') return false;
-  if (Math.abs(y - structure.y) > shelter.verticalReach) return false;
+  const kind = shelterKindOf(structure);
+  if (kind === null) return false;
+  const area = shelterEffects(kind);
+  if (Math.abs(y - structure.y) > area.verticalReach) return false;
   const dx = x - structure.x;
   const dz = z - structure.z;
   const cos = Math.cos(structure.yaw);
   const sin = Math.sin(structure.yaw);
   const localX = dx * cos - dz * sin;
   const localZ = dx * sin + dz * cos;
-  return Math.abs(localX) <= shelter.halfWidth && localZ >= shelter.back && localZ <= shelter.front;
+  return Math.abs(localX) <= area.halfWidth && localZ >= area.back && localZ <= area.front;
 }
+
+/** Altlığın en uzak köşesi bile bu yarıçap içindedir (her barınak türü için). */
+const SEARCH_RADIUS = Math.max(
+  fireWarmth.radius,
+  ...[SHELTER_EFFECTS.shelter, SHELTER_EFFECTS.hut].map((a) =>
+    Math.hypot(a.halfWidth, Math.max(-a.back, a.front)),
+  ),
+);
 
 /** Oyuncunun ayak konumundaki ısı ve barınak etkisi (saf; `structures` değişmez). */
 export function exposureAt(structures: StructureSet, x: number, y: number, z: number): Exposure {
-  // Altlığın en uzak köşesi bile bu yarıçap içindedir.
-  const searchRadius = Math.max(fireWarmth.radius, Math.hypot(shelter.halfWidth, shelter.back));
   let warmth = 0;
-  let sheltered = false;
-  for (const s of structures.near(x, z, searchRadius)) {
-    if (isLit(s) && Math.abs(y - s.y) <= shelter.verticalReach) {
-      warmth += fireWarmthAt(Math.hypot(s.x - x, s.z - z));
-    } else if (!sheltered && isUnderShelter(s, x, y, z)) {
-      sheltered = true;
+  let shelter: ShelterKind | null = null;
+  for (const s of structures.near(x, z, SEARCH_RADIUS)) {
+    if (isLit(s)) {
+      if (Math.abs(y - s.y) <= SHELTER_EFFECTS.shelter.verticalReach) {
+        warmth += fireWarmthAt(Math.hypot(s.x - x, s.z - z));
+      }
+    } else if (shelter !== 'hut' && isUnderShelter(s, x, y, z)) {
+      shelter = shelterKindOf(s);
     }
   }
-  return { warmthC: Math.min(warmth, fireWarmth.maxTotalC), sheltered };
+  return {
+    warmthC: Math.min(warmth, fireWarmth.maxTotalC),
+    sheltered: shelter !== null,
+    shelter,
+  };
 }

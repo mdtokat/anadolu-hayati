@@ -5,7 +5,14 @@ import { triangleCount } from '../src/world/propGeometry';
 import { buildFlameGeometry, buildStructureGeometry } from '../src/world/structureGeometry';
 
 /** Üçgen bütçeleri: yapı sayısı azdır ama her biri ayrı draw call'dur; ucuz kalmalı. */
-const BUDGET = { campfire: 400, lean_to: 200, flame: 120 } as const;
+const BUDGET = {
+  campfire: 400,
+  lean_to: 200,
+  workbench: 200,
+  storage_chest: 100,
+  wooden_hut: 400,
+  flame: 120,
+} as const;
 
 describe('structureGeometry', () => {
   it.each(STRUCTURE_KINDS.map((k) => [k]))('%s: bütçe içinde, renkli, normalli, sonlu', (kind) => {
