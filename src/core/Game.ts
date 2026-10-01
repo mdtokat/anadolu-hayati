@@ -36,6 +36,7 @@ import { collectedToast, gatherPrompt } from '../interaction/promptText';
 import { craft } from '../items/craft';
 import { eatItem, quickEat } from '../items/eatItem';
 import { Inventory } from '../items/Inventory';
+import { ContainerFiller, drinkFromContainer } from '../items/waterContainer';
 import { isLit, type StructureKind } from '../placement/structures';
 import { PlacementController } from '../placement/PlacementController';
 import {
@@ -127,6 +128,8 @@ export class Game {
     this.inventory,
     this.structureSystem.structures,
   );
+  /** Tatlı su kenarında `E` ile boş su kabını doldurma (saf mantık). */
+  readonly filler = new ContainerFiller(this.events, this.inventory);
   /** Yapı yerleştirme: hayalet ve onay (saf mantık). */
   readonly placement: PlacementController;
   /** Canlıların simülasyonu (saf mantık; Faz 5, Hesap A). */
@@ -256,6 +259,8 @@ export class Game {
     this.inventoryPanel = new InventoryPanel(container, this.inventory, {
       onEat: (slot) => this.eatFromSlot(slot),
       onCraft: (recipe) => this.craftRecipe(recipe),
+      onDrink: () => this.drinkContainer(),
+      onDrop: (slot, count) => this.dropFromSlot(slot, count),
       onClose: () => this.closeInventory(),
       getVitals: () => this.survival.state,
     });
@@ -326,6 +331,13 @@ export class Game {
       ),
       this.events.on('item:cooked', ({ count }) =>
         this.hud.notify(cookedToast(count), INTERACT.toastMs),
+      ),
+      this.events.on('item:filled', () => this.hud.notify('Su kabı doldu', INTERACT.toastMs)),
+      this.events.on('time:nightStarted', () =>
+        this.hud.notify('Gece bastı: hava soğuyor, yırtıcılar avda', INTERACT.dayNightToastMs),
+      ),
+      this.events.on('time:dayStarted', () =>
+        this.hud.notify('Gün ağarıyor', INTERACT.dayNightToastMs),
       ),
       this.events.on('camera:modeChanged', ({ mode }) =>
         this.playerModel.setVisible(mode === 'thirdPerson'),
@@ -423,6 +435,7 @@ export class Game {
 
     this.placement.cancel();
     this.butcher.reset();
+    this.filler.reset();
     this.deathScreen.hide();
     this.hud.setPrompt(null);
     this.inventoryPanel.refresh();
@@ -611,6 +624,13 @@ export class Game {
       warmthC: this.exposure.warmthC,
       sheltered: this.exposure.sheltered,
     });
+    // Su kabı: susuzluk giderildikten sonra (içmiyorken) `E` basılı kalırsa boş kap dolar.
+    this.filler.update(step, {
+      held: interaction.drinkAllowed,
+      nearWater: water !== null,
+      drinking: this.survival.drinking,
+      alive: this.survival.alive,
+    });
   }
 
   /** Bakılan leş (yoksa null): `INTERACT` menzili/konisi içinde, ölü canlılar arasından. */
@@ -682,6 +702,26 @@ export class Game {
   private eatFromSlot(slot: number): void {
     const item = eatItem(this.inventory, this.survival, slot);
     if (item !== null) this.hud.notify(`Yedin: ${ITEMS[item].name}`, INTERACT.toastMs);
+    this.inventoryPanel.refresh();
+  }
+
+  /** Envanterdeki dolu su kabından iç (panel "İç" düğmesi). */
+  private drinkContainer(): void {
+    const result = drinkFromContainer(this.inventory, this.survival, this.events);
+    if (result.ok)
+      this.hud.notify(`Su kabından içtin (+${Math.round(result.amount)} Su)`, INTERACT.toastMs);
+    this.inventoryPanel.refresh();
+  }
+
+  /** Seçili slottan eşya at (yok olur; dünyaya bırakılmaz): dolu envanteri boşaltmak için. */
+  private dropFromSlot(slot: number, count: number): void {
+    const dropped = this.inventory.removeFromSlot(slot, count);
+    if (dropped) {
+      this.hud.notify(
+        `Atıldı: ${ITEMS[dropped.id].name}${dropped.count > 1 ? ` ×${dropped.count}` : ''}`,
+        INTERACT.toastMs,
+      );
+    }
     this.inventoryPanel.refresh();
   }
 
@@ -835,7 +875,7 @@ export class Game {
       return;
     }
     const cook = alive ? this.cooking.offer : null;
-    if (cook) {
+    if (cook?.status === 'ready') {
       this.hud.setPrompt(cookPrompt(this.fireTender.offer?.status === 'ready'));
       this.hud.setProgress(this.cooking.progress > 0 ? this.cooking.progress : null);
       return;
@@ -846,12 +886,13 @@ export class Game {
       this.hud.setProgress(this.fireTender.progress > 0 ? this.fireTender.progress : null);
       return;
     }
-    this.hud.setProgress(null);
+    this.hud.setProgress(this.filler.progress > 0 ? this.filler.progress : null);
     const drink = this.drinkPrompt();
     this.hud.setPrompt(
       drink ??
         (offer ? gatherPrompt(offer) : null) ??
         (butcher ? butcherPrompt(butcher) : null) ??
+        (cook ? cookPrompt(false, cook.status) : null) ??
         (tend ? tendPrompt(tend) : null) ??
         this.attackHint(alive),
     );
@@ -864,7 +905,7 @@ export class Game {
     return hit ? attackPrompt(hit.view.kind) : null;
   }
 
-  /** F/G: yerleştirme hayaletini aç/kapa; eşya yoksa kısa bildirim. */
+  /** C/G: yerleştirme hayaletini aç/kapa; eşya yoksa kısa bildirim. */
   private togglePlacement(kind: StructureKind): void {
     const text = toggleToast(this.placement.toggle(kind), kind);
     if (text) this.hud.notify(text, INTERACT.toastMs);
@@ -925,12 +966,19 @@ export class Game {
     }
   }
 
-  /** Su kaynağı erişimdeyken ipucu: içiyorsa "İçiyorsun…", değilse "E: Su iç". */
+  /**
+   * Su kaynağı erişimdeyken ipucu: içiyorsa "İçiyorsun…", susuzsa "E: Su iç", değilse boş su kabı varsa
+   * "E: Su kabını doldur", yoksa "Susuzluğun yok".
+   */
   private drinkPrompt(): string | null {
     if (!this.survival.alive || !this.waterInReach) return null;
     if (this.survival.drinking) return 'İçiyorsun…';
     const missing = SURVIVAL.maxValue - this.survival.state.hydration;
-    return missing < SURVIVAL.drinkMinDeficit ? 'Susuzluğun yok' : 'E (basılı tut): Su iç';
+    if (missing >= SURVIVAL.drinkMinDeficit) return 'E (basılı tut): Su iç';
+    const fill = this.filler.offer;
+    if (fill?.status === 'ready') return 'E (basılı tut): Su kabını doldur';
+    if (fill?.status === 'full') return 'Envanter dolu: dolu su kabı sığmıyor';
+    return 'Susuzluğun yok';
   }
 
   /**

@@ -3,6 +3,7 @@ import { INPUT } from '../config';
 import { canEat } from '../items/consume';
 import type { Inventory } from '../items/Inventory';
 import type { RecipeId } from '../items/recipes';
+import { canDrinkContainer } from '../items/waterContainer';
 import type { VitalsState } from '../survival/vitals';
 import { capacityText, recipeRows, slotView, type RecipeRow } from './inventoryView';
 
@@ -10,6 +11,10 @@ export interface InventoryPanelCallbacks {
   /** Seçili slottaki yiyeceği ye. */
   onEat(slot: number): void;
   onCraft(recipe: RecipeId): void;
+  /** Seçili slottaki dolu su kabından iç. */
+  onDrink(slot: number): void;
+  /** Seçili slottan `count` adet at (eşya yok olur; envanteri boşaltmak için). */
+  onDrop(slot: number, count: number): void;
   /** Panel kapatılmak isteniyor (Kapat düğmesi, Esc, I/Tab, dış alana tıklama). */
   onClose(): void;
   /** Güncel göstergeler (yemek düğmesinin "tok" denetimi ve üst satır için). */
@@ -36,6 +41,8 @@ export class InventoryPanel {
   private readonly root = el('div', 'inv-panel');
   private readonly panel = el('div', 'inv-panel-body');
   private selected: number | null = null;
+  /** "Hepsini At" ilk tıklandı, onay bekliyor (yanlışlıkla bir yığın kaybolmasın). */
+  private confirmDropAll = false;
   private open = false;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -66,6 +73,7 @@ export class InventoryPanel {
     if (this.open) return;
     this.open = true;
     this.selected = null;
+    this.confirmDropAll = false;
     this.root.hidden = false;
     document.addEventListener('keydown', this.onKeyDown);
     this.refresh();
@@ -130,14 +138,45 @@ export class InventoryPanel {
       actions.append(el('span', 'inv-hint', 'Bir eşyaya tıkla; başka bir slota tıklayarak taşı.'));
     } else {
       const view = slotView(stack);
+      const slot = this.selected as number;
       actions.append(el('span', 'inv-selected', view.title));
       if (view.edible) {
         const eat = el('button', 'inv-eat', canEat(vitals, stack.id) ? 'Ye' : 'Tok');
         eat.type = 'button';
         eat.disabled = !canEat(vitals, stack.id);
-        const slot = this.selected as number;
         eat.addEventListener('click', () => this.callbacks.onEat(slot));
         actions.append(eat);
+      }
+      if (view.drinkable) {
+        const ok = canDrinkContainer(vitals, this.inventory);
+        const drink = el('button', 'inv-eat', ok ? 'İç' : 'Susuz değil');
+        drink.type = 'button';
+        drink.disabled = !ok;
+        drink.addEventListener('click', () => this.callbacks.onDrink(slot));
+        actions.append(drink);
+      }
+      const drop = el('button', 'inv-drop', 'At');
+      drop.type = 'button';
+      drop.title = 'Bir adet at (eşya yok olur)';
+      drop.addEventListener('click', () => this.callbacks.onDrop(slot, 1));
+      actions.append(drop);
+      if (stack.count > 1) {
+        const all = el(
+          'button',
+          'inv-drop',
+          this.confirmDropAll ? `Onayla: ${stack.count} adet at` : 'Hepsini At',
+        );
+        all.type = 'button';
+        all.addEventListener('click', () => {
+          if (!this.confirmDropAll) {
+            this.confirmDropAll = true;
+            this.refresh();
+            return;
+          }
+          this.confirmDropAll = false;
+          this.callbacks.onDrop(slot, stack.count);
+        });
+        actions.append(all);
       }
     }
     section.append(actions);
@@ -179,6 +218,7 @@ export class InventoryPanel {
   }
 
   private onSlotClick(index: number): void {
+    this.confirmDropAll = false;
     if (this.selected === null) {
       if (this.inventory.slots[index] !== null) this.selected = index;
     } else if (this.selected === index) {

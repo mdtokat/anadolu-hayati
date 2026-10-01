@@ -1,5 +1,5 @@
 import './ui.css';
-import { COMBAT_HUD } from '../config';
+import { COMBAT_HUD, INTERACT } from '../config';
 import type { VitalsState } from '../survival/vitals';
 import { defenseLabel, type HitMarkerKind } from './combatFormat';
 import {
@@ -220,6 +220,9 @@ export class Hud {
     toast.className = 'hud-toast';
     toast.textContent = text;
     this.toasts.append(toast);
+    // Sınır aşılınca en eski bildirim erken kalkar (zamanlayıcısı sonra kopuk öğeyi siler; zararsız).
+    while (this.toasts.childElementCount > INTERACT.maxToasts)
+      this.toasts.firstElementChild?.remove();
     const timer = setTimeout(() => {
       toast.remove();
       this.toastTimers.delete(timer);

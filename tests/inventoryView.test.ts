@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INVENTORY } from '../src/config';
+import { INVENTORY, WATER_CONTAINER } from '../src/config';
 import { Inventory } from '../src/items/Inventory';
 import { RECIPE_LIST, RECIPES } from '../src/items/recipes';
 import {
@@ -54,6 +54,13 @@ describe('slotView', () => {
 
   it('böğürtlenin su etkisi de yazılır', () => {
     expect(slotView({ id: 'blackberry', count: 2 }).title).toContain('Su +2');
+  });
+
+  it('dolu su kabı içilebilir, boşu değil', () => {
+    const full = slotView({ id: 'water_container_full', count: 1 });
+    expect(full).toMatchObject({ drinkable: true, edible: false });
+    expect(full.title).toContain(`Su +${WATER_CONTAINER.drinkHydration}`);
+    expect(slotView({ id: 'water_container_empty', count: 1 }).drinkable).toBe(false);
   });
 });
 

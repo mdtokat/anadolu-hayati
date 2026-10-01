@@ -309,6 +309,10 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   cursor: default;
+  /* Kısa ekranlarda (ör. 1366×768 dizüstünde tarayıcı çubuklarıyla) panel kesilmesin, kaydırılsın. */
+  box-sizing: border-box;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 
 .pause-menu h1 {
@@ -411,6 +415,10 @@
   background: rgba(25, 10, 10, 0.92);
   border: 1px solid rgba(255, 120, 100, 0.35);
   border-radius: 12px;
+  /* Kısa ekranlarda (ör. 1366×768 dizüstünde tarayıcı çubuklarıyla) panel kesilmesin, kaydırılsın. */
+  box-sizing: border-box;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 .death-screen-panel h1 {
   margin: 0 0 8px;
@@ -496,6 +504,13 @@
 .inv-panel button:focus-visible {
   background: #4682f0;
 }
+.inv-panel button.inv-drop {
+  background: #6b3a3a;
+}
+.inv-panel button.inv-drop:hover:not(:disabled),
+.inv-panel button.inv-drop:focus-visible {
+  background: #8a4646;
+}
 .inv-panel button:disabled {
   background: #3a4350;
   color: #8a94a3;
@@ -541,6 +556,7 @@
 }
 .inv-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-height: 36px;
@@ -618,6 +634,10 @@
   background: rgba(20, 30, 40, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
+  /* Kısa ekranlarda (ör. 1366×768 dizüstünde tarayıcı çubuklarıyla) panel kesilmesin, kaydırılsın. */
+  box-sizing: border-box;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 .settings-panel h2 {
   margin: 0 0 16px;

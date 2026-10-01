@@ -232,7 +232,7 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Tekne ile kıyı boyunca seyahat
 - Hikâye / görev sistemi
 - Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir)_
-- Tuzak ve olta ile av; su kabı doldurma ve kaynatma
+- Tuzak ve olta ile av; suyu kaynatma (su kabı doldurma/içme bakım turunda eklendi)
 - Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (ses altyapısı Faz 6'da geldi: `audio/`; hayvan sesleri henüz yok)
 - Hayvan ekolojisi: gerçek dağılım verisi, yavru/üreme, sürü formasyonu, mevsimsel göç, daha çok tür (tilki, geyik, sırtlan…)
 - Ağaç ve kaya collider'ı (oyuncu ve hayvan şimdilik içlerinden geçer), hayvanların engel/ağaç arkasında görüş hattı

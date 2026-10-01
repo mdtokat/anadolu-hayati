@@ -2,6 +2,7 @@ import { ITEMS } from '../items/itemDefs';
 import type { ItemStack } from '../items/Inventory';
 import type { CreatureKind } from '../creatures/kinds';
 import type { ButcherOffer } from './carcass';
+import type { CookOffer } from './cooking';
 
 /** Tür adları (Türkçe). */
 export const CREATURE_NAMES: Readonly<Record<CreatureKind, string>> = {
@@ -20,9 +21,10 @@ export function butcherPrompt(offer: ButcherOffer): string {
 
 /**
  * Pişirme ipucu. Yakıt atılabilecek durumdaysa (`hasFuel`) öncelik kuralı açıkça söylenir: çiğ et varken
- * `E` eti pişirir, yakıtı etler bitince atar.
+ * `E` eti pişirir, yakıtı etler bitince atar. Pişmiş et sığmıyorsa (`full`) neden söylenir.
  */
-export function cookPrompt(hasFuel: boolean): string {
+export function cookPrompt(hasFuel: boolean, status: CookOffer['status'] = 'ready'): string {
+  if (status === 'full') return 'Envanter dolu: pişmiş et sığmıyor';
   return hasFuel
     ? 'E (basılı tut): Eti pişir · et bitince yakıt atılır'
     : 'E (basılı tut): Eti pişir';
