@@ -747,6 +747,20 @@ export const SURVIVAL = {
   drinkMinDeficit: 1,
 } as const;
 
+/** Kayıt sistemi (Faz 6): yuvalar, otomatik kayıt ve IndexedDB depolama adları. */
+export const SAVE = {
+  /** Elle kayıt yuvası sayısı (`slot-1` … `slot-N`); otomatik kayıt (`auto`) ayrı bir yuvadır. */
+  manualSlots: 5,
+  /** Otomatik kayıt aralığı (gerçek sn; oyun donukken sayılmaz). Sekme gizlenirken/kapanırken ayrıca kaydedilir. */
+  autosaveIntervalSeconds: 120,
+  /** IndexedDB veritabanı adı. Değişirse eski kayıtlar görünmez olur; değiştirme. */
+  dbName: 'anadolu-hayati',
+  /** IndexedDB şema sürümü (nesne deposu yapısı değişirse artırılır; kayıt formatı sürümüyle ilgisi yok). */
+  dbVersion: 1,
+  /** Kayıtların tutulduğu nesne deposu; anahtar yuva kimliğidir. */
+  storeName: 'saves',
+} as const;
+
 /** Ölüm sonrası yeniden doğma noktası seçimi. */
 export const RESPAWN = {
   /** Rastgele tohumu; ölüm sırası (n) ile birleşir: aynı seed aynı ölümde aynı noktayı verir. */

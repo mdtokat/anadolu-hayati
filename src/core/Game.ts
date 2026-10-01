@@ -3,6 +3,7 @@ import {
   COMBAT,
   COMBAT_HUD,
   INTERACT,
+  SAVE,
   PLAYER,
   RENDER,
   SURVIVAL,
@@ -63,8 +64,11 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
+import { Autosaver } from '../save/Autosaver';
+import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
-import { SaveError, type SaveGame } from '../save/saveGame';
+import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
+import { AUTO_SLOT, SaveStore, type SlotId } from '../save/SaveStore';
 import { CreatureLayer } from '../world/CreatureLayer';
 import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
@@ -148,6 +152,17 @@ export class Game {
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
   private readonly onResize = (): void => this.resize();
+  /** Yuvalı kayıt deposu (IndexedDB; yoksa bellek). Menüler yuva listesini buradan okur. */
+  readonly saves: SaveStore;
+  private readonly autosaver = new Autosaver(SAVE.autosaveIntervalSeconds, () => {
+    void this.autosave();
+  });
+  private autosaving = false;
+  private autosaveFailed = false;
+  /** Sekme gizlenirken (kapanış, sekme değişimi) otomatik kayıt: kapanışta kaybolan ilerleme olmasın. */
+  private readonly onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') void this.autosave();
+  };
   private demoAnchor: { x: number; z: number } | null = null;
   private lastDangerToast = -Infinity;
   private lastLocationUpdate = -Infinity;
@@ -164,6 +179,8 @@ export class Game {
     private readonly creatureDemo = false,
   ) {
     this.world = world;
+    const { backend, persistent } = createBackend();
+    this.saves = new SaveStore(backend, persistent);
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
     container.appendChild(this.renderer.domElement);
@@ -271,6 +288,8 @@ export class Game {
       ),
     );
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('pagehide', this.onVisibility);
     if (import.meta.env.DEV) document.addEventListener('keydown', this.onDevKey);
     this.resize();
   }
@@ -365,6 +384,45 @@ export class Game {
     this.lastLocationUpdate = -Infinity;
   }
 
+  /**
+   * Oyunu `slot` yuvasına kaydeder ve özetini döner. Kayıt alınamıyorsa (ölü ya da test dünyası) `null`;
+   * depolama hatasında `SaveError('storage')` fırlatır.
+   */
+  async saveToSlot(slot: SlotId): Promise<SaveSummary | null> {
+    const save = this.createSave();
+    if (!save) return null;
+    const summary = await this.saves.save(slot, save);
+    this.autosaver.reset();
+    return summary;
+  }
+
+  /** `slot` yuvasındaki kaydı yükler; yuva boşsa `false`. Bozuk kayıtta `SaveError` fırlatır (oyun değişmez). */
+  async loadFromSlot(slot: SlotId): Promise<boolean> {
+    const save = await this.saves.load(slot);
+    if (!save) return false;
+    this.loadSave(save);
+    this.autosaver.reset();
+    return true;
+  }
+
+  /** Otomatik kayıt: örtüşmez, hata oyunu durdurmaz; başarısızlık dizisinde yalnızca bir kez bildirilir. */
+  private async autosave(): Promise<void> {
+    if (this.autosaving) return;
+    const save = this.createSave();
+    if (!save) return;
+    this.autosaving = true;
+    try {
+      await this.saves.save(AUTO_SLOT, save);
+      this.autosaveFailed = false;
+    } catch (error) {
+      console.warn('Otomatik kayıt başarısız', error);
+      if (!this.autosaveFailed) this.hud.notify('Otomatik kayıt başarısız', INTERACT.toastMs);
+      this.autosaveFailed = true;
+    } finally {
+      this.autosaving = false;
+    }
+  }
+
   private saveTargets(): SaveTargets {
     return {
       regionId: REGION_ID,
@@ -398,6 +456,8 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('pagehide', this.onVisibility);
     document.removeEventListener('keydown', this.onDevKey);
     for (const off of this.offs) off();
     this.input.dispose();
@@ -430,6 +490,7 @@ export class Game {
 
   private update(step: number): void {
     if (!this.survival.alive) return; // ölü: oyun donar, ölüm ekranı gösterilir
+    this.autosaver.update(step);
 
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
     const intent = gateIntent(this.input.pollIntent(), canSprint(this.survival.state));

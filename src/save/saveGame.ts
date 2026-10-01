@@ -84,7 +84,11 @@ export type SaveErrorCode =
   /** Eski sürümü yeniye taşıyan göç adımı tanımlı değil. */
   | 'no_migration'
   /** Şema ya da değerler geçersiz. */
-  | 'invalid';
+  | 'invalid'
+  /** Yuva kimliği geçersiz. */
+  | 'bad_slot'
+  /** Depolama (IndexedDB) kullanılamıyor, dolu ya da bir işlem başarısız oldu. */
+  | 'storage';
 
 /** Kayıt okunamadığında fırlatılır; `message` oyuncuya gösterilebilir Türkçe bir açıklamadır. */
 export class SaveError extends Error {
