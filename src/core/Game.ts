@@ -12,6 +12,7 @@ import {
   SURVIVAL_HUD,
   TELEPORTS,
   VERTICAL_SCALE,
+  WORLD,
 } from '../config';
 import { CarcassButcher, pickCarcass } from '../combat/carcass';
 import { defenseFor } from '../combat/damage';
@@ -109,8 +110,11 @@ const LOCATION_HUD_INTERVAL_MS = 250;
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
 
-/** Bölge kimliği (public/data/regions/<id>). */
-const REGION_ID = 'zonguldak-bartin-karabuk';
+/**
+ * Arazi verisinin okunduğu eski bölge (public/data/regions/<id>); 7.6'da karo manifestine (`WORLD.id`) geçer.
+ * Kayıtlar dünya kimliğini (`WORLD.id`) taşır: eski bölge, dünyanın kafesteki ilk parçasıdır.
+ */
+const REGION_ID = WORLD.legacyRegionId;
 
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
@@ -448,7 +452,7 @@ export class Game {
   /** Yeni oyun: durumu başlangıca döndürür (kayıtlara dokunmaz) ve fare kilidi ister. */
   newGame(): void {
     if (this.world instanceof RegionWorld) {
-      this.loadSave(createNewGameSave(REGION_ID, this.world.spawn, new Date()));
+      this.loadSave(createNewGameSave(WORLD.id, this.world.spawn, new Date()));
       this.autosaver.reset();
     }
     this.input.requestLock();
@@ -491,7 +495,7 @@ export class Game {
 
   private saveTargets(): SaveTargets {
     return {
-      regionId: REGION_ID,
+      regionId: WORLD.id,
       player: {
         read: () => ({
           x: this.player.position.x,

@@ -1,8 +1,17 @@
-import { INVENTORY } from '../../src/config';
+import { INVENTORY, WORLD } from '../../src/config';
 import { Inventory } from '../../src/items/Inventory';
 import { StructureSet } from '../../src/placement/structures';
 import { SAVE_FORMAT_VERSION, type SaveGame } from '../../src/save/saveGame';
 import { initialVitals } from '../../src/survival/vitals';
+import { absoluteChunkKey, absolutePropId } from '../../src/world/chunkKeys';
+
+/** Örnek kimlikler (v2: mutlak); negatif chunk dahil. */
+export const SAMPLE_IDS = {
+  bush: absolutePropId(absoluteChunkKey(1, 0), 0),
+  stick: absolutePropId(absoluteChunkKey(1, 0), 1),
+  tree: absolutePropId(absoluteChunkKey(-2, 3), 0),
+  cell: absoluteChunkKey(4, 2),
+};
 
 /** Her bölümü dolu, geçerli bir kayıt (kayıt testleri için ortak örnek). */
 export function sampleSave(): SaveGame {
@@ -15,7 +24,7 @@ export function sampleSave(): SaveGame {
   return {
     version: SAVE_FORMAT_VERSION,
     savedAt: '2026-10-01T09:30:00.000Z',
-    regionId: 'zonguldak-bartin-karabuk',
+    regionId: WORLD.id,
     player: { x: 10, y: 4.2, z: -35, yaw: 2.1, pitch: -0.3 },
     survival: {
       vitals: { ...initialVitals(), health: 80, hydration: 42.5, exhausted: true },
@@ -26,7 +35,11 @@ export function sampleSave(): SaveGame {
     },
     inventory: inventory.toJSON(),
     structures: structures.toJSON(),
-    world: { handDone: [65536, 65537], axeDone: [131072], removed: [131072] },
-    creatures: { killed: [{ cell: 1024, remainingSeconds: 411.5 }] },
+    world: {
+      handDone: [SAMPLE_IDS.bush, SAMPLE_IDS.stick],
+      axeDone: [SAMPLE_IDS.tree],
+      removed: [SAMPLE_IDS.tree],
+    },
+    creatures: { killed: [{ cell: SAMPLE_IDS.cell, remainingSeconds: 411.5 }] },
   };
 }

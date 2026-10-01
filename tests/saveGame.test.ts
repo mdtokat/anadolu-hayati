@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { INVENTORY } from '../src/config';
+import { INVENTORY, WORLD } from '../src/config';
 import { Inventory } from '../src/items/Inventory';
 import { StructureSet } from '../src/placement/structures';
 import {
   SAVE_FORMAT_VERSION,
   SaveError,
+  MIGRATIONS,
   migrateSave,
   parseSave,
   summarizeSave,
   type SaveErrorCode,
 } from '../src/save/saveGame';
-import { sampleSave as sample } from './helpers/sampleSave';
+import { SAMPLE_IDS, sampleSave as sample } from './helpers/sampleSave';
 
 /** Derin kopya; testlerde bozulacak veri kaynağı korunsun. */
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -41,7 +42,7 @@ describe('parseSave: geçerli kayıt', () => {
     const parsed = parseSave(save);
     parsed.world.removed.push(999);
     parsed.player.x = 0;
-    expect(save.world.removed).toEqual([131072]);
+    expect(save.world.removed).toEqual([SAMPLE_IDS.tree]);
     expect(save.player.x).toBe(10);
   });
 
@@ -157,6 +158,11 @@ describe('migrateSave: sürüm göçü', () => {
     expect(order).toEqual([2]);
   });
 
+  it('gerçek zincir: v1 adımı tanımlı (Faz 7 göçü; ayrıntı tests/saveMigration)', () => {
+    expect(SAVE_FORMAT_VERSION).toBe(2);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1]);
+  });
+
   it('zincirde adım eksikse no_migration verir', () => {
     expect(codeOf(() => migrateSave({ version: 1 }, 3, { 2: (r) => r }))).toBe('no_migration');
   });
@@ -166,7 +172,7 @@ describe('summarizeSave', () => {
   it("yuva listesi için gün (1'den), saat ve can özetini verir", () => {
     expect(summarizeSave(sample())).toEqual({
       savedAt: '2026-10-01T09:30:00.000Z',
-      regionId: 'zonguldak-bartin-karabuk',
+      regionId: WORLD.id,
       day: 4,
       hour: 14.25,
       health: 80,

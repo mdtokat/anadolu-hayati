@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WORLD } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { CreatureSystem } from '../src/creatures/CreatureSystem';
@@ -11,7 +12,7 @@ import { parseSave, type PlayerSave } from '../src/save/saveGame';
 import { SurvivalSystem } from '../src/survival/SurvivalSystem';
 import { sampleSave } from './helpers/sampleSave';
 
-const REGION = 'zonguldak-bartin-karabuk';
+const REGION = WORLD.id;
 const NOW = new Date('2026-10-01T10:00:00.000Z');
 const SPAWN = { x: -688.3, y: 9.04, z: -277.2 };
 
