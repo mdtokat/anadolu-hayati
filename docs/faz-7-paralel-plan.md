@@ -8,7 +8,7 @@ Bu belge, Faz 7'nin **iki ayrı hesapta (iki oturum) aynı anda** yürütülmesi
 
 | | İş | Hesap | Branch |
 |---|---|---|---|
-| **7.0** | İskele: sözleşme sabitleri, tipler, mutlak kimlik fonksiyonları, `RegionMeta.gridOrigin`, belgeler | plan sahibi (bu oturum; onaydan sonra) | `faz-7-0-iskele` |
+| **7.0** | İskele: sözleşme sabitleri (`WORLD`), tipler (`worldTypes.ts`), kafes matematiği (`lattice.ts`), mutlak kimlikler (`chunkKeys.ts`), `RegionMeta.gridOrigin`, belgeler — **tamamlandı** (bu plan ile aynı PR) | plan sahibi | `faz-7-0-iskele` |
 | **7.1–7.4** | **Veri ve karolar:** karo biçimi + yükleyici, eski bölgeyi karola, hattı yeni düzene taşı, Düzce–Bolu verisini üret + QA | **A** | `faz-7-a-veri` |
 | **7.5–7.9** | **Çalışma zamanı ve oyun:** ızgara çapası + mutlak kimlikler, manifestten yükleme, kayıt v2 göçü, performans/bellek, Düzce–Bolu içeriği | **B** | `faz-7-b-calisma` |
 | **7.10** | Birleştirme: eski bölge verisi/yükleyici temizliği, uçtan uca doğrulama, birleşik performans tablosu | kalan hesap | `faz-7-entegrasyon` |
@@ -72,7 +72,7 @@ Karo **akışı** (oyuncuya göre yükleme/boşaltma), karo başına özellik do
 | `tests/world*.test.ts` (veri/manifest/yükleyici/golden), `tools/tests/**` | **sahibi** | dokunma |
 | `src/world/**`, `src/physics/**`, `src/creatures/**`, `src/interaction/**` | dokunma | **sahibi** |
 | `src/save/**`, `src/core/Game.ts`, `src/ui/**`, `src/audio/**` | dokunma | **sahibi** |
-| `src/world/chunkKeys.ts` | salt okunur | sahibi (7.0'da yazılır; B yalnızca uyguladıkça genişletir) |
+| `src/world/chunkKeys.ts`, `src/world/lattice.ts` | salt okunur | salt okunur (7.0'da yazıldı; B 7.5'te mevcut kimlik/ızgara koduna bağlarken **yalnızca ekleme** yapar, davranışı değiştirmez) |
 | `src/config.ts` | yalnızca **`WORLD` bloğu** (7.0 ile kilitlenir; değişiklik ayrı küçük PR) | `TELEPORTS`, `CHUNK`, `SCATTER`, `CREATURES`, `RESPAWN`, `QUALITY_PRESETS`… (`WORLD` hariç) |
 | mevcut 20 gerçek-bölge testi + `tests/helpers/realRegion.ts` | dokunma | **sahibi** (7.6'da yeni yükleyiciye taşır, 7.9'da beklentileri günceller) |
 | `ROADMAP.md` | yalnızca 7.1–7.4 satırları | yalnızca 7.5–7.9 satırları |
@@ -152,24 +152,29 @@ interface RegionMeta {
   gridOrigin: { x: number; z: number };
 }
 ```
-- Yeni dünya: `gridOrigin = { x: X0 + col0·2, z: Z0 + row0·2 }` (örn. `{ −2867, −1175 }`).
+- Yeni dünya: `gridOrigin = gridOriginOf(extent)` (`src/world/lattice.ts`; = `{ x: X0 + col0·2, z: Z0 + row0·2 }`, örn. `{ −2867, −1175 }`).
 - Eski `meta.json` (merkezli, `gridOrigin` yok): `parseMeta` varsayılanı `{ x: −(W−1)/2·cell, z: −(H−1)/2·cell }` türetir (7.0). B'nin 7.5'i **bu varsayılanla eski veride** çalışır; yeni dünya gelince değişiklik gerekmez.
 - `heights` (uint16, dünya geneli aralık), `landcover` (uint8), `provinces`, `features`: bugünkü alanlar, **aynı ızgara ve sıra**.
 
-### 3.4 Kimlikler (mutlak; 7.0'da `src/world/chunkKeys.ts`'e yazılır, B 7.5'te bağlar)
+### 3.4 Kimlikler (mutlak; **7.0'da yazıldı:** `src/world/chunkKeys.ts`, B 7.5'te mevcut `chunkKey/propId/creatureId` yerine bağlar)
+Adlar mevcut fonksiyonlarla çakışmasın diye `absolute…` önekini taşır (B, 7.5'te mevcut adları bunlara yönlendirebilir):
 ```ts
-export const CHUNK_KEY_BIAS = 32768;                     // waterIndex'teki kalıpla aynı
-export function chunkKey(cx: number, cy: number): number // (cy + BIAS)·65536 + (cx + BIAS)  (< 2^32)
-export function decodeChunkKey(key: number): { cx: number; cy: number };
-export function propId(chunkKey: number, index: number): PropId;     // chunkKey·65536 + index  (< 2^48, güvenli tam sayı)
-export function creatureId(cellKey: number, index: number): number;  // cellKey·256 + index     (< 2^40); hücre anahtarı = chunkKey(cx, cy)
+export const CHUNK_KEY_BIAS = 32768;                                    // waterIndex'teki kalıpla aynı
+export function absoluteChunkKey(cx: number, cy: number): number;       // (cy + BIAS)·65536 + (cx + BIAS)  (< 2^32); aralık dışı RangeError
+export function decodeAbsoluteChunkKey(key: number): { cx: number; cy: number };
+export function absolutePropId(chunkKey: number, index: number): number;      // chunkKey·65536 + indeks   (< 2^48, güvenli tam sayı)
+export function decodeAbsolutePropId(id: number): { chunkKey: number; index: number };
+export function absoluteCreatureId(cellKey: number, index: number): number;    // cellKey·256 + sıra        (< 2^40); hücre anahtarı = absoluteChunkKey(cx, cy)
 
-/** Faz 6 (v1) kayıtlarındaki eski kimlikler: 13 × 10 chunk, anahtar = cy·13 + cx, lattice aynı. */
+/** Faz 6 (v1) kayıtlarındaki eski kimlikler: 13 × 10 chunk, anahtar = cy·13 + cx, kafes aynı. Geçersiz/ızgara dışı değer için null. */
 export const LEGACY = { chunkCols: 13, chunkRows: 10, spawnCols: 13, spawnRows: 10 } as const;
-export function legacyPropIdToId(old: number): number;
-export function legacyCellKeyToKey(old: number): number;
+export function legacyChunkKeyToAbsolute(oldKey: number): number | null;
+export function legacyCellKeyToAbsolute(oldKey: number): number | null;
+export function legacyPropIdToAbsolute(oldId: number): number | null;
 ```
-Eski `cx = key % 13`, `cy = floor(key / 13)` → yeni anahtar `chunkKey(cx, cy)`; nesne indeksi **değişmez** (üretim aynı). Bu yüzden kafes çapası eski ızgaranın kuzeybatı köşesidir (§3.1).
+Eski `cx = key % 13`, `cy = floor(key / 13)` → yeni anahtar `absoluteChunkKey(cx, cy)`; nesne indeksi **değişmez** (üretim aynı). Bu yüzden kafes çapası eski ızgaranın kuzeybatı köşesidir (§3.1). Testler (`tests/chunkKeys.test.ts`) `LEGACY` sabitlerini gerçek eski ızgarayla (13 × 10) ve eski chunk dikdörtgenlerini kafes formülüyle eşleştirir.
+
+**Kafes matematiği (7.0'da yazıldı, saf):** `src/world/lattice.ts` — `latticeX/latticeZ/latticeCol/latticeRow`, `gridOriginOf(extent)`, `tileOf`, `chunkOf`, `tileRangeOf(extent)`, `LATTICE_CELL`, `CHUNK_CELLS`. Her iki hesap bunları kullanır, kendi kopyasını yazmaz.
 
 ### 3.5 Kayıt sözleşmesi (B uygular, 7.7)
 `SAVE_FORMAT_VERSION = 2`. `MIGRATIONS[1]`: `regionId` `'zonguldak-bartin-karabuk'` → `WORLD.id`; `world.handDone/axeDone/removed` içindeki kimlikler `legacyPropIdToId`; `creatures.killed[].cell` `legacyCellKeyToKey`. Oyuncu/yapı/envanter/gösterge/saat **aynen** (orijin ve kafes değişmedi).
@@ -191,7 +196,7 @@ export const WORLD = {
 
 ### 7.1 Karo biçimi ve yükleyici
 - `tools/worldlib.py` (saf, numpy; rasterio yok): kafes/karo matematiği (`tile_of`, `slice_into_tiles`, `assemble`), dünya-geneli nicemleme, manifest üretme/doğrulama, sha256. Python testi **`src/config.ts` `WORLD.lattice` bloğunu okuyup** Python sabitleriyle eşleştirir (HORIZONTAL_SCALE kalıbı).
-- `src/data/world.ts`: `parseWorldManifest` (katı doğrulama), `loadWorld(id, baseUrl, fetchFn)` → `RegionData` (§3.3). Karoları paralel çeker, `Uint16Array(W×H)`'ye satır satır kopyalar; il/özellik ayrıştırıcılarını `region.ts`'ten paylaşır (A `region.ts`'i düzenleyebilir).
+- `src/data/world.ts`: `parseWorldManifest` (katı doğrulama; tipler `worldTypes.ts`'te hazır), `loadWorld(id, baseUrl, fetchFn)` → `RegionData` (§3.3; `gridOrigin` = `gridOriginOf(extent)`, karo aralığı = `tileRangeOf`). Karoları paralel çeker, `Uint16Array(W×H)`'ye satır satır kopyalar; il/özellik ayrıştırıcılarını `region.ts`'ten paylaşır (A `region.ts`'i düzenleyebilir).
 - Testler (`tests/worldManifest.test.ts`, `tests/worldLoad.test.ts`): geçerli/geçersiz manifest; sentetik karolarla birleştirme (negatif karo indeksi, kısmi karo, dikdörtgen dışı, boşluk → hata, boyut/sha/lattice uyuşmazlığı → hata, `gridOrigin` doğru).
 - **Bitti:** `loadWorld` sentetik dünyada doğru; Python + TS testleri geçer.
 
@@ -302,8 +307,7 @@ A, S1 sonrası bile bitirmeye devam eder; B S1'i beklerken 7.5/7.7/7.8-altyapı 
 
 ## 9. Başlatma komutları (kopyala-yapıştır)
 
-**İskele (plan sahibi oturum, ilk):**
-> `docs/faz-7-paralel-plan.md`'yi oku ve **7.0 iskeleyi** yap (§0, §3). Yalnızca iskele: config `WORLD` bloğu, `RegionMeta.gridOrigin` (+ eski `meta.json` için varsayılan), `src/data/worldTypes.ts`, `src/world/chunkKeys.ts` (+ testleri), ROADMAP Faz 7 satırları. Branch: `faz-7-0-iskele`.
+**İskele:** 7.0 yapıldı ve bu planla birlikte `main`'e girer; A ve B yalnızca `main`'de `WORLD` bloğu, `src/world/chunkKeys.ts` ve `src/world/lattice.ts` varsa başlar.
 
 **Hesap A:**
 > `docs/faz-7-paralel-plan.md`'yi ve `CLAUDE.md`'yi oku. **Faz 7 A bölümünü yap** (7.1–7.4, Veri ve karolar). 7.0 iskele `main`'de olmalı; değilse dur ve bildir. Önce 7.1 ve **7.2'yi bitirip hemen PR'a hazırla** (B buna bağlı). Dosya sahipliği §2.2. Branch: `faz-7-a-veri`.

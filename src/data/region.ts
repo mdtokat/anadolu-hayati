@@ -21,6 +21,13 @@ export interface RegionMeta {
   features: string[];
   /** landcover.bin bilgisi (Faz 4); dosya yoksa null. */
   landcover: LandCoverMeta | null;
+  /**
+   * Birleştirilmiş dizinin (0, 0) örneğinin merkez konumu (oyun m): `x(c) = gridOrigin.x + c · hücre`,
+   * `z(r) = gridOrigin.z + r · hücre` (hücre = `cellSizeReal / HORIZONTAL_SCALE`). Faz 7 dünyasında kafes
+   * çapalıdır (örn. `{ x: -2867, z: -1175 }`); eski, orijin-merkezli `meta.json`'da alan yoktur ve
+   * `parseMeta` merkezli değeri türetir: `x = −(gridWidth − 1) / 2 · hücre` (z benzer).
+   */
+  gridOrigin: { x: number; z: number };
 }
 
 /** Bir çokgen: dış halka + delikler. Halkalar düz [x0, z0, x1, z1, ...] dizisidir (oyun X/Z). */
@@ -139,13 +146,16 @@ export function parseMeta(json: unknown): RegionMeta {
   const cellSizeReal = readNumber(json, 'cellSizeReal');
   if (cellSizeReal <= 0) fail("'cellSizeReal' pozitif olmalı");
 
+  const gridWidth = readPositiveInt(json, 'gridWidth');
+  const gridHeight = readPositiveInt(json, 'gridHeight');
+
   return {
     id: readString(json, 'id'),
     name: readString(json, 'name'),
     crs: readString(json, 'crs'),
     originUtm: [origin[0] as number, origin[1] as number],
-    gridWidth: readPositiveInt(json, 'gridWidth'),
-    gridHeight: readPositiveInt(json, 'gridHeight'),
+    gridWidth,
+    gridHeight,
     cellSizeReal,
     elevationMin,
     elevationMax,
@@ -156,7 +166,23 @@ export function parseMeta(json: unknown): RegionMeta {
       ? json.features.filter((s) => typeof s === 'string')
       : [],
     landcover: parseLandCoverMeta(json.landcover),
+    gridOrigin: parseGridOrigin(json.gridOrigin, gridWidth, gridHeight, cellSizeReal),
   };
+}
+
+/** `gridOrigin` varsa doğrular; yoksa (eski, orijin-merkezli veri) merkezli değeri türetir. */
+function parseGridOrigin(
+  value: unknown,
+  gridWidth: number,
+  gridHeight: number,
+  cellSizeReal: number,
+): { x: number; z: number } {
+  if (value === undefined) {
+    const cell = cellSizeReal / HORIZONTAL_SCALE;
+    return { x: (-(gridWidth - 1) / 2) * cell, z: (-(gridHeight - 1) / 2) * cell };
+  }
+  if (!isRecord(value)) fail("'gridOrigin' { x, z } olmalı");
+  return { x: readNumber(value, 'x'), z: readNumber(value, 'z') };
 }
 
 /** meta.json `landcover` alanı: yoksa null; varsa dosya adı ve sınıf tablosu koddakiyle eşleşmeli. */

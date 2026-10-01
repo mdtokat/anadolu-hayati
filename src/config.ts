@@ -748,6 +748,28 @@ export const SURVIVAL = {
 } as const;
 
 /**
+ * Dünya verisi ve kafes sözleşmesi (Faz 7; ayrıntı: docs/faz-7-paralel-plan.md §3). **Bu blok kilitlidir:**
+ * değişirse veri hattı (`tools/worldlib.py` testi bu bloğu okur), karo dosyaları ve kayıtlardaki kimlikler
+ * uyuşmaz; değişiklik ayrı, küçük bir PR ile yapılır.
+ *
+ * Dünya orijini (`originUtm`) değişmez; global örnek kafesi eski bölgenin kuzeybatı örneğine çapalıdır:
+ * örnek `(col, row)` → oyun `x = anchorX + col · hücre`, `z = anchorZ + row · hücre` (piksel merkezi).
+ */
+export const WORLD = {
+  /** Oyunun yüklediği dünya (`public/data/world/<id>/world.json`). */
+  id: 'bati-karadeniz',
+  name: 'Batı Karadeniz',
+  /** `public/` altındaki taban yol (`import.meta.env.BASE_URL` ile birleşir). */
+  basePath: 'data/world',
+  /** Global kafesin (0, 0) örneğinin merkez konumu (oyun m): eski bölgenin kuzeybatı örneği. */
+  lattice: { anchorX: -1587, anchorZ: -1175 },
+  /** Diskteki karo kenarı (örnek); 4 chunk. */
+  tileSize: 512,
+  /** Faz 6 kayıtlarındaki (v1) bölge kimliği: kayıt göçünde yeni dünya kimliğine çevrilir. */
+  legacyRegionId: 'zonguldak-bartin-karabuk',
+} as const;
+
+/**
  * Ortam sesleri (Faz 6.8): hepsi Web Audio ile kodla sentezlenir (ses dosyası yok). Katman seviyeleri
  * (0–1) `audio/ambientMix.ts`'te konumdan/zamandan türetilir; burada eşikler ve zamanlamalar durur.
  * Ana ses seviyesi kullanıcı ayarındandır (`SETTINGS.volume`).
