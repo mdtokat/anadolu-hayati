@@ -102,6 +102,27 @@ export class RegionHeightSource implements HeightSource {
     return top * (1 - tr) + bottom * tr;
   }
 
+  /** Karadan en yakın deniz hücresine uzaklık (hücre cinsinden), tembel hesaplanır; deniz hücreleri 0. */
+  private seaDistanceCells: Float32Array | null = null;
+
+  /**
+   * (x, z)'den en yakın denize uzaklık (oyun m); denizdeyse 0, ızgara dışında ya da hiç deniz yoksa çok büyük.
+   * Deniz hücreleri taban çukurlaştırmasından (negatif yükseklik) bilinir. İlk çağrıda bir kez hesaplanır
+   * (iki geçişli mesafe dönüşümü, ~ızgara boyu); ortam sesleri bunu kullanır.
+   */
+  distanceToSea(x: number, z: number): number {
+    this.seaDistanceCells ??= seaDistanceToLand(
+      this.width,
+      this.height,
+      (i) => (this.game[i] as number) >= 0,
+    );
+    const col = Math.round(x / this.cell + (this.width - 1) / 2);
+    const row = Math.round(z / this.cell + (this.height - 1) / 2);
+    if (col < 0 || row < 0 || col >= this.width || row >= this.height)
+      return Number.POSITIVE_INFINITY;
+    return (this.seaDistanceCells[row * this.width + col] as number) * this.cell;
+  }
+
   /** Gerçek rakım (metre): oyun yüksekliği × VERTICAL_SCALE. */
   elevationAt(x: number, z: number): number {
     return this.heightAt(x, z) * VERTICAL_SCALE;

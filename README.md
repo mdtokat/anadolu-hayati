@@ -2,7 +2,7 @@
 
 Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıda çalışan 3D bir hayatta kalma oyunu. Harita kademeli olarak büyür: ilk bölge **Zonguldak – Bartın – Karabük**, ardından komşu iller eklenir.
 
-> Proje geliştirme aşamasındadır. **Faz 0–4** tamamlandı; **Faz 5 — Canlılar** kodu hazır: gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Arazi örtüsüne göre ormanlar, çalılar ve kayalar yerleşir; dal, taş, yemiş ve mantar toplayıp taş balta, taş mızrak, deri yelek, kamp ateşi ve sundurma üretirsin. Ormanlarda karaca, yaban domuzu, kurt ve boz ayı dolaşır: karaca kaçar, domuz ve ayı dokunulunca saldırır, kurtlar geceleri sürü hâlinde avlanır; ateşin başında hayvanlardan korunursun. Avladığın hayvanı keser, ateşte pişirir ve yersin (çiğ et riskli). Hayvanların dağılımı ve davranışı **yaklaşıktır** (oyun dengesi için; bilimsel dağılım haritası değildir). Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
+> Proje geliştirme aşamasındadır. **Faz 0–6** kodu tamamlandı (açık kalan elle doğrulamalar için [CLAUDE.md](CLAUDE.md) "Mevcut Durum"): gerçek Zonguldak–Bartın–Karabük arazisinde yürürsün; gece-gündüz döngüsü, rakıma bağlı soğuk, susuzluk/açlık/yorgunluk, nehirden su içme, ölüm ve yeniden doğma var. Arazi örtüsüne göre ormanlar, çalılar ve kayalar yerleşir; dal, taş, yemiş ve mantar toplayıp taş balta, taş mızrak, deri yelek, kamp ateşi ve sundurma üretirsin. Ormanlarda karaca, yaban domuzu, kurt ve boz ayı dolaşır: karaca kaçar, domuz ve ayı dokunulunca saldırır, kurtlar geceleri sürü hâlinde avlanır; ateşin başında hayvanlardan korunursun. Avladığın hayvanı keser, ateşte pişirir ve yersin (çiğ et riskli). Hayvanların dağılımı ve davranışı **yaklaşıktır** (oyun dengesi için; bilimsel dağılım haritası değildir). Oyunu birden fazla yuvaya kaydedip yükleyebilir (otomatik kayıt dahil), grafik kalitesini, fare hassasiyetini ve sesi ayarlayabilirsin; il sınırlarını geçince bildirim çıkar, rüzgâr, deniz, orman ve gece sesleri konumuna göre değişir (hepsi kodla sentezlenir). Faz planı için [ROADMAP.md](ROADMAP.md), proje kuralları için [CLAUDE.md](CLAUDE.md) dosyalarına bakın.
 
 **Canlı sürüm:** https://mdtokat.github.io/anadolu-hayati/
 
@@ -10,7 +10,7 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 
 | Tuş | Eylem |
 | --- | --- |
-| Tıkla / **Başla** | Oyunu başlat, fareyi yakala |
+| Ana menü | **Devam** (son kayıt), **Yeni Oyun**, **Yükle**, **Ayarlar**, **Krediler**; oyuna girince fare yakalanır |
 | W A S D (veya ok tuşları) | Yürü |
 | Shift | Koş |
 | Boşluk | Zıpla |
@@ -22,7 +22,9 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | Fare | Etrafa bak |
 | V | Birinci / üçüncü şahıs kamera |
 | B | İl sınırı çizgilerini aç/kapa |
-| Esc | Duraklat (menüyü aç) |
+| Esc | Duraklat: **Devam Et**, **Kaydet**, **Yükle**, **Ayarlar**, **Krediler**, **Ana Menüye Dön** |
+
+Oyun her 2 dakikada ve sekme gizlenirken **otomatik kayıt** yuvasına kaydeder; kayıtlar tarayıcıda (IndexedDB) tutulur ve sürümlüdür. Ayarlar tarayıcıda (`localStorage`) saklanır.
 
 Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`npm run dev`) 1–5 tuşları Zonguldak, Safranbolu, Amasra, Filyos ve Yenice'ye ışınlar. `?world=test` adresi Faz 1'in test arenasını açar (30°/60° rampalar, 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru).
 

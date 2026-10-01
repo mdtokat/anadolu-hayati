@@ -154,18 +154,28 @@ Kabul kriterleri:
 ---
 
 ## Faz 6 — Kayıt ve Cilalama
-**Branch:** `faz-6-kayit`
+**Branch:** `faz-6-kayit` _(oturumda dayatılan dal adıyla geliştirildi; alt görevler PR'larla `main`'e girdi)_
+**Amaç:** Oyunu kalıcı ve eksiksiz hissettir: kaydet/yükle, menüler, ayarlar, krediler, il geçişi bildirimi ve ortam sesleri.
 
 Görevler:
-- [ ] Kaydet / yükle (IndexedDB; birden fazla kayıt yuvası)
-- [ ] Ana menü, ayarlar (grafik kalitesi, fare hassasiyeti, ses)
-- [ ] Krediler ekranı (veri atıfları dahil)
-- [ ] İl sınırı geçişlerinde bildirim ("Bartın'a hoş geldiniz")
-- [ ] Ortam sesleri (rüzgâr, deniz, orman, gece)
+- [x] **6.1** Kayıt formatı: sürümlü `SaveGame` v1 şeması, doğrulama (`parseSave`), sürüm göçü (`MIGRATIONS`), `SaveError`
+- [x] **6.2** Durum yakalama/yükleme: oyuncu, hayatta kalma ve saat, envanter, yapılar, tükenen nesneler, canlı bekleme listesi (`captureSave`/`applySave`, `Game.createSave/loadSave`)
+- [x] **6.3** Kaydet / yükle: IndexedDB (`SaveStore`), otomatik + 5 elle yuva, otomatik kayıt (120 sn ve sekme gizlenirken)
+- [x] **6.4** Ayarlar: grafik kalitesi (düşük/orta/yüksek), fare hassasiyeti, ses seviyesi (`SettingsStore`, `localStorage`)
+- [x] **6.5** Ana menü ve duraklatma menüsü: Devam / Yeni Oyun / Yükle / Kaydet / Ayarlar / Ana Menüye Dön, yuva seçici
+- [x] **6.6** Krediler ekranı (veri atıfları, yazılım lisansları; README ile tutarlılık testli)
+- [x] **6.7** İl sınırı geçişlerinde bildirim ("Bartın'a hoş geldiniz")
+- [x] **6.8** Ortam sesleri: rüzgâr, deniz, orman (yaprak, kuş), gece (cırcır, baykuş); Web Audio ile kodla sentezlenir
+- [x] **6.9** Kapanış: ROADMAP, `CLAUDE.md` "Mevcut Durum", README
 
 Kabul kriterleri:
-- [ ] Kaydedilip yüklenen oyun birebir aynı durumda açılıyor
-- [ ] Kayıt formatı sürümlü (ileriki fazlarda geriye uyumluluk için)
+- [x] Kaydedilip yüklenen oyun birebir aynı durumda açılıyor _(`tests/gameState.test.ts`, `tests/newGame.test.ts`: kaydet → yükle → yeniden kaydet birebir eşit, JSON gidiş-dönüşü dahil; gerçek bölgede başsız tarayıcıda yenileme sonrası da doğrulandı. "Birebir" kalıcı durum içindir: canlılar ve leşler kayda girmez, yükleme onları temizler ve akış yeniden doğurur; bilinçli)_
+- [x] Kayıt formatı sürümlü (ileriki fazlarda geriye uyumluluk için) _(`SAVE_FORMAT_VERSION` + `MIGRATIONS` zinciri; eski sürüm adım adım yükseltilir, daha yeni sürüm anlaşılır hatayla reddedilir: `tests/saveGame.test.ts`)_
+
+Elle doğrulanacak (bu ortamda gerçek GPU ve ses çıkışı yok):
+- [ ] Ortam seslerinin gerçek hoparlörde dinlenmesi: doğallık (rüzgâr, deniz, kuş, baykuş) ve katmanlar arası denge (`AMBIENT`, `audio/ambientGraph.ts` içindeki `MIX`)
+- [ ] Kalite ön ayarlarının (Düşük/Orta/Yüksek) gerçek GPU'lu masaüstünde FPS etkisi ve görsel kabul edilebilirliği (`QUALITY_PRESETS`)
+- [ ] Menü ve yuva akışının gerçek fare kilidiyle Chrome/Firefox/Edge'de denenmesi (Esc → menü → Kaydet/Yükle → devam)
 
 ---
 
@@ -194,7 +204,10 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Hikâye / görev sistemi
 - Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir)_
 - Tuzak ve olta ile av; su kabı doldurma ve kaynatma
-- Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (Faz 6 sesleriyle birlikte)
+- Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (ses altyapısı Faz 6'da geldi: `audio/`; hayvan sesleri henüz yok)
 - Hayvan ekolojisi: gerçek dağılım verisi, yavru/üreme, sürü formasyonu, mevsimsel göç, daha çok tür (tilki, geyik, sırtlan…)
 - Ağaç ve kaya collider'ı (oyuncu ve hayvan şimdilik içlerinden geçer), hayvanların engel/ağaç arkasında görüş hattı
 - Hayvan tuzağı/oltası, kurutulmuş et (yiyecek bozulması), deri işleme
+- Ses: adım sesleri (zemine göre), kamp ateşi çıtırtısı, yağmur/fırtına, su kenarı ve nehir sesi, iç/dış mekân yankısı, ses kanalları için ayrı kaydırıcılar (müzik/efekt/ortam)
+- Kayıt: canlıları ve leşleri kaydetme, kaydı dosya olarak dışa/içe aktarma, bulut kaydı, kayıt küçük resmi (ekran görüntüsü), yuva adlandırma
+- Ayarlar: tuş atama, görüş alanı (FOV), gölge/anti-aliasing seçenekleri, sürüş mesafesi kaydırıcısı; ilk açılışta GPU'ya göre otomatik kalite

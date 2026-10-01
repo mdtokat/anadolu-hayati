@@ -18,7 +18,7 @@ import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
 import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
-import type { GameWorld, LocationInfo, WorldQuality } from './GameWorld';
+import type { AmbientSample, GameWorld, LocationInfo, WorldQuality } from './GameWorld';
 import { latLonToGame } from './geo';
 import { ProvinceBorders } from './ProvinceBorders';
 import { provinceAt } from './provinces';
@@ -55,6 +55,7 @@ export class RegionWorld implements GameWorld {
   private readonly freshWater: FreshWaterIndex | null;
   private readonly freshWaterMesh: FreshWaterMesh | null;
   private readonly props: PropLayer | null;
+  private readonly cover: LandCoverMap | null;
 
   constructor(
     readonly region: RegionData,
@@ -94,6 +95,7 @@ export class RegionWorld implements GameWorld {
 
     // Nesneler (ağaç, kaya, çalı, yenebilir bitki): arazi örtüsü verisi yoksa yerleşim de yoktur.
     const cover = LandCoverMap.fromRegion(region);
+    this.cover = cover;
     this.props = cover ? new PropLayer(this.source, cover, this.freshWater) : null;
     if (this.props) this.scene.add(this.props.group);
 
@@ -176,6 +178,13 @@ export class RegionWorld implements GameWorld {
       inRegion: province?.inRegion ?? false,
       // Deniz tabanı kurgusaldır (bkz. SEABED); rakım deniz seviyesinin altına inmez.
       elevation: Math.max(0, feetY * VERTICAL_SCALE),
+    };
+  }
+
+  ambientAt(x: number, z: number): AmbientSample {
+    return {
+      cover: this.cover?.classAt(x, z) ?? 'none',
+      seaDistance: this.source.distanceToSea(x, z),
     };
   }
 

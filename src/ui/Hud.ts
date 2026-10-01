@@ -66,6 +66,8 @@ export class Hud {
   private readonly prompt = document.createElement('div');
   private readonly progress = document.createElement('div');
   private readonly progressFill = document.createElement('div');
+  private readonly banner = document.createElement('div');
+  private bannerTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly toasts = document.createElement('div');
   private readonly toastTimers = new Set<ReturnType<typeof setTimeout>>();
 
@@ -93,6 +95,8 @@ export class Hud {
     this.progressFill.className = 'hud-progress-fill';
     this.progress.append(this.progressFill);
     this.toasts.className = 'hud-toasts';
+    this.banner.className = 'hud-banner';
+    this.banner.hidden = true;
     this.gauges.hidden = true; // hayatta kalma verisi gelene kadar (test arenasında da) görünmez
     this.clock.hidden = true;
     this.root.append(
@@ -106,6 +110,7 @@ export class Hud {
       this.prompt,
       this.progress,
       this.toasts,
+      this.banner,
     );
 
     if (showDebug) {
@@ -222,6 +227,18 @@ export class Hud {
     this.toastTimers.add(timer);
   }
 
+  /** Ekranın üstünde büyük, kendiliğinden sönen duyuru (ör. "Bartın'a hoş geldiniz"); yenisi eskisinin yerini alır. */
+  showBanner(text: string, durationMs: number): void {
+    this.banner.textContent = text;
+    this.banner.hidden = false;
+    animateFade(this.banner, 1, durationMs);
+    if (this.bannerTimer !== null) clearTimeout(this.bannerTimer);
+    this.bannerTimer = setTimeout(() => {
+      this.banner.hidden = true;
+      this.bannerTimer = null;
+    }, durationMs);
+  }
+
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
   }
@@ -243,6 +260,7 @@ export class Hud {
   dispose(): void {
     for (const timer of this.toastTimers) clearTimeout(timer);
     this.toastTimers.clear();
+    if (this.bannerTimer !== null) clearTimeout(this.bannerTimer);
     this.root.remove();
   }
 }

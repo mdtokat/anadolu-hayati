@@ -1,5 +1,6 @@
 import type { Scene } from 'three';
 import type { CreatureTerrain } from '../creatures/kinds';
+import type { LandCoverClass } from '../data/landcover';
 import type { Vec3 } from '../player/movement';
 import type { SkyPosition } from '../survival/astronomy';
 import type { WaterHit } from './waterIndex';
@@ -13,6 +14,14 @@ export interface WorldQuality {
   propDrawRadius: number;
   /** Arazi LOD geçiş uzaklıklarının çarpanı. */
   lodScale: number;
+}
+
+/** Ortam sesleri için bir noktanın özellikleri (yalnızca gerçek bölgede). */
+export interface AmbientSample {
+  /** Arazi örtüsü sınıfı (veri yoksa `none`). */
+  cover: LandCoverClass;
+  /** En yakın denize uzaklık (oyun m); denizdeyse 0. */
+  seaDistance: number;
 }
 
 /** Konum hakkında HUD'da gösterilecek bilgi (yalnızca gerçek bölgede vardır). */
@@ -57,6 +66,8 @@ export interface GameWorld {
   readonly propStats?: PropLayerStats | null;
   /** Canlıların arazi sorguları (Faz 5); desteklemeyen dünyalarda (test arenası) tanımsız, canlı oluşmaz. */
   readonly creatureTerrain?: CreatureTerrain;
+  /** (x, z)'nin ortam sesi özellikleri (örtü sınıfı, denize uzaklık); desteklemeyen dünyalarda tanımsız. */
+  ambientAt?(x: number, z: number): AmbientSample;
   /** Grafik kalitesini çalışma zamanında uygular (destekleyen dünyalarda): arazi LOD çarpanı, nesne çizim yarıçapı. */
   setQuality?(quality: WorldQuality): void;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
