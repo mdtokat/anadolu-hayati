@@ -317,8 +317,22 @@
 
 .pause-menu-buttons {
   display: flex;
-  justify-content: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
+  width: 240px;
+  margin: 0 auto;
+}
+.pause-menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pause-menu-latest {
+  margin: -12px 0 14px;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.pause-menu-latest[hidden] {
+  display: none;
 }
 .pause-menu button.secondary {
   background: rgba(255, 255, 255, 0.12);
@@ -351,24 +365,6 @@
 .pause-menu dd {
   margin: 0;
   opacity: 0.8;
-}
-
-.pause-menu-credits {
-  max-width: 420px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: left;
-  opacity: 0.7;
-}
-.pause-menu-credits p {
-  margin: 0 0 6px;
-}
-.pause-menu-credits a {
-  color: inherit;
-  font-weight: 600;
 }
 
 /* Ölüm ekranı (duraklatma menüsünün üstünde) */
@@ -666,4 +662,79 @@
 }
 .settings-segmented button {
   flex: 1;
+}
+
+/* Yuva seçici (ayarlar penceresinin kabuğunu kullanır) */
+.slot-picker-body {
+  width: min(560px, calc(100vw - 32px));
+}
+.slot-list {
+  display: grid;
+  gap: 8px;
+}
+.slot-row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+.slot-name {
+  font-weight: 600;
+}
+.slot-info {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.slot-info.corrupt {
+  color: #ff9a8a;
+}
+.slot-buttons {
+  display: flex;
+  gap: 6px;
+}
+.slot-buttons button {
+  min-width: 84px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+.settings-panel button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.slot-hint {
+  min-height: 1.4em;
+  margin: 12px 0 0;
+}
+
+/* Krediler ekranı (ayarlar penceresinin kabuğunu kullanır; uzun olduğundan kaydırılır) */
+.credits-panel-body {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.credits-section h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  opacity: 0.75;
+}
+.credits-section p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+.credits-section a {
+  color: inherit;
+  font-weight: 600;
+}
+.credits-note {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.65;
 }
