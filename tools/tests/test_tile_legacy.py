@@ -1,15 +1,12 @@
 import json
-from pathlib import Path
 
 import numpy as np
+import pytest
 
 import tile_legacy as tl
 import worldlib as wl
 
-REPO = Path(__file__).resolve().parents[2]
-
-
-def test_tiling_legacy_region_is_bit_exact_and_matches_committed_output(tmp_path):
+def test_tiling_legacy_region_is_bit_exact(tmp_path):
     out = tmp_path / "world"
     manifest = tl.tile_legacy(tl.LEGACY_DIR, out)
     wl.validate_manifest(manifest)
@@ -36,9 +33,14 @@ def test_tiling_legacy_region_is_bit_exact_and_matches_committed_output(tmp_path
     for name in ("provinces.geojson", "features.json"):
         assert (out / name).read_bytes() == (tl.LEGACY_DIR / name).read_bytes()
 
-    # Depodaki çıktı bu betiğin çıktısıyla aynı (elle düzenlenmiş/eskimiş karo kalmasın).
-    committed = REPO / "public" / "data" / "world" / "bati-karadeniz"
-    assert json.loads((committed / "world.json").read_text()) == json.loads((out / "world.json").read_text())
-    for t in manifest["tiles"]:
-        assert (committed / t["height"]).read_bytes() == (out / t["height"]).read_bytes()
-        assert (committed / t["cover"]).read_bytes() == (out / t["cover"]).read_bytes()
+
+def test_refuses_to_overwrite_a_wider_world_without_force(tmp_path):
+    """7.4'ten sonra depodaki dünya eski alandan geniştir; betik yanlışlıkla ezmesin."""
+    out = tmp_path / "world"
+    out.mkdir()
+    (out / "world.json").write_text(json.dumps({"extent": {"col0": -640, "row0": 0, "cols": 2228, "rows": 1962}}))
+    with pytest.raises(wl.WorldDataError, match="daha geniş"):
+        tl.tile_legacy(tl.LEGACY_DIR, out)
+    assert (out / "world.json").exists()  # dokunulmadı
+    manifest = tl.tile_legacy(tl.LEGACY_DIR, out, force=True)
+    assert manifest["extent"] == {"col0": 0, "row0": 0, "cols": 1588, "rows": 1176}

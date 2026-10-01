@@ -168,3 +168,64 @@ def test_validate_manifest_rejects_gap_lattice_and_size_mismatches():
     dup = {**good, "tiles": good["tiles"] + [good["tiles"][0]]}
     with pytest.raises(wl.WorldDataError):
         wl.validate_manifest(dup)
+
+
+def test_grid_for_lattice_reproduces_old_and_new_extents():
+    # Eski bölge: Zonguldak–Bartın–Karabük sınır kutusu + 2 km → eski ızgara (kafesin kendisi).
+    old = wl.grid_for_lattice(356685.83, 4519465.93, 511483.80, 4633056.19, 2000)
+    assert old.extent == wl.Extent(0, 0, 1588, 1176)
+    assert (old.left, old.top) == (354685, 4635061)
+    assert (old.right, old.bottom) == (354685 + 158800, 4635061 - 117600)
+    assert (old.origin_e, old.origin_n) == wl.ORIGIN_UTM
+    # Plan §1.4: 5 hedef il → sütun −640…1588, satır 0…1962; batı kenarı chunk'a hizalı.
+    new = wl.grid_for_lattice(293205.60, 4440864.10, 511483.80, 4633056.19, 2000)
+    assert new.extent == wl.Extent(-640, 0, 2228, 1962)
+    assert new.extent.col0 % wl.CHUNK_CELLS == 0 and new.extent.row0 % wl.CHUNK_CELLS == 0
+    assert wl.tile_range_of(new.extent) == (-2, 3, 0, 3)
+    assert wl.grid_origin_of(new.extent) == (-2867, -1175)
+
+
+def test_grid_for_lattice_aligns_only_west_and_north_edges():
+    g = wl.grid_for_lattice(360000, 4500000, 380000, 4520000, 0)
+    e = g.extent
+    assert e.col0 % 128 == 0 and e.row0 % 128 == 0
+    # Doğu/güney kenar yerinde: ceil(kafes), hizalanmaz.
+    assert g.right >= 380000 and g.right - 380000 < wl.CELL_SIZE_REAL
+    assert g.bottom <= 4500000 and 4500000 - g.bottom < wl.CELL_SIZE_REAL
+    # Kapsar: batı/kuzey kenar kutunun dışında (≥ 0, < bir chunk).
+    assert 0 <= 360000 - g.left < 128 * wl.CELL_SIZE_REAL + wl.CELL_SIZE_REAL
+    assert 0 <= g.top - 4520000 < 128 * wl.CELL_SIZE_REAL + wl.CELL_SIZE_REAL
+
+
+def test_lattice_grid_matches_regionlib_grid_interface():
+    import regionlib
+
+    g = wl.grid_for_lattice(356685.83, 4519465.93, 511483.80, 4633056.19, 2000)
+    legacy = regionlib.Grid(1588, 1176, 100, *wl.ORIGIN_UTM)
+    for attr in ("width", "height", "cell", "origin_e", "origin_n", "left", "top", "right", "bottom"):
+        assert getattr(g, attr) == getattr(legacy, attr), attr
+
+
+def test_compare_with_legacy_detects_within_and_beyond_one_step():
+    rng = np.random.default_rng(11)
+    legacy_extent = wl.Extent(0, 0, 40, 30)
+    new_extent = wl.Extent(-128, 0, 300, 100)
+    elevation = rng.uniform(0, 1990, size=(30, 40))
+    legacy_h = wl.quantize_with_range(elevation, 0.0, 1996.0)
+    new_h = np.zeros((new_extent.rows, new_extent.cols), np.uint16)
+    new_h[0:30, 128:168] = wl.quantize_with_range(elevation, 0.0, 2500.0)
+    ok = wl.compare_with_legacy(new_h, new_extent, 2500.0, legacy_h, 1996.0, legacy_extent)
+    assert ok["within_one_step"] and ok["max_diff_m"] <= ok["step_m"]
+    new_h[5, 130 + 3] += 200  # ≈ 7,6 m sapma
+    bad = wl.compare_with_legacy(new_h, new_extent, 2500.0, legacy_h, 1996.0, legacy_extent)
+    assert not bad["within_one_step"]
+
+
+def test_compare_with_legacy_rejects_area_outside_world():
+    import pytest
+
+    with pytest.raises(wl.WorldDataError):
+        wl.compare_with_legacy(
+            np.zeros((10, 10), np.uint16), wl.Extent(0, 0, 10, 10), 100.0, np.zeros((30, 40), np.uint16), 100.0,
+            wl.Extent(0, 0, 40, 30),
+        )
