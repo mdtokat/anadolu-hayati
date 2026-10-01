@@ -157,3 +157,24 @@ Zonguldak'ta (karasının %98,5'i < 1000 m) bir gece hiçbir yerde ölümcül de
 ### 8.4 sonucu
 
 Mevcut denge Zonguldak'ta hedef aralıklarda: canlılar (ayı ve kurt dahil) diğer illerle uyumlu, su ve yakıt bol, gece soğuğu yalnızca yüksekte hasarlı. Bilinçli bir tasarım kararı bekleyen tek konu **yiyecek kıtlığının neredeyse olmaması** (yukarıda). Gerçek oyun hissi elle doğrulanmalıdır.
+
+## 8.6 Performans ve görsel cila (2026-10-01)
+
+### Performans: 8.0 tabanına göre değişiklik yok
+
+8.1–8.5 (yeniden doğma, yer adı bildirimi, ipuçları) render yüküne dokunmadığından başsız ölçüm (`perfZong.cjs`, aynı 9 Zonguldak konumu, 8 yön) **8.0 ile birebir aynı** çıktı: en kötü **98 draw call** (il zirvesi; bütçe < 300; 8.6 kriteri tabana göre ≤ +%10 = ≤ 108) ve en çok **~591 bin üçgen** (Devrek). Konsolda hata yok; yığın ~155 MB, başsız sayfa açılışı ~4,4 sn (yazılımsal WebGL, önbelleksiz Vite dönüşümü dahil; Faz 7 ~1,4–2,2 sn ölçümüyle aynı ortam değil). **Azaltma adımları (su meshini bölme, LOD/görüş eşikleri, `SCATTER`) gerekmedi, uygulanmadı.** Gerçek FPS elle ölçülecek.
+
+### Görsel cila: başlangıç bakışı
+
+Yeni oyunda oyuncu kuzeye bakıyordu (`yaw = 0`); Zonguldak merkez başlangıcında bu, 3 m ötede 17° dikleşen bir yamaç duvarıdır (ilk kare ekranı kaplayan çıplak arazi). Başlangıç noktasından 16 yönde 300 m boyunca arazinin göz hizasının üstüne çıkan en büyük açı:
+
+| Yön (yaw) | En büyük açı | Not |
+|---|---|---|
+| 0° (kuzey, eski varsayılan) | +17,4° @ 3 m | yamaç duvarı |
+| 45° | +6,9° | |
+| **68°–113° (batı)** | **≤ +0,4°** | **açık, denizi gören manzara** |
+| 135°–270° | +6,6° … +11,8° | arazi/orman |
+
+**Değişiklik:** `PILOT.start.yawDeg = 90` (batı; açık, denize bakan). Yeni oyun kaydı (`createNewGameSave(…, yaw)`) ve açılış menüsü arka planı bu bakışla başlar; yükleme ve yeniden doğma etkilenmez (kayıtlı bakış korunur). Başsız ekran görüntüsünde ilk kare deniz ufku ve ormanı gösteriyor. Test: `tests/pilot` ("başlangıç bakışı açık").
+
+Diğer konumlarda (Devrek, Filyos vadisi, il zirvesi) başsız ekran görüntülerinde göze çarpan bir hata (z-fighting, havada nesne, su/arazi çakışması) görülmedi; nehir şeridi, ağaç ve çalı yerleşimi, deniz ufku ve uzak dağ sisi beklendiği gibi. Not: yazılımsal WebGL'de (≈ 1–2 FPS) ince görsel kusurlar (titreme, kaydırma) değerlendirilemez; gerçek GPU'da elle bakılmalıdır.

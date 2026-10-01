@@ -10,12 +10,17 @@ import { SAVE_FORMAT_VERSION, type SaveGame } from './saveGame';
  * `CLOCK.startHour`, envanter/yapılar/tükenen nesneler boş. "Yeni Oyun" bu kaydı `Game.loadSave` ile uygular;
  * böylece sıfırlama, yüklemeyle aynı (testli) yoldan geçer ve başlangıç durumu tek yerde tanımlı kalır.
  */
-export function createNewGameSave(regionId: string, spawn: Readonly<Vec3>, now: Date): SaveGame {
+export function createNewGameSave(
+  regionId: string,
+  spawn: Readonly<Vec3>,
+  now: Date,
+  yaw = 0,
+): SaveGame {
   return {
     version: SAVE_FORMAT_VERSION,
     savedAt: now.toISOString(),
     regionId,
-    player: { x: spawn.x, y: spawn.y, z: spawn.z, yaw: 0, pitch: 0 },
+    player: { x: spawn.x, y: spawn.y, z: spawn.z, yaw, pitch: 0 },
     survival: {
       vitals: initialVitals(),
       aliveSeconds: 0,
