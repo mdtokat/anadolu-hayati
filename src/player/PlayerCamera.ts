@@ -3,7 +3,7 @@ import { CAMERA, INPUT, PLAYER } from '../config';
 import { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { HeightSource } from '../world/HeightSource';
-import { applyLook, thirdPersonOffset, type Look } from './cameraMath';
+import { applyLook, normalizeLook, thirdPersonOffset, type Look } from './cameraMath';
 import type { Vec3 } from './movement';
 
 export type CameraMode = 'firstPerson' | 'thirdPerson';
@@ -36,6 +36,11 @@ export class PlayerCamera {
 
   get pitch(): number {
     return this.look.pitch;
+  }
+
+  /** Bakışı doğrudan ayarlar (kayıt yükleme); açılar geçerli aralığa getirilir. */
+  setLook(yaw: number, pitch: number): void {
+    this.look = normalizeLook({ yaw, pitch });
   }
 
   /** Fare hareketini (piksel) bakışa uygular. */

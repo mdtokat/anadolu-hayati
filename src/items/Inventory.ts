@@ -234,6 +234,17 @@ export class Inventory {
     return inventory;
   }
 
+  /**
+   * Kayıttan bu örneği yerinde yükler (başka nesneler bu örneğe referans tutar): önce doğrular, sonra
+   * yazar; bozuk veride `Error` fırlatır ve envanter değişmez. `version` artar (arayüz yenilenir).
+   */
+  loadSave(data: unknown): void {
+    const loaded = Inventory.fromJSON(data, { slots: this.slotCount, maxWeightG: this.maxWeightG });
+    this.stacks.splice(0, this.stacks.length, ...loaded.stacks);
+    this.weightG = loaded.weightG;
+    this.revision += 1;
+  }
+
   private static totals(costs: ReadonlyArray<ItemStack>): Map<ItemId, number> {
     const totals = new Map<ItemId, number>();
     for (const { id, count } of costs) {

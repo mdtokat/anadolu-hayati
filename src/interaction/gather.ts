@@ -3,6 +3,7 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
 import { ITEMS, type ItemId } from '../items/itemDefs';
+import type { WorldSave } from '../save/saveGame';
 import { createRandom, seedFrom } from '../utils/random';
 import type { PropId, PropRef } from '../world/propKinds';
 import { GATHER_RULES, type GatherYield } from './gatherRules';
@@ -63,6 +64,29 @@ export class GatherSystem {
     const offer = this.currentOffer;
     if (!offer || this.currentId === null || offer.status !== 'ready') return 0;
     return Math.min(this.elapsed / offer.seconds, 1);
+  }
+
+  /** Kayıt görüntüsü: tükenen ve dünyadan kalkan nesneler (sıralı, oturumlar arası sabit kimlikler). */
+  toSave(): WorldSave {
+    const sorted = (ids: ReadonlySet<PropId>): number[] => [...ids].sort((a, b) => a - b);
+    return {
+      handDone: sorted(this.handDone),
+      axeDone: sorted(this.axeDone),
+      removed: sorted(this.removed),
+    };
+  }
+
+  /** Kaydı yükler; sürmekte olan toplama ilerlemesi sıfırlanır. Görsel katmanı çağıran günceller. */
+  loadSave(save: WorldSave): void {
+    this.handDone.clear();
+    this.axeDone.clear();
+    this.removed.clear();
+    for (const id of save.handDone) this.handDone.add(id);
+    for (const id of save.axeDone) this.axeDone.add(id);
+    for (const id of save.removed) this.removed.add(id);
+    this.failed = null;
+    this.reset(null);
+    this.currentOffer = null;
   }
 
   isRemoved(id: PropId): boolean {

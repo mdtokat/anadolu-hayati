@@ -1,6 +1,7 @@
 import { CREATURES } from '../config';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
+import type { CreaturesSave } from '../save/saveGame';
 import { createRandom, seedFrom, type Random } from '../utils/random';
 import {
   createBrain,
@@ -266,6 +267,20 @@ export class CreatureSystem {
     for (const { cell, remainingSeconds } of snapshot) {
       this.killedUntil.set(cell, this.time + remainingSeconds);
     }
+  }
+
+  /** Kayıt görüntüsü: yalnızca öldürülen canlıların hücre beklemesi (canlı canlılar kaydedilmez). */
+  toSave(): CreaturesSave {
+    return { killed: this.killedSnapshot() };
+  }
+
+  /**
+   * Kaydı yükler: bekleme listesi yazılır, mevcut canlılar ve leşler silinir (akış çevreye göre yeniden
+   * doğurur; canlılar kayda girmez, bu bilinçlidir).
+   */
+  loadSave(save: CreaturesSave): void {
+    this.clearAll();
+    this.restoreKilled(save.killed);
   }
 
   dispose(): void {

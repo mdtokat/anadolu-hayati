@@ -126,6 +126,18 @@ export class StructureSet {
     };
   }
 
+  /**
+   * Kayıttan bu kümeyi yerinde yükler (`StructureSystem`/katmanlar bu örneği tutar): önce doğrular,
+   * sonra yazar; bozuk veride `Error` fırlatır ve küme değişmez. `version` artar (görsel yenilenir).
+   */
+  loadSave(data: unknown): void {
+    const loaded = StructureSet.fromJSON(data);
+    this.items.clear();
+    for (const [id, structure] of loaded.items) this.items.set(id, structure);
+    this.nextId = loaded.nextId;
+    this.revision += 1;
+  }
+
   /** Kayıttan kurar; bozuk veride (sürüm, tür, sayılar, yakıt, kimlik) `Error` fırlatır. */
   static fromJSON(data: unknown): StructureSet {
     if (typeof data !== 'object' || data === null) throw new Error('Yapı kaydı nesne değil');

@@ -63,6 +63,8 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { PauseMenu } from '../ui/PauseMenu';
+import { applySave, captureSave, type SaveTargets } from '../save/gameState';
+import { SaveError, type SaveGame } from '../save/saveGame';
 import { CreatureLayer } from '../world/CreatureLayer';
 import { demoViews } from '../world/creatureDemo';
 import type { GameWorld } from '../world/GameWorld';
@@ -326,6 +328,66 @@ export class Game {
 
   get paused(): boolean {
     return this.loop.paused;
+  }
+
+  /**
+   * Oyunun kayıt görüntüsü. Ölüyken (ölüm durumu kayda girmez) ve gerçek bölge dışındaki dünyalarda
+   * (`?world=test`) kayıt alınamaz: null.
+   */
+  createSave(): SaveGame | null {
+    if (!(this.world instanceof RegionWorld) || !this.survival.alive) return null;
+    return captureSave(this.saveTargets());
+  }
+
+  /**
+   * Ham kaydı (IndexedDB'den okunan) doğrulayıp oyuna yükler. Bozuk, yeni sürümlü ya da başka bölgeye ait
+   * kayıtta `SaveError` fırlatır ve oyun durumu değişmez. Canlılar ve leşler kayda girmez: yükleme onları
+   * temizler, akış çevreye göre yeniden doğurur.
+   */
+  loadSave(raw: unknown): void {
+    if (!(this.world instanceof RegionWorld)) {
+      throw new SaveError('invalid', 'Bu dünyada kayıt yüklenemez (yalnızca gerçek bölge).');
+    }
+    const before = this.gather.toSave().removed;
+    applySave(raw, this.saveTargets());
+
+    // Dünyadan kalkan nesneler kayda göre yeniden işaretlenir (önceki oturumunkiler geri gelir).
+    const removed = new Set(this.gather.toSave().removed);
+    for (const id of before) if (!removed.has(id)) this.world.setPropDepleted(id, false);
+    for (const id of removed) this.world.setPropDepleted(id, true);
+
+    this.placement.cancel();
+    this.butcher.reset();
+    this.deathScreen.hide();
+    this.hud.setPrompt(null);
+    this.inventoryPanel.refresh();
+    this.lastSurvivalHudUpdate = -Infinity;
+    this.lastLocationUpdate = -Infinity;
+  }
+
+  private saveTargets(): SaveTargets {
+    return {
+      regionId: REGION_ID,
+      player: {
+        read: () => ({
+          x: this.player.position.x,
+          y: this.player.position.y,
+          z: this.player.position.z,
+          yaw: this.playerCamera.yaw,
+          pitch: this.playerCamera.pitch,
+        }),
+        apply: ({ x, y, z, yaw, pitch }) => {
+          this.world.prepare(x, z); // çevredeki collider'lar hazır olmadan oyuncu düşerdi
+          this.player.teleport({ x, y, z });
+          this.playerCamera.setLook(yaw, pitch);
+        },
+      },
+      survival: this.survival,
+      inventory: this.inventory,
+      structures: this.structureSystem.structures,
+      gather: this.gather,
+      creatures: this.creatures,
+    };
   }
 
   start(): void {
