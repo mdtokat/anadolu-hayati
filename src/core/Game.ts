@@ -7,6 +7,7 @@ import {
   INTERACT,
   PROVINCE_NOTICE,
   PILOT,
+  PROVINCE_PLACES,
   PLACE_NOTICE,
   QUALITY_PRESETS,
   SAVE,
@@ -202,6 +203,8 @@ export class Game {
   private readonly hintStorage = browserHintStorage();
   private readonly hintTracker = new HintTracker({ seen: readSeenHints(this.hintStorage) });
   private readonly provinceTracker = new ProvinceTracker();
+  /** Oyuncunun son bilinen ili (kıyı şeridinde null dönen konumlarda korunur); Shift ışınlanması bunu kullanır. */
+  private lastProvince: string | null = null;
   /** Pilot il yer adı bildirimi (8.3); yer merkezi olmayan dünyalarda (test arenası) boştur. */
   private readonly placeTracker: PlaceTracker;
   /** Son bildirim bannerının gösterildiği an (ms): yer adı, il bildiriminin üstüne binmesin. */
@@ -392,8 +395,8 @@ export class Game {
   }
 
   /**
-   * Geliştirici kısayolu: 1–9 ve 0 tuşları TELEPORTS listesindeki noktalara, Shift + 1–9, 0 pilot ilin
-   * yerlerine (`PILOT.places`) ışınlar (yalnızca dev modunda bağlanır).
+   * Geliştirici kısayolu: 1–9 ve 0 tuşları TELEPORTS listesindeki noktalara, Shift + 1–9, 0 oyuncunun
+   * bulunduğu ilin yerlerine (`PROVINCE_PLACES`; ili bilinmiyorsa pilot il) ışınlar (yalnızca dev modunda bağlanır).
    */
   private readonly onDevKey = (event: KeyboardEvent): void => {
     // [ / ]: saati bir saat geri/ileri sar; K: canı ve suyu sıfırla (ölüm ekranını dene).
@@ -409,7 +412,7 @@ export class Game {
     }
     const slot = teleportSlotForKey(event.code);
     const list: ReadonlyArray<{ name: string; lat: number; lon: number }> = event.shiftKey
-      ? PILOT.places
+      ? (PROVINCE_PLACES[this.lastProvince ?? PILOT.province] ?? PILOT.places)
       : TELEPORTS;
     const target = slot === null ? undefined : list[slot];
     if (!target) return;
@@ -838,6 +841,7 @@ export class Game {
     this.lastLocationUpdate = now;
     const info = this.world.locationInfo(feet.x, feet.z, feet.y);
     this.hud.setLocation(formatLocation(info));
+    if (info.province !== null) this.lastProvince = info.province;
     const change = this.provinceTracker.observe(
       { name: info.province, inRegion: info.inRegion },
       now / 1000,

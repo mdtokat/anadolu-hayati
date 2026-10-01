@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { FRESH_WATER, PILOT, REGION_PLAYER, TELEPORTS } from '../src/config';
+import { FRESH_WATER, PILOT, PROVINCE_PLACES, REGION_PLAYER, TELEPORTS } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { latLonToGame } from '../src/world/geo';
-import { isInPilotProvince } from '../src/world/pilot';
+import { isInProvince } from '../src/world/pilot';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { findSafeSpawn } from '../src/world/spawn';
 import { FreshWaterIndex } from '../src/world/waterIndex';
@@ -10,9 +10,9 @@ import { teleportSlotForKey } from '../src/core/inputMapping';
 import { loadRealWorld } from './helpers/realRegion';
 
 /**
- * Faz 8.2: pilot ilin (Zonguldak) yer adları / ışınlanma noktaları. Her yer pilot ilde, karada, yürünebilir ve
- * yakınında içilebilir su olmalı (hayatta kalma başlangıcı için); yaklaşık koordinatlar yürünebilir noktaya
- * çok kaymamalı.
+ * Faz 8.2: pilot ilin (Zonguldak) ve diğer hedef illerin (Bartın, Karabük, Düzce, Bolu) yer adları / ışınlanma
+ * noktaları. Her yer kendi ilinde, karada, yürünebilir ve yakınında içilebilir su olmalı (hayatta kalma
+ * başlangıcı için); yaklaşık koordinatlar yürünebilir noktaya çok kaymamalı.
  */
 let region: RegionData;
 let source: RegionHeightSource;
@@ -60,16 +60,37 @@ describe('PILOT.places', () => {
     expect(TELEPORTS[0].name).toBe('Zonguldak merkez');
   });
 
-  for (const place of PILOT.places) {
-    it(`${place.name}: pilot ilde, karada, yürünebilir, yakında içilebilir su`, () => {
-      const { g, point } = safePoint(place);
-      expect(point).not.toBeNull();
-      const p = point as { x: number; y: number; z: number };
-      expect(isInPilotProvince(region.provinces, p.x, p.z)).toBe(true);
-      expect(source.elevationAt(p.x, p.z)).toBeGreaterThan(0);
-      expect(Math.hypot(p.x - g.x, p.z - g.z)).toBeLessThanOrEqual(MAX_DRIFT);
-      const hit = water.nearest(p.x, p.z, MAX_WATER_DISTANCE);
-      expect(hit, 'yakında tatlı su yok').not.toBeNull();
-    });
+  it('tüm illerin yerlerinde adlar ve koordinatlar benzersiz', () => {
+    const all = Object.values(PROVINCE_PLACES).flat();
+    expect(new Set(all.map((p) => p.name)).size).toBe(all.length);
+    expect(new Set(all.map((p) => `${p.lat},${p.lon}`)).size).toBe(all.length);
+  });
+});
+
+describe('PROVINCE_PLACES', () => {
+  it('pilot il + 4 diğer hedef il; her ilde 8–10 yer (Shift + 1–9, 0 tuşları)', () => {
+    expect(Object.keys(PROVINCE_PLACES).sort()).toEqual(
+      ['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak'].sort(),
+    );
+    expect(PROVINCE_PLACES[PILOT.province]).toBe(PILOT.places);
+    for (const [province, places] of Object.entries(PROVINCE_PLACES)) {
+      expect(places.length, province).toBeGreaterThanOrEqual(8);
+      expect(places.length, province).toBeLessThanOrEqual(10);
+    }
+  });
+
+  for (const [province, places] of Object.entries(PROVINCE_PLACES)) {
+    for (const place of places) {
+      it(`${province} / ${place.name}: ilinde, karada, yürünebilir, yakında içilebilir su`, () => {
+        const { g, point } = safePoint(place);
+        expect(point).not.toBeNull();
+        const p = point as { x: number; y: number; z: number };
+        expect(isInProvince(region.provinces, province, p.x, p.z)).toBe(true);
+        expect(source.elevationAt(p.x, p.z)).toBeGreaterThan(0);
+        expect(Math.hypot(p.x - g.x, p.z - g.z)).toBeLessThanOrEqual(MAX_DRIFT);
+        const hit = water.nearest(p.x, p.z, MAX_WATER_DISTANCE);
+        expect(hit, 'yakında tatlı su yok').not.toBeNull();
+      });
+    }
   }
 });

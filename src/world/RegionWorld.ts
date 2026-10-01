@@ -1,5 +1,13 @@
 import { Scene, type MeshStandardMaterial } from 'three';
-import { CHUNK, FRESH_WATER, REGION_PLAYER, REGION_SCENE, PILOT, VERTICAL_SCALE } from '../config';
+import {
+  CHUNK,
+  FRESH_WATER,
+  REGION_PLAYER,
+  REGION_SCENE,
+  PROVINCE_PLACES,
+  PILOT,
+  VERTICAL_SCALE,
+} from '../config';
 import { createRegionCreatureTerrain } from '../creatures/regionTerrain';
 import type { CreatureTerrain } from '../creatures/kinds';
 import type { RegionData } from '../data/region';
@@ -167,13 +175,18 @@ export class RegionWorld implements GameWorld {
     this.borders.toggle();
   }
 
-  /** Pilot ilin yer merkezleri: `PILOT.places`, en yakın yürünebilir noktaya oturtulmuş (bulunamazsa ham konum). */
+  /**
+   * Tüm hedef illerin yer merkezleri: `PROVINCE_PLACES` (pilot il önce), en yakın yürünebilir noktaya
+   * oturtulmuş (bulunamazsa ham konum).
+   */
   placeCenters(): readonly PlaceCenter[] {
-    this.placeCentersCache ??= PILOT.places.map((place) => {
-      const point = this.safePointFor(place.lat, place.lon);
-      const raw = latLonToGame(place.lat, place.lon, this.region.meta.originUtm);
-      return { name: place.name, x: point?.x ?? raw.x, z: point?.z ?? raw.z };
-    });
+    this.placeCentersCache ??= Object.values(PROVINCE_PLACES)
+      .flat()
+      .map((place) => {
+        const point = this.safePointFor(place.lat, place.lon);
+        const raw = latLonToGame(place.lat, place.lon, this.region.meta.originUtm);
+        return { name: place.name, x: point?.x ?? raw.x, z: point?.z ?? raw.z };
+      });
     return this.placeCentersCache;
   }
 

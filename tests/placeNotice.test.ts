@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { PILOT, PLACE_NOTICE } from '../src/config';
+import { PLACE_NOTICE, PROVINCE_PLACES } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { initPhysics } from '../src/physics/PhysicsWorld';
 import { PlaceTracker, type PlaceCenter } from '../src/world/placeNotice';
@@ -118,10 +118,12 @@ describe('RegionWorld.placeCenters (gerçek dünya)', () => {
     region = await loadRealWorld();
   }, 60_000);
 
-  it('PILOT.places ile aynı adlar; her merkez kendi giriş yarıçapında ve bildirilir', () => {
+  it('PROVINCE_PLACES ile aynı adlar (pilot il önce); her merkez kendi giriş yarıçapında ve bildirilir', () => {
     const { world, dispose } = setupWorld(region);
     const centers = world.placeCenters();
-    expect(centers.map((c) => c.name)).toEqual(PILOT.places.map((p) => p.name));
+    expect(centers.map((c) => c.name)).toEqual(
+      Object.values(PROVINCE_PLACES).flatMap((places) => places.map((p) => p.name)),
+    );
     for (const center of centers) {
       const t = new PlaceTracker(centers);
       t.observe(center.x + 5000, center.z, 0); // yerin dışında başla

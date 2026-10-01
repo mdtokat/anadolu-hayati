@@ -12,14 +12,37 @@ import { forestStarts, walk } from './helpers/creatureWalk';
 import { loadRealWorld } from './helpers/realRegion';
 
 /**
- * 8.0 Zonguldak ölçüm tabanı: pilot ilin (il sınırı içi) arazi, örtü, eğim, su ve canlı yoğunluğu istatistikleri.
- * Sonraki Faz 8 görevlerinin "önce/sonra" karşılaştırması bu sayılara göredir (docs/faz-8-zonguldak-olcumler.md).
- * Hiçbir oyun davranışı değişmez; yalnızca ölçer. Yapısal sayılar gevşek aralıklarla denetlenir;
- * `ZONGULDAK_REPORT=1 npx vitest run tests/zonguldakBaseline.test.ts` tabloları stdout'a yazar.
+ * 8.0 il ölçüm tabanı: pilot ilin (Zonguldak) ve diğer hedef illerin (Bartın, Karabük, Düzce, Bolu; il sınırı içi)
+ * arazi, örtü, eğim, su ve canlı yoğunluğu istatistikleri. Sonraki görevlerin "önce/sonra" karşılaştırması bu
+ * sayılara göredir (docs/faz-8-zonguldak-olcumler.md, docs/faz-8-iller-olcumler.md). Hiçbir oyun davranışı
+ * değişmez; yalnızca ölçer. Yapısal sayılar gevşek aralıklarla denetlenir;
+ * `PROVINCE_REPORT=1 npx vitest run tests/provinceBaseline.test.ts` tabloları stdout'a yazar
+ * (`PROVINCE_ONLY=Bolu` tek ile daraltır).
  */
 
-const PILOT = 'Zonguldak';
-const REPORT = Boolean(process.env.ZONGULDAK_REPORT);
+/** İl başına gevşek beklentiler (gerçek yüzölçümleri: Zonguldak ≈ 3300, Bartın ≈ 2100, Karabük ≈ 4100, Düzce ≈ 2500, Bolu ≈ 8300 km²). */
+interface ProvinceExpectation {
+  name: string;
+  /** İl çokgeni alanı aralığı (km²). */
+  area: readonly [number, number];
+  /** Kıyı ili mi (Karadeniz kıyısı var)? */
+  coastal: boolean;
+  /** Orman payı alt sınırı (kara). */
+  minForest: number;
+  /** Akarsu (nehir + dere) uzunluğu alt sınırı (km). */
+  minStreamKm: number;
+}
+const ALL_PROVINCES: readonly ProvinceExpectation[] = [
+  { name: 'Zonguldak', area: [2500, 4500], coastal: true, minForest: 0.2, minStreamKm: 50 },
+  { name: 'Bartın', area: [1000, 3500], coastal: true, minForest: 0.1, minStreamKm: 20 },
+  { name: 'Karabük', area: [2500, 5500], coastal: false, minForest: 0.1, minStreamKm: 20 },
+  { name: 'Düzce', area: [1500, 3500], coastal: true, minForest: 0.1, minStreamKm: 20 },
+  { name: 'Bolu', area: [5000, 10000], coastal: false, minForest: 0.1, minStreamKm: 20 },
+];
+const PROVINCES = ALL_PROVINCES.filter(
+  (p) => !process.env.PROVINCE_ONLY || p.name === process.env.PROVINCE_ONLY,
+);
+const REPORT = Boolean(process.env.PROVINCE_REPORT ?? process.env.ZONGULDAK_REPORT);
 
 /** Oyun m² → gerçek km²: (50 m)² = 2500 m² gerçek / oyun m². */
 const GAME_M2_TO_KM2 = (HORIZONTAL_SCALE * HORIZONTAL_SCALE) / 1e6;
@@ -30,6 +53,8 @@ let region: RegionData;
 let source: RegionHeightSource;
 let terrain: CreatureTerrain;
 let province: ProvinceShape;
+/** Ölçülen il adı (describe.each içinde atanır; testler sırayla çalışır). */
+let CURRENT: string;
 
 beforeAll(async () => {
   region = await loadRealWorld();
@@ -39,7 +64,6 @@ beforeAll(async () => {
     cover: LandCoverMap.fromRegion(region),
     freshWater: new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize),
   });
-  province = region.provinces.find((p) => p.name === PILOT)!;
 }, 60_000);
 
 function out(text: string): void {
@@ -167,19 +191,26 @@ function waterStats() {
   return { lineKm, named, lakes, springs };
 }
 
-describe(`${PILOT} ölçüm tabanı (8.0)`, () => {
-  it('pilot il manifestte, hedef il ve makul büyüklükte', () => {
+describe.each(PROVINCES)('$name ölçüm tabanı (8.0)', (expected) => {
+  beforeAll(() => {
+    CURRENT = expected.name;
+    province = region.provinces.find((p) => p.name === CURRENT)!;
+    out(`\n# ${CURRENT}`);
+  });
+
+  it('il manifestte, hedef il ve makul büyüklükte', { timeout: 120_000 }, () => {
     expect(province).toBeDefined();
     expect(province.inRegion).toBe(true);
     const stats = gridStats();
     const areaKm2 = stats.cells * (region.meta.cellSizeReal / 1000) ** 2;
     const landKm2 = stats.landCells * (region.meta.cellSizeReal / 1000) ** 2;
-    // Zonguldak il yüzölçümü ≈ 3 300 km² (kıyı şeridinde denize taşan sınır nedeniyle kara biraz küçük çıkabilir).
-    expect(areaKm2).toBeGreaterThan(2500);
-    expect(areaKm2).toBeLessThan(4500);
-    expect(landKm2).toBeGreaterThan(2400);
+    // Kıyı şeridinde denize taşan sınır nedeniyle kara biraz küçük çıkabilir.
+    expect(areaKm2).toBeGreaterThan(expected.area[0]);
+    expect(areaKm2).toBeLessThan(expected.area[1]);
+    expect(landKm2).toBeGreaterThan(expected.area[0] * 0.9);
     expect(landKm2).toBeLessThanOrEqual(areaKm2);
-    expect(stats.coastEdges).toBeGreaterThan(200); // Zonguldak kıyı ilidir
+    if (expected.coastal) expect(stats.coastEdges).toBeGreaterThan(100);
+    else expect(stats.coastEdges).toBe(0);
 
     out(`\n## Arazi (il sınırı içi, ${region.meta.cellSizeReal} m hücre)`);
     out(`| Ölçüt | Değer |\n|---|---|`);
@@ -220,7 +251,7 @@ describe(`${PILOT} ölçüm tabanı (8.0)`, () => {
       if (n > 0) out(`| ${cls} | %${((100 * n) / stats.landCells).toFixed(1)} |`);
     }
     const forest = (stats.coverCounts.forest ?? 0) / stats.landCells;
-    expect(forest).toBeGreaterThan(0.2); // Zonguldak ormanlık bir il
+    expect(forest).toBeGreaterThan(expected.minForest);
     // Rakım dağılımı: tüm sayılar sonlu ve sıralı.
     expect(e.every((v) => Number.isFinite(v))).toBe(true);
     // Eğim ölçeği notu (CLAUDE.md): kara alanının büyük kısmı oyuncunun tırmanma sınırının (60°) altında.
@@ -230,7 +261,7 @@ describe(`${PILOT} ölçüm tabanı (8.0)`, () => {
   it('tatlı su: nehir/dere uzunluğu, göller, kaynaklar', () => {
     const w = waterStats();
     const riverKm = w.lineKm.river ?? 0;
-    expect(riverKm + (w.lineKm.stream ?? 0)).toBeGreaterThan(50); // il içinde akarsu var
+    expect(riverKm + (w.lineKm.stream ?? 0)).toBeGreaterThan(expected.minStreamKm); // il içinde akarsu var
     out(`\n## Tatlı su (il sınırı içi; çizgiler bölüm ortasından sayılır)`);
     out(`| Tür | Değer |\n|---|---|`);
     out(`| Nehir | ${riverKm.toFixed(0)} km |`);
@@ -251,14 +282,14 @@ describe(`${PILOT} ölçüm tabanı (8.0)`, () => {
   });
 
   it('canlı yoğunluğu: ormanda gündüz av hayvanı, gece kurt, yüksek ormanda ayı', () => {
-    // Varsayılan hızlı örnek; kesin ölçüm için `ZONGULDAK_STARTS=24` (docs/faz-8-zonguldak-olcumler.md 8.4).
-    const STARTS = Math.max(1, Number(process.env.ZONGULDAK_STARTS ?? 6));
+    // Varsayılan hızlı örnek; kesin ölçüm için `PROVINCE_STARTS=24` (docs/faz-8-zonguldak-olcumler.md 8.4, docs/faz-8-iller-olcumler.md).
+    const STARTS = Math.max(1, Number(process.env.PROVINCE_STARTS ?? 6));
     const low = forestStarts(terrain, region, {
       minElevation: 50,
       maxElevation: 700,
       count: STARTS,
       seed: 277,
-      provinces: [PILOT],
+      provinces: [CURRENT],
     });
     expect(low.length).toBe(STARTS);
     const day = walk(terrain, low, 50, 21);
@@ -277,7 +308,7 @@ describe(`${PILOT} ölçüm tabanı (8.0)`, () => {
       maxElevation: 2000,
       count: STARTS,
       seed: 291,
-      provinces: [PILOT],
+      provinces: [CURRENT],
     });
     const bears = high.length > 0 ? walk(terrain, high, 50, 23).perMinute.brown_bear : null;
     if (bears !== null) expect(bears).toBeLessThan(0.2);
