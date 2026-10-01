@@ -34,3 +34,34 @@ export function provinceAt(
   }
   return null;
 }
+
+/** (x, z)'nin [x0, z0, x1, z1, ...] halkasının kenarlarına en kısa uzaklığı (oyun m). */
+function distanceToRing(ring: Float64Array, x: number, z: number): number {
+  let best = Number.POSITIVE_INFINITY;
+  const n = ring.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const ax = ring[j * 2] as number;
+    const az = ring[j * 2 + 1] as number;
+    const bx = ring[i * 2] as number;
+    const bz = ring[i * 2 + 1] as number;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const lengthSq = dx * dx + dz * dz;
+    const t =
+      lengthSq === 0 ? 0 : Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / lengthSq));
+    best = Math.min(best, Math.hypot(x - (ax + t * dx), z - (az + t * dz)));
+  }
+  return best;
+}
+
+/**
+ * (x, z)'nin ilin sınır çizgisine en kısa uzaklığı (oyun m; içeride ve dışarıda pozitif, sınırda 0).
+ * İl çokgenleri kıyıdan içeride kaldığından, ilsiz kıyı şeridini en yakın ile bağlamak için kullanılır.
+ */
+export function distanceToProvince(province: ProvinceShape, x: number, z: number): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (const polygon of province.polygons) {
+    for (const ring of polygon) best = Math.min(best, distanceToRing(ring, x, z));
+  }
+  return best;
+}

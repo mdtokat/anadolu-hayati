@@ -603,6 +603,24 @@ export const SPAWN_SEARCH = {
 } as const;
 
 /**
+ * Pilot il (Faz 8): harita genişletmesi durdurulduğundan oyun, mevcut haritada tek bir il üzerinde derinleşir.
+ * Yeni oyun başlangıcı ve ölüm sonrası yeniden doğma bu ilin içinde kalır (`world/pilot.ts`); diğer iller
+ * haritada ve yürünebilir kalır, yalnızca doğma noktası olmaz.
+ */
+export const PILOT = {
+  /** `provinces.geojson` içindeki il adı. */
+  province: 'Zonguldak',
+  /** Yeni oyun başlangıcı (enlem/boylam; en yakın yürünebilir nokta otomatik bulunur): Zonguldak merkez. */
+  start: { lat: 41.4564, lon: 31.7987 },
+  /**
+   * İl çokgenleri kıyıdan içeride kaldığından kıyı şeridinde hiçbir ile ait olmayan kara hücreleri vardır
+   * (Zonguldak'ta ≤ 5,2 oyun m, ölçüm: docs/faz-8-zonguldak-olcumler.md). İlsiz bir kara noktası, en yakın
+   * il bu ilse ve çokgene bu kadar (oyun m) yakınsa pilot ilde sayılır.
+   */
+  coastBufferM: 8,
+} as const;
+
+/**
  * Geliştirici ışınlanma noktaları (dev modunda 1–9 ve 0 tuşları, sırayla). İlki oyunun başlangıç noktasıdır.
  * Konumlar enlem/boylam; en yakın yürünebilir nokta otomatik bulunur. `province`: noktanın düştüğü il (test
  * eder). Abant ve Yedigöller noktaları göl kıyısındadır (içine değil): bir iki adımda su içilebilir.

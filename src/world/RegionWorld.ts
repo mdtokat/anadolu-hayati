@@ -1,12 +1,5 @@
 import { Scene, type MeshStandardMaterial } from 'three';
-import {
-  CHUNK,
-  FRESH_WATER,
-  REGION_PLAYER,
-  REGION_SCENE,
-  TELEPORTS,
-  VERTICAL_SCALE,
-} from '../config';
+import { CHUNK, FRESH_WATER, REGION_PLAYER, REGION_SCENE, PILOT, VERTICAL_SCALE } from '../config';
 import { createRegionCreatureTerrain } from '../creatures/regionTerrain';
 import type { CreatureTerrain } from '../creatures/kinds';
 import type { RegionData } from '../data/region';
@@ -107,8 +100,8 @@ export class RegionWorld implements GameWorld {
       freshWater: this.freshWater,
     });
 
-    // Başlangıç noktası: ilk ışınlanma hedefinin en yakın yürünebilir noktası.
-    const start = this.safePointFor(TELEPORTS[0].lat, TELEPORTS[0].lon);
+    // Başlangıç noktası: pilot ilin başlangıç konumuna en yakın yürünebilir nokta.
+    const start = this.safePointFor(PILOT.start.lat, PILOT.start.lon);
     if (!start) throw new Error('Başlangıç için yürünebilir nokta bulunamadı');
     this.spawn = start;
 
