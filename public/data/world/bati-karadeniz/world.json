@@ -15,24 +15,40 @@
   },
   "tileSize": 512,
   "extent": {
-    "col0": 0,
+    "col0": -640,
     "row0": 0,
-    "cols": 1588,
-    "rows": 1176
+    "cols": 2228,
+    "rows": 1962
   },
   "elevation": {
     "min": 0.0,
-    "max": 1996.0,
+    "max": 2400.0,
     "encoding": "uint16"
   },
   "tiles": [
+    {
+      "tx": -2,
+      "ty": 0,
+      "height": "tiles/-2_0.height.bin",
+      "cover": "tiles/-2_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
+    {
+      "tx": -1,
+      "ty": 0,
+      "height": "tiles/-1_0.height.bin",
+      "cover": "tiles/-1_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
     {
       "tx": 0,
       "ty": 0,
       "height": "tiles/0_0.height.bin",
       "cover": "tiles/0_0.cover.bin",
       "bytes": 524288,
-      "sha256": "1411e079bdb7f76f783c8b7d35696406888aa28ac22767c9a2cdf88327b3d7f3"
+      "sha256": "31b3da8bae8677d26c3b17b50644ab65194090ed4e2b3713de0775df8209c0b7"
     },
     {
       "tx": 1,
@@ -40,7 +56,7 @@
       "height": "tiles/1_0.height.bin",
       "cover": "tiles/1_0.cover.bin",
       "bytes": 524288,
-      "sha256": "b5720a01c55743441e98b585470dee03c0c9874e1e426bc2ba70b3e8bc25cf16"
+      "sha256": "7979b7dab885ab2755673141a27e50b4bb14fe8d4f0de3dd3b743670dac564cf"
     },
     {
       "tx": 2,
@@ -48,7 +64,7 @@
       "height": "tiles/2_0.height.bin",
       "cover": "tiles/2_0.cover.bin",
       "bytes": 524288,
-      "sha256": "8973fad0c8d5c472c94aca0c8eb3419b2335feb1f50f0327da9b26715c8feb8c"
+      "sha256": "b4b74621efce9f5e850f67d90a633d5aceeafd2de91de2e6bb24437e6bf57eac"
     },
     {
       "tx": 3,
@@ -56,7 +72,23 @@
       "height": "tiles/3_0.height.bin",
       "cover": "tiles/3_0.cover.bin",
       "bytes": 524288,
-      "sha256": "6d535348501627cf37333a2203e7a337c2daa7741c47f2d42d89dd572cddcc80"
+      "sha256": "009e4ae8f2d5c3ac44c7dd4a9ebee1f9b7d8017b450076a01559f221a66412e3"
+    },
+    {
+      "tx": -2,
+      "ty": 1,
+      "height": "tiles/-2_1.height.bin",
+      "cover": "tiles/-2_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "aecf5cf8bfc808ebdbda02bfa3199dcdebb90a243af1aa6b9fd35d99949916f4"
+    },
+    {
+      "tx": -1,
+      "ty": 1,
+      "height": "tiles/-1_1.height.bin",
+      "cover": "tiles/-1_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "e5775e505c581973161e73a2954a740e2c9139173ed414cdab229c3266aee4cf"
     },
     {
       "tx": 0,
@@ -64,7 +96,7 @@
       "height": "tiles/0_1.height.bin",
       "cover": "tiles/0_1.cover.bin",
       "bytes": 524288,
-      "sha256": "7fa6bad573d195664810592a6c0a4a9a43caa6bb00739c5bffb6e301809ea6cc"
+      "sha256": "d15d0d468f2d661c73a562947e074080caa6efbda52208302cb9022c66ecfc03"
     },
     {
       "tx": 1,
@@ -72,7 +104,7 @@
       "height": "tiles/1_1.height.bin",
       "cover": "tiles/1_1.cover.bin",
       "bytes": 524288,
-      "sha256": "692edbb18c3293ea910c8ff8791df9b85b61a0d94d3e48e30b133c6109d06d4b"
+      "sha256": "4014c2ae8c44b670d32d188cd879cdfeaa5bebd39088d807c70c4b8ac08fd489"
     },
     {
       "tx": 2,
@@ -80,7 +112,7 @@
       "height": "tiles/2_1.height.bin",
       "cover": "tiles/2_1.cover.bin",
       "bytes": 524288,
-      "sha256": "40c37ad5789d6504db73cfea4bbb9846bb70436a6e189193712075480259272e"
+      "sha256": "0bb7bfcb54580d55d81c89ff15097370614736b47ebd54e9a928fdc6194fcc17"
     },
     {
       "tx": 3,
@@ -88,7 +120,23 @@
       "height": "tiles/3_1.height.bin",
       "cover": "tiles/3_1.cover.bin",
       "bytes": 524288,
-      "sha256": "d735d3323411fd79056ec815e954ed722224ec6dd0d7a00029b49664e9f682f3"
+      "sha256": "f24d6dc2055e22cea72973e599d5ea3197789c2f4fd30ba4e8e8f2835d013db2"
+    },
+    {
+      "tx": -2,
+      "ty": 2,
+      "height": "tiles/-2_2.height.bin",
+      "cover": "tiles/-2_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "c7e218b85099aaa5393451ae6138bdf6b0648345e3b9e52d25c6619f08ad9b8d"
+    },
+    {
+      "tx": -1,
+      "ty": 2,
+      "height": "tiles/-1_2.height.bin",
+      "cover": "tiles/-1_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "e4d60e79f4b6011c9a0ae7c7392e18f0fbecd42bcac63d748a3c6dbea4fc237a"
     },
     {
       "tx": 0,
@@ -96,7 +144,7 @@
       "height": "tiles/0_2.height.bin",
       "cover": "tiles/0_2.cover.bin",
       "bytes": 524288,
-      "sha256": "4de6bf56419cd6de7f193c35c2c1210d476fc1584120faf47d42cdc46b601d10"
+      "sha256": "cd2a8f62b9713cb31b3c47c5ff6ea4a58d2c1207d6bdcd9445c516f6ba5c63b2"
     },
     {
       "tx": 1,
@@ -104,7 +152,7 @@
       "height": "tiles/1_2.height.bin",
       "cover": "tiles/1_2.cover.bin",
       "bytes": 524288,
-      "sha256": "f2b54e34d248220f6662a094b53bc2922d9f2a0007a51747c988b0be857bdea1"
+      "sha256": "e9116a1a824c5c6acce8c72a58a6c22f9e9ed13d1ac7f5a3a186fc829563f8cc"
     },
     {
       "tx": 2,
@@ -112,7 +160,7 @@
       "height": "tiles/2_2.height.bin",
       "cover": "tiles/2_2.cover.bin",
       "bytes": 524288,
-      "sha256": "a9c52cb2366cdc6efac0d09af416c6ee4612ea20663ebacbf34ecf39d0a95d9b"
+      "sha256": "90726ed0f3803a1304b57849b1d63c73ed11596b9bfbc045dbfc835d64a9ae9b"
     },
     {
       "tx": 3,
@@ -120,7 +168,55 @@
       "height": "tiles/3_2.height.bin",
       "cover": "tiles/3_2.cover.bin",
       "bytes": 524288,
-      "sha256": "e11fcc4aa236f78e35245a6ec5bfcaaf0d79161b0b1f20fba9051d61d871e3d6"
+      "sha256": "027942f7810b2105aff08b73a6b276d56373435025b27d24518a8d9aa85151e2"
+    },
+    {
+      "tx": -2,
+      "ty": 3,
+      "height": "tiles/-2_3.height.bin",
+      "cover": "tiles/-2_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "73e16480cdc241eaf8b8c0b071a9d70f55c7cd56be1d3ed62d6c5ec100c64365"
+    },
+    {
+      "tx": -1,
+      "ty": 3,
+      "height": "tiles/-1_3.height.bin",
+      "cover": "tiles/-1_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "4317b78450eec83c21e5e0f8f811f2c2e84036a68dbff6786a484a34e3b0267e"
+    },
+    {
+      "tx": 0,
+      "ty": 3,
+      "height": "tiles/0_3.height.bin",
+      "cover": "tiles/0_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "e967d463da864059da6cb5ea7a6b7c49c8b9c9a6fd353dad143ca1d26a8f9055"
+    },
+    {
+      "tx": 1,
+      "ty": 3,
+      "height": "tiles/1_3.height.bin",
+      "cover": "tiles/1_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "3b0bef13fa38042f135c3b3d1a019297921908f3973aa372eaa48516d5e886e9"
+    },
+    {
+      "tx": 2,
+      "ty": 3,
+      "height": "tiles/2_3.height.bin",
+      "cover": "tiles/2_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "e911913ef3e49ee941bbd03a50913e2c7a6f5b9c79893e7ac0c3b8012264ae5d"
+    },
+    {
+      "tx": 3,
+      "ty": 3,
+      "height": "tiles/3_3.height.bin",
+      "cover": "tiles/3_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "811dba06de4b2b8b9ba4de95784f83ef612eb9567ee1362b7ab7e9b607691fbd"
     }
   ],
   "provinces": "provinces.geojson",
@@ -150,5 +246,5 @@
     "ESA WorldCover 2021 (Overture Maps)"
   ],
   "overtureRelease": "2026-09-23.1",
-  "built": "2026-09-30"
+  "built": "2026-10-01"
 }

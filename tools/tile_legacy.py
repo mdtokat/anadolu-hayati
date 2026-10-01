@@ -29,7 +29,7 @@ WORLD_ID = "bati-karadeniz"
 WORLD_NAME = "Batı Karadeniz"
 
 
-def tile_legacy(legacy_dir: Path, out_dir: Path) -> dict:
+def tile_legacy(legacy_dir: Path, out_dir: Path, force: bool = False) -> dict:
     """`legacy_dir` içindeki eski bölgeyi `out_dir`'e karo düzeniyle yazar; manifesti döndürür."""
     meta = json.loads((legacy_dir / "meta.json").read_text(encoding="utf-8"))
     width, height = int(meta["gridWidth"]), int(meta["gridHeight"])
@@ -54,6 +54,14 @@ def tile_legacy(legacy_dir: Path, out_dir: Path) -> dict:
     cover_tiles = wl.slice_into_tiles(cover.reshape(height, width), extent, np.uint8)
 
     tiles_dir = out_dir / "tiles"
+    existing = out_dir / "world.json"
+    if existing.exists() and not force:
+        current = json.loads(existing.read_text(encoding="utf-8")).get("extent")
+        if current != extent.as_dict():
+            raise wl.WorldDataError(
+                f"{out_dir} zaten daha geniş bir dünya içeriyor (extent {current}); eski bölgeyle ezilmesin. "
+                "Bilerek yapmak için --force kullan."
+            )
     if out_dir.exists():
         shutil.rmtree(out_dir)  # kalıntı karo kalmasın (yalnızca bu betiğin çıktı klasörü)
     tiles_dir.mkdir(parents=True)
@@ -93,8 +101,9 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--legacy", type=Path, default=LEGACY_DIR, help="eski bölge klasörü")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="çıktı dünya klasörü")
+    parser.add_argument("--force", action="store_true", help="çıktı klasöründe başka extent'li dünya olsa da ez")
     args = parser.parse_args(argv)
-    manifest = tile_legacy(args.legacy, args.out)
+    manifest = tile_legacy(args.legacy, args.out, args.force)
     total = sum(p.stat().st_size for p in args.out.rglob("*") if p.is_file())
     print(f"{len(manifest['tiles'])} karo yazıldı → {args.out} ({total / 1e6:.1f} MB)")
     return 0

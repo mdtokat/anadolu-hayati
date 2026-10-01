@@ -48,20 +48,21 @@ npm run format      # Prettier ile biçimlendir
 
 ### Veri hattı (`tools/`)
 
-Oyunun okuduğu işlenmiş bölge verisi (`public/data/regions/`) depoda hazırdır; yeniden üretmek istersen Python 3.11+ gerekir:
+Oyunun okuduğu işlenmiş dünya verisi (`public/data/world/bati-karadeniz/`: `world.json` manifesti + 512×512'lik karolar) depoda hazırdır; yeniden üretmek istersen Python 3.11+ gerekir:
 
 ```bash
 cd tools
 pip install -r requirements.txt
-python fetch_dem.py                 # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB, commit edilmez)
-python fetch_boundaries.py          # geoBoundaries TUR ADM1 → tools/raw/boundaries/
-python fetch_water.py               # Overture su katmanı (HTTP Range, ~150 MB) → tools/raw/water/
-python fetch_landcover.py           # Overture arazi örtüsü / ESA WorldCover (HTTP Range) → tools/raw/landcover/
-python build_region.py              # → public/data/regions/zonguldak-bartin-karabuk/
-python -m pytest tests              # Python birim testleri
+python fetch_dem.py bati-karadeniz        # Copernicus GLO-30 karoları → tools/raw/dem/ (8 karo, ~290 MB, commit edilmez)
+python fetch_boundaries.py                # geoBoundaries TUR ADM1 → tools/raw/boundaries/
+python fetch_water.py bati-karadeniz      # Overture su katmanı (HTTP Range, ~185 MB) → tools/raw/water/
+python fetch_landcover.py bati-karadeniz  # Overture arazi örtüsü / ESA WorldCover (HTTP Range, ~320 MB) → tools/raw/landcover/
+python build_world.py                     # → public/data/world/bati-karadeniz/ (--verify-legacy: eski alanı eski bölgeyle karşılaştır)
+python qa_world.py                        # kalite raporu (karo tablosu, il kapsamı, dikiş sürekliliği, su)
+python -m pytest tests                    # Python birim testleri
 ```
 
-Bölge tanımı `tools/regions.yaml`'dadır. Koordinat ve veri formatı sözleşmesi için [CLAUDE.md](CLAUDE.md)'ye bakın.
+Dünya tanımı `tools/world.yaml`'dadır (hedef iller, komşuların otomatik seçimi, sınır kutusu, pay); kafes ve karo boyutu `src/config.ts` → `WORLD` ile `tools/worldlib.py`'de sabittir. Eski bölge biçimi (`tools/regions.yaml`, `build_region.py`, `public/data/regions/`) Faz 7 birleştirmesine (7.10) kadar durur. Koordinat ve veri formatı sözleşmesi için [CLAUDE.md](CLAUDE.md)'ye bakın.
 
 ## Yayın
 
