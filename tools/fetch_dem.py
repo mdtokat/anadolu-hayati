@@ -24,10 +24,14 @@ DEFAULT_REGION = "zonguldak-bartin-karabuk"
 
 
 def load_region(region_id: str) -> dict:
+    """Bölge (regions.yaml) ya da dünya (world.yaml) tanımını döndürür; ikisi de `bbox` içerir."""
     regions = yaml.safe_load((TOOLS / "regions.yaml").read_text(encoding="utf-8"))["regions"]
-    if region_id not in regions:
-        raise SystemExit(f"Bilinmeyen bölge: {region_id!r}. Tanımlılar: {', '.join(regions)}")
-    return regions[region_id]
+    worlds = yaml.safe_load((TOOLS / "world.yaml").read_text(encoding="utf-8"))["worlds"]
+    if region_id in worlds:
+        return worlds[region_id]
+    if region_id in regions:
+        return regions[region_id]
+    raise SystemExit(f"Bilinmeyen bölge/dünya: {region_id!r}. Tanımlılar: {', '.join([*worlds, *regions])}")
 
 
 def main(argv: list[str]) -> int:

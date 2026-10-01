@@ -130,7 +130,24 @@ Bu bölüm veri hattı (`tools/`) ile oyun (`src/`) arasındaki **sözleşmedir*
 
 ## Bölge Veri Formatı
 
-Her bölge `public/data/regions/<bolge-id>/` altında şu dosyalardan oluşur. İlk bölgenin id'si: `zonguldak-bartin-karabuk`.
+> **Faz 7'den itibaren oyunun okuduğu biçim "dünya + karolardır" (aşağıda).** Eski tek-parça bölge biçimi (`public/data/regions/zonguldak-bartin-karabuk/`, `tools/build_region.py`, `src/data/region.ts` `loadRegion`) 7.10'a kadar depoda durur (gerçek-bölge testleri hâlâ onu okur); sonra kalkar. Bellek içi `RegionData`/`RegionMeta` her iki yükleyicide aynıdır.
+
+**Dünya (Faz 7)** — `public/data/world/<dünya-id>/` (id: `bati-karadeniz`; sözleşme ayrıntısı `docs/faz-7-paralel-plan.md` §3):
+```
+world.json                    # manifest: lattice, extent, elevation {min,max}, tiles[] (bayt+sha256), overtureRelease…
+tiles/<tx>_<ty>.height.bin    # 512×512 uint16 LE, satır satır (kuzey→güney, batı→doğu); extent dışı kısım 0
+tiles/<tx>_<ty>.cover.bin     # 512×512 uint8 arazi örtüsü sınıf indeksi (aşağıdaki sınıf listesi); extent dışı 0
+provinces.geojson             # oyun X/Z (aşağıda); features.json: su katmanı (aşağıda)
+```
+- **Global örnek kafesi:** tam sayı `(col, row)`; (0, 0) = eski bölgenin kuzeybatı örneği, negatif indeksler batıya/kuzeye uzanır. `x = anchorX + col · 2`, `z = anchorZ + row · 2` (`WORLD.lattice = { anchorX: -1587, anchorZ: -1175 }`, piksel merkezi; 100 m hücre = 2 oyun m). Dünya orijini değişmez (`originUtm = [434085, 4576261]`, EPSG:32636). Eski formül `(c − (W−1)/2) · cell` bunun `W = 1588, H = 1176` özel hâlidir. Kafesin UTM kenarları: sol `E = 354685`, üst `N = 4635061`.
+- **Karo kafesi:** karo `(tx, ty) = (floor(col/512), floor(row/512))`; chunk (128 örnek) = karonun dörtte biri. `extent = {col0, row0, cols, rows}` gerçek veri dikdörtgenidir (şimdi `−640, 0, 2228, 1962` → 24 karo; batı kenarı chunk'a hizalı); `extent` ile kesişen **her** karo manifestte listelenir, kapsama dikdörtgen ve boşluksuz olmalıdır.
+- **Tek yükseklik aralığı:** `elevation = min + v/65535 · (max − min)`; `max` tüm dünyanın en yükseği (yukarı 100'e yuvarlı, şimdi 2400 m). Denizin altı 0'a kırpılır. **İki geçişli nicemleme** (`tools/worldlib.py`): önce dünya-geneli `max`, sonra uint16. Genişlemede `max` yükselirse tüm karolar yeniden nicemlenir (≤ 1 nicem).
+- **Yükleme** (`src/data/world.ts` `loadWorld`): `parseWorldManifest` katı doğrular (lattice/horizontalScale/tileSize config'le, sınıf tablosu koddakiyle, karo kümesi `tileRangeOf(extent)` ile eşleşmeli; hata → `RegionDataError`), karoları paralel çeker (`?v=<sha8>` önbellek etiketi, bayt+sha256 doğrulaması), tek `RegionData`'ya birleştirir. `meta.gridOrigin = gridOriginOf(extent)` = birleştirilmiş dizinin (0, 0) örneğinin oyun konumu (eski merkezli veride türetilir). Hiçbir dosya 1 MB'ı geçmez (yükseklik 512 KB, örtü 256 KB).
+- **Eski alan yeniden üretimi:** Faz 6 alanı kafesin (0, 0) köşesindedir; yeni dünyada eskiyle ≤ 1 nicem farkla ve arazi örtüsü birebir aynıdır. GDAL `reproject` dönüşümü yaklaşıktır (0,125 piksel) ve hatası hedef pencereye bağlıdır; bu yüzden `build_world.py` `PINNED_WINDOWS` ile eski alanı eskiyle **aynı pencerede** hesaplar (aksi hâlde dik yamaçlarda ~5 m sapma çıkar). Genişlemelerde (Faz 8+) pencere listesi büyür; eski karolar değişmez.
+- **UTM:** EPSG:32636 sabit; batıda ~28,5°D'ye, doğuda 36°D'ye kadar yeter (ölçek sapması ≤ %0,14).
+- **Üretim:** `tools/world.yaml` (hedef iller, komşular `auto`: ızgarayla ≥ 1 km² kesişen tüm iller `inRegion=false`, bbox, pay) → `tools/build_world.py`; kalite raporu `tools/qa_world.py`; eski bölgeyi birebir karolayan `tools/tile_legacy.py` (7.2; daha geniş dünyanın üzerine yazmaz).
+
+**Eski bölge biçimi (7.10'a kadar)** — `public/data/regions/<bolge-id>/`, ilk bölgenin id'si: `zonguldak-bartin-karabuk`:
 
 **`meta.json`**
 ```json
@@ -196,18 +213,20 @@ npm test            # Vitest
 npm run format      # Prettier (biçimlendir); format:check yalnızca denetler
 ```
 
-Veri hattı (Faz 2+; Python 3.11+):
+Veri hattı (Faz 7: kafes/karo düzeni; Python 3.11+):
 ```bash
 cd tools
 pip install -r requirements.txt
-python fetch_dem.py zonguldak-bartin-karabuk     # Copernicus GLO-30 karoları → tools/raw/dem/ (~216 MB)
+python fetch_dem.py bati-karadeniz               # Copernicus GLO-30 karoları → tools/raw/dem/ (8 karo, ~290 MB)
 python fetch_boundaries.py                       # geoBoundaries TUR ADM1 → tools/raw/boundaries/
-python fetch_water.py zonguldak-bartin-karabuk   # Overture su katmanı (HTTP Range; ~150 MB indirir, ~3 dk) → tools/raw/water/
-python fetch_landcover.py zonguldak-bartin-karabuk # Overture arazi örtüsü / ESA WorldCover (HTTP Range) → tools/raw/landcover/
-python build_region.py zonguldak-bartin-karabuk  # → public/data/regions/<id>/ (commit edilir)
-python -m pytest tests                           # Python birim testleri
+python fetch_water.py bati-karadeniz             # Overture su katmanı (HTTP Range; ~185 MB indirir, ~3 dk) → tools/raw/water/
+python fetch_landcover.py bati-karadeniz         # Overture arazi örtüsü / ESA WorldCover (HTTP Range; ~320 MB) → tools/raw/landcover/
+python build_world.py                            # → public/data/world/<id>/ (commit edilir); --verify-legacy: eski alanı eski bölgeyle (≤ 1 nicem) karşılaştırır
+python qa_world.py                               # kalite raporu (Markdown): karo tablosu, örtü, il kapsamı, dikiş sürekliliği, su
+python tile_legacy.py                            # (7.2) eski bölgeyi birebir karolar; daha geniş dünyanın üzerine yazmaz (--force)
+python -m pytest tests                           # Python birim testleri (repo kökünden: python -m pytest tools/tests -q)
 ```
-Bölge tanımları `tools/regions.yaml`'dadır. geoBoundaries dosyaları Git LFS'tedir: `raw.githubusercontent.com` yalnızca işaretçi verir, `fetch_boundaries.py` gerçek dosyayı `media.githubusercontent.com`'dan alır.
+Dünya tanımı `tools/world.yaml`'dadır (eski `tools/regions.yaml` ve `build_region.py` 7.10'a kadar durur; `fetch_*` ikisini de tanır). geoBoundaries dosyaları Git LFS'tedir: `raw.githubusercontent.com` yalnızca işaretçi verir, `fetch_boundaries.py` gerçek dosyayı `media.githubusercontent.com`'dan alır. Yeniden üretim çıktısı deterministiktir (aynı ham veri → aynı bayt; `built` tarihi hariç).
 
 ## Çalışma Kuralları (Claude Code için)
 

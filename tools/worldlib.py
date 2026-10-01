@@ -278,3 +278,99 @@ def validate_manifest(manifest: dict) -> None:
         need(tile["bytes"] == TILE_SIZE * TILE_SIZE * 2, f"karo {key} bayt sayısı")
         need(len(tile["sha256"]) == 64, f"karo {key} sha256")
     need(seen == set(tile_coords_of(extent)), "karolar extent ile kesişen kümeye eşit (boşluksuz) olmalı")
+
+
+# ---------------------------------------------------------------------------- kafese çapalı ızgara (7.3)
+
+
+@dataclass(frozen=True)
+class LatticeGrid:
+    """Kafese çapalı, kuzeyden güneye/batıdan doğuya satır satır ızgara (EPSG:32636).
+
+    `regionlib.Grid` ile aynı arayüzü (width, height, cell, origin_e/origin_n, left/top/right/bottom) sunar;
+    `features.build_features` ve `landcover.rasterize_landcover` ikisiyle de çalışır. Fark: orijin ızgara
+    merkezi değil **dünya orijinidir** (`ORIGIN_UTM`, sabit), kenarlar kafesten gelir.
+    """
+
+    extent: Extent
+    cell: float = CELL_SIZE_REAL
+    origin_e: float = ORIGIN_UTM[0]
+    origin_n: float = ORIGIN_UTM[1]
+
+    @property
+    def width(self) -> int:
+        return self.extent.cols
+
+    @property
+    def height(self) -> int:
+        return self.extent.rows
+
+    @property
+    def left(self) -> float:
+        return LATTICE_LEFT_E + self.extent.col0 * self.cell
+
+    @property
+    def top(self) -> float:
+        return LATTICE_TOP_N - self.extent.row0 * self.cell
+
+    @property
+    def right(self) -> float:
+        return self.left + self.width * self.cell
+
+    @property
+    def bottom(self) -> float:
+        return self.top - self.height * self.cell
+
+
+def align_down(value: int, multiple: int = CHUNK_CELLS) -> int:
+    """`value`'yu `multiple`'ın katına aşağı yuvarlar (negatifler de aşağı: −635 → −640)."""
+    return value // multiple * multiple
+
+
+def grid_for_lattice(
+    minx: float, miny: float, maxx: float, maxy: float, margin: float, align: int = CHUNK_CELLS
+) -> LatticeGrid:
+    """UTM sınır kutusu (+ pay) için kafese çapalı ızgara.
+
+    Sınırlar kafes hücrelerine yuvarlanır (batı/kuzey `floor`, doğu/güney `ceil`); batı ve kuzey kenarı ayrıca
+    `align` (chunk = 128 örnek) katına hizalanır, doğu/güney kenar yerinde kalır (yalnızca uzar). Eski
+    ızgara (`extent = 0, 0, 1588, 1176`) kafesin kendisidir; bu yüzden eski alan yeniden üretilebilir.
+    """
+    raw = extent_for_lattice_bounds(minx - margin, maxy + margin, maxx + margin, miny - margin)
+    col0 = align_down(raw.col0, align)
+    row0 = align_down(raw.row0, align)
+    cols = raw.col0 + raw.cols - col0
+    rows = raw.row0 + raw.rows - row0
+    return LatticeGrid(Extent(col0, row0, cols, rows))
+
+
+def compare_with_legacy(
+    new_heights: np.ndarray,
+    new_extent: Extent,
+    new_max: float,
+    legacy_heights: np.ndarray,
+    legacy_max: float,
+    legacy_extent: Extent = Extent(0, 0, 1588, 1176),
+) -> dict:
+    """Yeni dünyanın eski alana düşen kısmını eski bölgeyle (metre cinsinden) karşılaştırır.
+
+    İki nicemleme farklı aralıklarla yuvarlandığı için fark ≤ 1 nicem (yeni aralıkta `new_max / 65535` m) olmalıdır.
+    Dönüş: {"max_diff_m", "step_m", "within_one_step", "differing_cells"}.
+    """
+    c0 = legacy_extent.col0 - new_extent.col0
+    r0 = legacy_extent.row0 - new_extent.row0
+    if c0 < 0 or r0 < 0 or c0 + legacy_extent.cols > new_extent.cols or r0 + legacy_extent.rows > new_extent.rows:
+        raise WorldDataError("eski alan yeni dünyanın içinde değil")
+    window = new_heights[r0 : r0 + legacy_extent.rows, c0 : c0 + legacy_extent.cols]
+    if window.shape != legacy_heights.shape:
+        raise WorldDataError(f"eski heightmap boyutu {legacy_heights.shape}, pencere {window.shape}")
+    new_m = window.astype(np.float64) / UINT16_MAX * new_max
+    old_m = legacy_heights.astype(np.float64) / UINT16_MAX * legacy_max
+    diff = np.abs(new_m - old_m)
+    step = new_max / UINT16_MAX
+    return {
+        "max_diff_m": float(diff.max()),
+        "step_m": step,
+        "within_one_step": bool(diff.max() <= step + 1e-9),
+        "differing_cells": int((diff > 1e-9).sum()),
+    }
