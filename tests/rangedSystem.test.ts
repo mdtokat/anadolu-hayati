@@ -266,6 +266,41 @@ describe('RangedSystem', () => {
     expect(ranged.sway).toEqual({ yaw: 0, pitch: 0 });
   });
 
+  it('tam nişanda ve nişan dışında oran sabit kalır (her adımda 1 ↔ 0,85 titremez)', () => {
+    const { ranged } = setup([['rifle', 1]]);
+    const aimed = input('rifle', { aiming: true });
+    run(ranged, 1, aimed);
+    for (let i = 0; i < 20; i++) {
+      ranged.update(STEP, aimed);
+      expect(ranged.aimFraction).toBe(1);
+    }
+    run(ranged, 1, input('rifle'));
+    for (let i = 0; i < 20; i++) {
+      ranged.update(STEP, input('rifle'));
+      expect(ranged.aimFraction).toBe(0);
+    }
+  });
+
+  it('nişan oranı ve salınım adımlar arasında aradeğerlenir (60 Hz basamağı yok)', () => {
+    const { ranged } = setup([['sniper_rifle', 1]]);
+    const scoped = input('sniper_rifle', { aiming: true });
+    ranged.update(STEP, scoped);
+    expect(ranged.aimFractionAt(0)).toBe(0);
+    expect(ranged.aimFractionAt(1)).toBe(ranged.aimFraction);
+    expect(ranged.aimFractionAt(0.5)).toBeCloseTo(ranged.aimFraction / 2, 9);
+    run(ranged, 1, scoped);
+    // Sabit adım başına salınım değişimi, aradeğerli küçük adımların toplamıdır ve süreklidir.
+    const a = ranged.swayAt(1);
+    ranged.update(STEP, scoped);
+    expect(ranged.swayAt(0).pitch).toBeCloseTo(a.pitch, 9);
+    expect(ranged.swayAt(0).yaw).toBeCloseTo(a.yaw, 9);
+    const b = ranged.swayAt(1);
+    const mid = ranged.swayAt(0.5);
+    expect(mid.pitch).toBeGreaterThanOrEqual(Math.min(a.pitch, b.pitch) - 1e-6);
+    expect(mid.pitch).toBeLessThanOrEqual(Math.max(a.pitch, b.pitch) + 1e-6);
+    expect(ranged.sway).toEqual(b);
+  });
+
   it('reset uçuştaki isabetleri ve doldurmayı siler, şarjör kalır', () => {
     const { ranged, weapons } = setup([
       ['rifle', 1],

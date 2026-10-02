@@ -52,6 +52,35 @@ describe('PlayerCamera nişan', () => {
     expect(cam.camera.fov).toBe(CAMERA.fov);
   });
 
+  it('üçüncü şahısta nişan geçişi bakış doğrultusunda sürekli ilerler (tek adımda sıçramaz)', () => {
+    const cam = new PlayerCamera(new EventBus<GameEvents>(), terrain);
+    cam.toggleMode();
+    const feet = { x: 0, y: 2, z: 0 };
+    const dist = (blend: number) => {
+      cam.setAim(CAMERA.fov, 1, blend >= 0.5, blend);
+      cam.update(feet);
+      return Math.hypot(
+        cam.camera.position.x - feet.x,
+        cam.camera.position.y - (feet.y + PLAYER.eyeHeight),
+        cam.camera.position.z - feet.z,
+      );
+    };
+    let prev = dist(0);
+    expect(prev).toBeGreaterThan(CAMERA.thirdPersonDistance * 0.9);
+    let maxStep = 0;
+    for (let b = 0.05; b <= 1.0001; b += 0.05) {
+      const d = dist(Math.min(b, 1));
+      expect(d).toBeLessThanOrEqual(prev + 1e-9); // geri gitmez
+      maxStep = Math.max(maxStep, prev - d);
+      prev = d;
+    }
+    expect(prev).toBeCloseTo(0, 9);
+    expect(maxStep).toBeLessThan(CAMERA.thirdPersonDistance * 0.12);
+    cam.setAim(CAMERA.fov, 1, false, 0);
+    cam.update(feet);
+    expect(cam.viewFirstPerson).toBe(false);
+  });
+
   it('nişanda fare hassasiyeti düşer; tepme bakışı yukarı iter', () => {
     const cam = new PlayerCamera(new EventBus<GameEvents>(), terrain);
     cam.applyMouse(100, 0);
