@@ -45,6 +45,41 @@ describe('structureShapes', () => {
   });
 });
 
+describe('modüler parça collider’ları', () => {
+  it('parça başına kutu sayısı: taban/çatı/duvar 1, kapılı duvar 3, pencereli duvar 4, kapı 1', () => {
+    expect(solidBoxes('foundation')).toHaveLength(1);
+    expect(solidBoxes('roof')).toHaveLength(1);
+    expect(solidBoxes('wall')).toHaveLength(1);
+    expect(solidBoxes('doorway')).toHaveLength(3);
+    expect(solidBoxes('window_wall')).toHaveLength(4);
+    expect(solidBoxes('door')).toHaveLength(1);
+  });
+
+  it('kapalı kapı geçidi kapatır, açılınca oyuncu geçer (collider yenilenir)', () => {
+    const { physics, structures, colliders } = world();
+    structures.add('foundation', 0, 0, 0, 0);
+    structures.add('doorway', 0, 0, -1, 0);
+    const door = structures.add('door', 0, 0, -1, 0);
+    colliders.sync();
+    const walk = (seconds: number) => {
+      const p = new Player(physics, { x: 0, y: 0.25, z: 3 });
+      for (let i = 0; i < seconds / DT; i++) {
+        p.update(DT, { ...idle, forward: 1 }, 0); // yaw 0 → kuzeye (−Z)
+        physics.step();
+      }
+      const z = p.position.z;
+      p.dispose();
+      return z;
+    };
+    expect(walk(3)).toBeGreaterThan(-0.9); // kapalı kapı durdurur
+    structures.toggleDoor(door.id);
+    colliders.sync();
+    expect(walk(3)).toBeLessThan(-2); // açık: geçer
+    colliders.dispose();
+    physics.dispose();
+  });
+});
+
 describe('StructureColliders', () => {
   it('yapı kümesiyle eşitlenir: ekleme, sökme, yerinde yükleme', () => {
     const { physics, structures, colliders } = world();

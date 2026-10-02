@@ -48,6 +48,13 @@ export const ITEM_IDS = [
   'copper_pot',
   'wool_blanket',
   'miner_lamp',
+  // Modüler inşa parçaları (kullanıcı talimatı): ayrı üretilir, sahada monte edilir.
+  'foundation',
+  'wall',
+  'doorway',
+  'window_wall',
+  'door',
+  'roof',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -306,6 +313,31 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     stackMax: 1,
     category: 'tool',
   },
+  // Modüler inşa parçaları: yerleştirilebilir; bir parça bir slotta (yığınlanmaz), ağır olduğundan taşıma sınırı kısıtlar.
+  foundation: {
+    id: 'foundation',
+    name: 'Taban',
+    weightG: 6000,
+    stackMax: 4,
+    category: 'placeable',
+  },
+  wall: { id: 'wall', name: 'Duvar', weightG: 4000, stackMax: 6, category: 'placeable' },
+  doorway: {
+    id: 'doorway',
+    name: 'Kapılı Duvar',
+    weightG: 3500,
+    stackMax: 6,
+    category: 'placeable',
+  },
+  window_wall: {
+    id: 'window_wall',
+    name: 'Pencereli Duvar',
+    weightG: 3500,
+    stackMax: 6,
+    category: 'placeable',
+  },
+  door: { id: 'door', name: 'Kapı', weightG: 2000, stackMax: 6, category: 'placeable' },
+  roof: { id: 'roof', name: 'Çatı', weightG: 5000, stackMax: 4, category: 'placeable' },
 };
 
 export function isItemId(value: unknown): value is ItemId {

@@ -1,4 +1,5 @@
 import { SHELTER_EFFECTS } from '../config';
+import { pieceShelterAt } from './pieceShelter';
 import { isLit, type Structure, type StructureSet } from './structures';
 
 const { fireWarmth } = SHELTER_EFFECTS;
@@ -83,6 +84,9 @@ export function exposureAt(structures: StructureSet, x: number, y: number, z: nu
       shelter = shelterKindOf(s);
     }
   }
+  // Modüler yapılar (taban/duvar/çatı): çatı altı sundurma, kapalı oda kulübe etkisi verir.
+  const modular = pieceShelterAt(structures, x, y, z);
+  if (modular === 'hut' || (modular !== null && shelter === null)) shelter = modular;
   return {
     warmthC: Math.min(warmth, fireWarmth.maxTotalC),
     sheltered: shelter !== null,

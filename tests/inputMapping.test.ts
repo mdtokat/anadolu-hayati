@@ -5,7 +5,13 @@ const keys = (...codes: string[]) => new Set(codes);
 
 describe('mapKeysToIntent', () => {
   it('tuş yokken sıfır niyet verir', () => {
-    expect(mapKeysToIntent(keys())).toEqual({ forward: 0, strafe: 0, run: false, jump: false });
+    expect(mapKeysToIntent(keys())).toEqual({
+      forward: 0,
+      strafe: 0,
+      run: false,
+      jump: false,
+      descend: false,
+    });
   });
 
   it('WASD yönlerini eşler', () => {
@@ -38,12 +44,18 @@ describe('mapKeysToIntent', () => {
     expect(mapKeysToIntent(keys('Space')).jump).toBe(true);
   });
 
+  it('Z (aşağı in) test modu uçuşunun niyetidir', () => {
+    expect(mapKeysToIntent(keys('KeyZ')).descend).toBe(true);
+    expect(mapKeysToIntent(keys()).descend).toBe(false);
+  });
+
   it('tanımsız tuşları yok sayar', () => {
-    expect(mapKeysToIntent(keys('KeyQ', 'KeyZ'))).toEqual({
+    expect(mapKeysToIntent(keys('KeyQ', 'KeyU'))).toEqual({
       forward: 0,
       strafe: 0,
       run: false,
       jump: false,
+      descend: false,
     });
   });
 });

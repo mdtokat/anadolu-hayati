@@ -19,6 +19,14 @@ import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { Environment } from './Environment';
 import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
+import {
+  cityCentersOf,
+  cityRespawnRandom,
+  openYaw,
+  pickCityStart,
+  type CityStart,
+} from '../survival/cityStart';
+import type { Random } from '../utils/random';
 import type { AmbientSample, GameWorld, LocationInfo, WorldQuality } from './GameWorld';
 import { latLonToGame } from './geo';
 import { ProvinceBorders } from './ProvinceBorders';
@@ -171,7 +179,30 @@ export class RegionWorld implements GameWorld {
   /** Enlem/boylam için en yakın yürünebilir nokta (ayak tabanı, oyun koordinatı). */
   safePointFor(lat: number, lon: number): Vec3 | null {
     const { x, z } = latLonToGame(lat, lon, this.region.meta.originUtm);
+    return this.safePointAt(x, z);
+  }
+
+  /** Oyun koordinatı (x, z) için en yakın yürünebilir, yapı dışı nokta (ayak tabanı); yoksa null. */
+  safePointAt(x: number, z: number): Vec3 | null {
     return this.clearOfBuildings(findSafeSpawn(this.source, x, z, this.maxSlopeDeg));
+  }
+
+  /**
+   * Rastgele bir il/ilçe merkezinin yakınında başlangıç (yeni oyun, yeniden doğma). Yerleşim verisi yoksa ya da
+   * uygun nokta bulunamazsa null.
+   */
+  cityStart(random: Random): CityStart | null {
+    const map = this.settlementMap;
+    if (!map) return null;
+    const start = pickCityStart(cityCentersOf(map.settlements), random, (x, z) =>
+      this.safePointAt(x, z),
+    );
+    if (!start) return null;
+    // Duvara bakarak başlamasın: önü en açık yöne dön.
+    return {
+      ...start,
+      yaw: openYaw(start.point, start.yaw, (x, z) => map.buildingAt(x, z, 0.5) !== null),
+    };
   }
 
   /**
@@ -237,6 +268,8 @@ export class RegionWorld implements GameWorld {
   }
 
   respawnPoint(deathIndex: number): Vec3 | null {
+    const city = this.cityStart(cityRespawnRandom(deathIndex));
+    if (city) return city.point;
     return this.clearOfBuildings(
       pickRespawnPoint(
         this.region.provinces,

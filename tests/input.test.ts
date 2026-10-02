@@ -48,6 +48,36 @@ describe('Input', () => {
     expect(input.consumeLook()).toEqual({ dx: 0, dy: 0 });
   });
 
+  it("test modu uçuşu: Space'e çift basış `toggleFlight` üretir (kilit varken, kısa aralıkta)", () => {
+    const { events, doc, setLock } = setup();
+    const actions: string[] = [];
+    events.on('input:action', ({ action }) => actions.push(action));
+    const press = (timeStamp: number, repeat = false) =>
+      doc.dispatchEvent(
+        Object.defineProperty(
+          Object.assign(new Event('keydown'), { code: 'Space', repeat }),
+          'timeStamp',
+          { value: timeStamp },
+        ),
+      );
+    press(0); // kilit yok: sayılmaz
+    press(100);
+    expect(actions).toEqual([]);
+
+    setLock(true);
+    press(1000);
+    press(1100, true); // tuş tekrarı çift basış değildir
+    expect(actions).toEqual([]);
+    press(1200);
+    expect(actions).toEqual(['toggleFlight']);
+    press(1300); // üçüncü basış yeni bir çiftin ilkidir
+    expect(actions).toEqual(['toggleFlight']);
+    press(2000); // aralık uzun: yeni çift başlamaz
+    expect(actions).toEqual(['toggleFlight']);
+    press(2150);
+    expect(actions).toEqual(['toggleFlight', 'toggleFlight']);
+  });
+
   it('pointer lock değişimini olay olarak yayınlar', () => {
     const { events, setLock } = setup();
     const handler = vi.fn();

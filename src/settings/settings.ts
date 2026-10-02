@@ -1,4 +1,4 @@
-import { QUALITY_PRESETS, SETTINGS, type QualityLevel } from '../config';
+import { QUALITY_PRESETS, SETTINGS, TEST_MODE, type QualityLevel } from '../config';
 
 /** Ayar formatı sürümü (`localStorage`'daki JSON'un). Şema değişirse artır ve `parseSettings`'e göç ekle. */
 export const SETTINGS_VERSION = 1;
@@ -12,6 +12,8 @@ export interface Settings {
   volume: number;
   /** İlk dakikalar için ipuçları (Faz 8.5) açık mı? */
   hints: boolean;
+  /** Test modu (uçma, sınırsız malzeme; `TEST_MODE`) açık mı? */
+  testMode: boolean;
 }
 
 /** Kullanıcının değiştirebildiği alanlar. */
@@ -30,6 +32,7 @@ export function defaultSettings(): Settings {
     mouseSensitivity: SETTINGS.mouseSensitivity.default,
     volume: SETTINGS.volume.default,
     hints: SETTINGS.defaultHints,
+    testMode: TEST_MODE.defaultEnabled,
   };
 }
 
@@ -60,6 +63,7 @@ export function parseSettings(raw: unknown): Settings {
     out.volume = snapToRange(o.volume, SETTINGS.volume);
   }
   if (typeof o.hints === 'boolean') out.hints = o.hints;
+  if (typeof o.testMode === 'boolean') out.testMode = o.testMode;
   return out;
 }
 
@@ -73,6 +77,7 @@ export function settingsEqual(a: Readonly<Settings>, b: Readonly<Settings>): boo
     a.quality === b.quality &&
     a.mouseSensitivity === b.mouseSensitivity &&
     a.volume === b.volume &&
-    a.hints === b.hints
+    a.hints === b.hints &&
+    a.testMode === b.testMode
   );
 }

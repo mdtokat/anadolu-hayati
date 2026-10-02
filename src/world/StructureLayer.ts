@@ -16,7 +16,11 @@ import {
   type StructureKind,
   type StructureSet,
 } from '../placement/structures';
-import { buildFlameGeometry, buildStructureGeometry } from './structureGeometry';
+import {
+  buildFlameGeometry,
+  buildOpenDoorGeometry,
+  buildStructureGeometry,
+} from './structureGeometry';
 
 /** Dev göstergesi / test için anlık sayımlar. */
 export interface StructureLayerStats {
@@ -48,6 +52,8 @@ export class StructureLayer {
 
   private readonly geometries: Record<StructureKind, BufferGeometry>;
   private readonly flameGeometry = buildFlameGeometry();
+  /** Açık kapı kanadı (kapalı olan `geometries.door`). */
+  private readonly openDoorGeometry = buildOpenDoorGeometry();
   private readonly bodyMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 1 });
   private readonly flameMaterial = new MeshBasicMaterial({ vertexColors: true });
   private readonly ghostMaterials = {
@@ -118,6 +124,7 @@ export class StructureLayer {
     for (const light of this.lights) light.dispose();
     for (const geometry of Object.values(this.geometries)) geometry.dispose();
     this.flameGeometry.dispose();
+    this.openDoorGeometry.dispose();
     this.bodyMaterial.dispose();
     this.flameMaterial.dispose();
     this.ghostMaterials.valid.dispose();
@@ -140,7 +147,7 @@ export class StructureLayer {
         node = undefined;
       }
       if (!node) {
-        node = this.createNode(key, s.kind, s.x, s.y, s.z, s.yaw);
+        node = this.createNode(key, s.kind, s.x, s.y, s.z, s.yaw, s.open === true);
         this.nodes.set(s.id, node);
       }
       const lit = isLit(s);
@@ -161,11 +168,13 @@ export class StructureLayer {
     y: number,
     z: number,
     yaw: number,
+    open: boolean,
   ): Node {
     const root = new Group();
     root.position.set(x, y, z);
     root.rotation.y = yaw;
-    root.add(new Mesh(this.geometries[kind], this.bodyMaterial));
+    const geometry = kind === 'door' && open ? this.openDoorGeometry : this.geometries[kind];
+    root.add(new Mesh(geometry, this.bodyMaterial));
     let flame: Mesh | null = null;
     if (kind === 'campfire') {
       flame = new Mesh(this.flameGeometry, this.flameMaterial);

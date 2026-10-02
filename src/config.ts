@@ -119,6 +119,8 @@ export const INPUT = {
     right: ['KeyD', 'ArrowRight'],
     run: ['ShiftLeft', 'ShiftRight'],
     jump: ['Space'],
+    /** Uçuşta (test modu) aşağı in; Space yukarı çıkar, Shift hızlandırır. */
+    descend: ['KeyZ'],
     /** Birinci / üçüncü şahıs kamera geçişi. */
     toggleCamera: ['KeyV'],
     /** İl sınırı çizgilerini aç/kapa. */
@@ -149,6 +151,8 @@ export const INPUT = {
    * alındığı anda tek seferlik dev bir delta gönderir; bu sınır kamerayı sıçratmasını önler.
    */
   maxMouseDeltaPerEvent: 250,
+  /** Test modunda Space'e bu süre (ms) içinde iki kez basmak uçuşu açar/kapatır. */
+  flightDoubleTapMs: 300,
   /** Fare tekerleğiyle kısayol kaydırmada iki adım arası en kısa süre (ms): dokunmatik yüzeyin olay yağmuru seçimi uçurmasın. */
   hotbarWheelCooldownMs: 90,
 } as const;
@@ -1050,6 +1054,37 @@ export const RESPAWN = {
 } as const;
 
 /**
+ * Test modu (kullanıcı talimatı; geçici): Ayarlar'dan açılır, varsayılan kapalıdır. Açıkken oyuncu uçabilir
+ * (Space'e çift basınca uçuş açılır/kapanır; Space yukarı, `INPUT.bindings.descend` aşağı, Shift hızlı), üretim
+ * malzeme/alet/istasyon istemez ve girdi tüketmez, yapı yerleştirmek eşya harcamaz, toplanan nesneler tükenmez.
+ * Hayatta kalma göstergeleri etkilenmez.
+ */
+export const TEST_MODE = {
+  /** Uçuş hızları (oyun m/s): normal, Shift basılıyken, dikey. */
+  flight: { speed: 12, fastSpeed: 40, verticalSpeed: 9, acceleration: 60 },
+  /** Varsayılan: kapalı. */
+  defaultEnabled: false,
+} as const;
+
+/**
+ * Şehir merkezi başlangıcı (yeni oyun ve yeniden doğma): il ve ilçe merkezlerinden (Faz 10 yerleşimleri) rastgele
+ * birinin yakınında, bina dışında yürünebilir bir noktada başlanır. Pilot il sınırı bu seçimde aranmaz
+ * (kullanıcı talimatı); yerleşim verisi yoksa eski pilot il doğması kullanılır.
+ */
+export const CITY_START = {
+  /** Başlangıç merkezi olabilecek yerleşim rütbeleri (`il` = il merkezi, `ilce` = ilçe merkezi/belde). */
+  ranks: ['il', 'ilce'],
+  /** Merkezden en çok bu kadar (yerleşim ayak izi yarıçapının oranı) uzakta başlanır. */
+  maxOffsetFraction: 0.35,
+  /** Bir merkezde kaç farklı nokta denenir (bina yoğun olabilir); sonra başka merkeze geçilir. */
+  attemptsPerCenter: 6,
+  /** Kaç merkez denenir. */
+  maxCenters: 12,
+  /** Yeniden doğma tohumu; ölüm sırasıyla birleşir (aynı seed ve n → aynı merkez). */
+  respawnSeed: 424242,
+} as const;
+
+/**
  * Tatlı su etkileşimi ve gösterimi. Dünya yatayda 1:50 ölçekli olduğundan gerçek bir nehir (5–30 m)
  * oyunda 0,1–0,6 m genişliğinde kalır; görünür ve içilebilir olması için genişlikler oyun için abartılır.
  */
@@ -1221,9 +1256,56 @@ export const PLACEMENT = {
       maxRelief: 0.9,
       reliefRadius: 2,
     },
+    // Modüler parçalar (taban, duvar, kapılı/pencereli duvar, kapı, çatı): geçerlilik `placement/pieceRules.ts`'te
+    // (ızgara yuvaları, destek, zemin toleransı); buradaki `radius` odak/sökme menzili ve diğer yapılarla aralık içindir.
+    foundation: { maxSlopeDeg: 45, radius: 1.45, aimDistance: 3, maxReach: 6 },
+    wall: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
+    doorway: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
+    window_wall: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
+    door: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
+    roof: { maxSlopeDeg: 45, radius: 1.45, aimDistance: 3, maxReach: 7 },
   },
   /** İki yapının merkezleri arasındaki en az uzaklık: yarıçapların toplamı + bu pay (oyun m). */
   spacingMargin: 0.3,
+} as const;
+
+/**
+ * Modüler yapı parçaları (kullanıcı talimatı): taban, duvar, kapılı duvar, pencereli duvar, kapı ve çatı ayrı ayrı
+ * üretilir, sahada küresel bir ızgaraya (hücre `cell`) oturtularak monte edilir; bina şeklini oyuncu belirler.
+ * Taban zemine kurulur (kat 0); duvarlar bir plakanın (taban ya da çatı) kenarına, çatı duvarların üstüne oturur;
+ * çatı plakası bir üst katın zemini de olur (kat yüksekliği `slab + wallHeight`). Ölçüler oyun metresidir.
+ */
+export const PIECES = {
+  /** Izgara hücresi: plaka kenarı ve duvar uzunluğu. */
+  cell: 2,
+  /** Taban/çatı plakasının kalınlığı. */
+  slab: 0.2,
+  /** Duvarın yüksekliği (plakanın üstünden bir üst plakanın altına). */
+  wallHeight: 2.4,
+  /** Duvar kalınlığı. */
+  wallThickness: 0.18,
+  /** Tabanın zemine gömülü etek derinliği (yamaçta havada kalmasın). */
+  skirt: 1.5,
+  /** Kapı boşluğu (kapılı duvar) ve kapı kanadı. */
+  doorway: { width: 1.0, height: 2.0 },
+  /** Pencere boşluğu: genişlik, denizlik (zeminden) ve yükseklik. */
+  window: { width: 1.0, sill: 0.9, height: 0.9 },
+  /** Kapı kanadı kalınlığı. */
+  doorThickness: 0.08,
+  /** Tabanın zemine oturması: en yüksek zemin noktası tabanın üstünden en çok bu kadar yüksekte olabilir (gömülme). */
+  maxBury: 0.35,
+  /** Zemin tabanın altına en çok bu kadar inebilir (etek kapatır). */
+  maxDrop: 1.3,
+  /** İlk tabanın zemin yüksekliği: en yüksek örnekten bu kadar aşağıda (plaka yüzü zeminle hizalı kalsın). */
+  floorSink: 0.15,
+  /** Zeminin üstünde en çok bu yükseğe parça kurulabilir (≈ 4 kat). */
+  maxBuildHeight: 12,
+  /** Oyuncuya en çok bu yatay uzaklıkta hedeflenir; adaylar bakış noktasına bu yarıçapta aranır. */
+  searchRadius: 3.2,
+  /** Duvar parçasına oyuncunun bu kadar yakınında (yatay, oyun m) duvar kurulmaz (içine sıkışmasın). */
+  playerClearance: 0.55,
+  /** Bir odanın "kulübe" sayılması: kapalı oda tarama sınırı (hücre) ve en çok açıklık sayısı (açık kapılı/kapısız boşluk). */
+  shelter: { maxCells: 36, maxOpenings: 1 },
 } as const;
 
 /** Sandık (Faz 9): yapıya bağlı ayrı envanter; `E` ile açılır. */
@@ -1363,6 +1445,10 @@ export const STRUCTURE_LOOK = {
     iron: 0x3d3b38,
     wall: 0x7a5634,
     hutRoof: 0x5b4a3a,
+    // Modüler parçalar: taban plakası, çatı plakası, pencere camı yerine tahta kepenk.
+    slab: 0x8f6c47,
+    roofSlab: 0x4f4235,
+    shutter: 0x5a3e27,
   },
   /** Yüz başına ton oynaması (düz gölgeli görünüm için). */
   faceShade: 0.06,

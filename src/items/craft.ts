@@ -4,6 +4,8 @@ import type { Recipe, StationKind } from './recipes';
 /** Üretimin yapıldığı yer: yakındaki istasyonlar (Faz 9; `placement/stations.ts` hesaplar). */
 export interface CraftContext {
   stations: ReadonlySet<StationKind>;
+  /** Test modu: istasyon, alet ve malzeme istenmez, girdi tüketilmez (yalnızca çıktıya yer aranır). */
+  free?: boolean;
 }
 
 /** İstasyonsuz bağlam (açık arazi): yalnızca elle/aletle yapılan tarifler. */
@@ -29,6 +31,7 @@ export function craftStatus(
   recipe: Recipe,
   context: CraftContext = NO_STATIONS,
 ): CraftStatus {
+  if (context.free) return outputFits(inventory, recipe, false) ? { ok: true } : NO_SPACE;
   if (recipe.station && !context.stations.has(recipe.station)) {
     return { ok: false, reason: 'missing_station', missing: [], station: recipe.station };
   }
@@ -41,16 +44,22 @@ export function craftStatus(
     .filter((entry) => entry.count > 0);
   if (shortfall.length > 0) return { ok: false, reason: 'missing_inputs', missing: shortfall };
 
-  // Yer denetimi: malzeme çıkınca serbest kalan slot/ağırlık hesaba katılmalı (kopya üzerinde dene).
+  return outputFits(inventory, recipe, true) ? { ok: true } : NO_SPACE;
+}
+
+const NO_SPACE: CraftFailure = { ok: false, reason: 'no_space', missing: [] };
+
+/**
+ * Çıktıya yer var mı? Yer denetimi: malzeme çıkınca serbest kalan slot/ağırlık hesaba katılmalı (kopya üzerinde
+ * dene); `takesInputs` false (test modu) ise malzeme çıkmaz.
+ */
+function outputFits(inventory: Inventory, recipe: Recipe, takesInputs: boolean): boolean {
   const trial = Inventory.fromJSON(inventory.toJSON(), {
     slots: inventory.slotCount,
     maxWeightG: inventory.maxWeightG,
   });
-  trial.take(recipe.inputs);
-  if (trial.add(recipe.output.id, recipe.output.count) > 0) {
-    return { ok: false, reason: 'no_space', missing: [] };
-  }
-  return { ok: true };
+  if (takesInputs) trial.take(recipe.inputs);
+  return trial.add(recipe.output.id, recipe.output.count) === 0;
 }
 
 export function canCraft(
@@ -63,7 +72,7 @@ export function canCraft(
 
 /**
  * Tarifi uygular: malzemeyi düşer, çıktıyı ekler. Atomiktir: yapılamıyorsa envanter hiç değişmez.
- * Alet ve istasyon tüketilmez.
+ * Alet ve istasyon tüketilmez. Test modunda (`context.free`) hiçbir şey tüketilmez.
  */
 export function craft(
   inventory: Inventory,
@@ -73,7 +82,7 @@ export function craft(
   const status = craftStatus(inventory, recipe, context);
   if (!status.ok) return status;
 
-  inventory.take(recipe.inputs);
+  if (!context.free) inventory.take(recipe.inputs);
   inventory.add(recipe.output.id, recipe.output.count);
   return { ok: true, output: { ...recipe.output } };
 }

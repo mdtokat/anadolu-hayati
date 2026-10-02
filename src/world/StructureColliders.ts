@@ -42,7 +42,7 @@ export class StructureColliders {
       if (existing) this.removeEntry(s.id, existing);
       const half = s.yaw / 2;
       const rotation = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
-      const list = solidBoxes(s.kind).map((b) => {
+      const list = solidBoxes(s.kind, s.open === true).map((b) => {
         const center = localToWorld(s, b.cx, b.cz);
         return this.physics.addStaticCollider(
           RAPIER.ColliderDesc.cuboid(b.hx, b.hy, b.hz)

@@ -2,6 +2,7 @@ import { COOK_RECIPES } from '../src/combat/cooking';
 import { describe, expect, it } from 'vitest';
 import { FOOD, INVENTORY } from '../src/config';
 import { ITEM_IDS, ITEMS, isItemId } from '../src/items/itemDefs';
+import { PIECE_KINDS } from '../src/placement/pieces';
 
 describe('eşya tablosu', () => {
   it('her kimliğin tanımı var ve tanım kendi kimliğini taşıyor', () => {
@@ -18,8 +19,9 @@ describe('eşya tablosu', () => {
     }
   });
 
-  it('alet ve yerleştirilebilir yapıların yığın sınırı 1', () => {
+  it('alet ve yerleştirilebilir yapıların yığın sınırı 1 (modüler parçalar hariç: art arda kurulur)', () => {
     for (const id of ITEM_IDS) {
+      if ((PIECE_KINDS as readonly string[]).includes(id)) continue;
       if (ITEMS[id].category === 'tool' || ITEMS[id].category === 'placeable') {
         expect(ITEMS[id].stackMax, id).toBe(1);
       }

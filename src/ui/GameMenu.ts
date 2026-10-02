@@ -17,6 +17,7 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
       [['W', 'A', 'S', 'D'], 'Yürü'],
       [['Shift'], 'Koş'],
       [['Boşluk'], 'Zıpla'],
+      [['Boşluk ×2', 'Z'], 'Uçuş aç/kapa · aşağı in (Ayarlar → Test modu)'],
       [['Fare'], 'Etrafa bak'],
       [['V'], '1. / 3. şahıs kamera'],
     ],
@@ -25,7 +26,7 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
     'Hayatta kalma',
     [
       [['E'], 'Topla, leş kes, pişir, yakıt at, ev ara, su iç (basılı tut)'],
-      [['E'], 'Sandık aç, insanlarla konuş (bas)'],
+      [['E'], 'Sandık aç, kapı aç/kapat, insanlarla konuş (bas)'],
       [['Sol tık'], 'Saldır · hayalet varken kur'],
       [['F'], 'Hızlı yemek'],
       [['I', 'Tab'], 'Envanter ve üretim'],
@@ -36,7 +37,8 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
     'İnşa',
     [
       [['C', 'G'], 'Ateş / sundurma hayaleti'],
-      [['R'], 'Hayaleti döndür'],
+      [['1–8'], 'Taban, duvar, kapı, çatı… parçayı seç; sol tık monte eder (art arda)'],
+      [['R'], 'Hayaleti döndür · duvar/kapı yüzünü çevir'],
       [['X'], 'Yapıyı sök (basılı tut)'],
     ],
   ],

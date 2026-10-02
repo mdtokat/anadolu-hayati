@@ -196,3 +196,19 @@ Dev tuşları: `T` + rakam ve `Shift` + rakam ile il/ilçe merkezlerine ışınl
 - [ ] **Vakitler:** saat kartında Miladî + Hicrî tarih ve sonraki vakit; `]` ile saati ilerletince "Öğle/İkindi/Akşam/Yatsı/İmsak vakti girdi" bildirimi geliyor mu?
 - [ ] **Performans:** Safranbolu, Düzce ve Karabük merkezlerinde FPS (başsız ölçümde en kötü 240 draw call): ___ FPS
 - Notlar: ____________________
+
+## 13. Modüler inşa, test modu ve şehir merkezi başlangıcı (Faz 10 sonrası)
+
+**Test modu:** Esc → Ayarlar → "Test modu: Açık" (varsayılan kapalı; sol üstte "Test modu" rozeti). Uçmak için Boşluk'a çift bas; Boşluk yukarı, `Z` aşağı, Shift hızlı. Üretim, malzeme/alet/tezgâh istemez ve girdi tüketmez (envanter panelinde bütün tarifler "hazır"); yapı yerleştirmek eşya harcamaz (parçayı bir kez üretip kısayola bağla, art arda kur); ağaç/kaya/dal tükenmez.
+
+- [ ] **Test modu aç/kapa:** Ayarlar'dan kapatınca uçuş kapanıyor, malzeme gereksinimi geri geliyor, rozet kayboluyor mu? Kaydedip yükleyince ayar korunuyor mu?
+- [ ] **Uçuş hissi:** çift Boşluk ile uçuş açılıp kapanıyor mu (yanlışlıkla tetiklenme: hızlı zıplarken)? Hızlar (12 m/s, Shift 40 m/s, dikey 9) uygun mu? Zemine/duvara çarpıyor mu? Hız ayarı: ☐ olur ☐ `TEST_MODE.flight` değişsin
+- [ ] **Taban:** tezgâhta üret → kısayola bağlı gelir → hayalet 2 m'lik ızgaraya yapışıyor; komşu tabanla aynı yükseklikte kuruluyor; eğimli yerde "Zemin çok dik" diyor, kenarda zemin tabanın altında kalırsa toprak tonlu etek boşluğu kapatıyor mu? Taban üstüne yürümek (autostep 0,4 m) rahat mı, yamaçta taban zemine göre çok yükseğe çıkarsa girişi imkânsız mı olur?
+- [ ] **Duvar / kapılı / pencereli:** hayalet bakış noktasına en yakın taban kenarına yapışıyor; destek yoksa "Destek yok…"; dolu kenara kurulmuyor ("Burası dolu"); `R` iç-dış yüzü çeviriyor; oyuncu duvarın içindeyken kurulmuyor mu? Çok katlı: çatı plakasının kenarına duvar kurulabiliyor mu (yukarı bakarak)?
+- [ ] **Çatı:** duvarların üstüne bir kat yukarı oturuyor, komşu çatıyla uzuyor; üst katın zemini olarak yürünebiliyor mu?
+- [ ] **Kapı:** kapılı duvara kapı kuruluyor; `E` (bas) açıyor/kapatıyor, açıkken geçilebiliyor, kapalıyken durduruyor; menteşe yanı `R` ile değişiyor; kayıt/yükleme durumu koruyor mu?
+- [ ] **Barınak:** çatılı ve çevresi kapalı odada HUD "Kulübede" (en çok 1 açıklık serbest; açık kapı bir açıklıktır); çatılı ama açık yerde "Barınakta"; gece soğuğunda fark ediliyor mu?
+- [ ] **Sökme:** `X` basılı parçayı geri veriyor; plaka üstündeyken duvara bakınca duvar seçiliyor mu? **Bilinen sınırlama:** destek parçası sökülünce üstündekiler havada kalır.
+- [ ] **Ateş/tezgâh/sandık tabanın üstüne** kurulabiliyor mu (tabanın üst yüzüne oturuyor mu)? Kulübe/sundurma taban üstüne kurulamıyor.
+- [ ] **Şehir merkezi başlangıcı:** Yeni Oyun ve ölüm sonrası "Yeniden Doğ" farklı il/ilçe merkezlerinde (konsolda "Başlangıç: …"), bina dışında ve duvara bakmadan başlıyor mu? 10 denemede çeşitlilik: ___ farklı yer
+- Notlar: ____________________

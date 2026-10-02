@@ -61,6 +61,8 @@ export class Input {
   /** Etkileşim tuşuna (E) yeni basıldı; bir mantık adımı `consumeInteractPress` ile alana kadar durur (sandık açma). */
   private interactLatched = false;
   private lastWheelAt = Number.NEGATIVE_INFINITY;
+  /** Zıplama tuşuna son (tekrarsız) basışın zamanı (ms): çift basış uçuş geçişidir. */
+  private lastJumpPressAt = Number.NEGATIVE_INFINITY;
   private readonly cleanups: Array<() => void> = [];
 
   constructor(
@@ -162,6 +164,15 @@ export class Input {
     this.pressed.add(event.code);
     if (event.repeat) return;
     if (this.intent().jump) this.jumpLatched = true;
+    if ((INPUT.bindings.jump as readonly string[]).includes(event.code) && this.pointerLocked) {
+      const now = event.timeStamp;
+      if (now - this.lastJumpPressAt <= INPUT.flightDoubleTapMs) {
+        this.lastJumpPressAt = Number.NEGATIVE_INFINITY;
+        this.events.emit('input:action', { action: 'toggleFlight' });
+      } else {
+        this.lastJumpPressAt = now;
+      }
+    }
     if (this.pointerLocked && (INPUT.bindings.interact as readonly string[]).includes(event.code)) {
       this.interactLatched = true;
     }

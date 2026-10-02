@@ -119,6 +119,15 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
     '<rect x="3" y="7" width="18" height="11" rx="1.5" fill="#a83a2e"/><path d="M3 10h18M3 15h18" stroke="#e9c46a" stroke-width="1.6"/><path d="M6 12.5l2-1.5 2 1.5-2 1.5zM11 12.5l1-1 1 1-1 1zM14 12.5l2-1.5 2 1.5-2 1.5z" fill="#f2e6cf"/><path d="M4 18v2M7 18v2M10 18v2M13 18v2M16 18v2M19 18v2" stroke="#e9c46a" stroke-width="1" stroke-linecap="round"/>',
   miner_lamp:
     '<path d="M12 2.5c-1.5 0-2.5 1-2.5 2.2" stroke="#7a6a50" stroke-width="1.4" fill="none" stroke-linecap="round"/><rect x="8.5" y="5" width="7" height="2" rx=".6" fill="#b89a4a"/><rect x="8.8" y="7" width="6.4" height="7" rx="1" fill="#fff2b8" fill-opacity=".85" stroke="#b89a4a" stroke-width="1"/><path d="M12 9c.8 1 1 2 0 3-1-1-.8-2 0-3z" fill="#f08a2c"/><path d="M8 14h8l1 6.5H7z" fill="#b89a4a"/><path d="M9 16.5h6" stroke="#8a7232" stroke-width="1"/>',
+  foundation:
+    '<path d="M3 11.5 12 7l9 4.5L12 16z" fill="#b38a5c"/><path d="M3 11.5V15l9 4.5V16zM21 11.5V15l-9 4.5V16z" fill="#7a5a3a"/><path d="M7.5 9.3 16.5 13.8M16.5 9.3 7.5 13.8" stroke="#8f6c47" stroke-width="1"/>',
+  wall: '<rect x="3" y="4" width="18" height="16" rx="1" fill="#a8723c"/><path d="M3 9.3h18M3 14.7h18" stroke="#7a4f2a" stroke-width="1.3"/><path d="M9 4v5.3M15 9.3v5.4M9 14.7V20" stroke="#7a4f2a" stroke-width="1.3"/>',
+  doorway:
+    '<path d="M3 4h18v16H3z" fill="#a8723c"/><path d="M9 20V11a3 3 0 0 1 6 0v9z" fill="#2c2118"/><path d="M3 9.3h4M17 9.3h4M3 14.7h4M17 14.7h4" stroke="#7a4f2a" stroke-width="1.3"/>',
+  window_wall:
+    '<rect x="3" y="4" width="18" height="16" rx="1" fill="#a8723c"/><rect x="8" y="8" width="8" height="6.5" rx=".6" fill="#2c2118"/><path d="M12 8v6.5M8 11.2h8" stroke="#8a5a2e" stroke-width="1.3"/><rect x="7.2" y="14.5" width="9.6" height="1.5" fill="#6e4522"/>',
+  door: '<rect x="6" y="2.5" width="12" height="19" rx="1" fill="#8a5a2e"/><path d="M6 8.5h12M6 15h12M12 2.5v19" stroke="#6e4522" stroke-width="1.1"/><circle cx="15.2" cy="12.3" r="1" fill="#e0b84c"/>',
+  roof: '<path d="M2 12 12 5l10 7z" fill="#6b5744"/><path d="M2 12h20v3H2z" fill="#4f4235"/><path d="M5.5 9.7 8 12M10 6.7 12.5 12M14.5 8 17 12" stroke="#8a7560" stroke-width="1"/>',
 };
 
 /** Eşya kategorisinin vurgu rengi (slot kenarı ve çip rengi için CSS değişkeni). */

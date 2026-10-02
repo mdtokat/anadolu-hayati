@@ -1,7 +1,8 @@
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
-import { aimDistanceOf, validatePlacement, type PlaceFailure } from './placeRules';
+import { isPieceKind, resolvePiece, slotClassOf } from './pieces';
+import { aimDistanceOf, validatePlacement, type PlaceCheck, type PlaceFailure } from './placeRules';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
 /** Denetleyicinin dünyaya bakışı (Three.js'siz). */
@@ -10,11 +11,16 @@ export interface PlaceWorld {
   nearFreshWater?(x: number, z: number): boolean;
 }
 
-/** Oyuncunun ayak konumu (x, z) ve bakış yönü (yaw; kamera ile aynı sözleşme: ileri = (−sin, −cos)). */
+/**
+ * Oyuncunun ayak konumu (x, z) ve bakış yönü (yaw; kamera ile aynı sözleşme: ileri = (−sin, −cos)). `y` (ayak
+ * yüksekliği) ve `pitch` (bakış eğimi, yukarı +) modüler parçaların katını seçmek içindir; yoksa zeminden varsayılır.
+ */
 export interface AimPose {
   x: number;
   z: number;
   yaw: number;
+  y?: number;
+  pitch?: number;
 }
 
 /** Yerleştirme hayaleti: hedef nokta, zemin yüksekliği ve geçerlilik. */
@@ -41,6 +47,8 @@ export interface PlacementDeps {
   structures: StructureSet;
   world: PlaceWorld;
   isAlive: () => boolean;
+  /** Test modu: eşya gerekmez ve harcanmaz (yoksa hep false). */
+  freeBuild?: () => boolean;
 }
 
 /**
@@ -54,6 +62,8 @@ export class PlacementController {
   private current: Ghost | null = null;
   /** Hayaletin bakış yönüne göre ek dönüşü (radyan; `R` ile 90° adımlarla, Faz 9). */
   private rotation = 0;
+  /** Modüler duvar/kapı iç-dış yüzü çevrik mi (`R`). */
+  private flip = false;
 
   constructor(private readonly deps: PlacementDeps) {}
 
@@ -72,10 +82,11 @@ export class PlacementController {
       return 'cancelled';
     }
     if (!this.deps.isAlive()) return 'dead';
-    if (!this.deps.inventory.has(kind)) return 'no_item';
+    if (!this.owns(kind)) return 'no_item';
     this.kind = kind;
     this.current = null;
     this.rotation = 0;
+    this.flip = false;
     if (this.pose) this.update(this.pose);
     return 'started';
   }
@@ -84,38 +95,46 @@ export class PlacementController {
     this.kind = null;
     this.current = null;
     this.rotation = 0;
+    this.flip = false;
   }
 
-  /** Hayaleti 90° döndürür (yalnızca hedeflerken); döndürdüyse true. */
+  /**
+   * Hayaleti döndürür (yalnızca hedeflerken); döndürdüyse true. Eski yapılar 90° adımlarla döner; modüler parçalar
+   * ızgaraya kilitlidir: duvar/kapı iç-dış yüzünü çevirir (kapının menteşe yanı değişir), taban/çatı simetriktir.
+   */
   rotate(): boolean {
     if (this.kind === null) return false;
-    this.rotation = (this.rotation + Math.PI / 2) % (Math.PI * 2);
+    if (isPieceKind(this.kind)) {
+      if (slotClassOf(this.kind) === 'floor') return false;
+      this.flip = !this.flip;
+    } else {
+      this.rotation = (this.rotation + Math.PI / 2) % (Math.PI * 2);
+    }
     if (this.pose) this.update(this.pose);
     return true;
   }
 
-  /** Bir sabit adım: hayaleti oyuncunun önüne koyar ve doğrular. */
+  /** Bir sabit adım: hayaleti oyuncunun önüne koyar (modüler parçalar en yakın yuvaya yapışır) ve doğrular. */
   update(pose: AimPose): void {
     this.pose = pose;
     if (this.kind === null) return;
-    if (!this.deps.isAlive() || !this.deps.inventory.has(this.kind)) {
+    if (!this.deps.isAlive() || !this.owns(this.kind)) {
       this.cancel();
       return;
     }
-    const target = this.targetFor(pose);
-    const check = this.check(this.kind, target, pose);
+    const spot = this.evaluate(this.kind, pose);
     this.current = {
       kind: this.kind,
-      x: target.x,
-      y: this.deps.world.heightAt(target.x, target.z),
-      z: target.z,
-      yaw: pose.yaw + this.rotation,
-      valid: check.ok,
-      reason: check.ok ? null : check.reason,
+      x: spot.x,
+      y: spot.check.ok ? spot.check.y : spot.y,
+      z: spot.z,
+      yaw: spot.yaw,
+      valid: spot.check.ok,
+      reason: spot.check.ok ? null : spot.check.reason,
     };
   }
 
-  /** Hayaleti yapıya çevirir. Başarılıysa hedefleme biter. */
+  /** Hayaleti yapıya çevirir. Başarılıysa hedefleme biter (modüler parçada, eşya sürüyorsa hedefleme devam eder). */
   confirm(): ConfirmResult {
     const { kind, pose, current } = this;
     if (kind === null) return { ok: false, reason: 'not_aiming' };
@@ -126,37 +145,57 @@ export class PlacementController {
     if (!pose || !current) return { ok: false, reason: 'no_target' };
 
     // Hayalet bir önceki adımdan kalmış olabilir: yerleştirme anında yeniden doğrula.
-    const check = this.check(kind, current, pose);
-    if (!check.ok) return { ok: false, reason: check.reason };
-    if (!this.deps.inventory.remove(kind, 1)) {
+    const spot = this.evaluate(kind, pose);
+    if (!spot.check.ok) return { ok: false, reason: spot.check.reason };
+    if (!this.deps.freeBuild?.() && !this.deps.inventory.remove(kind, 1)) {
       this.cancel();
       return { ok: false, reason: 'no_item' };
     }
 
-    const structure = this.deps.structures.add(kind, current.x, check.y, current.z, current.yaw);
+    const structure = this.deps.structures.add(kind, spot.x, spot.check.y, spot.z, spot.yaw);
     this.deps.events.emit('structure:placed', {
       id: structure.id,
       kind,
       x: structure.x,
       z: structure.z,
     });
-    this.cancel();
+    // Modüler parçalar art arda kurulur: eşya sürdükçe (ya da test modunda) hedefleme açık kalır.
+    if (isPieceKind(kind) && this.owns(kind)) {
+      this.update(pose);
+    } else {
+      this.cancel();
+    }
     return { ok: true, structure };
   }
 
-  private targetFor(pose: AimPose): { x: number; z: number } {
-    const distance = this.kind === null ? 0 : aimDistanceOf(this.kind);
-    return {
-      x: pose.x - Math.sin(pose.yaw) * distance,
-      z: pose.z - Math.cos(pose.yaw) * distance,
-    };
+  /** Yapıyı kurmaya hakkı var mı: eşyası envanterde ya da test modunda (eşyasız) serbest inşa. */
+  private owns(kind: StructureKind): boolean {
+    return this.deps.freeBuild?.() === true || this.deps.inventory.has(kind);
   }
 
-  private check(kind: StructureKind, target: { x: number; z: number }, pose: AimPose) {
-    return validatePlacement(kind, target, pose, {
-      heightAt: (x, z) => this.deps.world.heightAt(x, z),
+  /** Hedef konum, yön ve geçerlilik: modüler parçalar ızgara yuvasına, diğerleri bakış noktasına oturur. */
+  private evaluate(
+    kind: StructureKind,
+    pose: AimPose,
+  ): { x: number; y: number; z: number; yaw: number; check: PlaceCheck } {
+    const context = {
+      heightAt: (x: number, z: number) => this.deps.world.heightAt(x, z),
       nearFreshWater: this.deps.world.nearFreshWater?.bind(this.deps.world),
       structures: this.deps.structures,
-    });
+    };
+    if (isPieceKind(kind)) {
+      const { target, check } = resolvePiece(kind, pose, this.flip, context);
+      return { ...target, check };
+    }
+    const distance = aimDistanceOf(kind);
+    const x = pose.x - Math.sin(pose.yaw) * distance;
+    const z = pose.z - Math.cos(pose.yaw) * distance;
+    return {
+      x,
+      y: context.heightAt(x, z),
+      z,
+      yaw: pose.yaw + this.rotation,
+      check: validatePlacement(kind, { x, z }, pose, context),
+    };
   }
 }

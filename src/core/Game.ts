@@ -73,6 +73,7 @@ import {
 } from '../placement/structures';
 import { Dismantler } from '../placement/dismantle';
 import { stationsNear } from '../placement/stations';
+import { isPieceKind } from '../placement/pieces';
 import { transferAll, transferSlot } from '../placement/storage';
 import { structureInView, type FocusPose } from '../placement/structureFocus';
 import { PlacementController } from '../placement/PlacementController';
@@ -84,6 +85,7 @@ import {
   keyLabel,
   placeFailureText,
   placedToast,
+  doorPrompt,
   storagePrompt,
   structureHint,
   tendPrompt,
@@ -154,6 +156,7 @@ import type { GameEvents } from './events';
 import { GameLoop } from './GameLoop';
 import { Input } from './Input';
 import { DEV_TELEPORT_KEY, teleportSlotForKey } from './inputMapping';
+import { createRandom, seedFrom } from '../utils/random';
 
 /** Hangi dünyanın oynanacağı: gerçek bölge ya da Faz 1 test arenası (`?world=test`). */
 export type WorldKind = 'region' | 'test';
@@ -169,6 +172,12 @@ export interface GameOptions {
 /** Konum HUD'unun güncelleme aralığı (ms). */
 const LOCATION_HUD_INTERVAL_MS = 250;
 /** Pilot ilin başlangıç bakış yönü (radyan): yeni oyunda ve açılış menüsü arka planında. */
+/** Tarayıcı rastgeleliğinden 31 bitlik tam sayı (yeni oyun tohumu için; deterministik olmamalı). */
+const randomSeedInt = (): number => Math.floor(Math.random() * 2 ** 31);
+
+/** Kapıya `E` ile açılıp kapanma menzili: kapı yarıçapının kenarına en çok bu kadar (oyun m). */
+const DOOR_REACH = 2.5;
+
 const PILOT_START_YAW = (PILOT.start.yawDeg * Math.PI) / 180;
 
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
@@ -274,8 +283,12 @@ export class Game {
   private storageTarget: Readonly<Structure> | null = null;
   /** Bu adımda bakılan (sökülebilecek) yapı. */
   private dismantleTarget: Readonly<Structure> | null = null;
+  /** Bakılan kapı (modüler parça): `E` basışında açılır/kapanır. */
+  private doorTarget: Readonly<Structure> | null = null;
   /** Kısayoldan açılan yerleştirme: yapı türü ve slotu (hayalet kapanınca seçim de kalkar). */
   private heldPlacement: { kind: StructureKind; slot: number } | null = null;
+  /** Test modu (Ayarlar): uçma, sınırsız malzeme (`TEST_MODE`). */
+  private testMode = false;
   private lastHotbarSignature = '';
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
@@ -353,6 +366,7 @@ export class Game {
           : undefined,
       },
       isAlive: () => this.survival.alive,
+      freeBuild: () => this.testMode,
     });
 
     this.input = new Input(this.renderer.domElement, document, this.events, window, {
@@ -435,6 +449,7 @@ export class Game {
         if (action === 'primaryAction') this.primaryAction();
         if (action === 'toggleInventory') this.openInventory();
         if (action === 'eat') this.quickEatFood();
+        if (action === 'toggleFlight') this.toggleFlight();
       }),
       this.events.on('input:hotbarSelect', ({ slot }) => this.activateHotbar(slot)),
       this.events.on('input:hotbarCycle', ({ step }) => this.cycleHotbar(step)),
@@ -658,7 +673,17 @@ export class Game {
   /** Yeni oyun: durumu başlangıca döndürür (kayıtlara dokunmaz) ve fare kilidi ister. */
   newGame(): void {
     if (this.world instanceof RegionWorld) {
-      this.loadSave(createNewGameSave(WORLD.id, this.world.spawn, new Date(), PILOT_START_YAW));
+      // Rastgele il/ilçe merkezi başlangıcı; yerleşim verisi yoksa pilot il başlangıcı.
+      const city = this.world.cityStart?.(createRandom(seedFrom(Date.now(), randomSeedInt())));
+      this.loadSave(
+        createNewGameSave(
+          WORLD.id,
+          city?.point ?? this.world.spawn,
+          new Date(),
+          city?.yaw ?? PILOT_START_YAW,
+        ),
+      );
+      if (city) console.info(`Başlangıç: ${city.name}`);
       this.autosaver.reset();
       this.hintTracker.reset();
       writeSeenHints(this.hintStorage, []);
@@ -783,14 +808,16 @@ export class Game {
     this.structureColliders.sync(); // yeni/sökülen katı yapılar oyuncu hareketinden önce
 
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
-    const intent = gateIntent(this.input.pollIntent(), canSprint(this.survival.state));
+    const polled = this.input.pollIntent();
+    // Test modunda bitkinlik koşuyu/uçuşu kısıtlamaz.
+    const intent = this.testMode ? polled : gateIntent(polled, canSprint(this.survival.state));
     this.player.update(step, intent, this.playerCamera.yaw);
     this.physics.step();
 
     const feet = this.player.position;
     const pose: FocusPose = { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw };
     this.syncHeldPlacement();
-    this.placement.update(pose);
+    this.placement.update({ ...pose, y: feet.y, pitch: this.playerCamera.pitch });
     this.structureSystem.update(step);
     this.creatures.update(step, this.creatureContext(activityFromIntent(intent)));
     this.combat.update(step);
@@ -864,7 +891,18 @@ export class Game {
           })
         : null;
     if (this.storageTarget && interactPressed) this.openStorage(this.storageTarget.id);
-    const drinkAllowed = interaction.drinkAllowed && this.storageTarget === null;
+    // Kapı (modüler parça): `E`'yi başka eylem almadıysa bakılan kapı açılır/kapanır (basış anında).
+    this.doorTarget =
+      interaction.taker === null && this.personTarget === null && this.storageTarget === null
+        ? structureInView(structures, pose, {
+            reach: DOOR_REACH,
+            viewConeDeg: STORAGE.viewConeDeg,
+            kinds: ['door'],
+          })
+        : null;
+    if (this.doorTarget && interactPressed) this.toggleDoor(this.doorTarget.id);
+    const drinkAllowed =
+      interaction.drinkAllowed && this.storageTarget === null && this.doorTarget === null;
     // Sökme (Faz 9): bakılan yapıya `X` basılı (yerleştirme hayaleti açıkken yok).
     this.dismantleTarget = this.placement.aiming
       ? null
@@ -1130,10 +1168,19 @@ export class Game {
     this.storagePanel.refresh();
   }
 
+  /** Bakılan kapıyı açar/kapatır. */
+  private toggleDoor(id: number): void {
+    const open = this.structureSystem.structures.toggleDoor(id);
+    if (open !== null) this.hud.notify(open ? 'Kapı açıldı' : 'Kapı kapandı', INTERACT.toastMs);
+  }
+
   /** Oyuncunun yanındaki üretim istasyonları (tezgâh). */
   private stationsHere() {
     const feet = this.player.position;
-    return stationsNear(this.structureSystem.structures, feet.x, feet.z);
+    return {
+      ...stationsNear(this.structureSystem.structures, feet.x, feet.z),
+      free: this.testMode,
+    };
   }
 
   /** Envanter panelinden kısayol bağlama (Faz 9); seçili slottaki eşya değişirse yerleştirme biter. */
@@ -1523,6 +1570,12 @@ export class Game {
       this.hud.setPrompt(storagePrompt(storage.kind));
       return;
     }
+    const door = alive ? this.doorTarget : null;
+    if (door) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(doorPrompt(door.open === true));
+      return;
+    }
     this.hud.setProgress(this.filler.progress > 0 ? this.filler.progress : null);
     const drink = this.drinkPrompt();
     this.hud.setPrompt(
@@ -1546,6 +1599,12 @@ export class Game {
     if (!target) return null;
     const isShelter = target.kind === 'lean_to' || target.kind === 'wooden_hut';
     if (isShelter && this.exposure.sheltered) return null;
+    // Modüler parçalar: plakalar (üstünde durulur) hiç, duvarlar içerideyken (sürekli bakılır) ipucu göstermez.
+    if (isPieceKind(target.kind)) {
+      if (target.kind === 'foundation' || target.kind === 'roof' || this.exposure.sheltered) {
+        return null;
+      }
+    }
     return structureHint(target.kind);
   }
 
@@ -1667,6 +1726,31 @@ export class Game {
     this.resize(); // piksel oranı değişince çizim tamponu yeniden boyutlanmalı
     this.world.setQuality?.(preset);
     this.playerCamera.setSensitivityScale(settings.mouseSensitivity);
+    this.setTestMode(settings.testMode);
+  }
+
+  /** Test modunu açar/kapatır: toplama tükenmez, uçuş kapanır (kapanınca), rozet güncellenir. */
+  private setTestMode(on: boolean): void {
+    if (this.testMode === on) return;
+    this.testMode = on;
+    this.gather.setUnlimited(on);
+    if (!on) this.player.setFlying(false);
+    this.updateModeBadge();
+    this.inventoryPanel.refresh();
+  }
+
+  /** Space'e çift basış (yalnızca test modunda): uçuşu aç/kapa. */
+  private toggleFlight(): void {
+    if (!this.testMode || !this.survival.alive || this.loop.paused) return;
+    this.player.setFlying(!this.player.isFlying);
+    this.updateModeBadge();
+    this.hud.notify(this.player.isFlying ? 'Uçuş açık' : 'Uçuş kapalı', INTERACT.toastMs);
+  }
+
+  private updateModeBadge(): void {
+    this.hud.setModeBadge(
+      this.testMode ? (this.player.isFlying ? 'Test modu · Uçuş' : 'Test modu') : null,
+    );
   }
 
   private resize(): void {

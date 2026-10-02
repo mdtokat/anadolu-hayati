@@ -17,20 +17,23 @@ Türkiye'nin **ölçekli gerçek coğrafi verisi** üzerinde geçen, tarayıcıd
 | E (basılı tut) | Öncelik sırasıyla: bakılan nesneyi topla (dal, taş, yemiş, mantar; baltayla ağaç kes) › bakılan leşi kes › yanık ateşin yanında çiğ eti pişir › ateşe yakıt at › tatlı su kenarında su iç (susuzluğun yoksa boş su kabını doldurur) |
 | Sol tık | Bakılan canlıya saldır (eldeki silahla; el boşsa en iyi silahla: yumruk, kemik bıçak, taş balta, taş mızrak); yerleştirme hayaleti açıkken kurar |
 | 1–8 / fare tekerleği | **Kısayol çubuğu** (ekranın altı): silah/alet/meşaleyi ele al, yapıyı seç (yerleştirme hayaleti açılır) ya da yiyecek ye; aynı tuş eli boşaltır. Eşyaları envanter panelinde "Kısayol: 1…8" ile bağla (üretilen alet ve yapılar kendiliğinden bağlanır) |
-| E (bas) | Bakılan sandığı aç: eşyaya tıklayınca karşı tarafa geçer, "Hepsini koy / al" |
+| E (bas) | Bakılan sandığı aç: eşyaya tıklayınca karşı tarafa geçer, "Hepsini koy / al"; bakılan kapıyı aç/kapat |
 | X (basılı tut) | Bakılan yapıyı sök (eşya olarak geri gelir; kamp ateşinden taşlar döner, dolu sandık sökülmez) |
-| R | Yerleştirme hayaletini 90° döndür |
+| R | Yerleştirme hayaletini 90° döndür (modüler duvar/kapıda iç-dış yüzü çevirir) |
+| Boşluk ×2 · Z | **Test modu** (Ayarlar'dan açılır): uçuşu aç/kapa; Boşluk yukarı, Z aşağı, Shift hızlı. Test modunda üretim ve yapı yerleştirme eşya harcamaz, toplanan nesneler tükenmez |
 | I veya Tab | Envanter ve üretim paneli (oyun donar): seçili eşyayı ye, dolu su kabından iç, kısayola bağla ya da at; çalışma tezgâhının yanında tezgâh tarifleri (sandık, kulübe, kürk pelerin) açılır |
 | F | Hızlı yemek (tokluğu en çok artıran yiyecek) |
 | C / G | Kamp ateşi / sundurma yerleştirme hayaleti (aynı tuş iptal eder); sol tık kurar |
 | Fare | Etrafa bak |
 | V | Birinci / üçüncü şahıs kamera |
 | B | İl sınırı çizgilerini aç/kapa |
-| Esc | Duraklat: **Devam Et**, **Kaydet**, **Yükle**, **Ayarlar** (grafik kalitesi, fare hassasiyeti, ses, ipuçları), **Krediler**, **Ana Menüye Dön** |
+| Esc | Duraklat: **Devam Et**, **Kaydet**, **Yükle**, **Ayarlar** (grafik kalitesi, fare hassasiyeti, ses, ipuçları, test modu), **Krediler**, **Ana Menüye Dön** |
 
 **Ekran:** sol altta sağlık/tokluk/su/enerji göstergeleri (değerleriyle) ve vücut ısısı, ateş, barınak, savunma durum çipleri; sağ üstte il, rakım, saat (güneş/ay), gün ve hava sıcaklığı; üst ortada pusula (K, KD, D…); altta eşya simgeli kısayol çubuğu. Etkileşim ipuçları tuş simgeleriyle, basılı tutma ilerlemesi imlecin çevresinde halka olarak görünür; kısa bildirimler sağ altta çıkar.
 
 Oyun her 2 dakikada ve sekme gizlenirken **otomatik kayıt** yuvasına kaydeder; kayıtlar tarayıcıda (IndexedDB) tutulur ve sürümlüdür. Ayarlar tarayıcıda (`localStorage`) saklanır.
+
+**Modüler inşa:** çalışma tezgâhında taban, duvar, kapılı duvar, pencereli duvar, kapı ve çatı ayrı ayrı üretilir; kısayola bağlanıp sahada 2 m'lik ızgaraya monte edilir (taban zemine, duvar tabanın kenarına, çatı duvarların üstüne; çatı bir üst katın zemini olur). Hayalet bakış noktasındaki en yakın uygun yuvaya yapışır ve parçalar art arda kurulur. Çatısı ve kapalı duvarları olan oda "Kulübede" etkisi verir. **Başlangıç:** yeni oyun ve yeniden doğma, il/ilçe merkezlerinden rastgele birinin yakınındadır.
 
 Gerçek bölgede 60°'den dik yamaçlara tırmanılamaz. Geliştirme modunda (`npm run dev`) **`T` basılıyken** 1–9 ve 0 tuşları on noktaya ışınlar (değiştiricisiz rakamlar kısayol çubuğunundur; `O` inşa eşyaları verir) (Zonguldak, Safranbolu, Amasra, Filyos, Yenice, Düzce, Bolu, Abant Gölü, Yedigöller, Akçakoca); **Shift + 1–9, 0** bulunduğun ilin yerlerine ışınlar (Zonguldak: Zonguldak merkez, Kozlu, Kilimli, Çatalağzı, Karadeniz Ereğli, Alaplı, Çaycuma, Filyos vadisi, Devrek, Gökçebey; Bartın, Karabük, Düzce ve Bolu'nun da kendi 8–10 yeri vardır). `?world=test` adresi Faz 1'in test arenasını açar (30°/60° rampalar, 0,3 / 0,6 / 1,0 / 2,0 m'lik hareket parkuru).
 
