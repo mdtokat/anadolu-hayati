@@ -146,11 +146,13 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
   iron_ingot: PLACEHOLDER_ICON.material,
   charcoal: PLACEHOLDER_ICON.material,
   sulfur: PLACEHOLDER_ICON.material,
-  gunpowder: PLACEHOLDER_ICON.material,
+  gunpowder:
+    '<path d="M5 20c0-5 3-9 7-9s7 4 7 9z" fill="#3a3a3c"/><path d="M9 11.5 10 5h4l1 6.5" fill="#b98a55"/><path d="M9.5 5h5" stroke="#7a5530" stroke-width="1.6" stroke-linecap="round"/><g fill="#6b6b70"><circle cx="9" cy="17" r=".8"/><circle cx="13" cy="15.5" r=".7"/><circle cx="15.5" cy="18" r=".8"/></g>',
   electronic_parts: PLACEHOLDER_ICON.material,
   battery: PLACEHOLDER_ICON.material,
   propeller: PLACEHOLDER_ICON.material,
-  scope: PLACEHOLDER_ICON.material,
+  scope:
+    '<rect x="3" y="9" width="18" height="6" rx="3" fill="#2a2e32"/><rect x="2" y="8" width="4" height="8" rx="1.4" fill="#3c4146"/><rect x="18" y="8.5" width="4" height="7" rx="1.4" fill="#3c4146"/><circle cx="21.2" cy="12" r="2" fill="#6fb3d9"/><path d="M10 9V6.5h4V9" fill="#3c4146"/>',
   // ── Faz 11: A ──
   stairs: PLACEHOLDER_ICON.placeable,
   entry_step: PLACEHOLDER_ICON.placeable,
@@ -185,19 +187,29 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
   baked_potato: PLACEHOLDER_ICON.food,
   farm_plot: PLACEHOLDER_ICON.placeable,
   // ── Faz 11: D ──
-  club: PLACEHOLDER_ICON.tool,
-  iron_dagger: PLACEHOLDER_ICON.tool,
-  pala: PLACEHOLDER_ICON.tool,
-  slingshot: PLACEHOLDER_ICON.tool,
-  bow: PLACEHOLDER_ICON.tool,
-  arrow: PLACEHOLDER_ICON.material,
-  shotgun: PLACEHOLDER_ICON.tool,
-  pistol: PLACEHOLDER_ICON.tool,
-  rifle: PLACEHOLDER_ICON.tool,
-  sniper_rifle: PLACEHOLDER_ICON.tool,
-  shotgun_shell: PLACEHOLDER_ICON.material,
-  pistol_ammo: PLACEHOLDER_ICON.material,
-  rifle_ammo: PLACEHOLDER_ICON.material,
+  club: '<path d="M5 20.5 13.5 9" stroke="#8a5a2e" stroke-width="2.6" stroke-linecap="round"/><path d="M12 4.5c2.6-1.8 6.2-.9 7.4 1.7 1 2.4-.4 4.9-3.2 5.9l-4.4-2.8z" fill="#6e4522"/><circle cx="15.6" cy="6.6" r=".9" fill="#a8723c"/><circle cx="17.6" cy="9" r=".8" fill="#a8723c"/>',
+  iron_dagger:
+    '<path d="M12.5 3.5 18 4.2 9.8 14.2l-2-2z" fill="#c4cad0"/><path d="M13.6 5.2 9 11" stroke="#8f979e" stroke-width=".9"/><path d="M6.3 11.3l4.4 4.4" stroke="#5a5f64" stroke-width="2.2" stroke-linecap="round"/><path d="M4 20.5 8.6 15.9" stroke="#6e4522" stroke-width="2.6" stroke-linecap="round"/>',
+  pala: '<path d="M7.5 14.5c4-1 9-5 12-11 1 4-1.5 9.5-9.5 13.5z" fill="#c4cad0"/><path d="M9 15c3.6-1.4 7.6-4.8 10-9" stroke="#e6eaee" stroke-width=".9" fill="none"/><path d="M6.2 13.6l3.4 3.4" stroke="#b08a2e" stroke-width="2" stroke-linecap="round"/><path d="M3.5 20.5 7.2 16.8" stroke="#6b3a1f" stroke-width="2.6" stroke-linecap="round"/>',
+  slingshot:
+    '<path d="M12 21v-8M12 13 7 5M12 13l5-8" stroke="#8a5a2e" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M7 5c1.5 4 8.5 4 10 0" stroke="#b98a55" stroke-width="1.3" fill="none"/><circle cx="12" cy="8.2" r="1.6" fill="#8f979e"/>',
+  bow: '<path d="M7 3c7 3 7 15 0 18" stroke="#8a5a2e" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M7 3v18" stroke="#e8dcc0" stroke-width="1"/><path d="M5 12h14" stroke="#a8723c" stroke-width="1.4"/><path d="M19 12l-2.6-1.6v3.2z" fill="#8f979e"/>',
+  arrow:
+    '<path d="M4 20 18 6" stroke="#a8723c" stroke-width="1.8" stroke-linecap="round"/><path d="M20.5 3.5 15.4 5l3.6 3.6z" fill="#8f979e"/><path d="M4 20l-.5-3.5 2 1.2M4 20l3.5.5-1.2-2" stroke="#e05a4a" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+  shotgun:
+    '<path d="M2 11h15v2.4H2z" fill="#3c4146"/><path d="M2 13.4h13v1.4H2z" fill="#2a2e32"/><path d="M14 11h2.6l5 5.5-2.6 2-4.6-4.5z" fill="#8a5a2e"/><path d="M12.6 14.6l1 3h1.6l-.6-3" stroke="#3c4146" stroke-width="1" fill="none"/>',
+  pistol:
+    '<path d="M4 7.5h15v4H4z" fill="#3c4146"/><path d="M5.5 11.5h6l-1.3 8.5H6.4z" fill="#5a4230"/><path d="M11.5 11.5c0 2 .8 3 2.2 3" stroke="#3c4146" stroke-width="1.2" fill="none"/><path d="M5 8.6h12" stroke="#6b7278" stroke-width=".8"/>',
+  rifle:
+    '<path d="M1.5 10.5h13v1.8h-13z" fill="#3c4146"/><path d="M12 10h5.5l4.5 4.8-1.8 2.4-3.6-3.4H12z" fill="#8a5a2e"/><path d="M10.5 12.3v3" stroke="#3c4146" stroke-width="1.4"/><path d="M12.5 9.2h2.6" stroke="#6b7278" stroke-width="1.4" stroke-linecap="round"/>',
+  sniper_rifle:
+    '<path d="M1 12h13.5v1.6H1z" fill="#2f3438"/><path d="M12 11.6h5.5l4.5 4.4-1.8 2.4-3.6-3.2H12z" fill="#4a5a3a"/><rect x="7" y="7.6" width="7.5" height="2.6" rx="1.2" fill="#22262a"/><path d="M6.2 7.6v2.6M15.3 7.6v2.6" stroke="#7a8288" stroke-width="1.2"/><path d="M9.5 10.2v1.4M12 10.2v1.4" stroke="#22262a" stroke-width="1"/><path d="M11 13.6l-1 4.2M12 13.6l1 4.2" stroke="#2f3438" stroke-width=".9"/>',
+  shotgun_shell:
+    '<rect x="7.5" y="4" width="9" height="12.5" rx="1" fill="#c8402e"/><rect x="7" y="15.5" width="10" height="4.5" rx=".8" fill="#d9a83a"/><path d="M9 6v9" stroke="#e57a66" stroke-width="1.2"/><circle cx="12" cy="17.8" r="1.1" fill="#9a7420"/>',
+  pistol_ammo:
+    '<g fill="#d9a83a"><rect x="5" y="10" width="4" height="9" rx=".5"/><rect x="10" y="10" width="4" height="9" rx=".5"/><rect x="15" y="10" width="4" height="9" rx=".5"/></g><g fill="#b07a46"><path d="M5 10a2 3 0 0 1 4 0z"/><path d="M10 10a2 3 0 0 1 4 0z"/><path d="M15 10a2 3 0 0 1 4 0z"/></g>',
+  rifle_ammo:
+    '<g fill="#d9a83a"><rect x="6" y="9" width="3.4" height="11" rx=".5"/><rect x="10.3" y="9" width="3.4" height="11" rx=".5"/><rect x="14.6" y="9" width="3.4" height="11" rx=".5"/></g><g fill="#b07a46"><path d="M6 9l1.7-5L9.4 9z"/><path d="M10.3 9 12 4l1.7 5z"/><path d="M14.6 9l1.7-5L18 9z"/></g>',
   // ── Faz 11: F ──
   drone: PLACEHOLDER_ICON.tool,
 };

@@ -1600,6 +1600,11 @@ export const COMBAT = {
     stone_spear: { damage: 28, reach: 2.8, cooldownSeconds: 1.2, energyCost: 4 },
     // Faz 9: hızlı ama zayıf; asıl işi leş kesmektir (`LOOT.butcherSecondsKnife`).
     bone_knife: { damage: 10, reach: 1.6, cooldownSeconds: 0.5, energyCost: 2 },
+    // ── Faz 11: D (11.5) yakın silahlar: sopa (tezgâhsız, ilk günün silahı), demir kama (hızlı; leşi bıçak gibi
+    // keser), pala (en güçlü yakın silah; leşi balta hızında keser). Menzilli silahlar `RANGED`'dadır.
+    club: { damage: 14, reach: 2.2, cooldownSeconds: 0.9, energyCost: 4 },
+    iron_dagger: { damage: 17, reach: 1.7, cooldownSeconds: 0.5, energyCost: 2 },
+    pala: { damage: 32, reach: 2.4, cooldownSeconds: 0.85, energyCost: 4 },
   },
   /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
   defense: { hide_vest: 0.2, fur_cloak: 0.1 },

@@ -8,12 +8,15 @@ import { isButcherable, lootFor } from './loot';
 import { aimAt, type MeleeAim, type MeleeHit } from './melee';
 
 /** Leşi kesmek için kullanılabilecek aletler, en hızlısı önce: envanterde varsa süre kısalır (Faz 9: bıçak). */
-export const BUTCHER_TOOLS = ['bone_knife', 'stone_axe'] as const;
+export const BUTCHER_TOOLS = ['bone_knife', 'iron_dagger', 'stone_axe', 'pala'] as const;
 export type ButcherTool = (typeof BUTCHER_TOOLS)[number];
 
 const BUTCHER_SECONDS: Readonly<Record<ButcherTool, number>> = {
   bone_knife: LOOT.butcherSecondsKnife,
+  // Faz 11.5: demir kama bıçak, pala balta hızında keser.
+  iron_dagger: LOOT.butcherSecondsKnife,
   stone_axe: LOOT.butcherSecondsAxe,
+  pala: LOOT.butcherSecondsAxe,
 };
 
 /** Bir leşle şu an yapılabilecek eylem (HUD ipucu için). */

@@ -1,4 +1,4 @@
-import { SEARCH } from '../config';
+import { AMMO, SEARCH } from '../config';
 import type { ItemStack } from '../items/Inventory';
 import type { ItemId } from '../items/itemDefs';
 import { createRandom, seedFrom } from '../utils/random';
@@ -11,6 +11,14 @@ export interface LootEntry {
   min: number;
   max: number;
 }
+
+/** Mühimmat satırı: adet aralığı `AMMO.lootCount`'tan (D, 11.5). */
+const ammo = (item: keyof typeof AMMO.lootCount, chance: number): LootEntry => ({
+  item,
+  chance,
+  min: AMMO.lootCount[item][0],
+  max: AMMO.lootCount[item][1],
+});
 
 const e = (item: ItemId, chance: number, min = 1, max = min): LootEntry => ({
   item,
@@ -45,7 +53,12 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('potato', 0.2, 2, 5),
     e('gunpowder', 0.05, 1, 2),
     e('shotgun', 0.03),
-    e('shotgun_shell', 0.08, 2, 6),
+    ammo('shotgun_shell', 0.08),
+    // ── Faz 11: D (11.5): köy evinde sapan, sopa, yay ve ok ──
+    e('slingshot', 0.06),
+    e('club', 0.05),
+    e('bow', 0.02),
+    ammo('arrow', 0.04),
   ],
   konak: [
     e('bulgur', 0.4, 1, 2),
@@ -58,8 +71,11 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('wool_blanket', 0.3),
     // ── Faz 11 (11.0): nadir tabanca ve mermi, pala (D) ──
     e('pistol', 0.04),
-    e('pistol_ammo', 0.08, 4, 10),
+    ammo('pistol_ammo', 0.08),
     e('pala', 0.08),
+    // ── Faz 11: D (11.5): konakta demir kama, av tüfeği fişeği ──
+    e('iron_dagger', 0.08),
+    ammo('shotgun_shell', 0.06),
   ],
   apartment: [
     e('bulgur', 0.4, 1, 3),
@@ -76,7 +92,7 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('battery', 0.15),
     e('propeller', 0.05),
     e('pistol', 0.03),
-    e('pistol_ammo', 0.08, 4, 12),
+    ammo('pistol_ammo', 0.08),
   ],
   lojman: [
     e('peksimet', 0.4, 1, 3),
@@ -93,6 +109,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('wheat_seed', 0.35, 4, 10),
     e('corn_seed', 0.3, 4, 10),
     e('potato', 0.25, 2, 5),
+    // ── Faz 11: D (11.5): serenderde av yayı ve ok ──
+    e('bow', 0.04),
+    ammo('arrow', 0.08),
   ],
   shop_row: [
     e('leblebi', 0.6, 2, 5),
@@ -115,8 +134,11 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11 (11.0): barut, nadir piyade tüfeği ve mermi, çok nadir dürbün (D) ──
     e('gunpowder', 0.12, 1, 3),
     e('rifle', 0.04),
-    e('rifle_ammo', 0.1, 3, 8),
+    ammo('rifle_ammo', 0.1),
     e('scope', 0.02),
+    // ── Faz 11: D (11.5): çok nadir keskin nişancı tüfeği, tabanca mermisi ──
+    e('sniper_rifle', 0.01),
+    ammo('pistol_ammo', 0.06),
   ],
   han: [
     e('wool_blanket', 0.5),
@@ -141,6 +163,8 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('electronic_parts', 0.25, 1, 2),
     e('battery', 0.15),
     e('propeller', 0.15, 1, 2),
+    // ── Faz 11: D (11.5): fabrikada demir kama ──
+    e('iron_dagger', 0.05),
   ],
 };
 
