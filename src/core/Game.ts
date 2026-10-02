@@ -3,6 +3,7 @@ import {
   COMBAT,
   COMBAT_HUD,
   AMBIENT,
+  CLOCK,
   DISMANTLE,
   EQUIPMENT,
   HINTS,
@@ -14,6 +15,7 @@ import {
   PLACE_NOTICE,
   QUALITY_PRESETS,
   SAVE,
+  SEARCH,
   STORAGE,
   PLAYER,
   SURVIVAL,
@@ -26,9 +28,22 @@ import { CarcassButcher, pickCarcass } from '../combat/carcass';
 import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CookingSystem } from '../combat/cooking';
+import { BuildingSearch, searchPrompt, searchTarget, searchedToast } from '../settlements/search';
+import { PeopleSystem, personInView, type Person } from '../people/PeopleSystem';
+import { GREETINGS, ROLES } from '../people/roles';
+import { directionsAnswer, executeTrade, tradeText } from '../people/dialog';
+import { PeopleLayer } from '../world/PeopleLayer';
+import { DialogPanel, type DialogOption } from '../ui/DialogPanel';
 import type { MeleeAim } from '../combat/melee';
 import { updateInteractions } from '../combat/interactChain';
-import { butcherPrompt, butcheredToast, cookedToast, cookPrompt } from '../combat/promptText';
+import {
+  butcherPrompt,
+  butcheredToast,
+  cookedToast,
+  cookPrompt,
+  unbutcherablePrompt,
+} from '../combat/promptText';
+import { isButcherable } from '../combat/loot';
 import { CreatureSystem } from '../creatures/CreatureSystem';
 import type {
   CreatureContext,
@@ -85,6 +100,13 @@ import { PlayerCamera } from '../player/PlayerCamera';
 import { PlayerModel } from '../player/PlayerModel';
 import { activityFromIntent, gateIntent } from '../survival/activity';
 import { formatClock } from '../survival/clock';
+import {
+  PRAYER_NAMES,
+  formatGameDate,
+  nextPrayer,
+  prayerTimes,
+  prayersBetween,
+} from '../survival/islamicTime';
 import { SurvivalSystem } from '../survival/SurvivalSystem';
 import { canSprint, type Activity } from '../survival/vitals';
 import { DeathScreen } from '../ui/DeathScreen';
@@ -200,6 +222,23 @@ export class Game {
     this.inventory,
     this.structureSystem.structures,
   );
+  /** Terk edilmiş yapıları arama (Faz 10). */
+  readonly search = new BuildingSearch(this.events, this.inventory);
+  /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
+  private inSanctuary = false;
+  /** Namaz vakitleri (bölgenin enlemi ve yılın günü sabit) ve son bildirilen saat. */
+  private readonly prayerTimes = prayerTimes(CLOCK.latitudeDeg, CLOCK.dayOfYear);
+  private lastPrayerHour: number | null = null;
+  /** Bu adımda bakılan leş (ipucu için). */
+  private carcassTarget: CreatureView | null = null;
+  /** Diğer insanlar (Faz 10): çok nadir, barışçıl. */
+  readonly people = new PeopleSystem(this.events);
+  private readonly peopleLayer = new PeopleLayer();
+  private readonly dialogPanel: DialogPanel;
+  /** Konuşulan kişi (panel açıkken). */
+  private talkingTo: Person | null = null;
+  /** Bu adımda bakılan, konuşulabilecek kişi. */
+  private personTarget: Person | null = null;
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -302,6 +341,7 @@ export class Game {
     this.world.scene.add(this.torchLight);
     this.creatureLayer = new CreatureLayer();
     this.world.scene.add(this.creatureLayer.group);
+    this.world.scene.add(this.peopleLayer.group);
     this.placement = new PlacementController({
       events: this.events,
       inventory: this.inventory,
@@ -356,6 +396,7 @@ export class Game {
       hotbar: this.hotbar,
       onAssignHotbar: (slot, item) => this.assignHotbar(slot, item),
     });
+    this.dialogPanel = new DialogPanel(container, () => this.closeDialog());
     this.storagePanel = new StoragePanel(container, this.inventory, {
       onStore: (slot) => this.moveToStorage(slot),
       onTake: (slot) => this.takeFromStorage(slot),
@@ -437,10 +478,19 @@ export class Game {
       this.events.on('carcass:butchered', ({ id, items }) =>
         this.hud.notify(butcheredToast(items, this.butcher.hasRemaining(id)), INTERACT.toastMs),
       ),
-      this.events.on('item:cooked', ({ count }) =>
-        this.hud.notify(cookedToast(count), INTERACT.toastMs),
+      this.events.on('item:cooked', ({ count, item }) =>
+        this.hud.notify(cookedToast(count, item), INTERACT.toastMs),
       ),
       this.events.on('item:filled', () => this.hud.notify('Su kabı doldu', INTERACT.toastMs)),
+      this.events.on('person:greeted', ({ name, text }) =>
+        this.hud.notify(`${name}: “${text}”`, INTERACT.toastMs),
+      ),
+      this.events.on('building:searched', ({ items }) =>
+        this.hud.notify(
+          searchedToast(items, (id) => ITEMS[id].name),
+          INTERACT.toastMs,
+        ),
+      ),
       this.events.on('time:nightStarted', () =>
         this.hud.notify('Gece bastı: hava soğuyor, yırtıcılar avda', INTERACT.dayNightToastMs),
       ),
@@ -498,6 +548,24 @@ export class Game {
       for (const id of ['workbench', 'storage_chest', 'wooden_hut'] as const) {
         if (this.inventory.add(id, 1) === 0) this.hotbar.autoAssign(id);
       }
+    }
+    // L: Faz 10 eşyaları (kiler erzakı, bakır tencere); N: önüne bir yolcu çıkar (konuşma/takas denemesi).
+    if (event.code === 'KeyL') {
+      for (const id of ['bulgur', 'tarhana', 'black_tea', 'copper_pot', 'pekmez'] as const) {
+        this.inventory.add(id, id === 'copper_pot' ? 1 : 2);
+      }
+    }
+    if (event.code === 'KeyN' && this.world instanceof RegionWorld && this.world.peopleWorld) {
+      const p = this.player.position;
+      const yaw = this.playerCamera.yaw;
+      const roles = ['yolcu', 'coban', 'oduncu', 'yasli', 'dervis'] as const;
+      const role = roles[Math.floor(Math.random() * roles.length)] ?? 'yolcu';
+      this.people.spawnAt(
+        role,
+        p.x - Math.sin(yaw) * 8,
+        p.z - Math.cos(yaw) * 8,
+        this.world.peopleWorld,
+      );
     }
     // Rakamlar kısayol çubuğunundur: ışınlanma yalnızca `T` ya da Shift basılıyken (Faz 9).
     if (!event.shiftKey && !this.input.isHeld(DEV_TELEPORT_KEY)) return;
@@ -562,12 +630,15 @@ export class Game {
     this.filler.reset();
     this.dismantler.reset();
     this.closeStorage(false);
+    this.closeDialog(false);
+    this.people.clear();
     this.deathScreen.hide();
     this.hud.setPrompt(null);
     this.inventoryPanel.refresh();
     this.lastSurvivalHudUpdate = -Infinity;
     this.lastLocationUpdate = -Infinity;
     this.provinceTracker.reset();
+    this.lastPrayerHour = null; // yükleme saati atlatır: arada kalan vakitler bildirilmesin
     this.placeTracker.reset();
     this.hintTracker.restart();
   }
@@ -653,6 +724,7 @@ export class Game {
       gather: this.gather,
       creatures: this.creatures,
       hotbar: this.hotbar,
+      search: this.search,
     };
   }
 
@@ -676,6 +748,8 @@ export class Game {
     this.torchLight.removeFromParent();
     this.torchLight.dispose();
     this.creatureLayer.dispose();
+    this.peopleLayer.dispose();
+    this.dialogPanel.dispose();
     this.combat.dispose();
     this.creatures.dispose();
     this.world.dispose();
@@ -734,7 +808,17 @@ export class Game {
             },
             (prop) => this.gather.inspect(prop) !== null,
           );
-    // E öncelik sırası: toplama > leş kesme > pişirme > ateşe yakıt > su içme (combat/interactChain.ts).
+    // Faz 10: kapısında durulan aranabilir yapı.
+    const settlements = this.world.settlementMap ?? null;
+    const building = settlements
+      ? searchTarget(settlements.buildingsNear(feet.x, feet.z, SEARCH.queryRadius), {
+          x: feet.x,
+          y: feet.y,
+          z: feet.z,
+          yaw: this.playerCamera.yaw,
+        })
+      : null;
+    // E öncelik sırası: toplama > leş kesme > pişirme > ateşe yakıt > yapı arama > su içme (combat/interactChain.ts).
     const interaction = updateInteractions(
       step,
       {
@@ -742,21 +826,37 @@ export class Game {
         butcher: this.butcher,
         cooking: this.cooking,
         fireTender: this.fireTender,
+        ...(settlements ? { search: this.search } : {}),
       },
       {
         held,
         feet,
         prop: focus?.prop ?? null,
-        carcass: this.carcassInReach(feet),
+        carcass: (this.carcassTarget = this.carcassInReach(feet)),
+        building,
         alive: this.survival.alive,
       },
     );
 
+    // Diğer insanlar (Faz 10): kinematik yürüyüş; bakılan kişiyle `E` ile konuşulur (basış anında).
+    const peopleWorld = this.world instanceof RegionWorld ? this.world.peopleWorld : null;
+    if (peopleWorld) {
+      this.people.update(step, { x: feet.x, z: feet.z, alive: this.survival.alive }, peopleWorld);
+    }
+    this.personTarget =
+      interaction.taker === null && this.survival.alive
+        ? personInView(this.people.list(), pose)
+        : null;
+
     // Sandık (Faz 9): `E`'yi başka eylem almadıysa bakılan sandık açılır (basış anında; basılı tutma değil).
     const structures = this.structureSystem.structures;
     const interactPressed = this.input.consumeInteractPress();
+    if (this.personTarget && interactPressed) {
+      this.openDialog(this.personTarget);
+      return;
+    }
     this.storageTarget =
-      interaction.taker === null
+      interaction.taker === null && this.personTarget === null
         ? structureInView(structures, pose, {
             reach: STORAGE.reach,
             viewConeDeg: STORAGE.viewConeDeg,
@@ -782,6 +882,16 @@ export class Game {
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
     this.exposure = exposureAt(structures, feet.x, feet.y, feet.z);
+    // Faz 10: caminin/hanın içi kapalı barınaktır; cami ayrıca kutsal ve güvenlidir (canlılar algılamaz).
+    const interior = settlements?.interiorAt(feet.x, feet.y, feet.z) ?? null;
+    this.inSanctuary = interior?.sacred ?? false;
+    if (interior && this.exposure.shelter !== 'hut') {
+      this.exposure = {
+        ...this.exposure,
+        sheltered: true,
+        shelter: interior.sacred ? 'mosque' : 'building',
+      };
+    }
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
@@ -823,6 +933,7 @@ export class Game {
         alive: this.survival.alive,
         yaw: this.playerCamera.yaw,
         weakness: playerWeakness(this.survival.state),
+        sanctuary: this.inSanctuary,
       },
       hour: clock.hour,
       sunAltitudeDeg: clock.sun.altitudeDeg,
@@ -851,7 +962,7 @@ export class Game {
 
   /** Envanter ya da sandık paneli açık mı (oyun duraklı ama duraklatma menüsü çıkmaz)? */
   private get overlayOpen(): boolean {
-    return this.inventoryOpen || this.storageOpenId !== null;
+    return this.inventoryOpen || this.storageOpenId !== null || this.talkingTo !== null;
   }
 
   /** Panel kapanınca fare kilidini ister; kilit verilmezse duraklatma menüsü devreye girer. */
@@ -865,6 +976,109 @@ export class Game {
   }
 
   /** Sandık panelini açar (Faz 9): oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken. */
+  /** Kişiyle konuşma panelini açar: oyun donar, kişi durur ve oyuncuya bakar. */
+  private openDialog(person: Person): void {
+    if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
+    this.talkingTo = person; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
+    person.talking = true;
+    this.placement.cancel();
+    const role = ROLES[person.role];
+    let greeted = false;
+    const feet = this.player.position;
+    const water = (): string => {
+      const world = this.world instanceof RegionWorld ? this.world : null;
+      const hit = world?.nearestWater(feet.x, feet.z, 600) ?? null;
+      return directionsAnswer(
+        person.role,
+        feet,
+        hit ? { ...hit, what: hit.fountain ? 'bir çeşme' : 'tatlı su' } : null,
+      );
+    };
+    const town = (): string => {
+      const s = this.world.settlementMap?.nearestSettlement(
+        feet.x,
+        feet.z,
+        (v) => Math.hypot(v.data.x - feet.x, v.data.z - feet.z) > v.radius,
+      );
+      if (!s) return directionsAnswer(person.role, feet, null);
+      const word = s.data.rank === 'il' ? 'şehri' : s.data.rank === 'ilce' ? 'kasabası' : 'köyü';
+      return directionsAnswer(person.role, feet, {
+        x: s.data.x,
+        z: s.data.z,
+        what: `${s.data.name} ${word}`,
+      });
+    };
+    let loreIndex = 0;
+    const options = (): DialogOption[] => {
+      if (!greeted) {
+        return [
+          {
+            label: GREETINGS.reply,
+            select: () => {
+              greeted = true;
+              return `Hoş geldin ${role.address}. Bu ıssız yerlerde bir insan görmek ne güzel.`;
+            },
+          },
+        ];
+      }
+      const list: DialogOption[] = [
+        { label: 'Buralarda su nerede bulurum?', select: water },
+        { label: 'En yakın yerleşim hangi yönde?', select: town },
+        {
+          label: 'Bu topraklara ne oldu?',
+          select: () => role.lore[loreIndex++ % role.lore.length] as string,
+        },
+      ];
+      for (const offer of role.trades) {
+        const gift = offer.give.length === 0;
+        list.push({
+          label: gift ? `${tradeText(offer)} (teşekkür et)` : `Takas: ${tradeText(offer)}`,
+          kind: 'trade',
+          disabled: gift ? person.gifted : !this.inventory.canAfford(offer.give),
+          select: () => {
+            const result = executeTrade(this.inventory, offer, person.gifted);
+            if (result === 'ok') {
+              if (gift) person.gifted = true;
+              this.events.emit('person:traded', {
+                id: person.id,
+                give: offer.give,
+                get: offer.get,
+              });
+              this.inventoryPanel.refresh();
+              return gift ? GREETINGS.giftDone : GREETINGS.tradeDone;
+            }
+            if (result === 'full') return 'Yükün ağır, bunu taşıyamazsın gibi.';
+            return GREETINGS.tradeFail;
+          },
+        });
+      }
+      list.push({
+        label: GREETINGS.farewellPlayer,
+        kind: 'farewell',
+        closes: true,
+        select: () => GREETINGS.farewellPerson,
+      });
+      return list;
+    };
+    this.dialogPanel.show({
+      title: person.name,
+      subtitle: 'Barışçıl bir yolcu. Rakam tuşlarıyla da seçebilirsin.',
+      opening: person.greeted ? `Yine mi sen ${role.address}? Buyur.` : GREETINGS.salam,
+      options,
+    });
+    person.greeted = true;
+    this.input.exitLock();
+  }
+
+  /** Konuşma panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
+  private closeDialog(resume = true): void {
+    if (this.talkingTo === null) return;
+    this.talkingTo.talking = false;
+    this.talkingTo = null;
+    this.dialogPanel.hide();
+    if (resume) this.resumeAfterOverlay();
+  }
+
   private openStorage(id: StructureId): void {
     if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
     const chest = this.structureSystem.structures.storageOf(id);
@@ -1086,6 +1300,7 @@ export class Game {
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
     this.updateTorch(now / 1000, feet);
     this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
+    this.peopleLayer.sync(this.people.list());
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
@@ -1175,8 +1390,28 @@ export class Game {
       shelter: this.exposure.shelter,
       defense: defenseFor(this.inventory),
       daylight: clock.sun.altitudeDeg > 0,
+      date: formatGameDate(CLOCK.startYear, CLOCK.dayOfYear, clock.day),
+      prayer: this.prayerLabel(clock.hour),
     });
+    this.notifyPrayer(clock.hour);
     this.updateHints(now);
+  }
+
+  /** Sonraki namaz vakti: "Sonraki vakit: İkindi 15:21". */
+  private prayerLabel(hour: number): string {
+    const next = nextPrayer(this.prayerTimes, hour);
+    return `${PRAYER_NAMES[next.prayer]} ${formatClock(next.hour % 24)}`;
+  }
+
+  /** Vakit girince kısa bildirim (ezan sesi bilinçli olarak yok; güneş doğuşu namaz vakti değildir). */
+  private notifyPrayer(hour: number): void {
+    const last = this.lastPrayerHour;
+    this.lastPrayerHour = hour;
+    if (last === null || !this.survival.alive || hour === last) return;
+    for (const p of prayersBetween(this.prayerTimes, last, hour)) {
+      if (p === 'gunes') continue;
+      this.hud.notify(`${PRAYER_NAMES[p]} vakti girdi`, INTERACT.dayNightToastMs);
+    }
   }
 
   /**
@@ -1204,6 +1439,10 @@ export class Game {
             (v.kind === 'roe_deer' || v.kind === 'wild_boar') &&
             Math.hypot(v.x - feet.x, v.z - feet.z) <= HINTS.preyRadiusM,
         ),
+      inSettlement: (this.world.settlementMap?.settlementAt(feet.x, feet.z) ?? null) !== null,
+      personNearby: this.people
+        .list()
+        .some((p) => Math.hypot(p.x - feet.x, p.z - feet.z) <= HINTS.preyRadiusM),
     };
     const id = this.hintTracker.update(ctx, now / 1000);
     if (id === null) return;
@@ -1254,7 +1493,9 @@ export class Game {
     }
     const cook = alive ? this.cooking.offer : null;
     if (cook?.status === 'ready') {
-      this.hud.setPrompt(cookPrompt(this.fireTender.offer?.status === 'ready'));
+      this.hud.setPrompt(
+        cookPrompt(this.fireTender.offer?.status === 'ready', 'ready', cook.recipe),
+      );
       this.hud.setProgress(this.cooking.progress > 0 ? this.cooking.progress : null);
       return;
     }
@@ -1262,6 +1503,18 @@ export class Game {
     if (tend?.status === 'ready') {
       this.hud.setPrompt(tendPrompt(tend));
       this.hud.setProgress(this.fireTender.progress > 0 ? this.fireTender.progress : null);
+      return;
+    }
+    const search = alive ? this.search.offer : null;
+    if (search?.status === 'ready') {
+      this.hud.setPrompt(searchPrompt(search));
+      this.hud.setProgress(this.search.progress > 0 ? this.search.progress : null);
+      return;
+    }
+    const person = alive ? this.personTarget : null;
+    if (person) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(`E: ${person.name} ile konuş`);
       return;
     }
     const storage = alive ? this.storageTarget : null;
@@ -1276,8 +1529,12 @@ export class Game {
       drink ??
         (offer ? gatherPrompt(offer) : null) ??
         (butcher ? butcherPrompt(butcher) : null) ??
-        (cook ? cookPrompt(false, cook.status) : null) ??
+        (cook ? cookPrompt(false, cook.status, cook.recipe) : null) ??
         (tend ? tendPrompt(tend) : null) ??
+        (search ? searchPrompt(search) : null) ??
+        (alive && this.carcassTarget && !isButcherable(this.carcassTarget.kind)
+          ? unbutcherablePrompt(this.carcassTarget.kind)
+          : null) ??
         this.structurePrompt(alive) ??
         this.attackHint(alive),
     );

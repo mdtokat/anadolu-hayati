@@ -83,6 +83,8 @@ export interface CreatureContext {
     yaw?: number;
     /** Zayıflık 0–1 (1 = çok aç/susuz/yaralı): avcılar zayıf hedefi gündüz de izler. Verilmezse 0. */
     weakness?: number;
+    /** Faz 10: oyuncu caminin içinde (kutsal, güvenli alan): canlılar onu algılamaz, izlemez, saldırmaz. */
+    sanctuary?: boolean;
   };
   hour: number;
   sunAltitudeDeg: number;

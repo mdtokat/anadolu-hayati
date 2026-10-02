@@ -534,9 +534,10 @@ export class CreatureSystem {
   ): Senses {
     const brain = rec.brain;
     const species = SPECIES[brain.kind];
-    const player = context.player.alive
-      ? perceivePlayer(species, brain, context.player, darkness)
-      : null;
+    const player =
+      context.player.alive && !context.player.sanctuary
+        ? perceivePlayer(species, brain, context.player, darkness)
+        : null;
     if (player && brain.alarm > 0) player.noticed = true; // vuran oyuncunun yerini bilir
 
     let threat: ThreatSense | null = null;

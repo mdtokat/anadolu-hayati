@@ -22,7 +22,8 @@ export type HotbarUse = 'hold' | 'place' | 'consume' | 'none';
 export function hotbarUse(id: ItemId): HotbarUse {
   const { category } = ITEMS[id];
   if (category === 'placeable') return 'place';
-  if (category === 'food' || id === 'water_container_full') return 'consume';
+  if ((category === 'food' && ITEMS[id].edible) || id === 'water_container_full') return 'consume';
+  if (category === 'food') return 'none'; // çiğ erzak (bulgur, tarhana…): pişirilir
   if (id === 'water_container_empty') return 'none';
   return category === 'tool' ? 'hold' : 'none';
 }

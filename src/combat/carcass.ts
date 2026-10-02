@@ -4,7 +4,7 @@ import type { GameEvents } from '../core/events';
 import type { CreatureSystem } from '../creatures/CreatureSystem';
 import type { CreatureId, CreatureKind, CreatureView } from '../creatures/kinds';
 import type { Inventory, ItemStack } from '../items/Inventory';
-import { lootFor } from './loot';
+import { isButcherable, lootFor } from './loot';
 import { aimAt, type MeleeAim, type MeleeHit } from './melee';
 
 /** Leşi kesmek için kullanılabilecek aletler, en hızlısı önce: envanterde varsa süre kısalır (Faz 9: bıçak). */
@@ -114,7 +114,7 @@ export class CarcassButcher {
 
   /** Bir leşle yapılabilecek eylem (HUD ipucu); hiçbir eşyaya yer yoksa `full`. */
   inspect(view: Pick<CreatureView, 'id' | 'kind' | 'dead'>): ButcherOffer | null {
-    if (!view.dead) return null;
+    if (!view.dead || !isButcherable(view.kind)) return null;
     const tool = BUTCHER_TOOLS.find((id) => this.inventory.has(id)) ?? null;
     const fits = this.pending(view).some((stack) => this.inventory.capacityFor(stack.id) >= 1);
     return {

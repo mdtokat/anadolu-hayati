@@ -32,6 +32,16 @@ export const CREDITS: readonly Credit[] = [
     text: '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium, CC BY 4.0; Overture Maps Foundation dağıtımından (base/land_cover) türetilmiştir.',
     url: 'https://esa-worldcover.org/',
   },
+  {
+    label: 'Yollar, yerleşimler ve bina yoğunluğu',
+    text: '© OpenStreetMap katkıcıları, ODbL 1.0; Overture Maps Foundation dağıtımından (transportation, divisions, buildings) türetilmiştir. Bina ayak izlerinin bir kısmı Microsoft ve Google açık bina verisindendir (ODbL / CC BY 4.0).',
+    url: 'https://docs.overturemaps.org/attribution/',
+  },
+  {
+    label: 'Simge yapı konumları',
+    text: 'Overture Maps Foundation Places (CDLA-Permissive-2.0) kayıtlarından elle seçilmiştir.',
+    url: 'https://cdla.dev/permissive-2-0/',
+  },
 ];
 
 /** Kullanılan açık kaynak yazılımlar (lisansları atıf/lisans metni korunmasını şart koşar). */
@@ -51,4 +61,5 @@ export const SOFTWARE_CREDITS: readonly Credit[] = [
 /** Atıfların altında gösterilen açıklama: veri ölçeklenmiş/sadeleştirilmiştir, hayvan dağılımı yaklaşıktır. */
 export const CREDITS_NOTE =
   'Harita verisi oyun için ölçeklenmiş ve sadeleştirilmiştir (yatay 1:50, dikey 1:15; arazi örtüsü 100 m hücrelerle). ' +
-  'Hayvan dağılımı gerçek bir dağılım haritası değil, oyun dengesi için arazi örtüsü, rakım ve eğimden türetilmiş bir yaklaşımdır.';
+  'Hayvan dağılımı gerçek bir dağılım haritası değil, oyun dengesi için arazi örtüsü, rakım ve eğimden türetilmiş bir yaklaşımdır. ' +
+  'Kasabalar gerçek yerleşim alanlarında ve gerçek bina yoğunluğuna göre kurulur; ölçek nedeniyle her oyun binası yüzlerce gerçek binayı temsil eder ve yerleşimler bilinçli olarak büyütülmüştür.';

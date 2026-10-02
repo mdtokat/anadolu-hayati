@@ -16,9 +16,14 @@ import { findWalkablePath, type Point } from './pathfinding';
  */
 export const DT = 1 / 60;
 
-export function setupWorld(region: RegionData) {
+export function setupWorld(region: RegionData, withSettlements = false) {
   const physics = new PhysicsWorld();
-  const world = new RegionWorld(region, physics);
+  // Yürüyüş testleri arazi sürekliliğini sınar; A* rotası yapıları bilmez (kasaba merkezinde duvara takılır).
+  // Yerleşimler (Faz 10) bu yüzden varsayılan olarak kapalıdır.
+  const world = new RegionWorld(
+    withSettlements ? region : { ...region, settlements: null },
+    physics,
+  );
   const player = new Player(physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
   const step = (intent: MoveIntent, yaw: number) => {
     player.update(DT, intent, yaw);

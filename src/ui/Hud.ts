@@ -1,6 +1,7 @@
 import './ui.css';
-import { COMBAT_HUD, HUD_STYLE, INTERACT } from '../config';
-import type { VitalsState } from '../survival/vitals';
+import { COMBAT_HUD, HUD_STYLE, INTERACT, SETTLEMENT_LAYOUT } from '../config';
+import { qiblaAzimuthDeg } from '../settlements/qibla';
+import type { ShelterKind, VitalsState } from '../survival/vitals';
 import { defenseLabel, type HitMarkerKind } from './combatFormat';
 import type { HotbarSlotView } from './hotbarView';
 import {
@@ -20,6 +21,7 @@ import {
   formatTemperature,
   gaugeFraction,
   gaugeLevel,
+  shelterLabel,
   warnings,
 } from './survivalFormat';
 
@@ -52,11 +54,14 @@ export interface SurvivalHudInfo {
   warmthC: number;
   sheltered: boolean;
   /** Barınak türü (Faz 9: kulübe ayrı yazılır). */
-  shelter?: 'lean_to' | 'hut' | null;
+  shelter?: ShelterKind | null;
   /** Giysilerin hasar azaltma oranı (0–1); yoksa 0. */
   defense?: number;
   /** Güneş ufkun üstünde mi (saat simgesi güneş/ay)? Verilmezse gündüz sayılır. */
   daylight?: boolean;
+  /** Faz 10: takvim ("22 Eylül 2026 · 9 Rebiülâhir 1448") ve sonraki vakit ("İkindi 15:21"). */
+  date?: string;
+  prayer?: string;
 }
 
 /**
@@ -82,6 +87,13 @@ export class Hud {
   private readonly clockIcon = el('span', 'hud-clock-icon');
   private readonly clockTime = el('span', 'hud-clock-time');
   private readonly clockDay = el('span', 'hud-clock-day');
+  private readonly clockDate = el('span', 'hud-clock-date');
+  /** Kıble azimutu (derece; bölge için tek değer). */
+  private readonly qiblaDeg = qiblaAzimuthDeg(
+    SETTLEMENT_LAYOUT.qiblaFrom.lat,
+    SETTLEMENT_LAYOUT.qiblaFrom.lon,
+  );
+  private readonly clockPrayer = el('span', 'hud-clock-prayer');
   private readonly clockTemp = el('span', 'hud-clock-temp');
   private clockDaylight: boolean | null = null;
   private readonly compass = el('div', 'hud-compass');
@@ -114,7 +126,7 @@ export class Hud {
     this.location.lastElementChild?.append(this.locationTitle, this.locationDetail);
     this.location.hidden = true; // konum bilgisi olmayan dünyalarda (test arenası) görünmez
     const clockMain = el('span', 'hud-clock-main');
-    clockMain.append(this.clockTime, this.clockDay);
+    clockMain.append(this.clockTime, this.clockDay, this.clockDate, this.clockPrayer);
     this.clock.append(this.clockIcon, clockMain, this.clockTemp);
     this.clock.hidden = true;
     this.info.append(this.location, this.clock);
@@ -164,6 +176,14 @@ export class Hud {
       }
       this.compassTape.append(mark);
     }
+    // Kıble işareti (Faz 10): şerit −180…540° aralığını kapsar, her tur için bir işaret.
+    for (const deg of [this.qiblaDeg - 360, this.qiblaDeg, this.qiblaDeg + 360]) {
+      if (deg < -180 || deg >= 540) continue;
+      const mark = el('span', 'hud-compass-qibla', 'Kıble');
+      mark.style.left = `${(deg + 180) * HUD_STYLE.compassPxPerDeg}px`;
+      mark.title = 'Kıble yönü';
+      this.compassTape.append(mark);
+    }
     const window = el('div', 'hud-compass-window');
     window.append(this.compassTape);
     this.compass.append(window, this.compassReadout);
@@ -211,6 +231,10 @@ export class Hud {
     }
     setText(this.clockTime, info.clock);
     setText(this.clockDay, info.day);
+    setText(this.clockDate, info.date ?? '');
+    setText(this.clockPrayer, info.prayer ?? '');
+    this.clockDate.hidden = !info.date;
+    this.clockPrayer.hidden = !info.prayer;
     setText(this.clockTemp, formatTemperature(info.ambientC));
 
     const list = warnings(vitals);
@@ -243,7 +267,7 @@ export class Hud {
     if (info.sheltered) {
       chips.push({
         icon: 'shelter',
-        text: info.shelter === 'hut' ? 'Kulübede' : 'Barınakta',
+        text: shelterLabel(info.shelter ?? null),
         state: 'shelter',
       });
     }

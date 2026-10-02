@@ -21,5 +21,8 @@ export function clothingWarmth(inventory: Pick<Inventory, 'has'>): number {
 
 /** Elde yanan meşale var mı (kısayolda seçili ve envanterde)? */
 export function torchLit(inventory: Pick<Inventory, 'has'>, held: ItemId | null): boolean {
-  return held === 'torch' && inventory.has('torch');
+  return held !== null && LIGHT_ITEMS.has(held) && inventory.has(held);
 }
+
+/** Elde tutulunca aydınlatan eşyalar (meşale; Faz 10: madenci lambası). */
+export const LIGHT_ITEMS: ReadonlySet<ItemId> = new Set<ItemId>(['torch', 'miner_lamp']);

@@ -20,7 +20,7 @@ function setup(patch: Partial<CreatureView> = {}) {
   const inventory = new Inventory();
   const creatures = new FakeCreatures(events);
   const id = creatures.add({
-    kind: 'wild_boar',
+    kind: 'brown_bear',
     z: -1.5,
     dead: true,
     state: 'dead',
@@ -79,16 +79,17 @@ describe('CarcassButcher', () => {
   it('süre dolunca yük atomik eklenir, leş kaldırılır, olay bir kez yayınlanır', () => {
     const { butcher, inventory, creatures, id, butchered, view } = setup();
     hold(butcher, LOOT.butcherSeconds - 0.2, view());
-    expect(inventory.count('raw_meat')).toBe(0);
+    expect(inventory.count('hide')).toBe(0);
     expect(butcher.progress).toBeGreaterThan(0.9);
     hold(butcher, 0.4, view());
-    expect(inventory.count('raw_meat')).toBe(4);
-    expect(inventory.count('hide')).toBe(1);
-    expect(inventory.count('bone')).toBe(1);
+    // Ayı (Faz 10): eti haram; deri ve kemik alınır.
+    expect(inventory.count('raw_meat')).toBe(0);
+    expect(inventory.count('hide')).toBe(2);
+    expect(inventory.count('bone')).toBe(2);
     expect(creatures.views().some((v) => v.id === id)).toBe(false);
     expect(butchered).toHaveBeenCalledTimes(1);
-    expect(butchered.mock.calls[0]?.[0]).toMatchObject({ id, kind: 'wild_boar' });
-    expect(butchered.mock.calls[0]?.[0].items).toEqual(LOOT_TABLE.wild_boar);
+    expect(butchered.mock.calls[0]?.[0]).toMatchObject({ id, kind: 'brown_bear' });
+    expect(butchered.mock.calls[0]?.[0].items).toEqual(LOOT_TABLE.brown_bear);
   });
 
   it('tuş bırakılınca ilerleme sıfırlanır', () => {
@@ -128,10 +129,11 @@ describe('CarcassButcher', () => {
 
   it('yer kısıtlıysa kısmi alınır, kalan leşte durur ve yer açılınca sürer', () => {
     const { butcher, inventory, creatures, id, butchered, view } = setup({ kind: 'brown_bear' });
-    // 25 kg sınırına yakın doldur: ayı yükünün (8 et ≈ 4 kg + deri 3 kg + kemik) hepsi sığmaz.
+    // 25 kg sınırına yakın doldur: ayı yükünün (2 deri 3 kg + 2 kemik 0,6 kg) hepsi sığmaz.
     inventory.add('log', 3); // 9 kg
     inventory.add('stone', 10); // 5 kg
-    inventory.add('hide', 5); // 7,5 kg → 21,5 kg
+    inventory.add('hide', 5); // 7,5 kg
+    inventory.add('stick', 7); // 2,1 kg → 23,6 kg
     hold(butcher, LOOT.butcherSeconds + 0.3, view());
     expect(butchered).toHaveBeenCalledTimes(1);
     expect(butcher.hasRemaining(id)).toBe(true);
@@ -145,10 +147,11 @@ describe('CarcassButcher', () => {
     inventory.remove('log', 3);
     inventory.remove('stone', 10);
     inventory.remove('hide', 5);
+    inventory.remove('stick', 7);
     hold(butcher, LOOT.butcherSeconds + 0.3, view());
     expect(butcher.hasRemaining(id)).toBe(false);
     expect(creatures.views().some((v) => v.id === id)).toBe(false);
-    expect(inventory.count('raw_meat')).toBe(8);
+    expect(inventory.count('hide') + inventory.count('bone')).toBe(4);
   });
 
   it('dünyadan kalkan leşin kalan yükü unutulur', () => {
@@ -156,6 +159,7 @@ describe('CarcassButcher', () => {
     inventory.add('log', 3);
     inventory.add('stone', 10);
     inventory.add('hide', 5);
+    inventory.add('stick', 7);
     hold(butcher, LOOT.butcherSeconds + 0.3, view());
     expect(butcher.hasRemaining(id)).toBe(true);
     creatures.removeCarcass(id); // süresi doldu
@@ -168,7 +172,7 @@ describe('kesim metinleri', () => {
   it('ipucu tür adını ve baltayı söyler', () => {
     expect(
       butcherPrompt({ status: 'ready', id: 1, kind: 'roe_deer', seconds: 6, withAxe: false }),
-    ).toBe('E (basılı tut): Karaca leşini kes');
+    ).toBe('E (basılı tut): Bismillah — Karaca leşini kes');
     expect(
       butcherPrompt({ status: 'ready', id: 1, kind: 'wolf', seconds: 3, withAxe: true }),
     ).toContain('baltayla');

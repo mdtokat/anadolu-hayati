@@ -1,8 +1,8 @@
-import { ITEMS } from '../items/itemDefs';
+import { ITEMS, type ItemId } from '../items/itemDefs';
 import type { ItemStack } from '../items/Inventory';
 import type { CreatureKind } from '../creatures/kinds';
 import type { ButcherOffer } from './carcass';
-import type { CookOffer } from './cooking';
+import { COOK_RECIPES, type CookOffer, type CookRecipe } from './cooking';
 
 /** Tür adları (Türkçe). */
 export const CREATURE_NAMES: Readonly<Record<CreatureKind, string>> = {
@@ -16,18 +16,29 @@ export const CREATURE_NAMES: Readonly<Record<CreatureKind, string>> = {
 export function butcherPrompt(offer: ButcherOffer): string {
   if (offer.status === 'full') return 'Envanter dolu';
   const tool = offer.tool === 'bone_knife' ? ' (bıçakla)' : offer.withAxe ? ' (baltayla)' : '';
-  return `E (basılı tut): ${CREATURE_NAMES[offer.kind]} leşini kes${tool}`;
+  return `E (basılı tut): Bismillah — ${CREATURE_NAMES[offer.kind]} leşini kes${tool}`;
+}
+
+/** Kesilemeyen leşe bakınca (Faz 10, helal/haram): yaban domuzu necistir. */
+export function unbutcherablePrompt(kind: CreatureKind): string {
+  return `${CREATURE_NAMES[kind]}: necistir, leşi kesilmez`;
 }
 
 /**
  * Pişirme ipucu. Yakıt atılabilecek durumdaysa (`hasFuel`) öncelik kuralı açıkça söylenir: çiğ et varken
  * `E` eti pişirir, yakıtı etler bitince atar. Pişmiş et sığmıyorsa (`full`) neden söylenir.
  */
-export function cookPrompt(hasFuel: boolean, status: CookOffer['status'] = 'ready'): string {
-  if (status === 'full') return 'Envanter dolu: pişmiş et sığmıyor';
+export function cookPrompt(
+  hasFuel: boolean,
+  status: CookOffer['status'] = 'ready',
+  recipe: Pick<CookRecipe, 'from' | 'to' | 'verb'> = COOK_RECIPES[0] as CookRecipe,
+): string {
+  if (status === 'full')
+    return `Envanter dolu: ${ITEMS[recipe.to].name.toLocaleLowerCase('tr')} sığmıyor`;
+  const what = recipe.from === 'raw_meat' ? 'et' : ITEMS[recipe.from].name.toLocaleLowerCase('tr');
   return hasFuel
-    ? 'E (basılı tut): Eti pişir · et bitince yakıt atılır'
-    : 'E (basılı tut): Eti pişir';
+    ? `E (basılı tut): ${recipe.verb} · ${what} bitince yakıt atılır`
+    : `E (basılı tut): ${recipe.verb}`;
 }
 
 /** Kesim bildirimi: "Kesildi: +3 Çiğ Et, +1 Deri". */
@@ -37,6 +48,6 @@ export function butcheredToast(items: ReadonlyArray<ItemStack>, leftOver: boolea
 }
 
 /** Pişirme bildirimi. */
-export function cookedToast(count: number): string {
-  return `Pişti: ${ITEMS.cooked_meat.name}${count > 1 ? ` ×${count}` : ''}`;
+export function cookedToast(count: number, item: ItemId = 'cooked_meat'): string {
+  return `Pişti: ${ITEMS[item].name}${count > 1 ? ` ×${count}` : ''}`;
 }

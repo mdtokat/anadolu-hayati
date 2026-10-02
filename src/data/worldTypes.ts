@@ -27,6 +27,13 @@ export interface WorldTileEntry {
   sha256: string;
 }
 
+/** Bütünlüğü manifestte kayıtlı tek dosya (bayt + SHA-256). */
+export interface WorldFileEntry {
+  file: string;
+  bytes: number;
+  sha256: string;
+}
+
 export interface WorldManifest {
   version: typeof WORLD_MANIFEST_VERSION;
   id: string;
@@ -47,6 +54,8 @@ export interface WorldManifest {
   features: { file: string; layers: string[] };
   landcover: { classes: string[] };
   sources: string[];
+  /** Yerleşim verisi (Faz 10, tools/build_settlements.py); yoksa null. */
+  settlements?: WorldFileEntry | null;
   /** Su/örtü verisinin Overture sürümü; eski ve yeni alanda aynı olmalı. */
   overtureRelease: string;
   built: string;

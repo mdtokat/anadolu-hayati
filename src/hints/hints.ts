@@ -1,7 +1,16 @@
 import { HINTS } from '../config';
 
 /** İpucu kimlikleri, gösterim önceliği sırasıyla. Liste yalnızca sona eklenir (kayıtlı "görüldü" kimlikleri). */
-export const HINT_IDS = ['controls', 'water', 'food', 'fire', 'shelter', 'hunt'] as const;
+export const HINT_IDS = [
+  'controls',
+  'water',
+  'food',
+  'fire',
+  'shelter',
+  'hunt',
+  'town',
+  'person',
+] as const;
 export type HintId = (typeof HINT_IDS)[number];
 
 /** İpucu metinleri (tek yerde; tuşlar `config.ts` → `INPUT.bindings` ile uyumlu). */
@@ -13,7 +22,10 @@ export const HINT_TEXT: Readonly<Record<HintId, string>> = {
   fire: 'Hava soğuyor: dal ve kütük topla, I ile taş balta üret, C ile kamp ateşi kur; yakıtı E ile ekle.',
   shelter:
     'Sundurma (G) soğuğu azaltır; çalışma tezgâhının yanında üretilen ahşap kulübe daha iyi korur. Ateşin yanında ve barınakta hareketsiz durarak dinlen: can ve enerji daha hızlı dolar.',
-  hunt: 'Yakında av hayvanı var: sol tık saldırır (taş balta ya da mızrak daha güçlü); leşi E basılı tutarak kes, ateşte pişir. Yaban domuzu yumrukla tehlikelidir, ayıdan uzak dur.',
+  hunt: 'Yakında av hayvanı var: sol tık saldırır (taş balta ya da mızrak daha güçlü). Karacanın eti helaldir: leşi E basılı tutarak kes, ateşte pişir. Yaban domuzu necistir, kesilmez; kurt ve ayının yalnızca derisi ve kemiği alınır. Ayıdan uzak dur.',
+  town: 'Terk edilmiş bir yerleşimdesin: evlerin ve dükkânların kapısında E basılı tutarak kilerleri ara. Camiler kutsal ve güvenli sığınaktır (yağmalanmaz); çeşmelerden su içebilirsin. Bulgur ve tarhanayı bakır tencereyle ateşte pişir.',
+  person:
+    'Yakında biri var: yanına gidince selam verir. Yüzüne bakıp E’ye basarak konuş; yol sorabilir, takas yapabilirsin.',
 };
 
 /** İpucu kararı için oyundan alınan anlık durum (saf veri). */
@@ -30,6 +42,10 @@ export interface HintContext {
   shelterBuilt: boolean;
   /** Yakında (HINTS.preyRadiusM) yaşayan bir av hayvanı var mı? */
   preyNearby: boolean;
+  /** Faz 10: bir il/ilçe/köy yerleşiminin içinde mi? */
+  inSettlement?: boolean;
+  /** Faz 10: yakında bir kişi var mı? */
+  personNearby?: boolean;
 }
 
 export interface HintTrackerOptions {
@@ -106,6 +122,10 @@ export class HintTracker {
         );
       case 'hunt':
         return ctx.preyNearby;
+      case 'town':
+        return ctx.inSettlement === true;
+      case 'person':
+        return ctx.personNearby === true;
     }
   }
 }

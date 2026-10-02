@@ -33,5 +33,6 @@ export function createNewGameSave(
     world: { handDone: [], axeDone: [], removed: [] },
     creatures: { killed: [] },
     hotbar: emptyHotbarSave(),
+    settlements: { searched: [] },
   };
 }

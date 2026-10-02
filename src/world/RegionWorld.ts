@@ -33,6 +33,11 @@ import type { PropId, PropRef } from './propKinds';
 import { Water } from './Water';
 import { FreshWaterMesh } from './FreshWaterMesh';
 import { FreshWaterIndex, type WaterHit } from './waterIndex';
+import { SettlementMap } from '../settlements/SettlementMap';
+import type { PeopleWorld } from '../people/PeopleSystem';
+import { RoadMesh } from './RoadMesh';
+import { SettlementLayer } from './SettlementLayer';
+import { SettlementColliders } from './SettlementColliders';
 
 /**
  * Gerçek bölge dünyası: chunk'lanmış LOD'lu arazi mesh'leri, yakın chunk'lar için Rapier
@@ -59,6 +64,13 @@ export class RegionWorld implements GameWorld {
   private readonly freshWaterMesh: FreshWaterMesh | null;
   private readonly props: PropLayer | null;
   private readonly cover: LandCoverMap | null;
+  /** Yerleşimler (Faz 10): veri yoksa null. */
+  readonly settlementMap: SettlementMap | null;
+  private readonly roadMesh: RoadMesh | null;
+  private readonly settlementLayer: SettlementLayer | null;
+  private readonly settlementColliders: SettlementColliders | null;
+  /** Diğer insanların arazi/yerleşim sorguları (Faz 10); yerleşim verisi yoksa null. */
+  readonly peopleWorld: PeopleWorld | null;
 
   constructor(
     readonly region: RegionData,
@@ -97,10 +109,46 @@ export class RegionWorld implements GameWorld {
       : null;
     if (this.freshWaterMesh) this.scene.add(this.freshWaterMesh.object);
 
+    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; ~0,5 sn).
+    const freshWater = this.freshWater;
+    this.settlementMap = region.settlements
+      ? new SettlementMap(region.settlements, {
+          heightAt: (x, z) => this.source.heightAt(x, z),
+          elevationAt: (x, z) => this.source.elevationAt(x, z),
+          isWater: (x, z, clearance) => freshWater?.nearest(x, z, clearance) != null,
+        })
+      : null;
+    const settlements = this.settlementMap;
+    this.roadMesh = settlements
+      ? new RoadMesh(settlements.roadLines, (x, z) => this.source.heightAt(x, z))
+      : null;
+    if (this.roadMesh) this.scene.add(this.roadMesh.object);
+    this.settlementLayer = settlements ? new SettlementLayer(settlements) : null;
+    if (this.settlementLayer) this.scene.add(this.settlementLayer.group);
+    this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
+    this.peopleWorld = settlements
+      ? {
+          heightAt: (x, z) => this.source.heightAt(x, z),
+          elevationAt: (x, z) => this.source.elevationAt(x, z),
+          slopeDegAt: (x, z) => this.source.slopeDegAt(x, z),
+          roadNear: (x, z, r) => settlements.roads.nearest(x, z, r),
+          settlementRankAt: (x, z) => settlements.settlementAt(x, z)?.data.rank ?? null,
+          blocked: (x, z) => settlements.buildingAt(x, z, 0.4) !== null,
+        }
+      : null;
+
     // Nesneler (ağaç, kaya, çalı, yenebilir bitki): arazi örtüsü verisi yoksa yerleşim de yoktur.
+    // Yapıların ve yolların üstündeki nesneler gizlenir (kimlikler değişmez).
     const cover = LandCoverMap.fromRegion(region);
     this.cover = cover;
-    this.props = cover ? new PropLayer(this.source, cover, this.freshWater) : null;
+    this.props = cover
+      ? new PropLayer(
+          this.source,
+          cover,
+          this.freshWater,
+          settlements ? (x, z) => settlements.blocksProp(x, z) : null,
+        )
+      : null;
     if (this.props) this.scene.add(this.props.group);
 
     // Canlılar (Faz 5): arazi örtüsü yoksa her yer `none` sayılır ve canlı doğmaz.
@@ -123,13 +171,37 @@ export class RegionWorld implements GameWorld {
   /** Enlem/boylam için en yakın yürünebilir nokta (ayak tabanı, oyun koordinatı). */
   safePointFor(lat: number, lon: number): Vec3 | null {
     const { x, z } = latLonToGame(lat, lon, this.region.meta.originUtm);
-    return findSafeSpawn(this.source, x, z, this.maxSlopeDeg);
+    return this.clearOfBuildings(findSafeSpawn(this.source, x, z, this.maxSlopeDeg));
+  }
+
+  /**
+   * Nokta bir yapının (Faz 10) içine düşüyorsa çevresinde (sarmal arama) yapı dışında, yürünebilir en yakın noktayı
+   * döner; zaten dışındaysa aynısını. Bulunamazsa null.
+   */
+  private clearOfBuildings(point: Vec3 | null): Vec3 | null {
+    const map = this.settlementMap;
+    if (!point || !map || map.buildingAt(point.x, point.z, 1) === null) return point;
+    for (let r = 3; r <= 60; r += 3) {
+      const steps = Math.max(8, Math.round((2 * Math.PI * r) / 3));
+      for (let k = 0; k < steps; k++) {
+        const a = (k / steps) * Math.PI * 2;
+        const x = point.x + Math.cos(a) * r;
+        const z = point.z + Math.sin(a) * r;
+        if (map.buildingAt(x, z, 1) !== null) continue;
+        const safe = findSafeSpawn(this.source, x, z, this.maxSlopeDeg);
+        if (safe && map.buildingAt(safe.x, safe.z, 1) === null) return safe;
+      }
+    }
+    return null;
   }
 
   update(focusX: number, focusZ: number, timeSeconds: number): void {
     this.colliders.update(focusX, focusZ);
+    this.settlementColliders?.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
     this.props?.update(focusX, focusZ);
+    this.roadMesh?.update(focusX, focusZ);
+    this.settlementLayer?.update(focusX, focusZ);
     this.water.update(timeSeconds);
     this.environment.follow(focusX, focusZ);
   }
@@ -139,21 +211,48 @@ export class RegionWorld implements GameWorld {
   }
 
   freshWaterNear(x: number, z: number): WaterHit | null {
-    return this.freshWater?.nearest(x, z) ?? null;
+    const hit = this.freshWater?.nearest(x, z) ?? null;
+    if (hit) return hit;
+    // Yerleşim çeşmeleri (Faz 10): musluğa erişim mesafesinde içilir, su kabı doldurulur.
+    const fountain = this.settlementMap?.fountainNear(x, z, FRESH_WATER.fountainReach) ?? null;
+    return fountain ? { kind: 'fountain', ...fountain } : null;
+  }
+
+  /**
+   * (x, z)'ye `radius` içindeki en yakın tatlı su ya da çeşme (yol tarifi için; Faz 10). Yoksa null.
+   */
+  nearestWater(
+    x: number,
+    z: number,
+    radius: number,
+  ): { x: number; z: number; fountain: boolean } | null {
+    const hit = this.freshWater?.nearest(x, z, radius) ?? null;
+    let best = hit ? { x: hit.x, z: hit.z, fountain: false, d: hit.distance } : null;
+    for (const b of this.settlementMap?.buildingsNear(x, z, radius) ?? []) {
+      if (b.kind !== 'fountain') continue;
+      const d = Math.hypot(b.x - x, b.z - z);
+      if (best === null || d < best.d) best = { x: b.x, z: b.z, fountain: true, d };
+    }
+    return best ? { x: best.x, z: best.z, fountain: best.fountain } : null;
   }
 
   respawnPoint(deathIndex: number): Vec3 | null {
-    return pickRespawnPoint(
-      this.region.provinces,
-      this.source,
-      this.maxSlopeDeg,
-      respawnRandom(deathIndex),
+    return this.clearOfBuildings(
+      pickRespawnPoint(
+        this.region.provinces,
+        this.source,
+        this.maxSlopeDeg,
+        respawnRandom(deathIndex),
+      ),
     );
   }
 
   prepare(x: number, z: number): void {
     this.colliders.ensureAround(x, z);
+    this.settlementColliders?.update(x, z, true);
     this.props?.prepare(x, z);
+    this.roadMesh?.update(x, z);
+    this.settlementLayer?.update(x, z);
   }
 
   /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa. */
@@ -222,6 +321,9 @@ export class RegionWorld implements GameWorld {
   }
 
   dispose(): void {
+    this.settlementColliders?.dispose();
+    this.settlementLayer?.dispose();
+    this.roadMesh?.dispose();
     this.borders.dispose();
     this.props?.dispose();
     this.freshWaterMesh?.dispose();

@@ -1,4 +1,5 @@
 import { HORIZONTAL_SCALE } from '../config';
+import type { SettlementsData } from './settlements';
 import { classesMatch, type LandCoverMeta } from './landcover';
 import type { UtmOrigin } from '../world/geo';
 
@@ -90,6 +91,8 @@ export interface RegionData {
   features: RegionFeatures | null;
   /** Arazi örtüsü sınıfları (uint8), heightmap ile aynı ızgara ve sıra; meta.landcover yoksa null. */
   landcover: Uint8Array | null;
+  /** Yerleşimler, yollar, simge yapılar (Faz 10); veri yoksa null ya da tanımsız. */
+  settlements?: SettlementsData | null;
 }
 
 /** Veri bozuksa ya da sözleşmeyle uyuşmuyorsa fırlatılır. */

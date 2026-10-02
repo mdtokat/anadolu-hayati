@@ -2,6 +2,7 @@ import type { CreatureSystem } from '../creatures/CreatureSystem';
 import type { GatherSystem } from '../interaction/gather';
 import type { Hotbar } from '../items/hotbar';
 import type { Inventory } from '../items/Inventory';
+import type { BuildingSearch } from '../settlements/search';
 import type { StructureSet } from '../placement/structures';
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import {
@@ -29,6 +30,8 @@ export interface SaveTargets {
   gather: Pick<GatherSystem, 'toSave' | 'loadSave'>;
   creatures: Pick<CreatureSystem, 'toSave' | 'loadSave'>;
   hotbar: Pick<Hotbar, 'toSave' | 'loadSave'>;
+  /** Yapı arama durumu (Faz 10); yerleşimsiz dünyada (test arenası) yoktur. */
+  search?: Pick<BuildingSearch, 'toSave' | 'loadSave'>;
 }
 
 /** Canlı oyun durumunun kayıt görüntüsünü alır. Ölüyken çağrılmamalıdır (ölüm durumu kayda girmez). */
@@ -44,6 +47,7 @@ export function captureSave(targets: SaveTargets, now: Date = new Date()): SaveG
     world: targets.gather.toSave(),
     creatures: targets.creatures.toSave(),
     hotbar: targets.hotbar.toSave(),
+    settlements: { searched: targets.search?.toSave() ?? [] },
   };
 }
 
@@ -65,6 +69,7 @@ export function applySave(raw: unknown, targets: SaveTargets): SaveGame {
   targets.gather.loadSave(save.world);
   targets.creatures.loadSave(save.creatures);
   targets.hotbar.loadSave(save.hotbar);
+  targets.search?.loadSave(save.settlements.searched);
   targets.player.apply(save.player);
   return save;
 }

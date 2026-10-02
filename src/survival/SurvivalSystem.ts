@@ -8,6 +8,7 @@ import type { EdibleEffect, ItemId } from '../items/itemDefs';
 import type { SurvivalSave } from '../save/saveGame';
 import { GameClock, type ClockOptions } from './clock';
 import {
+  type ShelterKind,
   initialVitals,
   stepVitals,
   type Activity,
@@ -27,7 +28,7 @@ export interface SurvivalContext {
   /** Barınak altında mı? Yoksa `false`. */
   sheltered?: boolean;
   /** Barınağın türü (Faz 9; kulübe daha iyi korur). */
-  shelter?: 'lean_to' | 'hut' | null;
+  shelter?: ShelterKind | null;
 }
 
 /** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */

@@ -95,10 +95,10 @@ function makeTargets() {
 }
 
 describe('kayıt v1 → v2 göçü (yapı)', () => {
-  it('fixture gerçekten v1 ve geçerli sürüm 3 (v1 → v2 → v3 zinciri)', () => {
+  it('fixture gerçekten v1 ve geçerli sürüm 4 (v1 → v2 → v3 → v4 zinciri)', () => {
     expect(V1.version).toBe(1);
     expect(V1.regionId).toBe(WORLD.legacyRegionId);
-    expect(SAVE_FORMAT_VERSION).toBe(3);
+    expect(SAVE_FORMAT_VERSION).toBe(4);
   });
 
   it('bölge kimliği dünya kimliğine, nesne ve hücre kimlikleri mutlak anahtara çevrilir', () => {

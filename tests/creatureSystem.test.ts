@@ -420,3 +420,26 @@ describe('CreatureSystem: saldırı olayı', () => {
     expect(log.filter((e) => e.type === 'creature:attacked')).toHaveLength(0);
   });
 });
+
+describe('CreatureSystem: cami kutsal alandır (Faz 10)', () => {
+  const night = (sanctuary: boolean) => {
+    const base = context({
+      terrain: fakeTerrain({ half: 3000, cover: 'urban' }),
+      sunAltitudeDeg: -20,
+    });
+    return { ...base, hour: 23, isNight: true, player: { ...base.player, sanctuary } };
+  };
+
+  it('camideki oyuncuyu kurt algılamaz ve saldırmaz; dışarıdaki oyuncuya saldırır', () => {
+    const attacks = (sanctuary: boolean) => {
+      const { system, log } = setup();
+      const ctx = night(sanctuary);
+      system.update(DT, ctx);
+      system.spawnAt('wolf', 0, -6, 0);
+      run(system, 8, ctx);
+      return log.filter((e) => e.type === 'creature:attacked').length;
+    };
+    expect(attacks(true)).toBe(0);
+    expect(attacks(false)).toBeGreaterThan(0);
+  });
+});

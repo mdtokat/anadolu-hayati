@@ -91,6 +91,8 @@ interface WorldManifest {
   tiles: Array<{ height: string; cover: string; bytes: number; sha256: string }>;
   provinces: string;
   features: { file: string };
+  /** Faz 10: yerleşim verisi (isteğe bağlı). */
+  settlements?: { file: string; bytes: number; sha256: string } | null;
 }
 
 /** Her `dist/data/world/<id>/world.json` için karo bayt + sha256 ve yan dosyalar. */
@@ -129,6 +131,21 @@ function checkWorlds(problems: string[]): string[] {
     }
     for (const file of [manifest.provinces, manifest.features.file])
       if (!existsSync(join(dir, file))) problems.push(`${id}: ${file} eksik`);
+    const settlements = manifest.settlements;
+    if (settlements) {
+      listed.add(settlements.file);
+      const path = join(dir, settlements.file);
+      if (!existsSync(path)) problems.push(`${id}: ${settlements.file} eksik`);
+      else {
+        const blob = readFileSync(path);
+        if (blob.byteLength !== settlements.bytes)
+          problems.push(
+            `${id}: ${settlements.file} ${blob.byteLength} bayt, manifest ${settlements.bytes}`,
+          );
+        else if (createHash('sha256').update(blob).digest('hex') !== settlements.sha256)
+          problems.push(`${id}: ${settlements.file} sha256 manifestle uyuşmuyor`);
+      }
+    }
     const unlisted = walk(dir).filter((file) => !listed.has(file));
     if (unlisted.length > 0)
       notes.push(

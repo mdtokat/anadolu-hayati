@@ -23,6 +23,10 @@
   --ui-border: rgba(255, 240, 210, 0.12);
   --ui-border-strong: rgba(255, 240, 210, 0.24);
 
+  /* Çini vurgusu (İznik turkuazı ve kobalt; Faz 10: kıble, namaz vakti, motifler) */
+  --ui-tile: #5ec7c1;
+  --ui-tile-deep: #2a6f97;
+
   --ui-accent: #e8b04a;
   --ui-accent-hi: #f7cb6e;
   --ui-accent-lo: #c98a2a;
@@ -349,6 +353,31 @@
 .hud-compass-tick[data-north='true'] {
   color: var(--ui-accent-hi);
 }
+.hud-compass-qibla {
+  position: absolute;
+  top: 0;
+  width: 44px;
+  height: 100%;
+  margin-left: -22px;
+  padding-top: 13px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--ui-tile, #7fd1c4);
+}
+.hud-compass-qibla::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: var(--ui-tile, #7fd1c4);
+}
 .hud-compass-readout {
   padding: 1px 8px;
   font-size: 11px;
@@ -422,6 +451,14 @@
 .hud-clock-day {
   font-size: 11.5px;
   color: var(--ui-text-muted);
+}
+.hud-clock-date,
+.hud-clock-prayer {
+  font-size: 11px;
+  color: var(--ui-text-muted);
+}
+.hud-clock-prayer {
+  color: var(--ui-tile, #7fd1c4);
 }
 .hud-clock-temp {
   margin-left: auto;
@@ -1772,4 +1809,91 @@
   .hud-toast {
     animation: none !important;
   }
+}
+
+/* --- Konuşma paneli (Faz 10: diğer insanlar) --- */
+.dialog-body {
+  width: min(640px, 94vw);
+}
+.dialog-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 36vh;
+  overflow-y: auto;
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface-2);
+}
+.dialog-line {
+  max-width: 86%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  line-height: 1.45;
+}
+.dialog-them {
+  align-self: flex-start;
+  background: var(--ui-surface-3);
+  border-top-left-radius: 3px;
+  font-family: var(--ui-font-display);
+  font-size: 15px;
+}
+.dialog-me {
+  align-self: flex-end;
+  background: rgba(232, 176, 74, 0.16);
+  border: 1px solid rgba(232, 176, 74, 0.3);
+  border-top-right-radius: 3px;
+  color: var(--ui-text);
+}
+.dialog-choices {
+  display: grid;
+  gap: 8px;
+}
+.inv-panel button.dialog-choice {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-strong);
+  font-weight: 500;
+  box-shadow: none;
+}
+.inv-panel button.dialog-choice:hover:not(:disabled) {
+  background: rgba(232, 176, 74, 0.14);
+  border-color: rgba(232, 176, 74, 0.55);
+}
+.inv-panel button.dialog-trade {
+  border-color: rgba(232, 176, 74, 0.45);
+}
+.inv-panel button.dialog-farewell {
+  color: var(--ui-text-muted);
+}
+.dialog-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border-strong);
+  font: 600 12px/1 var(--ui-font-mono);
+  color: var(--ui-accent);
+}
+
+/* Selçuklu yıldızı bordürü (Faz 10; kodla çizilen SVG, dosya yok) */
+.pause-menu-brand .ui-ornament {
+  grid-column: 1 / -1;
+}
+.ui-ornament {
+  height: 16px;
+  margin: 10px 0 12px;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='16' viewBox='0 0 32 16'><g fill='none' stroke='%235ec7c1' stroke-width='1.2'><rect x='10.5' y='2.5' width='11' height='11'/><rect x='10.5' y='2.5' width='11' height='11' transform='rotate(45 16 8)'/><circle cx='16' cy='8' r='2'/><path d='M0 8h4.5M27.5 8h4.5'/></g></svg>");
+  background-repeat: repeat-x;
+  background-position: center;
+  opacity: 0.75;
 }

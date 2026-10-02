@@ -275,6 +275,42 @@ Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulam
 
 ---
 
+## Faz 10 — Yerleşimler, Yollar ve İnsanlar (Türk-İslam kültürü)
+**Branch:** `ccr-3b803091-tjs9y1` _(kullanıcı talimatı: "Haritalarda şehir merkezleri, ilçe merkezleri; illerin gerçek yapılanması; birbirine bağlayan yollar; terk edilmiş hava; çok nadir başka insanlar; yapılar şehrin gerçek yapısındaki gibi; her şey Türk ve İslam kültürüne göre." Plan onaylandı: domuz/kurt/ayı eti yok, yalnızca barışçıl insanlar, köylerin ~%20'si, ezan sesi yok, önce Zonguldak ama tüm hedef iller.)_
+**Amaç:** Gerçek idari yapıya (5 il merkezi, 30 ilçe merkezi, seçilmiş köyler) ve gerçek bina yoğunluğuna göre terk edilmiş kasabalar; şehirlerarası gerçek yollar; Türk-İslam mimarisi (kıbleye dönük kubbeli camiler, kalem minareler, ahşap köy camileri, Osmanlı konakları, çeşmeler, şahideli mezarlıklar, han, hamam, türbe; Zonguldak maden kuyuları, Karabük fabrikası); yağmalanmamış kilerlerde Türk erzakı; nadir, barışçıl yolcular; helal/haram, namaz vakitleri ve Hicrî takvim. Harita genişlemez (il/karo eklenmez); mevcut dünyaya katman eklenir.
+
+**Kapsam dışı:** binaların iç mekânları (cami ve han dışında), ezan sesi (bilinçli: sentezlenmiş ezan saygısız olur), düşman insanlar/eşkıya, araç sürme, karo akışı, hayvanların yapıları algılaması, yeni çalışma zamanı bağımlılığı.
+
+Görevler:
+- [x] **10.0** Veri hattı: `tools/fetch_settlements.py` (Overture yollar, idari birimler, yerler, bina noktaları; HTTP Range), `tools/build_settlements.py` + `tools/settlements.yaml` (rütbe, üslup, elle seçilmiş simge yapılar) → `settlements.json` (887 KB, world.json'da bayt + sha256) _(Python testleri: `tools/tests/test_settlements.py`)_
+- [x] **10.1** Yükleyici (`parseSettlements`, isteğe bağlı), yol şeritleri (`RoadMesh`, 1 km gruplar; kent içinde il yolları kesilip sokak ızgarası çizilir), yapı/yol üstündeki ağaç-kayaların gizlenmesi (nesne kimlikleri değişmez)
+- [x] **10.2** Yerleşim düzeni (`settlements/layout.ts`, saf, seed'li): ayak izi büyütmesi, parsel ızgarası, yamaca gömülü konutlar (kapı vadiye), kıbleye dönük camiler taş set üstünde, simge yapılar gerçek konumlarına yakın, üsluba göre konut karışımı (kasaba, maden, sanayi, Osmanlı, köy)
+- [x] **10.3** Yapılar: 21 arketip (`settlements/kinds.ts`, `world/buildingGeometry.ts`), örnekli çizim + uzak kademe (`SettlementLayer`), taş temel ve kapı merdivenleri, hükümet konağında Türk bayrağı, Rapier collider'ları (`SettlementColliders`)
+- [x] **10.4** Terk edilmişlik: yıkık (çatısız, yıkıntılı) varyantlar, kararmış/tahtalanmış pencereler, inik kepenkler, solgun tonlar
+- [x] **10.5** Arama ve ganimet: kapıda `E` basılı (3 sn), yapı türüne göre deterministik Türk kileri (bulgur, tarhana, kuru fasulye, Rize çayı, pekmez, leblebi, kuru kayısı, peksimet; bakır tencere, yün battaniye, madenci lambası); bakır tencereyle tarhana çorbası, bulgur pilavı, kuru fasulye, demli çay; kayıt v4 (aranmış yapılar)
+- [x] **10.6** Cami ve han içi kapalı barınak; camide canlılar oyuncuyu algılamaz (kutsal alan); çeşmelerden su içilir; cami, türbe, mezarlık aranmaz
+- [x] **10.7** İnsanlar (`src/people/`): yolcu, çoban, oduncu, köylü teyze, derviş; ~20 dk'da bir; "Selamün aleyküm"; konuşma paneli (yol/su tarifi, hikâye, takas, dervişin hediyesi, "Allah'a emanet ol")
+- [x] **10.8** Kültür: helal/haram (yalnızca karaca eti; yaban domuzu kesilmez; kurt/ayıdan deri ve kemik), "Bismillah" kesim ipucu, namaz vakitleri (Diyanet açıları) ve vakit bildirimi, Miladî + Hicrî tarih, pusulada kıble, Selçuklu yıldızı bordürü, yerleşim/kişi ipuçları
+- [x] **10.9** Ölçüm ve belgeler: [docs/faz-10-yerlesim-olcumler.md](docs/faz-10-yerlesim-olcumler.md), `CLAUDE.md`, README, elle doğrulama kılavuzu bölüm 12
+
+Kabul kriterleri:
+- [x] 5 il ve 30 ilçe merkezi gerçek konumlarında, gerçek bina yoğunluğuna göre kuruluyor; köyler seyrek; harita evle dolmuyor (1 410 yapı) _(testli: `tests/settlementMap`)_
+- [x] Her il/ilçe merkezinde cami var (ayak izi denizde kalan Amasra/Kurucaşile hariç); camiler kıbleye dönük; oyuncu merdivenden harime girebiliyor _(testli: `tests/settlementMap`, `tests/settlementWalk`)_
+- [x] Yollar şehirleri ve ilçeleri bağlıyor; yolda ağaç yok _(testli)_
+- [x] Arama/ganimet atomik ve kalıcı; kayıt v4 ve v3 göçü _(testli: `tests/buildingSearch`, `tests/saveGame`)_
+- [x] İnsanlar nadir, barışçıl, selam veriyor, konuşma ve takas çalışıyor _(testli: `tests/people`; başsız Chromium'da panel denendi)_
+- [x] Draw call < 300 (en kötü 240), ilk yükleme < 10 sn (8,6 sn) _(başsız ölçüm)_
+- [x] Lint, typecheck, Vitest, build ve build:check hatasız
+
+Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulama.md) bölüm 12):
+- [ ] Kasabaların gerçek şehre benzerliği (Safranbolu çarşısı, Zonguldak yamaçları, Bolu merkezi) ve "terk edilmiş" hissi
+- [ ] Yolların görünümü (renk, genişlik, yamaçta yüzme/gömülme) ve kent sokakları
+- [ ] Ganimet dengesi (yiyecek kıtlığı helal kuralıyla dengelendi mi?), arama süresi
+- [ ] İnsanların sıklığı ve konuşmaların doğallığı; takas oranları
+- [ ] Gerçek GPU'da FPS (özellikle Safranbolu, Düzce, Karabük)
+
+---
+
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
 
@@ -295,10 +331,11 @@ Genişleme için teknik gereksinimler:
 ## Fikir Havuzu
 Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 
+- Faz 10 sonrası yerleşimler: binaların iç mekânları (ev, han odaları), terk edilmiş araçlar (yolda paslı otomobiller), sarmaşık/ot bürümüş duvarlar, kasaba ortam sesleri (kepenk, kapı gıcırtısı), daha çok elle seçilmiş simge yapı (Ereğli, Düzce Konuralp, Mudurnu çarşısı), köprüler, Ramazan/bayram gibi takvim olayları, cami içinde mihrap/minber ayrıntısı, kişilerin cemaatle camiye gitmesi (vakit girince)
+
 - Zonguldak kömür madenleri: yeraltı keşif alanları (karanlık, grizu tehlikesi, havalandırma)
 - Mevsimler ve kar
 - Hava olayları (yağmur, sis, fırtına)
-- Safranbolu gibi tarihi yerleşimlerde terk edilmiş yapılar ve ganimet
 - Tekne ile kıyı boyunca seyahat
 - Hikâye / görev sistemi
 - Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir; Faz 9'da silah/alet seçimi için kısayol çubuğu geldi, giysi slotu hâlâ yok)_

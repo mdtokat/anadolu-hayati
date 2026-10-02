@@ -134,7 +134,7 @@ function setup(spot: { x: number; z: number }) {
 }
 
 describe('gerçek bölgede uçtan uca av zinciri', () => {
-  it('domuzu avla → kes → ateşte pişir → ye', () => {
+  it('domuzla dövüş (leşi kesilmez: necis) → karaca avla → kes → ateşte pişir → ye', () => {
     const w = setup(spots[0]!);
     w.step(); // ızgarayı kur
     w.inventory.add('stone_spear', 1);
@@ -175,17 +175,32 @@ describe('gerçek bölgede uçtan uca av zinciri', () => {
         w.step();
       }
     };
+    // Faz 10 (helal/haram): yaban domuzu necistir, leşi kesilmez; eti ve derisi alınmaz.
     held(LOOT.butcherSeconds + 0.5);
+    expect(w.log).not.toContain('carcass:butchered');
+    expect(w.inventory.count('raw_meat')).toBe(0);
+    expect(w.inventory.count('hide')).toBe(0);
+
+    // Karaca (helal av): öldürülür, kesilir.
+    const deerId = w.creatures.spawnAt('roe_deer', w.player.x, w.player.z - 1.5, 0)!;
+    expect(deerId).not.toBeNull();
+    w.creatures.damage(deerId, 1000, { x: w.player.x, z: w.player.z });
+    w.step();
+    const deerView = w.creatures.views().find((v) => v.id === deerId)!;
+    expect(deerView.dead).toBe(true);
+    const deer =
+      pickCarcass(w.creatures.near(w.player.x, w.player.z, 5), w.aimAt(deerView))?.view ?? null;
+    expect(deer?.id).toBe(deerId);
+    held(LOOT.butcherSeconds + 0.5, deer);
     expect(w.log).toContain('carcass:butchered');
-    expect(w.inventory.count('raw_meat')).toBe(4);
+    expect(w.inventory.count('raw_meat')).toBe(3);
     expect(w.inventory.count('hide')).toBe(1);
-    expect(w.inventory.count('bone')).toBe(1);
-    expect(w.creatures.views().some((v) => v.id === boarId)).toBe(false);
+    expect(w.creatures.views().some((v) => v.id === deerId)).toBe(false);
 
     // Yanık ateşte pişir.
     w.structures.add('campfire', w.player.x, terrain.heightAt(w.player.x, w.player.z), w.player.z);
-    held(COOKING.seconds * 4 + 0.5, null);
-    expect(w.inventory.count('cooked_meat')).toBe(4);
+    held(COOKING.seconds * 3 + 0.5, null);
+    expect(w.inventory.count('cooked_meat')).toBe(3);
     expect(w.inventory.count('raw_meat')).toBe(0);
 
     // Ye.

@@ -32,14 +32,23 @@ export interface VitalsInput {
   sheltered?: boolean;
   /**
    * Barınağın türü (Faz 9): `hut` (ahşap kulübe) `SHELTER_EFFECTS.hut` etkilerini, diğerleri sundurmanınkini
-   * (`SHELTER_EFFECTS.shelter`) kullanır. Yalnızca `sheltered` iken anlamlıdır.
+   * (`SHELTER_EFFECTS.shelter`) kullanır. Faz 10: kasaba yapılarının içi (`building`: han; `mosque`: cami)
+   * kulübe gibi korur. Yalnızca `sheltered` iken anlamlıdır.
    */
-  shelter?: 'lean_to' | 'hut' | null;
+  shelter?: ShelterKind | null;
 }
 
-/** Barınak etkileri: kulübe ya da (varsayılan) sundurma. */
+/** Barınak türü: sundurma, kulübe (Faz 9), kasaba yapısı ve cami içi (Faz 10). */
+export type ShelterKind = 'lean_to' | 'hut' | 'building' | 'mosque';
+
+/** Kapalı (duvarlı, çatılı) barınak mı? Kulübe, han, cami: `SHELTER_EFFECTS.hut`. */
+export function isEnclosedShelter(shelter: ShelterKind | null | undefined): boolean {
+  return shelter === 'hut' || shelter === 'building' || shelter === 'mosque';
+}
+
+/** Barınak etkileri: kapalı yapı ya da (varsayılan) sundurma. */
 function shelterFactors(shelter: VitalsInput['shelter']) {
-  return shelter === 'hut' ? SHELTER_EFFECTS.hut : SHELTER_EFFECTS.shelter;
+  return isEnclosedShelter(shelter) ? SHELTER_EFFECTS.hut : SHELTER_EFFECTS.shelter;
 }
 
 /** Bu adımda her kaynaktan alınan hasar (can puanı). */

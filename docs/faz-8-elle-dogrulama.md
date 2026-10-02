@@ -177,3 +177,22 @@ Dev tuşu `O` tezgâh, sandık ve kulübe verir (kısayola bağlar); `P` ateş/s
 - [ ] **Meşale:** gece elde (kısayolda seçili) meşale çevreyi yeterince aydınlatıyor mu? FPS etkisi: ___
 - [ ] **Kürk pelerin:** Bolu/Karabük yükseklerinde (`T+7`) ateşsiz bir gecede fark ediliyor mu (+2,5 °C)?
 - Notlar: ____________________
+
+## 12. Yerleşimler, yollar, insanlar ve kültür (Faz 10)
+
+Dev tuşları: `T` + rakam ve `Shift` + rakam ile il/ilçe merkezlerine ışınlan (Zonguldak `Shift+1`, Safranbolu `T+2`, Bolu `T+7`, Düzce `T+6`). `L` kiler erzakı ve bakır tencere verir, `N` önüne bir yolcu çıkarır.
+
+- [ ] **Gerçeğe benzerlik:** Safranbolu'da büyük cami, Cinci Hanı, hamam, saat kulesi ve konaklar bir arada mı (çarşı hissi)? Zonguldak'ta yamaca tırmanan apartmanlar, maden kuyusu kulesi, Uzun Mehmet anıtı? Bolu'da Yıldırım Bayezid Camii ve Taşhan? Hangisi yanlış/eksik: ____________________
+- [ ] **Ölçek:** Kasabalar bilinçli olarak büyütüldü ama yine de küçük (il merkezi 25–70 yapı). Yeterince "şehir" hissi veriyor mu? (Karar: ☐ olduğu gibi ☐ `SETTLEMENT_LAYOUT.footprintScale` büyütülsün)
+- [ ] **Yamaç:** evler yamaca gömülü, kapıları aşağı bakıyor; altta taş temel. Havada kalan ya da toprağa batmış (içine girilen) yapı var mı? Nerede: ____________________
+- [ ] **Camiler:** kıbleye (güneydoğu, pusulada "Kıble") dönük mü? Merdivenden çıkıp harime girebiliyor musun? İçeride HUD "Camide" diyor, gece kurtlar yaklaşmıyor mu?
+- [ ] **Terk edilmişlik:** yıkık çatısız evler, kararmış/tahtalanmış pencereler, inik kepenkler yeterince ıssız hissettiriyor mu?
+- [ ] **Yollar:** şehirleri bağlıyor mu? Yamaçta yolun arazinin içine gömüldüğü ya da havada kaldığı yer var mı? Renkleri/genişlikleri doğal mı? Kent içinde sokak ızgarası okunuyor mu?
+- [ ] **Arama:** ev/dükkân/apartman kapısında `E` basılı (3 sn) → "Bulundu: …" ya da "Boş çıktı". Ganimet miktarı (yiyecek kıtlığı helal kuralıyla dengelendi mi?): ☐ az ☐ uygun ☐ çok
+- [ ] **Türk mutfağı:** bakır tencere varken ateşte tarhana çorbası / bulgur pilavı / kuru fasulye / demli çay pişiyor mu (`E` basılı)?
+- [ ] **Çeşmeler:** cami avlusundaki ve meydandaki çeşmeden `E` ile su içilip kap doldurulabiliyor mu?
+- [ ] **İnsanlar:** yol kenarında beklerken ~20 dk'da bir kişi çıkıyor mu (dev: `N`)? Yaklaşıp selam veriyor mu, konuşma paneli (rakam tuşlarıyla) rahat mı, tarif ettiği yön doğru mu, takaslar makul mü?
+- [ ] **Helal/haram:** yaban domuzu leşi "necistir, kesilmez" diyor; kurt/ayıdan yalnızca deri ve kemik; karaca kesilince "Bismillah" ipucu. Kültürel olarak doğru ve saygılı mı?
+- [ ] **Vakitler:** saat kartında Miladî + Hicrî tarih ve sonraki vakit; `]` ile saati ilerletince "Öğle/İkindi/Akşam/Yatsı/İmsak vakti girdi" bildirimi geliyor mu?
+- [ ] **Performans:** Safranbolu, Düzce ve Karabük merkezlerinde FPS (başsız ölçümde en kötü 240 draw call): ___ FPS
+- Notlar: ____________________

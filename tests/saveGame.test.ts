@@ -158,9 +158,20 @@ describe('migrateSave: sürüm göçü', () => {
     expect(order).toEqual([2]);
   });
 
-  it('gerçek zincir: v1 (Faz 7) ve v2 (Faz 9) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(3);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2]);
+  it('gerçek zincir: v1 (Faz 7), v2 (Faz 9) ve v3 (Faz 10) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
+    expect(SAVE_FORMAT_VERSION).toBe(4);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3]);
+  });
+
+  it('v3 → v4: aranmış yapı listesi boş eklenir; v4 listesi doğrulanır ve sıralanır', () => {
+    const v3 = { ...JSON.parse(JSON.stringify(sample())), version: 3 } as Record<string, unknown>;
+    delete v3.settlements;
+    expect(parseSave(v3).settlements).toEqual({ searched: [] });
+    const v4 = { ...JSON.parse(JSON.stringify(sample())), settlements: { searched: [9, 3, 3] } };
+    expect(parseSave(v4).settlements.searched).toEqual([3, 9]);
+    expect(codeOf(() => parseSave({ ...sample(), settlements: { searched: [-1] } }))).toBe(
+      'invalid',
+    );
   });
 
   it('zincirde adım eksikse no_migration verir', () => {

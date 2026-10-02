@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LOOT_TABLE, lootFor } from '../src/combat/loot';
+import { LOOT_TABLE, isButcherable, lootFor } from '../src/combat/loot';
 import { CREATURE_KINDS } from '../src/creatures/kinds';
 import { craft } from '../src/items/craft';
 import { Inventory } from '../src/items/Inventory';
@@ -14,7 +14,8 @@ describe('yük tablosu', () => {
   it('eşya kimlikleri geçerli, adetler pozitif tam sayı, satırlar tekrarsız', () => {
     for (const kind of CREATURE_KINDS) {
       const stacks = LOOT_TABLE[kind];
-      expect(stacks.length, kind).toBeGreaterThan(0);
+      // Yaban domuzu (Faz 10): necis, leşi kesilmez (boş tablo).
+      expect(stacks.length > 0, kind).toBe(kind !== 'wild_boar');
       const ids = stacks.map((s) => s.id);
       expect(new Set(ids).size, kind).toBe(ids.length);
       for (const { id, count } of stacks) {
@@ -31,14 +32,18 @@ describe('yük tablosu', () => {
     }
   });
 
-  it('plan §3.5 değerleri: ayı en çok, karaca deri+et, kurt/domuz kemik de verir', () => {
+  it('helal/haram (Faz 10): yalnızca karaca eti; domuz kesilmez; kurt/ayı deri ve kemik verir', () => {
     const count = (kind: (typeof CREATURE_KINDS)[number], id: string) =>
       LOOT_TABLE[kind].find((s) => s.id === id)?.count ?? 0;
     expect(count('roe_deer', 'raw_meat')).toBe(3);
     expect(count('roe_deer', 'bone')).toBe(0);
-    expect(count('wild_boar', 'raw_meat')).toBe(4);
-    expect(count('wolf', 'bone')).toBe(1);
-    expect(count('brown_bear', 'raw_meat')).toBe(8);
+    expect(LOOT_TABLE.wild_boar).toEqual([]);
+    expect(isButcherable('wild_boar')).toBe(false);
+    for (const kind of ['wolf', 'brown_bear'] as const) {
+      expect(count(kind, 'raw_meat'), kind).toBe(0);
+      expect(count(kind, 'hide'), kind).toBeGreaterThan(0);
+      expect(count(kind, 'bone'), kind).toBeGreaterThan(0);
+    }
     expect(count('brown_bear', 'hide')).toBe(2);
   });
 
