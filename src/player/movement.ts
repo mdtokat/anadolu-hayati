@@ -1,4 +1,4 @@
-import { PHYSICS, PLAYER } from '../config';
+import { PHYSICS, PLAYER, TEST_MODE } from '../config';
 import type { MoveIntent } from '../core/inputMapping';
 
 export interface Vec3 {
@@ -66,4 +66,23 @@ export function stepVelocity(
   }
 
   return { x: velocity.x + dx * k, y: vy, z: velocity.z + dz * k };
+}
+
+/**
+ * Uçuş (test modu) için bir sabit adım: yerçekimi yok. Yatay hız yürümedeki gibi hedefe ivmeyle yaklaşır
+ * (Shift hızlı); dikey hız Space (yukarı) / aşağı tuşuna göre hedefe yaklaşır, bırakınca durur (havada asılı kalır).
+ */
+export function stepFlight(velocity: Vec3, intent: MoveIntent, yaw: number, dt: number): Vec3 {
+  const flight = TEST_MODE.flight;
+  const wish = wishDirection(intent, yaw);
+  const speed = intent.run ? flight.fastSpeed : flight.speed;
+  const targetVy = (Number(intent.jump) - Number(intent.descend === true)) * flight.verticalSpeed;
+
+  const dx = wish.x * speed - velocity.x;
+  const dy = targetVy - velocity.y;
+  const dz = wish.z * speed - velocity.z;
+  const distance = Math.hypot(dx, dy, dz);
+  const maxDelta = flight.acceleration * dt;
+  const k = distance <= maxDelta || distance === 0 ? 1 : maxDelta / distance;
+  return { x: velocity.x + dx * k, y: velocity.y + dy * k, z: velocity.z + dz * k };
 }

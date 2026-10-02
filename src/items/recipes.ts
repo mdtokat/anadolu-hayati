@@ -18,6 +18,13 @@ export const RECIPE_IDS = [
   'bone_knife',
   'torch',
   'fur_cloak',
+  // Modüler inşa parçaları (tezgâhta üretilir).
+  'foundation',
+  'wall',
+  'doorway',
+  'window_wall',
+  'door',
+  'roof',
 ] as const;
 export type RecipeId = (typeof RECIPE_IDS)[number];
 
@@ -170,6 +177,79 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     ],
     station: 'workbench',
     output: { id: 'fur_cloak', count: 1 },
+  },
+  // Modüler inşa parçaları: her biri ayrı üretilir (tezgâh + taş balta), sahada monte edilir (`placement/pieceRules.ts`).
+  foundation: {
+    id: 'foundation',
+    name: 'Taban',
+    inputs: [
+      { id: 'log', count: 2 },
+      { id: 'stone', count: 2 },
+      { id: 'bark', count: 2 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'foundation', count: 1 },
+  },
+  wall: {
+    id: 'wall',
+    name: 'Duvar',
+    inputs: [
+      { id: 'log', count: 1 },
+      { id: 'stick', count: 3 },
+      { id: 'bark', count: 2 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'wall', count: 1 },
+  },
+  doorway: {
+    id: 'doorway',
+    name: 'Kapılı Duvar',
+    inputs: [
+      { id: 'log', count: 1 },
+      { id: 'stick', count: 2 },
+      { id: 'bark', count: 2 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'doorway', count: 1 },
+  },
+  window_wall: {
+    id: 'window_wall',
+    name: 'Pencereli Duvar',
+    inputs: [
+      { id: 'log', count: 1 },
+      { id: 'stick', count: 3 },
+      { id: 'bark', count: 1 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'window_wall', count: 1 },
+  },
+  door: {
+    id: 'door',
+    name: 'Kapı',
+    inputs: [
+      { id: 'stick', count: 4 },
+      { id: 'bark', count: 2 },
+      { id: 'tinder', count: 2 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'door', count: 1 },
+  },
+  roof: {
+    id: 'roof',
+    name: 'Çatı',
+    inputs: [
+      { id: 'log', count: 1 },
+      { id: 'stick', count: 3 },
+      { id: 'bark', count: 3 },
+    ],
+    tool: 'stone_axe',
+    station: 'workbench',
+    output: { id: 'roof', count: 1 },
   },
 };
 

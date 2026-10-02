@@ -21,6 +21,8 @@ export class SettingsPanel {
   private readonly mouse: Slider;
   private readonly volume: Slider;
   private readonly hintButtons = new Map<boolean, HTMLButtonElement>();
+  private readonly testModeButtons = new Map<boolean, HTMLButtonElement>();
+  private readonly testModeHint = document.createElement('p');
   private readonly closeButton = document.createElement('button');
   private readonly offs: Array<() => void> = [];
 
@@ -92,6 +94,33 @@ export class SettingsPanel {
     }
     hintsGroup.append(hintsLabel, hintsSegmented);
 
+    // Test modu (geçici): uçma ve sınırsız malzeme
+    const testGroup = document.createElement('div');
+    testGroup.className = 'settings-row';
+    const testLabel = document.createElement('span');
+    testLabel.className = 'settings-label';
+    testLabel.textContent = 'Test modu';
+    const testSegmented = document.createElement('div');
+    testSegmented.className = 'settings-segmented';
+    testSegmented.setAttribute('role', 'radiogroup');
+    testSegmented.setAttribute('aria-label', 'Test modu');
+    for (const [enabled, label] of [
+      [true, 'Açık'],
+      [false, 'Kapalı'],
+    ] as const) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'radio');
+      button.textContent = label;
+      button.addEventListener('click', () => this.store.update({ testMode: enabled }));
+      this.testModeButtons.set(enabled, button);
+      testSegmented.append(button);
+    }
+    this.testModeHint.className = 'settings-hint';
+    this.testModeHint.textContent =
+      'Uçma (Space çift bas; Space yukarı, Z aşağı, Shift hızlı) ve sınırsız malzeme: üretim ve yapı yerleştirme eşya harcamaz.';
+    testGroup.append(testLabel, testSegmented);
+
     const actions = document.createElement('div');
     actions.className = 'settings-actions';
     const reset = document.createElement('button');
@@ -111,6 +140,8 @@ export class SettingsPanel {
       this.sliderRow('Fare hassasiyeti', this.mouse),
       this.sliderRow('Ses', this.volume),
       hintsGroup,
+      testGroup,
+      this.testModeHint,
       actions,
     );
     this.root.append(panel);
@@ -182,6 +213,11 @@ export class SettingsPanel {
     }
     for (const [enabled, button] of this.hintButtons) {
       const active = enabled === s.hints;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-checked', String(active));
+    }
+    for (const [enabled, button] of this.testModeButtons) {
+      const active = enabled === s.testMode;
       button.classList.toggle('active', active);
       button.setAttribute('aria-checked', String(active));
     }

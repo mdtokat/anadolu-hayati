@@ -107,6 +107,7 @@ export class Hud {
   private readonly banner = el('div', 'hud-banner');
   private readonly bannerText = el('span', 'hud-banner-text');
   private bannerTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly modeBadge = el('div', 'hud-mode');
   private readonly hotbar = el('div', 'hud-hotbar');
   private readonly hotbarSlots = el('div', 'hud-hotbar-slots');
   private readonly hotbarHeld = el('div', 'hud-hotbar-held');
@@ -146,6 +147,7 @@ export class Hud {
       this.progress,
       this.hitMarker,
       this.compass,
+      this.modeBadge,
       this.gauges,
       this.info,
       this.warningList,
@@ -161,7 +163,14 @@ export class Hud {
     } else {
       this.debug = null;
     }
+    this.modeBadge.hidden = true;
     parent.appendChild(this.root);
+  }
+
+  /** Test modu rozeti (sol üst): metin verilirse görünür, null gizler. */
+  setModeBadge(text: string | null): void {
+    this.modeBadge.hidden = text === null;
+    if (text !== null) setText(this.modeBadge, text);
   }
 
   private buildCompass(): void {

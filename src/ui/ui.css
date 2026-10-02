@@ -278,6 +278,20 @@
 }
 
 /* Pusula (üst orta) */
+.hud-mode {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ui-accent, #e8b04a);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--ui-accent, #e8b04a);
+  border-radius: 999px;
+  pointer-events: none;
+}
 .hud-compass {
   position: absolute;
   top: 12px;

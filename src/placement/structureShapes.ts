@@ -1,3 +1,4 @@
+import { PIECES } from '../config';
 import type { StructureKind } from './structures';
 
 /**
@@ -25,6 +26,24 @@ export const CHEST = { width: 0.9, depth: 0.55, height: 0.55 } as const;
 
 /** Çalışma tezgâhı: tabla genişliği (X), derinliği (Z), yüksekliği. */
 export const WORKBENCH = { width: 1.4, depth: 0.7, height: 0.85 } as const;
+
+/**
+ * Modüler parça ölçüleri (yerel uzay; `PIECES`'ten türer): plaka hücre merkezinde `y ∈ [0, slab]`, duvar kenarın
+ * ortasında X boyunca uzanır, plakanın üstünden başlar. Görsel geometri ve collider'lar buradan okur.
+ */
+export const PIECE_SHAPE = {
+  half: PIECES.cell / 2,
+  slab: PIECES.slab,
+  wallBottom: PIECES.slab,
+  wallTop: PIECES.slab + PIECES.wallHeight,
+  thickness: PIECES.wallThickness,
+  doorHalf: PIECES.doorway.width / 2,
+  doorTop: PIECES.slab + PIECES.doorway.height,
+  windowHalf: PIECES.window.width / 2,
+  windowBottom: PIECES.slab + PIECES.window.sill,
+  windowTop: PIECES.slab + PIECES.window.sill + PIECES.window.height,
+  doorLeafThickness: PIECES.doorThickness,
+} as const;
 
 /** Eksen hizalı yerel kutu: merkez ve yarı uzunluklar (oyun m). */
 export interface LocalBox {
@@ -69,11 +88,47 @@ function hutWalls(): LocalBox[] {
   ];
 }
 
+/** Modüler parçanın katı kutuları (yerel uzay). `open`: kapı kanadı açık mı? */
+function pieceBoxes(kind: StructureKind, open: boolean): LocalBox[] {
+  const P = PIECE_SHAPE;
+  const t = P.thickness / 2;
+  switch (kind) {
+    case 'foundation':
+      return [box(-P.half, P.half, -0.5, P.slab, -P.half, P.half)];
+    case 'roof':
+      return [box(-P.half, P.half, 0, P.slab, -P.half, P.half)];
+    case 'wall':
+      return [box(-P.half, P.half, P.wallBottom, P.wallTop, -t, t)];
+    case 'doorway':
+      return [
+        box(-P.half, -P.doorHalf, P.wallBottom, P.wallTop, -t, t),
+        box(P.doorHalf, P.half, P.wallBottom, P.wallTop, -t, t),
+        box(-P.doorHalf, P.doorHalf, P.doorTop, P.wallTop, -t, t),
+      ];
+    case 'window_wall':
+      return [
+        box(-P.half, -P.windowHalf, P.wallBottom, P.wallTop, -t, t),
+        box(P.windowHalf, P.half, P.wallBottom, P.wallTop, -t, t),
+        box(-P.windowHalf, P.windowHalf, P.wallBottom, P.windowBottom, -t, t),
+        box(-P.windowHalf, P.windowHalf, P.windowTop, P.wallTop, -t, t),
+      ];
+    case 'door': {
+      const leaf = P.doorLeafThickness / 2;
+      // Açıkken kanat menteşe yanında (x = −doorHalf) öne (+Z) doğru uzanır; kapalıyken boşluğu kapatır.
+      return open
+        ? [box(-P.doorHalf - leaf, -P.doorHalf + leaf, P.wallBottom, P.doorTop, 0, 2 * P.doorHalf)]
+        : [box(-P.doorHalf, P.doorHalf, P.wallBottom, P.doorTop, -leaf, leaf)];
+    }
+    default:
+      return [];
+  }
+}
+
 /**
  * Yapının katı kutuları (yerel uzay). Kamp ateşi ve sundurma katı değildir (içinden geçilir; eski davranış);
  * sandık ve tezgâh tek kutu, kulübe kapılı dört duvardır (içine kapıdan girilir).
  */
-export function solidBoxes(kind: StructureKind): LocalBox[] {
+export function solidBoxes(kind: StructureKind, open = false): LocalBox[] {
   switch (kind) {
     case 'storage_chest':
       return [
@@ -102,6 +157,13 @@ export function solidBoxes(kind: StructureKind): LocalBox[] {
     case 'campfire':
     case 'lean_to':
       return [];
+    case 'foundation':
+    case 'wall':
+    case 'doorway':
+    case 'window_wall':
+    case 'door':
+    case 'roof':
+      return pieceBoxes(kind, open);
   }
 }
 

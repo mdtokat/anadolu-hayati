@@ -1,4 +1,5 @@
 import { PLACEMENT, SCATTER, VERTICAL_SCALE } from '../config';
+import { floorTopAt, isPieceKind, pieceDistance } from './pieces';
 import type { StructureKind, StructureSet } from './structures';
 
 /** Geçerlilik denetiminin dünyaya bakışı (Three.js'siz; test ve dünyalar kendi kaynağını verir). */
@@ -9,7 +10,16 @@ export interface PlaceContext {
   structures: StructureSet;
 }
 
-export type PlaceFailure = 'too_far' | 'in_sea' | 'too_steep' | 'near_water' | 'too_close';
+export type PlaceFailure =
+  | 'too_far'
+  | 'in_sea'
+  | 'too_steep'
+  | 'near_water'
+  | 'too_close'
+  /** Modüler parça: bitişeceği taban/duvar yok. */
+  | 'no_support'
+  /** Modüler parça: bu yuva dolu. */
+  | 'occupied';
 
 export type PlaceCheck =
   { ok: true; y: number; slopeDeg: number } | { ok: false; reason: PlaceFailure };
@@ -94,24 +104,41 @@ export function validatePlacement(
     return { ok: false, reason: 'too_far' };
   }
 
-  const y = ctx.heightAt(target.x, target.z);
-  if (y * VERTICAL_SCALE <= SCATTER.minElevation) return { ok: false, reason: 'in_sea' };
-
-  const slope = slopeDegAt(ctx.heightAt, target.x, target.z);
-  if (slope > spec.maxSlopeDeg) return { ok: false, reason: 'too_steep' };
-  if (
-    spec.maxRelief !== undefined &&
-    footprintRelief(ctx.heightAt, target.x, target.z, spec.reliefRadius ?? spec.radius) >
-      spec.maxRelief
-  ) {
-    return { ok: false, reason: 'too_steep' };
+  // Taban üstünde yalnızca küçük yapılar (ateş, tezgâh, sandık) kurulur; zemin denetimleri tabanda yapılmıştır.
+  const floorTop = floorTopAt(ctx.structures, target.x, target.z);
+  if (floorTop !== null && (kind === 'wooden_hut' || kind === 'lean_to')) {
+    return { ok: false, reason: 'too_close' };
   }
+  const y = floorTop ?? ctx.heightAt(target.x, target.z);
+  let slope = 0;
+  if (floorTop === null) {
+    if (y * VERTICAL_SCALE <= SCATTER.minElevation) return { ok: false, reason: 'in_sea' };
 
-  if (ctx.nearFreshWater?.(target.x, target.z)) return { ok: false, reason: 'near_water' };
+    slope = slopeDegAt(ctx.heightAt, target.x, target.z);
+    if (slope > spec.maxSlopeDeg) return { ok: false, reason: 'too_steep' };
+    if (
+      spec.maxRelief !== undefined &&
+      footprintRelief(ctx.heightAt, target.x, target.z, spec.reliefRadius ?? spec.radius) >
+        spec.maxRelief
+    ) {
+      return { ok: false, reason: 'too_steep' };
+    }
+
+    if (ctx.nearFreshWater?.(target.x, target.z)) return { ok: false, reason: 'near_water' };
+  }
 
   const longest = Math.max(...Object.values(PLACEMENT.kinds).map((k) => k.radius));
   const searchRadius = spec.radius + longest + PLACEMENT.spacingMargin;
   for (const other of ctx.structures.near(target.x, target.z, searchRadius)) {
+    if (isPieceKind(other.kind)) {
+      // Modüler parça: yalnızca kendi ayak izine (plaka kenarı/duvar doğrusu) yaklaşılamaz; çatı üstte kalır.
+      if (other.kind !== 'roof' && pieceDistance(other, target.x, target.z) < spec.radius + 0.15) {
+        // Taban üstündeki küçük yapı tabanın kendisine değil, yalnızca duvarlara çarpar.
+        if (other.kind === 'foundation' && floorTop !== null) continue;
+        return { ok: false, reason: 'too_close' };
+      }
+      continue;
+    }
     const needed = spec.radius + PLACEMENT.kinds[other.kind].radius + PLACEMENT.spacingMargin;
     if (Math.hypot(other.x - target.x, other.z - target.z) < needed) {
       return { ok: false, reason: 'too_close' };

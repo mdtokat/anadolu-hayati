@@ -1,4 +1,5 @@
 import { radiusOf } from './placeRules';
+import { isPieceKind } from './pieces';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
 /** Oyuncunun ayak konumu ve bakış yönü (yaw; ileri = (−sin, −cos)). */
@@ -41,11 +42,24 @@ export function structureInView(
     const radius = radiusOf(s.kind);
     const edge = Math.max(0, distance - radius);
     if (edge > rules.reach) continue;
-    if (distance > radius && (dx * forwardX + dz * forwardZ) / distance < cosLimit) continue;
-    if (edge < bestEdge) {
+    // Modüler parçalar geniş plakalardır: üstünde/dibinde durulsa da bakış konisi aranır (duvara bakarken tabanı seçme).
+    const exempt = distance <= radius && !isPieceKind(s.kind);
+    if (!exempt && distance > 0.3 && (dx * forwardX + dz * forwardZ) / distance < cosLimit)
+      continue;
+    const rank = edge + pieceBias(s.kind);
+    if (rank < bestEdge) {
       best = s;
-      bestEdge = edge;
+      bestEdge = rank;
     }
   }
   return best;
+}
+
+/**
+ * Odak sıralamasında parça türü payı: plakalar (taban/çatı) duvarlara ve diğer yapılara yenilir, kapı kapılı duvarın
+ * önüne geçer (aynı konumdadırlar).
+ */
+function pieceBias(kind: StructureKind): number {
+  if (kind === 'foundation' || kind === 'roof') return 1.5;
+  return kind === 'door' ? -0.2 : 0;
 }

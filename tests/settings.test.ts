@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { QUALITY_PRESETS, SETTINGS } from '../src/config';
+import { QUALITY_PRESETS, SETTINGS, TEST_MODE } from '../src/config';
 import {
   QUALITY_LEVELS,
   SETTINGS_VERSION,
@@ -20,6 +20,7 @@ describe('varsayılan ayarlar', () => {
       mouseSensitivity: 1,
       volume: SETTINGS.volume.default,
       hints: SETTINGS.defaultHints,
+      testMode: TEST_MODE.defaultEnabled,
     });
     expect(parseSettings(d)).toEqual(d);
   });
@@ -66,6 +67,7 @@ describe('parseSettings: hoşgörülü okuma', () => {
       mouseSensitivity: 1.5,
       volume: 0.25,
       hints: SETTINGS.defaultHints,
+      testMode: TEST_MODE.defaultEnabled,
     });
   });
 
@@ -74,6 +76,12 @@ describe('parseSettings: hoşgörülü okuma', () => {
     expect(parseSettings({ hints: true }).hints).toBe(true);
     expect(parseSettings({ hints: 'hayır' }).hints).toBe(SETTINGS.defaultHints);
     expect(parseSettings({}).hints).toBe(true); // eski kayıtlı ayarlarda alan yoktur: varsayılan açık
+  });
+
+  it('test modu: varsayılan kapalı; yalnızca mantıksal değer okunur', () => {
+    expect(parseSettings({}).testMode).toBe(false);
+    expect(parseSettings({ testMode: true }).testMode).toBe(true);
+    expect(parseSettings({ testMode: 'evet' }).testMode).toBe(TEST_MODE.defaultEnabled);
   });
 
   it('bozuk alanları tek tek varsayılana düşürür, diğerlerini korur', () => {

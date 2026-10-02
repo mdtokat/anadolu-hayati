@@ -11,6 +11,13 @@ export const STRUCTURE_KINDS = [
   'workbench',
   'storage_chest',
   'wooden_hut',
+  // Modüler parçalar (kullanıcı talimatı): `placement/pieces.ts`.
+  'foundation',
+  'wall',
+  'doorway',
+  'window_wall',
+  'door',
+  'roof',
 ] as const;
 export type StructureKind = (typeof STRUCTURE_KINDS)[number];
 
@@ -42,6 +49,8 @@ export interface Structure {
   yaw: number;
   /** Yalnızca kamp ateşinde: kalan yanma süresi (gerçek sn); 0 = sönük (kül). */
   fuelSeconds?: number;
+  /** Yalnızca kapıda: açık mı? */
+  open?: boolean;
 }
 
 /** Kayıttaki yapı girdisi: sandıklarda içerik de yazılır (Faz 9; alan yalnızca sandıkta bulunur). */
@@ -63,7 +72,7 @@ export const STRUCTURE_SAVE_VERSION = 1;
 
 /** Yapının yerleşim imzası: kayıt yüklenince aynı kimlik başka bir yapıyı gösterebilir (görsel/collider yenilenir). */
 export function placementKey(s: Readonly<Structure>): string {
-  return `${s.kind}|${s.x}|${s.y}|${s.z}|${s.yaw}`;
+  return `${s.kind}|${s.x}|${s.y}|${s.z}|${s.yaw}${s.open ? '|open' : ''}`;
 }
 
 /** Yanan bir ateş mi? */
@@ -103,6 +112,7 @@ export class StructureSet {
   add(kind: StructureKind, x: number, y: number, z: number, yaw = 0): Readonly<Structure> {
     const structure: Structure = { id: this.nextId++, kind, x, y, z, yaw };
     if (kind === 'campfire') structure.fuelSeconds = FIRE.burnSeconds;
+    if (kind === 'door') structure.open = false;
     this.items.set(structure.id, structure);
     if (isStorageKind(kind)) this.storages.set(structure.id, new Inventory(storageOptions()));
     this.revision += 1;
@@ -115,6 +125,15 @@ export class StructureSet {
     this.storages.delete(id);
     this.revision += 1;
     return true;
+  }
+
+  /** Kapıyı açar/kapatır; yeni durumu döndürür (kapı değilse null). */
+  toggleDoor(id: StructureId): boolean | null {
+    const structure = this.items.get(id);
+    if (!structure || structure.kind !== 'door') return null;
+    structure.open = !structure.open;
+    this.revision += 1;
+    return structure.open;
   }
 
   /** Sandığın envanteri (yerinde değiştirilir); sandık değilse null. */
@@ -242,6 +261,14 @@ export class StructureSet {
         structure.fuelSeconds = fuel;
       } else if (s.fuelSeconds !== undefined) {
         throw new Error(`Yapı ${s.id}: ${s.kind} yakıt taşımaz`);
+      }
+      if (s.kind === 'door') {
+        if (s.open !== undefined && typeof s.open !== 'boolean') {
+          throw new Error(`Yapı ${s.id}: geçersiz kapı durumu`);
+        }
+        structure.open = s.open === true;
+      } else if (s.open !== undefined) {
+        throw new Error(`Yapı ${s.id}: ${s.kind} açılıp kapanmaz`);
       }
       if (isStorageKind(s.kind)) {
         // İçeriksiz sandık (elle yazılmış/eski kayıt) boş sayılır.

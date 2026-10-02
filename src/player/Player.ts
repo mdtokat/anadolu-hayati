@@ -2,7 +2,7 @@ import { PLAYER } from '../config';
 import type { MoveIntent } from '../core/inputMapping';
 import { RAPIER, type PhysicsWorld } from '../physics/PhysicsWorld';
 import { lerp } from '../utils/math';
-import { stepVelocity, type Vec3 } from './movement';
+import { stepFlight, stepVelocity, type Vec3 } from './movement';
 
 const DEG_TO_RAD = Math.PI / 180;
 
@@ -32,6 +32,8 @@ export class Player {
   private current: Vec3;
   private velocity: Vec3 = { x: 0, y: 0, z: 0 };
   private onGround = false;
+  /** Uçuş (test modu): yerçekimi yok, dikey hareket tuşlarla; çarpışma sürer. */
+  private flying = false;
   private readonly scratchCollision = new RAPIER.CharacterCollision();
   /** Bu değerin altında normal.y'ye sahip yüzeyler (maksimum eğimden dik) tırmanılamaz sayılır. */
   private readonly minClimbableNormalY: number;
@@ -80,6 +82,18 @@ export class Player {
     return this.onGround;
   }
 
+  /** Uçuyor mu (test modu)? */
+  get isFlying(): boolean {
+    return this.flying;
+  }
+
+  /** Uçuşu açar/kapatır. Kapanınca dikey hız sıfırlanır (düşmeye yerçekimiyle başlar). */
+  setFlying(on: boolean): void {
+    if (this.flying === on) return;
+    this.flying = on;
+    this.velocity.y = 0;
+  }
+
   /** Anlık hız (m/s). */
   get currentVelocity(): Readonly<Vec3> {
     return this.velocity;
@@ -90,7 +104,9 @@ export class Player {
    * kinematik gövdenin yeni konumu o adımda collider'a yansır.
    */
   update(dt: number, intent: MoveIntent, yaw: number): void {
-    this.velocity = stepVelocity(this.velocity, this.onGround, intent, yaw, dt);
+    this.velocity = this.flying
+      ? stepFlight(this.velocity, intent, yaw, dt)
+      : stepVelocity(this.velocity, this.onGround, intent, yaw, dt);
 
     const desired = {
       x: this.velocity.x * dt,

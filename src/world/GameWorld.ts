@@ -3,6 +3,8 @@ import type { SettlementMap } from '../settlements/SettlementMap';
 import type { CreatureTerrain } from '../creatures/kinds';
 import type { LandCoverClass } from '../data/landcover';
 import type { Vec3 } from '../player/movement';
+import type { CityStart } from '../survival/cityStart';
+import type { Random } from '../utils/random';
 import type { SkyPosition } from '../survival/astronomy';
 import type { WaterHit } from './waterIndex';
 import type { HeightSource } from './HeightSource';
@@ -58,6 +60,8 @@ export interface GameWorld {
   freshWaterNear?(x: number, z: number): WaterHit | null;
   /** n. ölümden sonra yeniden doğma noktası (ayak tabanı); dünya desteklemiyorsa tanımsız. */
   respawnPoint?(deathIndex: number): Vec3 | null;
+  /** Rastgele il/ilçe merkezi başlangıcı (yeni oyun); desteklemeyen dünyada ya da uygun nokta yoksa tanımsız/null. */
+  cityStart?(random: Random): CityStart | null;
   /** Hedef illerin yer merkezleri (yer adı bildirimi, Faz 8.3); desteklemeyen dünyalarda tanımsız. */
   placeCenters?(): readonly PlaceCenter[];
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */

@@ -10,6 +10,8 @@ export type InputAction =
   | 'placeShelter'
   /** Yerleştirme hayaletini döndür (Faz 9). */
   | 'rotatePlacement'
+  /** Test modunda Space'e çift basış: uçuşu aç/kapa (yalnızca Input üretir; Game test modu kapalıyken yok sayar). */
+  | 'toggleFlight'
   /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirme hayaleti varsa onayla, yoksa saldır. */
   | 'primaryAction';
 
@@ -21,6 +23,8 @@ export interface MoveIntent {
   strafe: number;
   run: boolean;
   jump: boolean;
+  /** Uçuşta aşağı in (yalnızca test modu; yoksa false). */
+  descend?: boolean;
 }
 
 function anyPressed(pressed: ReadonlySet<string>, codes: readonly string[]): boolean {
@@ -35,6 +39,7 @@ export function mapKeysToIntent(pressed: ReadonlySet<string>): MoveIntent {
     strafe: Number(anyPressed(pressed, b.right)) - Number(anyPressed(pressed, b.left)),
     run: anyPressed(pressed, b.run),
     jump: anyPressed(pressed, b.jump),
+    descend: anyPressed(pressed, b.descend),
   };
 }
 

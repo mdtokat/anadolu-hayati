@@ -6,8 +6,8 @@ import {
   Matrix4,
   Vector3,
 } from 'three';
-import { STRUCTURE_LOOK } from '../config';
-import { CHEST, HUT, WORKBENCH } from '../placement/structureShapes';
+import { PIECES, STRUCTURE_LOOK } from '../config';
+import { CHEST, HUT, PIECE_SHAPE as P, WORKBENCH } from '../placement/structureShapes';
 import type { StructureKind } from '../placement/structures';
 import { createRandom } from '../utils/random';
 import { blob, merge, place, type Part } from './propGeometry';
@@ -256,18 +256,165 @@ function hutParts(): Part[] {
   return parts;
 }
 
+/** Taban plakasının tahta çizgileri (üst yüzde ince koyu şeritler). */
+function plankLines(minY: number, color: number, from: number, to: number, step: number): Part[] {
+  const lines: Part[] = [];
+  for (let z = from + step; z < to - 1e-6; z += step) {
+    lines.push(slab(-P.half, P.half, minY, minY + 0.012, z - 0.015, z + 0.015, color));
+  }
+  return lines;
+}
+
+/** Taban (modüler): tahta kaplı plaka ve zemine inen toprak tonlu etek. */
+function foundationParts(): Part[] {
+  return [
+    slab(-P.half, P.half, 0, P.slab, -P.half, P.half, C.slab),
+    ...plankLines(P.slab, C.darkPlank, -P.half, P.half, 0.5),
+    slab(-P.half + 0.04, P.half - 0.04, -PIECES.skirt, 0, -P.half + 0.04, P.half - 0.04, C.skirt),
+  ];
+}
+
+/** Çatı (modüler): koyu plaka, üstünde kiremit/tahta şeritleri ve çıkıntılı saçak. */
+function roofParts(): Part[] {
+  const o = P.half + 0.1;
+  const parts: Part[] = [slab(-o, o, 0, P.slab, -o, o, C.roofSlab)];
+  for (let z = -P.half + 0.4; z < P.half; z += 0.4) {
+    parts.push(slab(-o, o, P.slab, P.slab + 0.025, z - 0.02, z + 0.02, C.darkPlank));
+  }
+  return parts;
+}
+
+/** Duvar gövdesi için ortak: iki yan direk ve kütük çizgileri; `openings` doğrudan kutu verir. */
+function wallFrame(): Part[] {
+  const t = P.thickness / 2 + 0.03;
+  const parts: Part[] = [];
+  for (const x of [-P.half, P.half]) {
+    const inner = x < 0 ? x : x - 0.1;
+    parts.push(slab(inner, inner + 0.1, P.wallBottom, P.wallTop, -t, t, C.darkPlank));
+  }
+  return parts;
+}
+
+/** Yatay kütük çizgileri: `[minX, maxX]` aralığında, `[minY, maxY]` bandında, iki yüzde. */
+function logLines(minX: number, maxX: number, minY: number, maxY: number): Part[] {
+  const t = P.thickness / 2;
+  const lines: Part[] = [];
+  for (let y = minY + 0.3; y < maxY - 0.1; y += 0.5) {
+    lines.push(slab(minX, maxX, y, y + 0.05, -t - 0.02, t + 0.02, C.darkPlank));
+  }
+  return lines;
+}
+
+function wallParts(): Part[] {
+  const t = P.thickness / 2;
+  return [
+    slab(-P.half, P.half, P.wallBottom, P.wallTop, -t, t, C.wall),
+    ...logLines(-P.half, P.half, P.wallBottom, P.wallTop),
+    ...wallFrame(),
+  ];
+}
+
+function doorwayParts(): Part[] {
+  const t = P.thickness / 2;
+  const d = P.doorHalf;
+  return [
+    slab(-P.half, -d, P.wallBottom, P.wallTop, -t, t, C.wall),
+    slab(d, P.half, P.wallBottom, P.wallTop, -t, t, C.wall),
+    slab(-d, d, P.doorTop, P.wallTop, -t, t, C.wall),
+    ...logLines(-P.half, -d, P.wallBottom, P.wallTop),
+    ...logLines(d, P.half, P.wallBottom, P.wallTop),
+    ...logLines(-d, d, P.doorTop, P.wallTop),
+    // Kasa: iki yan söve ve üst lento (koyu).
+    slab(-d - 0.07, -d, P.wallBottom, P.doorTop + 0.07, -t - 0.03, t + 0.03, C.darkPlank),
+    slab(d, d + 0.07, P.wallBottom, P.doorTop + 0.07, -t - 0.03, t + 0.03, C.darkPlank),
+    slab(-d - 0.07, d + 0.07, P.doorTop, P.doorTop + 0.07, -t - 0.03, t + 0.03, C.darkPlank),
+    ...wallFrame(),
+  ];
+}
+
+function windowWallParts(): Part[] {
+  const t = P.thickness / 2;
+  const w = P.windowHalf;
+  return [
+    slab(-P.half, -w, P.wallBottom, P.wallTop, -t, t, C.wall),
+    slab(w, P.half, P.wallBottom, P.wallTop, -t, t, C.wall),
+    slab(-w, w, P.wallBottom, P.windowBottom, -t, t, C.wall),
+    slab(-w, w, P.windowTop, P.wallTop, -t, t, C.wall),
+    ...logLines(-P.half, -w, P.wallBottom, P.wallTop),
+    ...logLines(w, P.half, P.wallBottom, P.wallTop),
+    ...logLines(-w, w, P.wallBottom, P.windowBottom),
+    ...logLines(-w, w, P.windowTop, P.wallTop),
+    // Pencere çerçevesi ve denizlik.
+    slab(-w - 0.06, -w, P.windowBottom, P.windowTop, -t - 0.03, t + 0.03, C.darkPlank),
+    slab(w, w + 0.06, P.windowBottom, P.windowTop, -t - 0.03, t + 0.03, C.darkPlank),
+    slab(
+      -w - 0.08,
+      w + 0.08,
+      P.windowBottom - 0.05,
+      P.windowBottom + 0.03,
+      -t - 0.07,
+      t + 0.07,
+      C.darkPlank,
+    ),
+    slab(-w - 0.06, w + 0.06, P.windowTop, P.windowTop + 0.06, -t - 0.03, t + 0.03, C.darkPlank),
+    ...wallFrame(),
+  ];
+}
+
+/** Kapı kanadı (kapalı): boşluğu doldurur; açıkken menteşe yanında öne açılır. */
+function doorParts(open: boolean): Part[] {
+  const d = P.doorHalf;
+  const th = P.doorLeafThickness / 2;
+  if (!open) {
+    return [
+      slab(-d, d, P.wallBottom, P.doorTop, -th, th, C.plank),
+      slab(-d, d, P.wallBottom + 0.3, P.wallBottom + 0.42, -th - 0.02, th + 0.02, C.darkPlank),
+      slab(-d, d, P.doorTop - 0.5, P.doorTop - 0.38, -th - 0.02, th + 0.02, C.darkPlank),
+      slab(d - 0.2, d - 0.14, 1.0, 1.1, th, th + 0.05, C.iron),
+    ];
+  }
+  // Açık: kanat x = −d'de, +Z'ye doğru 2d uzunlukta.
+  const z0 = 0;
+  const z1 = 2 * d;
+  return [
+    slab(-d - th, -d + th, P.wallBottom, P.doorTop, z0, z1, C.plank),
+    slab(
+      -d - th - 0.02,
+      -d + th + 0.02,
+      P.wallBottom + 0.3,
+      P.wallBottom + 0.42,
+      z0,
+      z1,
+      C.darkPlank,
+    ),
+    slab(-d - th - 0.02, -d + th + 0.02, P.doorTop - 0.5, P.doorTop - 0.38, z0, z1, C.darkPlank),
+    slab(-d + th, -d + th + 0.05, 1.0, 1.1, z1 - 0.2, z1 - 0.14, C.iron),
+  ];
+}
+
 const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
   campfire: campfireParts,
   lean_to: leanToParts,
   workbench: workbenchParts,
   storage_chest: chestParts,
   wooden_hut: hutParts,
+  foundation: foundationParts,
+  wall: wallParts,
+  doorway: doorwayParts,
+  window_wall: windowWallParts,
+  door: () => doorParts(false),
+  roof: roofParts,
 };
 
 /** Yapı türünün gövde geometrisi (alev hariç). */
 export function buildStructureGeometry(kind: StructureKind): BufferGeometry {
   const random = createRandom(SEED + (kind === 'campfire' ? 1 : kind === 'lean_to' ? 2 : 10));
   return merge(PARTS[kind](), random);
+}
+
+/** Açık kapı kanadı geometrisi (kapalı olanı `buildStructureGeometry('door')`). */
+export function buildOpenDoorGeometry(): BufferGeometry {
+  return merge(doorParts(true), createRandom(SEED + 11));
 }
 
 /** Kamp ateşi alevi (yerel uzay; gövdeyle aynı orijin). Köşe rengi var, doku yok. */

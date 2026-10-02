@@ -292,6 +292,7 @@ Görevler:
 - [x] **10.7** İnsanlar (`src/people/`): yolcu, çoban, oduncu, köylü teyze, derviş; ~20 dk'da bir; "Selamün aleyküm"; konuşma paneli (yol/su tarifi, hikâye, takas, dervişin hediyesi, "Allah'a emanet ol")
 - [x] **10.8** Kültür: helal/haram (yalnızca karaca eti; yaban domuzu kesilmez; kurt/ayıdan deri ve kemik), "Bismillah" kesim ipucu, namaz vakitleri (Diyanet açıları) ve vakit bildirimi, Miladî + Hicrî tarih, pusulada kıble, Selçuklu yıldızı bordürü, yerleşim/kişi ipuçları
 - [x] **10.9** Ölçüm ve belgeler: [docs/faz-10-yerlesim-olcumler.md](docs/faz-10-yerlesim-olcumler.md), `CLAUDE.md`, README, elle doğrulama kılavuzu bölüm 12
+- [x] **10.10** Faz 10 sonrası ek talimat (kullanıcı): **modüler inşa** (taban, duvar, kapılı/pencereli duvar, kapı, çatı ayrı üretilir, sahada ızgaraya monte edilir; çok katlı; açılıp kapanan kapı; kapalı oda = kulübe etkisi), **test modu** (Ayarlar'dan aç/kapa: uçma, sınırsız malzeme; geçici) ve **şehir merkezi başlangıcı** (yeni oyun ve yeniden doğma 5 il + 30 ilçe merkezinden rastgele; pilot il kısıtı bu seçimde kalktı). Ayrıntı `CLAUDE.md` "Faz 10 sonrası"; elle doğrulama kılavuzu bölüm 13
 
 Kabul kriterleri:
 - [x] 5 il ve 30 ilçe merkezi gerçek konumlarında, gerçek bina yoğunluğuna göre kuruluyor; köyler seyrek; harita evle dolmuyor (1 410 yapı) _(testli: `tests/settlementMap`)_
@@ -339,7 +340,7 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Tekne ile kıyı boyunca seyahat
 - Hikâye / görev sistemi
 - Ayrı ekipman slotu (giyilebilir zırh), silah bozulması, kanama/kırık gibi yaralanma türleri _(Faz 5'te giysi yalnızca envanterde bulunarak savunma verir; Faz 9'da silah/alet seçimi için kısayol çubuğu geldi, giysi slotu hâlâ yok)_
-- İnşa (Faz 9 sonrası): modüler duvar/zemin/çatı parçaları, açılıp kapanan kapı, yapı hasarı/onarımı, hayvanların duvarları algılaması (şimdi içinden geçerler), sandıktaki malzemeyle doğrudan üretim, meşalenin yanma süresi ve kurtları uzak tutması
+- İnşa (Faz 9 sonrası; modüler parçalar ve açılıp kapanan kapı 10.10'da geldi): merdiven/rampa ve eğimli (beşik) çatı, balkon/korkuluk, çatı altı üçgen alın duvarı, parça ağırlıkları/destek çökmesi (desteği sökülen parça şimdi havada kalır), yapı hasarı/onarımı, hayvanların duvarları algılaması (şimdi içinden geçerler), sandıktaki malzemeyle doğrudan üretim, meşalenin yanma süresi ve kurtları uzak tutması
 - Tuzak ve olta ile av; suyu kaynatma (su kabı doldurma/içme bakım turunda eklendi)
 - Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (ses altyapısı Faz 6'da geldi: `audio/`; hayvan sesleri henüz yok)
 - Hayvan ekolojisi: gerçek dağılım verisi, yavru/üreme, sürü formasyonu, mevsimsel göç, daha çok tür (tilki, geyik, sırtlan…)

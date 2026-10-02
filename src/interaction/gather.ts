@@ -54,6 +54,8 @@ export class GatherSystem {
   private currentOffer: GatherOffer | null = null;
   /** Son tamamlama denemesi sığmadı: envanter değişene kadar bu nesne `full` görünür. */
   private failed: { id: PropId; version: number } | null = null;
+  /** Test modu: nesneler tükenmez (sayılmaz, kalkmaz) ve verim sığmasa da verilir (sığan kadar). */
+  private unlimited = false;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
@@ -95,6 +97,11 @@ export class GatherSystem {
     this.currentOffer = null;
   }
 
+  /** Test modu: toplanan nesneler tükenmez; sığmayan verim sessizce kırpılır. */
+  setUnlimited(on: boolean): void {
+    this.unlimited = on;
+  }
+
   isRemoved(id: PropId): boolean {
     return this.removed.has(id);
   }
@@ -104,7 +111,12 @@ export class GatherSystem {
     const rule = GATHER_RULES[prop.kind];
     let action: GatherAction;
     let yieldDef: GatherYield;
-    if (!this.handDone.has(prop.id)) {
+    if (this.unlimited) {
+      // Test modu: nesne hiç tükenmez; baltan varsa (ve nesne kesilebiliyorsa) baltayla, yoksa elle toplanır.
+      const useAxe = rule.axe !== undefined && this.inventory.has(AXE);
+      action = useAxe ? 'axe' : 'hand';
+      yieldDef = useAxe && rule.axe ? rule.axe : rule.hand;
+    } else if (!this.handDone.has(prop.id)) {
       action = 'hand';
       yieldDef = rule.hand;
     } else if (rule.axe && !this.axeDone.has(prop.id)) {
@@ -123,10 +135,11 @@ export class GatherSystem {
     }
 
     const blocked =
-      (this.failed?.id === prop.id && this.failed.version === this.inventory.version) ||
-      !rollYield(prop.id, action, yieldDef).every(
-        (item) => this.inventory.capacityFor(item.id) >= item.count,
-      );
+      !this.unlimited &&
+      ((this.failed?.id === prop.id && this.failed.version === this.inventory.version) ||
+        !rollYield(prop.id, action, yieldDef).every(
+          (item) => this.inventory.capacityFor(item.id) >= item.count,
+        ));
     return {
       status: blocked ? 'full' : 'ready',
       action,
@@ -171,6 +184,20 @@ export class GatherSystem {
     if (!yieldDef) return;
 
     const amounts = rollYield(prop.id, action, yieldDef);
+    if (this.unlimited) {
+      // Test modu: sığan kadar ekle, nesneyi tüketme (yeniden toplanabilir, ağaç kesilince de durur).
+      for (const item of amounts) {
+        this.inventory.add(item.id, Math.min(item.count, this.inventory.capacityFor(item.id)));
+        this.events.emit('item:collected', {
+          item: item.id,
+          count: item.count,
+          source: prop.kind,
+          propId: prop.id,
+          removed: false,
+        });
+      }
+      return;
+    }
     const before = amounts.map((item) => this.inventory.count(item.id));
     const fits = amounts.every((item) => this.inventory.add(item.id, item.count) === 0);
     if (!fits) {

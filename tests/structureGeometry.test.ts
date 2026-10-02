@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { PLACEMENT } from '../src/config';
+import { PIECE_KINDS } from '../src/placement/pieces';
 import { STRUCTURE_KINDS } from '../src/placement/structures';
+
+const isPiece = (kind: string): boolean => (PIECE_KINDS as readonly string[]).includes(kind);
 import { triangleCount } from '../src/world/propGeometry';
-import { buildFlameGeometry, buildStructureGeometry } from '../src/world/structureGeometry';
+import {
+  buildFlameGeometry,
+  buildOpenDoorGeometry,
+  buildStructureGeometry,
+} from '../src/world/structureGeometry';
 
 /** Üçgen bütçeleri: yapı sayısı azdır ama her biri ayrı draw call'dur; ucuz kalmalı. */
 const BUDGET = {
@@ -11,6 +18,13 @@ const BUDGET = {
   workbench: 200,
   storage_chest: 100,
   wooden_hut: 400,
+  // Modüler parçalar (her biri ayrı mesh; sahada onlarca olabilir: ucuz kalmalı).
+  foundation: 120,
+  wall: 220,
+  doorway: 300,
+  window_wall: 400,
+  door: 100,
+  roof: 200,
   flame: 120,
 } as const;
 
@@ -28,7 +42,7 @@ describe('structureGeometry', () => {
     g.dispose();
   });
 
-  it.each(STRUCTURE_KINDS.map((k) => [k]))(
+  it.each(STRUCTURE_KINDS.filter((k) => !isPiece(k)).map((k) => [k]))(
     '%s: zemine gömülen etek var (y < 0) ve yapı zeminden yükselir; ayak izi yarıçapa yakın',
     (kind) => {
       const g = buildStructureGeometry(kind);
@@ -42,6 +56,28 @@ describe('structureGeometry', () => {
       g.dispose();
     },
   );
+
+  it.each(PIECE_KINDS.map((k) => [k]))(
+    '%s: modüler parça ızgaraya sığar (yarıçap içinde), plaka ya da duvar yerden yükselir',
+    (kind) => {
+      const g = buildStructureGeometry(kind);
+      const box = g.boundingBox!;
+      const radius = PLACEMENT.kinds[kind].radius;
+      expect(Math.max(-box.min.x, box.max.x)).toBeLessThanOrEqual(radius);
+      expect(Math.max(-box.min.z, box.max.z)).toBeLessThanOrEqual(radius);
+      expect(box.max.y).toBeGreaterThan(0.15);
+      if (kind === 'foundation') expect(box.min.y).toBeLessThan(-1); // etek yamaçta boşluğu kapatır
+      g.dispose();
+    },
+  );
+
+  it('açık kapı kanadı menteşe yanında öne (+Z) açılır, kapalısı boşluğu kapatır', () => {
+    const closed = buildStructureGeometry('door').boundingBox!;
+    const open = buildOpenDoorGeometry().boundingBox!;
+    expect(closed.max.z - closed.min.z).toBeLessThan(0.2);
+    expect(open.max.z).toBeGreaterThan(0.9);
+    expect(open.max.x - open.min.x).toBeLessThan(0.2);
+  });
 
   it('sundurmanın açık yüzü +Z: çatı ön (+Z) kenarda arkadan yüksektir', () => {
     const g = buildStructureGeometry('lean_to');
