@@ -1,7 +1,8 @@
-import { PointLight, WebGLRenderer } from 'three';
+import { PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
 import {
   BANDITS,
   COMBAT,
+  DRONE,
   COMBAT_HUD,
   PEOPLE,
   AMBIENT,
@@ -171,6 +172,16 @@ import { SURRENDER_TEXT, WARNING_QUESTION, banditWarning, campAnswer } from '../
 import { banditInView, inView } from '../bandits/interact';
 import { PickpocketSystem, type PickpocketWorld } from '../bandits/pickpocket';
 import { BanditLayer } from '../world/BanditLayer';
+import { DroneSystem } from '../drone/DroneSystem';
+import { NO_INPUT, rangeOf, type DroneInput } from '../drone/flight';
+import { bearingTo, type MarkCandidate } from '../drone/marks';
+import { nearPanel, solarRate } from '../drone/charge';
+import { DroneLayer } from '../world/DroneLayer';
+import { DroneHud } from '../ui/DroneHud';
+import { batteryPercent } from '../ui/droneFormat';
+import { rayTerrain } from '../combat/ranged';
+import { BUILDING_NAMES, BUILDING_SHAPES } from '../settlements/kinds';
+import { CREATURE_NAMES } from '../combat/promptText';
 import { CampColliders } from '../world/CampColliders';
 import { darknessOf } from '../creatures/perception';
 import type { ItemStack } from '../items/Inventory';
@@ -551,7 +562,10 @@ export class Game {
         if (action === 'toggleFlight') this.toggleFlight();
       }),
       this.events.on('input:hotbarSelect', ({ slot }) => this.activateHotbar(slot)),
-      this.events.on('input:hotbarCycle', ({ step }) => this.cycleHotbar(step)),
+      // Faz 11 (F): drone görüşünde tekerlek yakınlaştırır.
+      this.events.on('input:hotbarCycle', ({ step }) => {
+        if (!this.droneWheel(step)) this.cycleHotbar(step);
+      }),
       this.events.on('player:died', (death) => {
         this.placement.cancel();
         this.hud.setPrompt(null);
@@ -953,7 +967,8 @@ export class Game {
     this.structureColliders.sync(); // yeni/sökülen katı yapılar oyuncu hareketinden önce
 
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
-    const polled = this.input.pollIntent();
+    // Faz 11 (F): drone görüşünde WASD/Space/Z drone'u sürer, oyuncu yerinde durur.
+    const polled = this.droneIntercept(this.input.pollIntent());
     // Test modunda bitkinlik koşuyu/uçuşu kısıtlamaz.
     // Faz 11 (D): nişan alırken Shift nefes tutmadır, koşu değil (`rangedIntent`).
     const intent = this.rangedIntent(
@@ -1402,7 +1417,8 @@ export class Game {
   private onHeldChanged(notifyMissing = true): void {
     const slot = this.hotbar.selected;
     const id = this.hotbar.selectedItem;
-    if (slot !== null && id !== null && isStructureKind(id)) {
+    // Faz 11 (F): drone hem eşya hem yapı türüdür ama alettir (elde tutulur, kurulmaz): kısayol kuralı belirler.
+    if (slot !== null && id !== null && isStructureKind(id) && hotbarUse(id) === 'place') {
       if (this.placement.aiming !== id) {
         const result = this.placement.toggle(id);
         const text = toggleToast(result, id);
@@ -1512,7 +1528,8 @@ export class Game {
   private render(alpha: number): void {
     // Bakış her render karesinde uygulanır: fare hareketi 60 Hz'e kısıtlanmaz.
     const look = this.input.consumeLook();
-    this.playerCamera.applyMouse(look.dx, look.dy);
+    // Faz 11 (F): drone görüşünde fare drone kamerasını çevirir.
+    if (!this.droneLook(look.dx, look.dy)) this.playerCamera.applyMouse(look.dx, look.dy);
 
     const feet = this.player.renderPosition(alpha);
     const now = performance.now();
@@ -1532,7 +1549,7 @@ export class Game {
     this.drawBandits(now / 1000, feet);
     this.drawDrone(now / 1000, feet);
 
-    this.renderer.render(this.world.scene, this.playerCamera.camera);
+    this.renderer.render(this.world.scene, this.activeCamera());
     this.fps?.frame();
     this.updateLocationHud(now, feet);
     this.updateAmbient(now, feet);
@@ -1754,6 +1771,13 @@ export class Game {
       this.hud.setPrompt(storagePrompt(storage.kind));
       return;
     }
+    // Faz 11 (F): yerdeki drone'u alma.
+    const droneText = alive ? this.promptDrone() : null;
+    if (droneText) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(droneText);
+      return;
+    }
     const door = alive ? this.doorTarget : null;
     if (door) {
       this.hud.setProgress(null);
@@ -1838,6 +1862,8 @@ export class Game {
 
   /** Sol tık: yerleştirme hayaleti varsa onaylar, yoksa saldırır. */
   private primaryAction(): void {
+    // Faz 11 (F): drone görüşünde işaretler; elde drone varsa kaldırır.
+    if (this.droneClick()) return;
     if (this.placement.aiming) this.confirmPlacement();
     else this.attack();
   }
@@ -1937,6 +1963,7 @@ export class Game {
   /** Space'e çift basış (yalnızca test modunda): uçuşu aç/kapa. */
   private toggleFlight(): void {
     if (!this.testMode || !this.survival.alive || this.loop.paused) return;
+    if (this.drone.viewActive) return; // Faz 11 (F): drone görüşünde Space drone'u yükseltir
     this.player.setFlying(!this.player.isFlying);
     this.updateModeBadge();
     this.hud.notify(this.player.isFlying ? 'Uçuş açık' : 'Uçuş kapalı', INTERACT.toastMs);
@@ -2224,6 +2251,8 @@ export class Game {
       darkness: darknessOf(clock.sun.altitudeDeg),
       now: (clock.day * 24 + clock.hour) * 3600,
       targets: this.targets,
+      // Faz 11 (F): alçak uçan drone'a ateş ederler.
+      drone: this.drone.state,
       prey: (x, z, r) =>
         this.creatures
           .near(x, z, r)
@@ -2499,11 +2528,361 @@ export class Game {
   }
 
   // ── Faz 11: F (11.8 drone) ──
-  private setupDrone(): void {}
-  private updateDrone(_dt: number): void {}
-  private drawDrone(_time: number, _feet: { x: number; y: number; z: number }): void {}
+  /** Drone: uçuş, pil, işaretler, görüş (saf mantık). */
+  private readonly drone = new DroneSystem(this.events);
+  private droneLayer: DroneLayer | null = null;
+  private droneHud: DroneHud | null = null;
+  /** Drone görüşündeyken bu adımın uçuş girdisi (WASD, Space/Z, Shift). */
+  private droneInput: DroneInput = NO_INPUT;
+  /** Bakılan, yerdeki drone (E ile alınır). */
+  private droneTarget: Readonly<Structure> | null = null;
+
+  private setupDrone(): void {
+    const groundAt = (x: number, z: number): number => this.world.terrain.heightAt(x, z);
+    this.droneLayer = new DroneLayer();
+    this.world.scene.add(this.droneLayer.group);
+    this.droneHud = new DroneHud(this.container);
+    this.saveSections.drone = {
+      toSave: () => this.drone.toSave(groundAt),
+      loadSave: (save) => {
+        this.drone.loadSave(save);
+        this.world.setViewFocus?.(null);
+        // Uçuşta kaydedilen drone, kaydın zemin noktasında yere inmiş olarak bulunur.
+        if (save.state === 'landed') {
+          this.structureSystem.structures.add('drone', save.x, save.y, save.z, 0);
+        }
+      },
+    };
+    const toast = (text: string): void => this.hud.notify(text, INTERACT.toastMs);
+    this.offs.push(
+      this.targets.register(this.drone),
+      this.events.on('drone:launched', () =>
+        toast('Drone kalktı · Q: görüş · H: eve dön · sol tık: işaretle'),
+      ),
+      this.events.on('drone:outOfRange', () => toast('Sinyal zayıf: drone geri dönüyor')),
+      this.events.on('drone:controlRestored', () => toast('Drone denetimi geri geldi')),
+      this.events.on('drone:batteryLow', () => toast('Drone pili azaldı: eve döndür (H)')),
+      this.events.on('drone:damaged', ({ health }) =>
+        toast(health > 0 ? 'Drone vuruldu!' : 'Drone vuruldu, düşüyor!'),
+      ),
+      this.events.on('drone:landed', () => this.stowDrone()),
+      this.events.on('drone:crashed', ({ x, y, z, shot }) => {
+        this.world.setViewFocus?.(null);
+        this.structureSystem.structures.add('drone', x, y, z, 0);
+        toast(
+          `${shot ? 'Drone düşürüldü' : "Drone'un pili bitti, düştü"}: yerden E ile alınabilir`,
+        );
+      }),
+      this.events.on('drone:marked', ({ label, action }) =>
+        toast(action === 'added' ? `İşaretlendi: ${label}` : `İşaret kaldırıldı: ${label}`),
+      ),
+      // Oyuncunun bedeni savunmasızdır: hasar alınca görüş oyuncuya döner.
+      this.events.on('player:damaged', () => {
+        if (!this.drone.viewActive || !DRONE.autoReturnOnDamage) return;
+        this.setDroneView(false);
+        toast('Bedenin saldırı altında! Görüş sana döndü');
+      }),
+      this.events.on('player:died', () => this.setDroneView(false)),
+      () => {
+        this.droneLayer?.dispose();
+        this.droneHud?.dispose();
+      },
+    );
+  }
+
+  private updateDrone(dt: number): void {
+    const feet = this.player.position;
+    const structures = this.structureSystem.structures;
+    const settlements = this.world.settlementMap ?? null;
+    this.drone.update(
+      dt,
+      this.droneInput,
+      {
+        groundAt: (x, z) => this.world.terrain.heightAt(x, z),
+        solidAt: settlements
+          ? (x, y, z) => {
+              const b = settlements.buildingAt(x, z);
+              return b !== null && y < b.y + BUILDING_SHAPES[b.kind].height;
+            }
+          : undefined,
+      },
+      { x: feet.x, y: feet.y, z: feet.z },
+      this.testMode,
+    );
+    const state = this.drone.state;
+    this.world.setViewFocus?.(this.drone.viewActive && state ? { x: state.x, z: state.z } : null);
+
+    // Güneş paneli şarjı: envanterdeki drone oyuncuyla, yerdeki drone kendi yerinde dolar.
+    if (!this.drone.flying) {
+      const all = structures.all();
+      const landed = all.find((s) => s.kind === 'drone');
+      const at = this.inventory.has('drone') ? feet : landed;
+      if (at && nearPanel(all, at.x, at.z)) {
+        this.drone.charge(dt, solarRate(this.survival.clock.sun.altitudeDeg));
+      }
+    }
+
+    // Yerdeki drone'a bakıp E: alınır (basış anı; yalnızca hedef varken tüketilir).
+    this.droneTarget =
+      !this.drone.viewActive && this.survival.alive
+        ? structureInView(
+            structures,
+            { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw },
+            { reach: DISMANTLE.reach, viewConeDeg: STORAGE.viewConeDeg, kinds: ['drone'] },
+          )
+        : null;
+    if (this.droneTarget && this.input.consumeInteractPress()) {
+      const target = this.droneTarget;
+      if (this.inventory.add('drone', 1) === 0) {
+        structures.remove(target.id);
+        this.hotbar.autoAssign('drone');
+        this.inventoryPanel.refresh();
+        this.hud.notify(
+          `Drone alındı · pil %${batteryPercent(this.drone.battery)}`,
+          INTERACT.toastMs,
+        );
+      } else {
+        this.hud.notify('Envanter dolu: drone sığmıyor', INTERACT.toastMs);
+      }
+      this.droneTarget = null;
+    }
+  }
+
+  private drawDrone(time: number, feet: { x: number; y: number; z: number }): void {
+    const state = this.drone.state;
+    const view = this.drone.viewActive;
+    const size = this.renderer.getSize(this.droneSize);
+    this.droneLayer?.update(
+      state,
+      {
+        active: view,
+        pitch: this.drone.pitch,
+        fovDeg: this.drone.fovDeg,
+        aspect: size.x / Math.max(size.y, 1),
+      },
+      time,
+    );
+    // Drone görüşünde oyuncunun bedeni görünür (yerinde bekler).
+    if (view) this.playerModel.setVisible(true);
+    const from = view && state ? state : feet;
+    const marks = this.drone.marks.map((m) => ({ label: m.label, ...bearingTo(from, m) }));
+    this.hud.setCompassMarks(marks.map((m) => ({ bearing: m.bearing, label: m.label })));
+    const visible = this.survival.alive && !this.overlayOpen && !this.loop.paused;
+    this.droneHud?.update(
+      {
+        flying: state !== null,
+        view,
+        mode: state?.mode ?? 'manual',
+        battery: this.drone.battery,
+        altitude: state ? state.y - this.world.terrain.heightAt(state.x, state.z) : 0,
+        distance: state ? rangeOf(state, feet) : 0,
+        noise: this.drone.noise(feet),
+        marks,
+      },
+      visible,
+    );
+  }
+
+  private readonly droneSize = new Vector2();
+
+  /** Çizimde kullanılan kamera: drone görüşünde drone kamerası. */
+  private activeCamera(): Camera {
+    return this.drone.viewActive && this.droneLayer
+      ? this.droneLayer.camera
+      : this.playerCamera.camera;
+  }
+
+  private setDroneView(on: boolean): void {
+    this.drone.setView(on);
+    if (!this.drone.viewActive) {
+      this.world.setViewFocus?.(null);
+      this.droneInput = NO_INPUT;
+    }
+  }
+
   /** `Q`: oyuncu ↔ drone görüşü. */
-  private toggleDroneView(): void {}
+  private toggleDroneView(): void {
+    if (!this.survival.alive || this.overlayOpen || this.loop.paused) return;
+    if (!this.drone.flying) {
+      this.hud.notify('Havada drone yok (kısayolda seçip sol tıkla kaldır)', INTERACT.toastMs);
+      return;
+    }
+    this.setDroneView(!this.drone.viewActive);
+  }
+
   /** `H`: drone'u eve döndür ve indir. */
-  private droneHome(): void {}
+  private droneHome(): void {
+    if (!this.drone.flying || !this.survival.alive || this.loop.paused) return;
+    this.drone.recall();
+    this.hud.notify('Drone eve dönüyor', INTERACT.toastMs);
+  }
+
+  /** İnen drone envantere alınır; sığmazsa oyuncunun yanına yere konur. */
+  private stowDrone(): void {
+    this.world.setViewFocus?.(null);
+    this.droneInput = NO_INPUT;
+    if (this.inventory.add('drone', 1) === 0) {
+      this.hotbar.autoAssign('drone');
+      this.inventoryPanel.refresh();
+      this.hud.notify('Drone indi ve alındı', INTERACT.toastMs);
+      return;
+    }
+    const feet = this.player.position;
+    this.structureSystem.structures.add(
+      'drone',
+      feet.x + 1,
+      this.world.terrain.heightAt(feet.x + 1, feet.z),
+      feet.z,
+      0,
+    );
+    this.hud.notify('Drone indi (envanter dolu: yanına kondu)', INTERACT.toastMs);
+  }
+
+  /** Drone görüşünde oyuncu girdisini drone'a yönlendirir ve oyuncuya boş niyet döner. */
+  private droneIntercept(intent: MoveIntent): MoveIntent {
+    if (!this.drone.viewActive) {
+      this.droneInput = NO_INPUT;
+      return intent;
+    }
+    this.droneInput = {
+      forward: intent.forward,
+      strafe: intent.strafe,
+      up: intent.jump,
+      down: intent.descend === true,
+      fast: intent.run,
+    };
+    return { forward: 0, strafe: 0, run: false, jump: false, descend: false };
+  }
+
+  /** Drone görüşünde fare: drone yaw'ı ve kamera eğimi (yakınlaştıkça hassasiyet düşer). Uygulandıysa true. */
+  private droneLook(dx: number, dy: number): boolean {
+    if (!this.drone.viewActive) return false;
+    const sens =
+      INPUT.mouseSensitivity *
+      this.settings.current.mouseSensitivity *
+      (this.drone.fovDeg / DRONE.fovDeg);
+    this.drone.look(dx * sens, dy * sens);
+    return true;
+  }
+
+  /** Drone görüşünde tekerlek yakınlaştırır (aşağı = uzaklaş). Uygulandıysa true. */
+  private droneWheel(step: 1 | -1): boolean {
+    if (!this.drone.viewActive) return false;
+    this.drone.zoom(step === 1 ? -1 : 1);
+    return true;
+  }
+
+  /**
+   * Sol tık (Faz 11, F): drone görüşündeyse bakılanı işaretler; elde drone varsa kaldırır (pil azsa ve pil eşyası
+   * varsa önce yeni pil takar). Tıklamayı aldıysa true.
+   */
+  private droneClick(): boolean {
+    if (!this.survival.alive || this.overlayOpen || this.loop.paused) return false;
+    if (this.drone.viewActive) {
+      this.markFromDrone();
+      return true;
+    }
+    if (
+      this.placement.aiming ||
+      this.hotbar.selectedItem !== 'drone' ||
+      !this.inventory.has('drone')
+    ) {
+      return false;
+    }
+    if (this.drone.flying) {
+      this.hud.notify('Drone zaten havada (Q: görüş, H: eve dön)', INTERACT.toastMs);
+      return true;
+    }
+    if (this.drone.battery < DRONE.minLaunchBattery && this.inventory.remove('battery', 1)) {
+      this.drone.insertBattery();
+      this.hud.notify("Drone'a yeni pil takıldı", INTERACT.toastMs);
+    }
+    const feet = this.player.position;
+    const result = this.drone.launch({ x: feet.x, z: feet.z, yaw: this.playerCamera.yaw }, (x, z) =>
+      this.world.terrain.heightAt(x, z),
+    );
+    if (result === 'no_battery') {
+      this.hud.notify(
+        "Drone'un pili bitmiş: güneş panelinin yanında şarj et ya da pil taşı",
+        INTERACT.toastMs,
+      );
+      return true;
+    }
+    if (result === 'ok') {
+      this.inventory.remove('drone', 1);
+      this.inventoryPanel.refresh();
+    }
+    return true;
+  }
+
+  /** Drone kamerasının baktığı canlıyı, eşkıyayı, kampı ya da yapıyı (yoksa zemini) işaretler. */
+  private markFromDrone(): void {
+    const s = this.drone.state;
+    if (!s) return;
+    const cos = Math.cos(this.drone.pitch);
+    const ray = {
+      x: s.x,
+      y: s.y - 0.12,
+      z: s.z,
+      dx: -Math.sin(s.yaw) * cos,
+      dy: Math.sin(this.drone.pitch),
+      dz: -Math.cos(s.yaw) * cos,
+    };
+    const range = DRONE.markRange;
+    const candidates: MarkCandidate[] = [];
+    for (const v of this.creatures.near(s.x, s.z, range)) {
+      if (!v.dead) {
+        candidates.push({
+          x: v.x,
+          y: v.y + v.height / 2,
+          z: v.z,
+          radius: v.radius,
+          label: CREATURE_NAMES[v.kind],
+        });
+      }
+    }
+    if (this.bandits && this.banditsEnabled) {
+      for (const b of this.bandits.views()) {
+        if (b.state !== 'dead' && Math.hypot(b.x - s.x, b.z - s.z) <= range) {
+          candidates.push({
+            x: b.x,
+            y: b.y + 0.9,
+            z: b.z,
+            radius: 0.5,
+            label: b.role === 'leader' ? 'Eşkıya reisi' : 'Eşkıya',
+          });
+        }
+      }
+      for (const c of this.bandits.camps) {
+        if (Math.hypot(c.x - s.x, c.z - s.z) <= range) {
+          const y = this.world.terrain.heightAt(c.x, c.z);
+          candidates.push({ x: c.x, y: y + 1, z: c.z, radius: 8, label: 'Eşkıya kampı' });
+        }
+      }
+    }
+    for (const b of this.world.settlementMap?.buildingsNear(s.x, s.z, range) ?? []) {
+      const shape = BUILDING_SHAPES[b.kind];
+      candidates.push({
+        x: b.x,
+        y: b.y + shape.height / 2,
+        z: b.z,
+        radius: Math.max(shape.width, shape.depth) / 2,
+        label: BUILDING_NAMES[b.kind],
+      });
+    }
+    for (const st of this.structureSystem.structures.near(s.x, s.z, range)) {
+      candidates.push({ x: st.x, y: st.y + 0.8, z: st.z, radius: 1.2, label: ITEMS[st.kind].name });
+    }
+    const t = rayTerrain(ray, { x: ray.dx, y: ray.dy, z: ray.dz }, range, (x, z) =>
+      this.world.terrain.heightAt(x, z),
+    );
+    const ground = t === null ? null : { x: ray.x + ray.dx * t, z: ray.z + ray.dz * t };
+    this.drone.mark(candidates, ray, ground);
+  }
+
+  /** Yerdeki drone'a bakılıyorsa ipucu. */
+  private promptDrone(): string | null {
+    if (this.drone.viewActive) return null;
+    return this.droneTarget ? `E: Drone'u al · pil %${batteryPercent(this.drone.battery)}` : null;
+  }
 }

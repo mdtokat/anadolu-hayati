@@ -126,4 +126,19 @@ export interface GameEvents {
   'pickpocket:escaped': { id: number; item: ItemId; count: number; camp: number | null };
 
   // ── Faz 11: F (11.8 drone; bu bölüme yalnızca F ekler) ──
+  /** Drone kalktı. */
+  'drone:launched': { x: number; y: number; z: number };
+  /** Drone menzil sınırını aştı ve kendiliğinden dönüyor / denetim geri geldi. */
+  'drone:outOfRange': undefined;
+  'drone:controlRestored': undefined;
+  /** Drone pili azaldı (bir kez). */
+  'drone:batteryLow': { battery: number };
+  /** Drone vuruldu (`health`: kalan dayanıklılık). */
+  'drone:damaged': { amount: number; health: number };
+  /** Drone eve dönüp indi ve alındı. */
+  'drone:landed': undefined;
+  /** Drone düştü (pil bitti ya da vuruldu); yerde `drone` yapısı olarak kalır. */
+  'drone:crashed': { x: number; y: number; z: number; shot: boolean };
+  /** Drone görüşünde bir işaret eklendi ya da kaldırıldı. */
+  'drone:marked': { label: string; action: 'added' | 'removed' };
 }

@@ -44,7 +44,7 @@ const BUDGET = {
   stone_fence: 200,
   fence_gate: 120,
   farm_plot: 200,
-  drone: 200,
+  drone: 400, // F: dört kollu drone (motorlar, kızaklar, pervaneler)
   flame: 120,
 } as const;
 
