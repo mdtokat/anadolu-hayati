@@ -158,9 +158,9 @@ describe('migrateSave: sürüm göçü', () => {
     expect(order).toEqual([2]);
   });
 
-  it('gerçek zincir: v1 (Faz 7), v2 (Faz 9) ve v3 (Faz 10) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(4);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3]);
+  it('gerçek zincir: v1 (Faz 7), v2 (Faz 9), v3 (Faz 10) ve v4 (Faz 11) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
+    expect(SAVE_FORMAT_VERSION).toBe(5);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3, 4]);
   });
 
   it('v3 → v4: aranmış yapı listesi boş eklenir; v4 listesi doğrulanır ve sıralanır', () => {

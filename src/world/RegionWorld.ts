@@ -64,6 +64,8 @@ export class RegionWorld implements GameWorld {
   readonly terrain: RegionHeightSource;
   readonly spawn: Vec3;
   private placeCentersCache: readonly PlaceCenter[] | null = null;
+  /** Faz 11: drone görüş odağı (11.0'da etkisiz). */
+  private viewFocus: { x: number; z: number } | null = null;
   readonly maxSlopeDeg = REGION_PLAYER.maxSlopeDeg;
   readonly creatureTerrain: CreatureTerrain;
 
@@ -377,6 +379,16 @@ export class RegionWorld implements GameWorld {
       cover: this.cover?.classAt(x, z) ?? 'none',
       seaDistance: this.source.distanceToSea(x, z),
     };
+  }
+
+  /** Görüş odağı (Faz 11 sözleşmesi): 11.0'da yalnızca saklanır, etkisizdir; F LOD/nesne merkezini taşır. */
+  setViewFocus(p: { x: number; z: number } | null): void {
+    this.viewFocus = p ? { x: p.x, z: p.z } : null;
+  }
+
+  /** Son verilen görüş odağı (yoksa null: oyuncu). */
+  get currentViewFocus(): { x: number; z: number } | null {
+    return this.viewFocus;
   }
 
   setQuality(quality: WorldQuality): void {

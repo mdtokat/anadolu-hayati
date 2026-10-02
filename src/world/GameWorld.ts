@@ -82,5 +82,10 @@ export interface GameWorld {
   readonly settlementMap?: SettlementMap | null;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
   toggleBorders?(): void;
+  /**
+   * Görüş odağı (Faz 11 ortak sözleşmesi): verilirse arazi LOD'u ve nesne çizim merkezi oyuncu yerine bu noktaya
+   * taşınır (drone görüşü); null oyuncuya döner. Collider'lar her zaman oyuncuda kalır. 11.0'da etkisizdir; F uygular.
+   */
+  setViewFocus?(p: { x: number; z: number } | null): void;
   dispose(): void;
 }

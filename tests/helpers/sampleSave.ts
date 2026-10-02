@@ -46,5 +46,35 @@ export function sampleSave(): SaveGame {
     creatures: { killed: [{ cell: SAMPLE_IDS.cell, remainingSeconds: 411.5 }] },
     hotbar: { slots: ['stone_axe', null, 'campfire', null, null, null, null, null], selected: 0 },
     settlements: { searched: [5 * 1024 + 2, 7 * 1024] },
+    // Faz 11 (v5): her bölüm dolu.
+    farm: {
+      plots: [
+        {
+          id: 1,
+          x: 14,
+          z: -50,
+          crop: 'wheat_seed',
+          plantedAt: 3600 * 80,
+          wateredAt: 3600 * 82,
+          stage: 2,
+          dead: false,
+        },
+        { id: 2, x: 16, z: -50, crop: null, plantedAt: 0, wateredAt: 0, stage: 0, dead: false },
+      ],
+    },
+    weapons: { loaded: { pistol: 5, shotgun: 1 } },
+    bandits: {
+      cleared: [{ camp: 3, at: 3600 * 70 }],
+      chests: [{ camp: 3, items: [{ id: 'rifle_ammo', count: 4 }] }],
+      stolen: [{ id: 'pekmez', count: 1 }],
+    },
+    drone: {
+      state: 'landed',
+      x: 40,
+      y: 5.5,
+      z: -60,
+      battery: 0.35,
+      marks: [{ x: 120, z: -300, label: 'Eşkıya kampı' }],
+    },
   };
 }

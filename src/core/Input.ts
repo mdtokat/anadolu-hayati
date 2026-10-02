@@ -3,6 +3,7 @@ import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import {
   DEV_TELEPORT_KEY,
+  MOUSE_RIGHT_CODE,
   actionForKey,
   hotbarSlotForKey,
   mapKeysToIntent,
@@ -77,6 +78,11 @@ export class Input {
     this.listen(doc, 'keyup', (e) => this.pressed.delete((e as KeyLikeEvent).code));
     this.listen(doc, 'mousemove', (e) => this.onMouseMove(e as MouseLikeEvent));
     this.listen(doc, 'mousedown', (e) => this.onMouseDown(e as ButtonLikeEvent));
+    this.listen(doc, 'mouseup', (e) => this.onMouseUp(e as ButtonLikeEvent));
+    // Faz 11: sağ tık nişandır; oyun kontrolündeyken tarayıcı menüsü açılmasın.
+    this.listen(doc, 'contextmenu', (e) => {
+      if (this.pointerLocked) e.preventDefault();
+    });
     this.listen(doc, 'pointerlockchange', () => this.onPointerLockChange());
     this.listen(doc, 'pointerlockerror', () =>
       this.events.emit('input:pointerLockFailed', undefined),
@@ -101,6 +107,16 @@ export class Input {
   /** Bir tuş (`KeyboardEvent.code`) şu an basılı mı? */
   isHeld(code: string): boolean {
     return this.pressed.has(code);
+  }
+
+  /** Nişan (sağ fare tuşu) şu an basılı mı? (Faz 11, D) */
+  get aimHeld(): boolean {
+    return INPUT.bindings.aim.some((code) => this.pressed.has(code));
+  }
+
+  /** Nefes tutma tuşu (Shift) şu an basılı mı? (Faz 11, D: yalnızca nişan alırken anlamlıdır) */
+  get steadyHeld(): boolean {
+    return INPUT.bindings.steady.some((code) => this.pressed.has(code));
   }
 
   /** Sökme tuşu (X) şu an basılı mı? (Faz 9) */
@@ -209,10 +225,22 @@ export class Input {
     this.lookY += Math.min(Math.max(event.movementY, -cap), cap);
   }
 
-  /** Sol tık yalnızca oyun kontrolündeyken eylemdir (kilidi alan tıklama eylem sayılmaz). */
+  /**
+   * Sol tık yalnızca oyun kontrolündeyken eylemdir (kilidi alan tıklama eylem sayılmaz). Sağ tık (Faz 11) basılı
+   * tutulan nişandır: tuş kümesine sözde kodla girer.
+   */
   private onMouseDown(event: ButtonLikeEvent): void {
-    if (event.button !== 0 || !this.pointerLocked) return;
+    if (!this.pointerLocked) return;
+    if (event.button === 2) {
+      this.pressed.add(MOUSE_RIGHT_CODE);
+      return;
+    }
+    if (event.button !== 0) return;
     this.events.emit('input:action', { action: 'primaryAction' });
+  }
+
+  private onMouseUp(event: ButtonLikeEvent): void {
+    if (event.button === 2) this.pressed.delete(MOUSE_RIGHT_CODE);
   }
 
   private onPointerLockChange(): void {

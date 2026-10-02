@@ -39,6 +39,19 @@ export const UI_ICONS = {
 
 export type UiIcon = keyof typeof UI_ICONS;
 
+/**
+ * Faz 11 (11.0) yer tutucu eşya simgesi: kategori renginde basit şekil (malzeme altıgen, yiyecek daire, alet
+ * çapraz sap, yapı ev). Sahibi akış kendi eşyasının gerçek çizimini `ITEM_ICONS`'taki satırına yazar.
+ */
+const PLACEHOLDER_ICON: Readonly<Record<ItemCategory, string>> = {
+  material:
+    '<path d="M12 3.5 19.4 7.8v8.4L12 20.5l-7.4-4.3V7.8z" fill="#b8a07a"/><path d="M12 7.5l3.9 2.2v4.6L12 16.5l-3.9-2.2V9.7z" fill="#8e7a58"/>',
+  food: '<circle cx="12" cy="12.5" r="7.5" fill="#8fcf6b"/><path d="M12 5V2.5" stroke="#4f7d3f" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="10.5" r="1.6" fill="#c4eaa8"/>',
+  tool: '<path d="M5 19 17.5 6.5" stroke="#7fb4e8" stroke-width="3" stroke-linecap="round"/><path d="M14.5 4.5l5 5-2 2-5-5z" fill="#4d7fae"/>',
+  placeable:
+    '<path d="M12 3.5 3 11h2.5v9h13v-9H21z" fill="#e8b04a"/><rect x="10" y="14" width="4" height="6" fill="#a87a24"/>',
+};
+
 /** Eşya simgeleri: her eşyanın kendi renkleriyle küçük çizimi (`Record` tüm eşyaları zorunlu kılar). */
 export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
   stick:
@@ -128,6 +141,65 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
     '<rect x="3" y="4" width="18" height="16" rx="1" fill="#a8723c"/><rect x="8" y="8" width="8" height="6.5" rx=".6" fill="#2c2118"/><path d="M12 8v6.5M8 11.2h8" stroke="#8a5a2e" stroke-width="1.3"/><rect x="7.2" y="14.5" width="9.6" height="1.5" fill="#6e4522"/>',
   door: '<rect x="6" y="2.5" width="12" height="19" rx="1" fill="#8a5a2e"/><path d="M6 8.5h12M6 15h12M12 2.5v19" stroke="#6e4522" stroke-width="1.1"/><circle cx="15.2" cy="12.3" r="1" fill="#e0b84c"/>',
   roof: '<path d="M2 12 12 5l10 7z" fill="#6b5744"/><path d="M2 12h20v3H2z" fill="#4f4235"/><path d="M5.5 9.7 8 12M10 6.7 12.5 12M14.5 8 17 12" stroke="#8a7560" stroke-width="1"/>',
+  // ── Faz 11 (11.0) ortak malzeme: yer tutucu ──
+  scrap_metal: PLACEHOLDER_ICON.material,
+  iron_ingot: PLACEHOLDER_ICON.material,
+  charcoal: PLACEHOLDER_ICON.material,
+  sulfur: PLACEHOLDER_ICON.material,
+  gunpowder: PLACEHOLDER_ICON.material,
+  electronic_parts: PLACEHOLDER_ICON.material,
+  battery: PLACEHOLDER_ICON.material,
+  propeller: PLACEHOLDER_ICON.material,
+  scope: PLACEHOLDER_ICON.material,
+  // ── Faz 11: A ──
+  stairs: PLACEHOLDER_ICON.placeable,
+  entry_step: PLACEHOLDER_ICON.placeable,
+  pillar: PLACEHOLDER_ICON.placeable,
+  railing: PLACEHOLDER_ICON.placeable,
+  half_wall: PLACEHOLDER_ICON.placeable,
+  gable_roof: PLACEHOLDER_ICON.placeable,
+  gable_wall: PLACEHOLDER_ICON.placeable,
+  // ── Faz 11: B ──
+  forge: PLACEHOLDER_ICON.placeable,
+  stone_oven: PLACEHOLDER_ICON.placeable,
+  hand_mill: PLACEHOLDER_ICON.placeable,
+  drying_rack: PLACEHOLDER_ICON.placeable,
+  bedroll: PLACEHOLDER_ICON.placeable,
+  solar_panel: PLACEHOLDER_ICON.placeable,
+  wood_fence: PLACEHOLDER_ICON.placeable,
+  stone_fence: PLACEHOLDER_ICON.placeable,
+  fence_gate: PLACEHOLDER_ICON.placeable,
+  dried_meat: PLACEHOLDER_ICON.food,
+  // ── Faz 11: C ──
+  hoe: PLACEHOLDER_ICON.tool,
+  sickle: PLACEHOLDER_ICON.tool,
+  wheat_seed: PLACEHOLDER_ICON.material,
+  corn_seed: PLACEHOLDER_ICON.material,
+  potato: PLACEHOLDER_ICON.food,
+  wheat: PLACEHOLDER_ICON.material,
+  corn: PLACEHOLDER_ICON.material,
+  flour: PLACEHOLDER_ICON.material,
+  corn_flour: PLACEHOLDER_ICON.material,
+  bread: PLACEHOLDER_ICON.food,
+  corn_bread: PLACEHOLDER_ICON.food,
+  baked_potato: PLACEHOLDER_ICON.food,
+  farm_plot: PLACEHOLDER_ICON.placeable,
+  // ── Faz 11: D ──
+  club: PLACEHOLDER_ICON.tool,
+  iron_dagger: PLACEHOLDER_ICON.tool,
+  pala: PLACEHOLDER_ICON.tool,
+  slingshot: PLACEHOLDER_ICON.tool,
+  bow: PLACEHOLDER_ICON.tool,
+  arrow: PLACEHOLDER_ICON.material,
+  shotgun: PLACEHOLDER_ICON.tool,
+  pistol: PLACEHOLDER_ICON.tool,
+  rifle: PLACEHOLDER_ICON.tool,
+  sniper_rifle: PLACEHOLDER_ICON.tool,
+  shotgun_shell: PLACEHOLDER_ICON.material,
+  pistol_ammo: PLACEHOLDER_ICON.material,
+  rifle_ammo: PLACEHOLDER_ICON.material,
+  // ── Faz 11: F ──
+  drone: PLACEHOLDER_ICON.tool,
 };
 
 /** Eşya kategorisinin vurgu rengi (slot kenarı ve çip rengi için CSS değişkeni). */

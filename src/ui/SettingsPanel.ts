@@ -22,6 +22,7 @@ export class SettingsPanel {
   private readonly volume: Slider;
   private readonly hintButtons = new Map<boolean, HTMLButtonElement>();
   private readonly testModeButtons = new Map<boolean, HTMLButtonElement>();
+  private readonly banditButtons = new Map<boolean, HTMLButtonElement>();
   private readonly testModeHint = document.createElement('p');
   private readonly closeButton = document.createElement('button');
   private readonly offs: Array<() => void> = [];
@@ -121,6 +122,11 @@ export class SettingsPanel {
       'Uçma (Space çift bas; Space yukarı, Z aşağı, Shift hızlı) ve sınırsız malzeme: üretim ve yapı yerleştirme eşya harcamaz.';
     testGroup.append(testLabel, testSegmented);
 
+    // Eşkıyalar (Faz 11): ormanda eşkıya kampları ve şehirde yankesiciler açık/kapalı
+    const banditGroup = this.toggleRow('Eşkıyalar', this.banditButtons, (enabled) =>
+      this.store.update({ bandits: enabled }),
+    );
+
     const actions = document.createElement('div');
     actions.className = 'settings-actions';
     const reset = document.createElement('button');
@@ -142,6 +148,7 @@ export class SettingsPanel {
       hintsGroup,
       testGroup,
       this.testModeHint,
+      banditGroup,
       actions,
     );
     this.root.append(panel);
@@ -192,6 +199,37 @@ export class SettingsPanel {
     return { input, value: document.createElement('span') };
   }
 
+  /** Açık/Kapalı iki düğmeli satır (Faz 11: eşkıyalar). */
+  private toggleRow(
+    label: string,
+    buttons: Map<boolean, HTMLButtonElement>,
+    onChange: (enabled: boolean) => void,
+  ): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'settings-row';
+    const text = document.createElement('span');
+    text.className = 'settings-label';
+    text.textContent = label;
+    const segmented = document.createElement('div');
+    segmented.className = 'settings-segmented';
+    segmented.setAttribute('role', 'radiogroup');
+    segmented.setAttribute('aria-label', label);
+    for (const [enabled, caption] of [
+      [true, 'Açık'],
+      [false, 'Kapalı'],
+    ] as const) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'radio');
+      button.textContent = caption;
+      button.addEventListener('click', () => onChange(enabled));
+      buttons.set(enabled, button);
+      segmented.append(button);
+    }
+    group.append(text, segmented);
+    return group;
+  }
+
   private sliderRow(label: string, slider: Slider): HTMLElement {
     const row = document.createElement('label');
     row.className = 'settings-row';
@@ -218,6 +256,11 @@ export class SettingsPanel {
     }
     for (const [enabled, button] of this.testModeButtons) {
       const active = enabled === s.testMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-checked', String(active));
+    }
+    for (const [enabled, button] of this.banditButtons) {
+      const active = enabled === s.bandits;
       button.classList.toggle('active', active);
       button.setAttribute('aria-checked', String(active));
     }

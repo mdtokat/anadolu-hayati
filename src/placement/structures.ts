@@ -18,6 +18,28 @@ export const STRUCTURE_KINDS = [
   'window_wall',
   'door',
   'roof',
+  // ── Faz 11: A (11.1 modüler inşa II) ──
+  'stairs',
+  'entry_step',
+  'pillar',
+  'railing',
+  'half_wall',
+  'gable_roof',
+  'gable_wall',
+  // ── Faz 11: B (11.2 tek parça yapılar + 11.3 çit) ──
+  'forge',
+  'stone_oven',
+  'hand_mill',
+  'drying_rack',
+  'bedroll',
+  'solar_panel',
+  'wood_fence',
+  'stone_fence',
+  'fence_gate',
+  // ── Faz 11: C (11.4): çapayla açılan tarla; eşyası yoktur (sökülünce bir şey dönmez) ──
+  'farm_plot',
+  // ── Faz 11: F (11.8): yere inmiş/düşmüş drone; `E` ile alınır ──
+  'drone',
 ] as const;
 export type StructureKind = (typeof STRUCTURE_KINDS)[number];
 

@@ -61,7 +61,7 @@ export interface GameEvents {
 
   // ── Faz 5: Oyuncu tarafı (Hesap B yayınlar; bu bölüme yalnızca B ekler) ──
   /** Oyuncu hasar alınca (savunma sonrası). */
-  'player:damaged': { amount: number; cause: 'creature'; sourceKind?: CreatureKind };
+  'player:damaged': { amount: number; cause: 'creature' | 'shot'; sourceKind?: CreatureKind };
   /** Oyuncu saldırınca; `hitId` isabet ettiği canlı (ıskaladıysa null). */
   'player:attacked': { weapon: ItemId | 'fist'; hitId: CreatureId | null };
   /** Bir leş kesilince alınan eşyalar. */
@@ -76,4 +76,23 @@ export interface GameEvents {
   'person:greeted': { id: number; name: string; text: string };
   /** Faz 10: kişiyle takas yapıldı (`give` boşsa hediye). */
   'person:traded': { id: number; give: ItemStack[]; get: ItemStack[] };
+
+  // ── Faz 11: ortak (11.0) ──
+  /**
+   * Bir gürültü oldu (atış, kırılan kapı…): `radius` içindeki canlılar kaçar (11.0), eşkıyalar duyar (E).
+   * `source`: gürültünün kaynağı (`player`, `bandit`, silah kimliği…; serbest metin, mantık yalnızca konuma bakar).
+   */
+  'noise:made': { x: number; z: number; radius: number; source: string };
+
+  // ── Faz 11: A (11.1 modüler inşa II; bu bölüme yalnızca A ekler) ──
+
+  // ── Faz 11: B (11.2/11.3 yapılar, çit, engel sorgusu; bu bölüme yalnızca B ekler) ──
+
+  // ── Faz 11: C (11.4 ekme biçme; bu bölüme yalnızca C ekler) ──
+
+  // ── Faz 11: D (11.5 silahlar; bu bölüme yalnızca D ekler) ──
+
+  // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici; bu bölüme yalnızca E ekler) ──
+
+  // ── Faz 11: F (11.8 drone; bu bölüme yalnızca F ekler) ──
 }

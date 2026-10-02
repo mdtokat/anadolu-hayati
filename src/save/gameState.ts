@@ -8,15 +8,26 @@ import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import {
   SAVE_FORMAT_VERSION,
   SaveError,
+  emptyFaz11Save,
   parseSave,
+  type BanditsSave,
+  type DroneSave,
+  type FarmSave,
   type PlayerSave,
   type SaveGame,
+  type WeaponsSave,
 } from './saveGame';
 
 /** Oyuncunun konumunu ve bakışını okuyup yazan köprü (fizik/kamera `Game`'de olduğundan arayüzle verilir). */
 export interface PlayerPose {
   read(): PlayerSave;
   apply(pose: PlayerSave): void;
+}
+
+/** Faz 11 (v5) alanlarının sahibi: kendi alanını yazar ve okur (sahibi akış uygular). */
+export interface SaveSection<T> {
+  toSave(): T;
+  loadSave(save: T): void;
 }
 
 /** Kaydın okunduğu ve yazıldığı canlı sistemler. */
@@ -32,6 +43,15 @@ export interface SaveTargets {
   hotbar: Pick<Hotbar, 'toSave' | 'loadSave'>;
   /** Yapı arama durumu (Faz 10); yerleşimsiz dünyada (test arenası) yoktur. */
   search?: Pick<BuildingSearch, 'toSave' | 'loadSave'>;
+  // ── Faz 11 (v5): her akış kendi bölümünü bağlar; bağlanmamışsa kayda boş değer yazılır, yüklemede atlanır. ──
+  /** C: tarlalar. */
+  farm?: SaveSection<FarmSave>;
+  /** D: silah şarjörleri. */
+  weapons?: SaveSection<WeaponsSave>;
+  /** E: eşkıya kampları ve yankesici. */
+  bandits?: SaveSection<BanditsSave>;
+  /** F: drone. */
+  drone?: SaveSection<DroneSave>;
 }
 
 /** Canlı oyun durumunun kayıt görüntüsünü alır. Ölüyken çağrılmamalıdır (ölüm durumu kayda girmez). */
@@ -48,6 +68,20 @@ export function captureSave(targets: SaveTargets, now: Date = new Date()): SaveG
     creatures: targets.creatures.toSave(),
     hotbar: targets.hotbar.toSave(),
     settlements: { searched: targets.search?.toSave() ?? [] },
+    ...faz11Sections(targets),
+  };
+}
+
+/** v5 alanları: bağlı sistemden, yoksa boş değer. */
+function faz11Sections(
+  targets: SaveTargets,
+): Pick<SaveGame, 'farm' | 'weapons' | 'bandits' | 'drone'> {
+  const empty = emptyFaz11Save();
+  return {
+    farm: targets.farm?.toSave() ?? empty.farm,
+    weapons: targets.weapons?.toSave() ?? empty.weapons,
+    bandits: targets.bandits?.toSave() ?? empty.bandits,
+    drone: targets.drone?.toSave() ?? empty.drone,
   };
 }
 
@@ -70,6 +104,10 @@ export function applySave(raw: unknown, targets: SaveTargets): SaveGame {
   targets.creatures.loadSave(save.creatures);
   targets.hotbar.loadSave(save.hotbar);
   targets.search?.loadSave(save.settlements.searched);
+  targets.farm?.loadSave(save.farm);
+  targets.weapons?.loadSave(save.weapons);
+  targets.bandits?.loadSave(save.bandits);
+  targets.drone?.loadSave(save.drone);
   targets.player.apply(save.player);
   return save;
 }

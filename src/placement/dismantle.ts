@@ -8,6 +8,8 @@ import type { Structure, StructureId, StructureKind, StructureSet } from './stru
 export function dismantleReturns(kind: StructureKind): ItemStack[] {
   if (kind === 'campfire')
     return DISMANTLE.campfireReturns.map((s) => ({ id: s.id, count: s.count }));
+  // Faz 11: tarla çapayla açılır, eşyası yoktur (sökülünce bir şey dönmez; C ayarlar).
+  if (kind === 'farm_plot') return [];
   return [{ id: kind, count: 1 }];
 }
 

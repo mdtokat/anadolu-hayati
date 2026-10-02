@@ -6,7 +6,14 @@ export type Activity = 'rest' | 'walk' | 'run';
  * Ölüm nedeni: ölüm anındaki en büyük hasar kaynağı. `mauled` (hayvan saldırısı) göstergelerden değil,
  * `SurvivalSystem.applyDamage` ile dışarıdan gelen hasardan doğar (`DamageBreakdown`'da yoktur).
  */
-export type DeathCause = 'dehydration' | 'starvation' | 'hypothermia' | 'hyperthermia' | 'mauled';
+export type DeathCause =
+  | 'dehydration'
+  | 'starvation'
+  | 'hypothermia'
+  | 'hyperthermia'
+  | 'mauled'
+  /** Faz 11: vurularak (eşkıya atışı). */
+  | 'shot';
 
 export interface VitalsState {
   /** Can, tokluk (açlığın tersi), su (susuzluğun tersi), enerji (yorgunluğun tersi): 0–100. */

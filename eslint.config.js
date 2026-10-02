@@ -10,6 +10,8 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     languageOptions: { globals: globals.browser },
+    // `_` ile başlayan parametre bilinçli olarak kullanılmıyor (Faz 11: akışların doldurduğu boş kancalar).
+    rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
   },
   {
     files: ['tests/**/*.ts', 'scripts/**/*.ts', 'vite.config.ts', 'eslint.config.js'],

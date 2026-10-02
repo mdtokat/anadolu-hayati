@@ -164,6 +164,30 @@ export function solidBoxes(kind: StructureKind, open = false): LocalBox[] {
     case 'door':
     case 'roof':
       return pieceBoxes(kind, open);
+    // ── 11.1 (A) ── yer tutucu: katı değil (A merdiven rampası, direk, korkuluk… kutularını yazar).
+    case 'stairs':
+    case 'entry_step':
+    case 'pillar':
+    case 'railing':
+    case 'half_wall':
+    case 'gable_roof':
+    case 'gable_wall':
+      return [];
+    // ── 11.2/11.3 (B) ── yer tutucu: katı değil (B istasyon, çit ve çit kapısı kutularını yazar).
+    case 'forge':
+    case 'stone_oven':
+    case 'hand_mill':
+    case 'drying_rack':
+    case 'bedroll':
+    case 'solar_panel':
+    case 'wood_fence':
+    case 'stone_fence':
+    case 'fence_gate':
+      return [];
+    // Tarla (C) ve yere inmiş drone (F) içinden geçilir.
+    case 'farm_plot':
+    case 'drone':
+      return [];
   }
 }
 

@@ -74,6 +74,10 @@ interface Entry {
   waterClock: number;
   /** AI LOD: son adımdan beri biriken süre. */
   aiAccum: number;
+  /** Faz 11: duyulan gürültünün kaynağı ve kalan kaçış süresi (sn; 0 = yok). */
+  noiseX: number;
+  noiseZ: number;
+  noiseTime: number;
   view: CreatureView;
 }
 
@@ -211,6 +215,24 @@ export class CreatureSystem {
     }
     this.syncViews();
     return { killed };
+  }
+
+  /**
+   * Gürültü (Faz 11, `noise:made`): (x, z)'ye `radius` içindeki yaşayan canlılar `CREATURES.noiseFleeSeconds`
+   * boyunca kaynağından kaçar (ateşten kaçar gibi: tüm türler). Etkilenen canlı sayısını döner.
+   */
+  hearNoise(x: number, z: number, radius: number): number {
+    if (!(radius > 0)) return 0;
+    let count = 0;
+    for (const rec of this.records.values()) {
+      if (rec.brain.state === 'dead') continue;
+      if (Math.hypot(rec.brain.x - x, rec.brain.z - z) > radius) continue;
+      rec.noiseX = x;
+      rec.noiseZ = z;
+      rec.noiseTime = CREATURES.noiseFleeSeconds;
+      count++;
+    }
+    return count;
   }
 
   /**
@@ -396,6 +418,9 @@ export class CreatureSystem {
       freeTime: 0,
       waterClock: 0,
       aiAccum: 0,
+      noiseX: 0,
+      noiseZ: 0,
+      noiseTime: 0,
       view: {
         id: candidate.id,
         kind: candidate.kind,
@@ -456,6 +481,7 @@ export class CreatureSystem {
     predators: ReadonlyArray<Entry>,
   ): void {
     rec.hitFlash = Math.max(0, rec.hitFlash - CREATURES.hitFlashDecay * dt);
+    rec.noiseTime = Math.max(0, rec.noiseTime - dt);
     const brain = rec.brain;
 
     if (brain.state === 'dead') {
@@ -552,10 +578,19 @@ export class CreatureSystem {
       }
     }
 
+    // Faz 11: duyulan gürültü (atış) yanan ateş gibi kaçış kaynağıdır (ateş yakındaysa o önceliklidir).
+    const noise =
+      rec.noiseTime > 0
+        ? {
+            x: rec.noiseX,
+            z: rec.noiseZ,
+            dist: Math.hypot(rec.noiseX - brain.x, rec.noiseZ - brain.z),
+          }
+        : null;
     return {
       player,
       threat,
-      fire: nearestFire(brain.x, brain.z, context.fires, species.fireAvoidRadius),
+      fire: nearestFire(brain.x, brain.z, context.fires, species.fireAvoidRadius) ?? noise,
       darkness,
     };
   }
