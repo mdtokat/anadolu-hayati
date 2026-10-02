@@ -146,6 +146,16 @@ export const INPUT = {
      * kaydırır. Dev modunda Shift + rakam ve `T` + rakam ışınlanmaya ayrılmıştır (kısayol seçmez).
      */
     hotbar: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8'],
+    // ── Faz 11 (11.0; davranışı sahibi akış yazar) ──
+    /** D: nişan (sağ fare tuşu; `Input` fare tuşunu bu sözde koda çevirir). */
+    aim: ['MouseRight'],
+    /** D: doldurma. Yerleştirme hayaleti açıkken aynı tuş hayaleti döndürür (`resolveContextAction`). */
+    reload: ['KeyR'],
+    /** D: nişan alırken nefes tutma (nişan dışında koşu). */
+    steady: ['ShiftLeft', 'ShiftRight'],
+    /** F: oyuncu ↔ drone görüşü; drone'u eve döndürüp indir. */
+    droneView: ['KeyQ'],
+    droneHome: ['KeyH'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -1078,6 +1088,8 @@ export const SETTINGS = {
   defaultQuality: 'high',
   /** İpuçları (Faz 8.5) varsayılan olarak açıktır. */
   defaultHints: true,
+  /** Eşkıyalar ve yankesiciler (Faz 11) varsayılan olarak açıktır; kapalıyken hiç oluşmazlar. */
+  defaultBandits: true,
 } as const;
 
 /**
@@ -2127,4 +2139,248 @@ export const PEOPLE = {
   maxSlopeDeg: 35,
   /** Tohum. */
   seed: 0x9e0b1e,
+} as const;
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// Faz 11 — İnşa II, Tarım, Silahlar, Eşkıya ve Drone (docs/faz-11-paralel-plan.md §3.3). 11.0 her akışın bloğunu
+// başlangıç değerleriyle açar; her akış YALNIZCA kendi bloğunun içini değiştirir.
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ── Faz 11: A (11.1) ── Modüler inşa II: merdiven, giriş basamağı, direk, korkuluk, yarım duvar, beşik çatı ve alın
+ * duvarı; üst kat tabanı. Ölçüler oyun metresidir; ızgara ve kat yüksekliği `PIECES`'ten gelir.
+ */
+export const PIECES_II = {
+  /** Merdiven: ızgara hücresi cinsinden uzunluk (1 × `cells`), bir kat çıkar; görsel basamak sayısı. */
+  stairs: { cells: 2, steps: 12 },
+  /** Giriş basamağı: zeminden tabana çıkış; basamak sayısı ve en çok yükseklik farkı. */
+  entryStep: { steps: 3, maxRise: 1.2 },
+  /** Direk kesiti (kare kenarı). */
+  pillar: { size: 0.25 },
+  /** Korkuluk yüksekliği ve kalınlığı. */
+  railing: { height: 1, thickness: 0.08 },
+  /** Yarım duvar yüksekliği. */
+  halfWall: { height: 1.1 },
+  /** Beşik çatı: genişlik (hücre), eğim (derece) ve saçak payı. */
+  gableRoof: { cells: 2, pitchDeg: 30, overhang: 0.3 },
+  /** Üst kat tabanı: alt kat duvarı olmayan komşu hücreye en çok bu kadar hücre çıkıntı (balkon). */
+  upperFloor: { overhangCells: 1 },
+} as const;
+
+/** ── Faz 11: B (11.3) ── Çitler: ahşap çit, kuru taş duvar, çit kapısı (2 m ızgara kenarı, zemini izler). */
+export const FENCES = {
+  /** Parça uzunluğu (ızgara kenarı, oyun m). */
+  length: 2,
+  /** Tür başına yükseklik ve kalınlık (oyun m). */
+  wood: { height: 1.1, thickness: 0.1 },
+  stone: { height: 0.9, thickness: 0.5 },
+  gate: { height: 1.1, thickness: 0.1 },
+  /** Bir parçanın iki ucu arasındaki en büyük yükseklik farkı (oyun m); daha dik yere çit konmaz. */
+  maxEndRise: 1.6,
+} as const;
+
+/** ── Faz 11: B (11.2) ── Döşek: üstünde hareketsiz dinlenirken barınak etkisinin üstüne eklenen çarpanlar. */
+export const BEDS = {
+  /** Döşeğe bu yatay uzaklıkta (oyun m) durulursa üstünde sayılır. */
+  reach: 1,
+  /** Dinlenirken enerji ve can dolum hızı çarpanları (barınak çarpanıyla çarpılır). */
+  energyMultiplier: 1.6,
+  healthMultiplier: 1.4,
+} as const;
+
+/** ── Faz 11: B (11.2) ── Güneş paneli: gündüz şarj gücü üretir (drone pili F'de okur, `solarChargeAt`). */
+export const SOLAR = {
+  /** Güneş bu yükseklik açısının (derece) altındayken üretim yok. */
+  minSunAltitudeDeg: 5,
+  /** Tam güneşte (yükseklik ≥ `fullSunAltitudeDeg`) saniyede eklenen pil oranı (0–1). */
+  chargePerSecond: 1 / 300,
+  fullSunAltitudeDeg: 45,
+  /** Panelin şarj ettiği yarıçap (oyun m). */
+  reach: 4,
+} as const;
+
+/** ── Faz 11: C (11.4) ── Ekme biçme: tarla, ekin süreleri, sulama, kuruma, verim, domuz baskını. */
+export const FARMING = {
+  /** Tarla hücresi kenarı (oyun m; inşa ızgarasıyla aynı). */
+  plotSize: 2,
+  /** Tarla açılabilen arazi örtüsü sınıfları ve en dik eğim (derece). */
+  covers: ['grass', 'crop', 'shrub'],
+  maxSlopeDeg: 20,
+  /** Ekim → olgunluk süresi (oyun günü); anahtar ekilen eşya. */
+  growDays: { wheat_seed: 3, corn_seed: 4, dry_beans: 2.5, potato: 3 },
+  /** Büyüme evresi sayısı (son evre olgun). */
+  stages: 4,
+  /** Sulanmamış tarlanın büyüme hızı çarpanı ve kuruyup ölmesi için susuz geçen süre (oyun günü). */
+  dryGrowthFactor: 0.5,
+  wiltDays: 2,
+  /** Sulamanın etkisi (oyun günü). */
+  wateredDays: 1,
+  /** Hasat süresi (sn): elle / orakla; orakla verim çarpanı. */
+  harvestSeconds: 4,
+  harvestSecondsSickle: 1.5,
+  sickleYieldFactor: 1.5,
+  /** Gece olgun tarlaya yönelen yaban domuzunun algı yarıçapı (oyun m). */
+  boarRaidRadius: 60,
+} as const;
+
+/**
+ * ── Faz 11: D (11.5) ── Menzilli silahlar: mermi hızı (oyun m/sn), yerçekimi çarpanı, saçılma (derece), saçma
+ * tanesi, şarjör, doldurma süresi (sn), etkin menzil (oyun m), hasar ve mühimmat eşyası. Dürbün görüş açısı ve nefes
+ * tutma ayrıca. 11.0 başlangıç değerleridir; D balistik testleriyle ayarlar.
+ */
+export const RANGED = {
+  weapons: {
+    slingshot: {
+      speed: 40,
+      gravity: 1,
+      spreadDeg: 2,
+      pellets: 1,
+      magazine: 1,
+      reloadSeconds: 0.8,
+      range: 35,
+      damage: 8,
+      ammo: 'stone',
+    },
+    bow: {
+      speed: 60,
+      gravity: 1,
+      spreadDeg: 1,
+      pellets: 1,
+      magazine: 1,
+      reloadSeconds: 1,
+      range: 60,
+      damage: 30,
+      ammo: 'arrow',
+    },
+    shotgun: {
+      speed: 300,
+      gravity: 1,
+      spreadDeg: 5,
+      pellets: 8,
+      magazine: 2,
+      reloadSeconds: 2.2,
+      range: 40,
+      damage: 9,
+      ammo: 'shotgun_shell',
+    },
+    pistol: {
+      speed: 350,
+      gravity: 1,
+      spreadDeg: 1.2,
+      pellets: 1,
+      magazine: 8,
+      reloadSeconds: 1.6,
+      range: 60,
+      damage: 22,
+      ammo: 'pistol_ammo',
+    },
+    rifle: {
+      speed: 700,
+      gravity: 1,
+      spreadDeg: 0.5,
+      pellets: 1,
+      magazine: 5,
+      reloadSeconds: 2.4,
+      range: 200,
+      damage: 45,
+      ammo: 'rifle_ammo',
+    },
+    sniper_rifle: {
+      speed: 850,
+      gravity: 1,
+      spreadDeg: 0.1,
+      pellets: 1,
+      magazine: 5,
+      reloadSeconds: 2.8,
+      range: 450,
+      damage: 80,
+      ammo: 'rifle_ammo',
+    },
+  },
+  /** Yerçekimi ivmesi (oyun m/sn²; dikey ölçek gereği gerçeğe göre gevşektir). */
+  gravity: 9.81,
+  /** Işın yürütme adımı (oyun m) ve hedef silindirinin dikey payı. */
+  stepMeters: 1,
+  /** Nişan: görüş açısı (derece), dürbünlü görüş açısı ve fare hassasiyeti çarpanı. */
+  aimFovDeg: 50,
+  scopeFovDeg: 12,
+  aimSensitivity: 0.6,
+  /** Nefes tutma (Shift): en uzun süre (sn) ve saniye başına enerji maliyeti. */
+  steadySeconds: 4,
+  steadyEnergyPerSecond: 3,
+  /** Atış gürültüsünün yarıçapı (oyun m; `noise:made`). */
+  noiseRadius: { slingshot: 10, bow: 8, shotgun: 140, pistol: 110, rifle: 170, sniper_rifle: 200 },
+} as const;
+
+/** ── Faz 11: D (11.5) ── Mühimmat: tarif başına üretim adedi ve ganimette bulunan aralık (min–max). */
+export const AMMO = {
+  lootCount: {
+    shotgun_shell: [2, 6],
+    pistol_ammo: [4, 12],
+    rifle_ammo: [3, 8],
+    arrow: [3, 8],
+  },
+} as const;
+
+/**
+ * ── Faz 11: E (11.6) ── Eşkıya kampları (ormanda): kamp sayısı/yerleşimi, boyu, etkinlik saatleri, algı, silah
+ * dağılımı, teslim olma ve yeniden dolma. Ayarlar'dan kapatılabilir (`Settings.bandits`); camide saldırmazlar.
+ */
+export const BANDITS = {
+  /** Dünyadaki kamp sayısı (yaklaşık; uygun yer bulunamazsa daha az). */
+  campCount: 18,
+  /** Kamp yeri kuralları: yerleşimlere en az uzaklık, yola uzaklık aralığı (oyun m), en dik eğim (derece). */
+  minSettlementDistance: 400,
+  roadDistance: [100, 400],
+  maxSlopeDeg: 22,
+  /** Kampın yarıçapı (oyun m) ve kamp başına eşkıya sayısı aralığı. */
+  campRadius: 12,
+  members: [3, 5],
+  /** Etkinlikler: uyku saatleri [başlangıç, bitiş) (oyun saati). */
+  sleepHours: [23, 5],
+  /** Algı: gündüz görüş, gece görüş çarpanı, duyma (oyun m), görüş konisi (derece). */
+  sightRange: 70,
+  nightSightFactor: 0.45,
+  hearingRange: 30,
+  viewConeDeg: 140,
+  /** Silah dağılımı (olasılık ağırlıkları); reis keskin nişancı ya da av tüfeği taşır. */
+  weapons: { pala: 3, club: 2, pistol: 2, shotgun: 2, rifle: 1 },
+  /** Teslim olma: can bu oranın altına düşünce (0–1). */
+  surrenderHealthFraction: 0.25,
+  /** Temizlenen kampın yeniden dolması (oyun günü). */
+  reoccupyDays: 5,
+  /** Etkinleşme yarıçapı: oyuncu bu uzaklıktaki kampın eşkıyalarını canlandırır (oyun m). */
+  activeRadius: 260,
+  seed: 0xba4d17,
+} as const;
+
+/** ── Faz 11: E (11.7) ── Yankesiciler (il/ilçe merkezlerinde): nadir; yaklaşıp bir eşya çalıp kaçar. */
+export const PICKPOCKETS = {
+  /** Doğma denemesi aralığı (gerçek sn) ve kent merkezinde olasılığı. */
+  spawnCheckSeconds: 90,
+  spawnChance: 0.08,
+  /** Aynı anda en çok yankesici. */
+  maxActive: 1,
+  /** Çalma uzaklığı (oyun m) ve çalma süresi (sn, oyuncunun yanında kalınca). */
+  stealDistance: 1.4,
+  stealSeconds: 1.2,
+  seed: 0x9c4e7a,
+} as const;
+
+/** ── Faz 11: F (11.8) ── Drone: hız, menzil, irtifa, pil, şarj, işaretler, düşürülme. */
+export const DRONE = {
+  /** Yatay ve dikey hız (oyun m/sn). */
+  speed: 12,
+  climbSpeed: 6,
+  /** Oyuncudan en uzak menzil (oyun m) ve karlanmanın başladığı oran. */
+  range: 300,
+  noiseStart: 0.8,
+  /** Yerden en yüksek irtifa (oyun m). */
+  maxAltitude: 120,
+  /** Tam pille uçuş süresi (gerçek sn). */
+  batterySeconds: 240,
+  /** En çok işaret sayısı. */
+  maxMarks: 8,
+  /** Eşkıyaların drone'u fark edip ateş ettiği en yüksek irtifa (yerden, oyun m). */
+  shootableAltitude: 40,
 } as const;

@@ -13,7 +13,14 @@ export type InputAction =
   /** Test modunda Space'e çift basış: uçuşu aç/kapa (yalnızca Input üretir; Game test modu kapalıyken yok sayar). */
   | 'toggleFlight'
   /** Sol fare tuşu (yalnızca oyun kontrolündeyken): yerleştirme hayaleti varsa onayla, yoksa saldır. */
-  | 'primaryAction';
+  | 'primaryAction'
+  // ── Faz 11 (11.0; davranışı sahibi akış yazar) ──
+  /** D: elde silah varken doldur (`R`; hayalet açıkken `rotatePlacement` kalır, bkz. `resolveContextAction`). */
+  | 'reload'
+  /** F: oyuncu ↔ drone görüşü (`Q`). */
+  | 'droneView'
+  /** F: drone'u eve döndür ve indir (`H`). */
+  | 'droneHome';
 
 /** Tuş durumundan türetilen hareket niyeti. */
 export interface MoveIntent {
@@ -53,8 +60,28 @@ export function actionForKey(code: string): InputAction | null {
   if ((bindings.placeCampfire as readonly string[]).includes(code)) return 'placeCampfire';
   if ((bindings.placeShelter as readonly string[]).includes(code)) return 'placeShelter';
   if ((bindings.rotatePlacement as readonly string[]).includes(code)) return 'rotatePlacement';
+  if ((bindings.droneView as readonly string[]).includes(code)) return 'droneView';
+  if ((bindings.droneHome as readonly string[]).includes(code)) return 'droneHome';
   return null;
 }
+
+/** Bağlama göre değişen eylemler için oyun durumu (Faz 11). */
+export interface ActionContext {
+  /** Yerleştirme hayaleti açık mı? */
+  placing: boolean;
+}
+
+/**
+ * Aynı tuşu paylaşan eylemlerin bağlam önceliği (Faz 11): `R` yerleştirme hayaleti açıkken döndürür, değilse
+ * doldurur (`reload`; elde silah yoksa D yok sayar). Diğer eylemler olduğu gibi döner.
+ */
+export function resolveContextAction(action: InputAction, context: ActionContext): InputAction {
+  if (action === 'rotatePlacement' && !context.placing) return 'reload';
+  return action;
+}
+
+/** Sağ fare tuşunun `Input`'taki sözde kodu (`INPUT.bindings.aim`). */
+export const MOUSE_RIGHT_CODE = 'MouseRight';
 
 /** Kısayol tuşu → slot (0'dan; `INPUT.bindings.hotbar` sırası); kısayol tuşu değilse null. */
 export function hotbarSlotForKey(code: string): number | null {

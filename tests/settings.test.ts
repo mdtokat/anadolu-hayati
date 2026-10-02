@@ -21,6 +21,7 @@ describe('varsayılan ayarlar', () => {
       volume: SETTINGS.volume.default,
       hints: SETTINGS.defaultHints,
       testMode: TEST_MODE.defaultEnabled,
+      bandits: SETTINGS.defaultBandits,
     });
     expect(parseSettings(d)).toEqual(d);
   });
@@ -68,6 +69,7 @@ describe('parseSettings: hoşgörülü okuma', () => {
       volume: 0.25,
       hints: SETTINGS.defaultHints,
       testMode: TEST_MODE.defaultEnabled,
+      bandits: SETTINGS.defaultBandits,
     });
   });
 
@@ -82,6 +84,12 @@ describe('parseSettings: hoşgörülü okuma', () => {
     expect(parseSettings({}).testMode).toBe(false);
     expect(parseSettings({ testMode: true }).testMode).toBe(true);
     expect(parseSettings({ testMode: 'evet' }).testMode).toBe(TEST_MODE.defaultEnabled);
+  });
+
+  it('eşkıyalar (Faz 11): varsayılan açık; eski ayarda alan yok; yalnızca mantıksal değer okunur', () => {
+    expect(parseSettings({}).bandits).toBe(true);
+    expect(parseSettings({ bandits: false }).bandits).toBe(false);
+    expect(parseSettings({ bandits: 'hayır' }).bandits).toBe(SETTINGS.defaultBandits);
   });
 
   it('bozuk alanları tek tek varsayılana düşürür, diğerlerini korur', () => {
