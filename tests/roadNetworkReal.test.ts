@@ -4,16 +4,16 @@ import type { RegionData } from '../src/data/region';
 import { footprintRadius, settlementCenter } from '../src/settlements/layout';
 import { SPAN_KIND } from '../src/settlements/roadProfile';
 import { loadRealWorld } from './helpers/realRegion';
+import { measureRoads, sidewaysStreamShare, type RoadMetrics } from './helpers/roadMetrics';
 import { buildSettlementWorld, type SettlementWorld } from './helpers/settlementWorld';
 
-/** Gerçek dünyada yol ağı: bağlantı, düzgünlük, eğim, köprü, sınıf düzeni (Faz 10 sonrası yol düzenlemesi). */
+/**
+ * Gerçek dünyada yol ağı (Faz 10 sonrası yol, köprü ve dere düzenlemesi): tek parça seyrek ağ, ikiz şerit ve göbek
+ * yok, çıkmaz yok; dört yol tipi; köprüler yalnız dere geçişlerinde ve kısa; tüneller; dereler yamaçta değil.
+ */
 let world: RegionData;
 let sw: SettlementWorld;
-
-beforeAll(async () => {
-  world = await loadRealWorld();
-  sw = buildSettlementWorld(world);
-}, 120_000);
+let metrics: RoadMetrics;
 
 const towns = () =>
   world.settlements!.settlements.map((s) => ({
@@ -22,89 +22,71 @@ const towns = () =>
     rank: s.rank,
   }));
 
-describe('yol ağı — bağlantı', () => {
-  it('kopuk küçük yol parçası kalmaz (yerleşimden ve dünya kenarından uzakta < 80 m)', () => {
-    const lines = sw.map.roadLines;
-    const cell = 4;
-    const grid = new Map<number, Array<{ x: number; z: number; line: number }>>();
-    const parent = Int32Array.from({ length: lines.length }, (_, i) => i);
-    const find = (i: number): number => {
-      while (parent[i] !== i) {
-        parent[i] = parent[parent[i]!]!;
-        i = parent[i]!;
-      }
-      return i;
-    };
-    const key = (cx: number, cz: number) => (cx + 32768) * 65536 + (cz + 32768);
-    const lengthOf = new Float64Array(lines.length);
-    lines.forEach((line, li) => {
-      const xz = line.xz;
-      for (let i = 0; i + 3 < xz.length; i += 2) {
-        const ax = xz[i]!;
-        const az = xz[i + 1]!;
-        const bx = xz[i + 2]!;
-        const bz = xz[i + 3]!;
-        const len = Math.hypot(bx - ax, bz - az);
-        lengthOf[li] = lengthOf[li]! + len;
-        const n = Math.max(1, Math.ceil(len / 2));
-        for (let k = 0; k <= n; k++) {
-          const x = ax + ((bx - ax) * k) / n;
-          const z = az + ((bz - az) * k) / n;
-          const cx = Math.floor(x / cell);
-          const cz = Math.floor(z / cell);
-          for (let dx = -1; dx <= 1; dx++) {
-            for (let dz = -1; dz <= 1; dz++) {
-              for (const o of grid.get(key(cx + dx, cz + dz)) ?? []) {
-                if (o.line !== li && Math.hypot(o.x - x, o.z - z) <= ROADS.nodeSnap + 0.2) {
-                  parent[find(li)] = find(o.line);
-                }
-              }
-            }
-          }
-          const list = grid.get(key(cx, cz));
-          if (list) list.push({ x, z, line: li });
-          else grid.set(key(cx, cz), [{ x, z, line: li }]);
-        }
-      }
-    });
-    const compLen = new Map<number, number>();
-    const compPts = new Map<number, number[]>();
-    lines.forEach((line, li) => {
-      const root = find(li);
-      compLen.set(root, (compLen.get(root) ?? 0) + lengthOf[li]!);
-      const pts = compPts.get(root) ?? [];
-      pts.push(line.xz[0]!, line.xz[1]!);
-      compPts.set(root, pts);
-    });
-    const b = sw.source.bounds;
-    const t = towns();
-    let tiny = 0;
-    let total = 0;
-    for (const [root, len] of compLen) {
-      total += len;
-      if (len >= 80) continue;
-      const pts = compPts.get(root)!;
-      const anchored = pts.some((_, k) => {
-        if (k % 2) return false;
-        const x = pts[k]!;
-        const z = pts[k + 1]!;
-        if (x < b.minX + 20 || x > b.maxX - 20 || z < b.minZ + 20 || z > b.maxZ - 20) return true;
-        return t.some((s) => Math.hypot(x - s.x, z - s.z) <= s.r + 40);
-      });
-      if (!anchored) tiny++;
-    }
-    expect(tiny).toBe(0);
-    expect(total).toBeGreaterThan(100_000);
-    // Ağın büyük kısmı tek bir iri bileşendedir (anayol + tali + patika birbirine bağlı).
-    const largest = Math.max(...compLen.values());
-    expect(largest / total).toBeGreaterThan(0.6);
+beforeAll(async () => {
+  world = await loadRealWorld();
+  sw = buildSettlementWorld(world);
+  metrics = measureRoads(sw, towns());
+  if (process.env.ROAD_REPORT) console.log(JSON.stringify({ metrics, network: sw.network }));
+}, 120_000);
+
+const lengthOf = (lines: ReadonlyArray<{ xz: Float32Array }>) => {
+  let l = 0;
+  for (const line of lines)
+    for (let i = 0; i + 3 < line.xz.length; i += 2)
+      l += Math.hypot(line.xz[i + 2]! - line.xz[i]!, line.xz[i + 3]! - line.xz[i + 1]!);
+  return l;
+};
+
+describe('yol ağı — bağlantı ve seyreklik', () => {
+  it('tüm yollar tek parça; hiçbir yere gitmeyen çıkmaz uç yok', () => {
+    expect(metrics.components).toBe(1);
+    expect(metrics.deadEnds).toBe(0);
   });
 
-  it('çıkmaz budama ve kırsal sınıflandırma çalıştı', () => {
-    expect(sw.network.pruned).toBeGreaterThan(500);
-    expect(sw.network.demoted).toBeGreaterThan(100);
-    expect(sw.network.linked).toBeGreaterThan(20);
-    expect(sw.network.edgesOut).toBeLessThan(sw.network.edgesIn);
+  it('her yerleşime yol varır', () => {
+    for (const t of towns()) {
+      const hit = sw.map.roads.nearest(t.x, t.z, t.r + 25);
+      expect(hit, `${t.x.toFixed(0)},${t.z.toFixed(0)}`).not.toBeNull();
+    }
+  });
+
+  it('ağ seyrek: veri yollarının küçük bir kısmı; ikiz şerit ve kavşak kolları atıldı', () => {
+    const network = lengthOf(sw.map.roadLines.filter((l) => l.cls !== 3));
+    expect(network).toBeGreaterThan(30_000);
+    expect(network).toBeLessThan(lengthOf(world.settlements!.roads) * 0.3);
+    expect(sw.network.twinsRemoved).toBeGreaterThan(200);
+    expect(sw.network.unlinked).toBe(0);
+  });
+
+  it('göbek, ayrılıp birleşen çatal gibi kısa halkalar neredeyse yok', () => {
+    expect(metrics.smallLoops).toBeLessThan(30);
+  });
+});
+
+describe('yol ağı — dört yol tipi', () => {
+  it('anayol, köy yolu, dağ patikası ve kent sokağı var', () => {
+    const [main, village, trail, street] = metrics.length;
+    expect(main).toBeGreaterThan(12_000);
+    expect(village).toBeGreaterThan(12_000);
+    expect(trail).toBeGreaterThan(5_000);
+    expect(street).toBeGreaterThan(10_000);
+    expect(sw.network.trails).toBeGreaterThan(20);
+  });
+
+  it('kent sokakları yapıların yanındadır; ana caddeler geniştir', () => {
+    const buildings = sw.map.buildings;
+    let far = 0;
+    let avenues = 0;
+    for (const street of sw.map.streetLines) {
+      expect(street.cls).toBe(3);
+      if ((street.width ?? 0) === ROADS.avenueWidth) avenues++;
+      const mx = (street.xz[0]! + street.xz[street.xz.length - 2]!) / 2;
+      const mz = (street.xz[1]! + street.xz[street.xz.length - 1]!) / 2;
+      if (!buildings.some((b) => Math.hypot(b.x - mx, b.z - mz) <= 45)) far++;
+    }
+    expect(sw.map.streetLines.length).toBeGreaterThan(100);
+    expect(far / sw.map.streetLines.length).toBeLessThan(0.05);
+    expect(avenues).toBeGreaterThan(10);
   });
 });
 
@@ -130,7 +112,7 @@ describe('yol ağı — düzgünlük ve eğim', () => {
         if ((d * 180) / Math.PI > 60) sharp++;
       }
     }
-    expect(samples).toBeGreaterThan(10_000);
+    expect(samples).toBeGreaterThan(5_000);
     expect(sharp / samples).toBeLessThan(0.005);
   });
 
@@ -145,7 +127,7 @@ describe('yol ağı — düzgünlük ve eğim', () => {
         if (g <= (ROADS.gradeMax[0] as number) * 1.5) ok += road.step;
       }
     }
-    expect(total).toBeGreaterThan(30_000);
+    expect(total).toBeGreaterThan(12_000);
     expect(ok / total).toBeGreaterThan(0.92);
   });
 
@@ -171,7 +153,7 @@ describe('yol ağı — düzgünlük ve eğim', () => {
       nodes++;
       if (Math.max(...list) - Math.min(...list) > 0.6) bad++;
     }
-    expect(nodes).toBeGreaterThan(1000);
+    expect(nodes).toBeGreaterThan(200);
     expect(bad / nodes).toBeLessThan(0.03);
   });
 
@@ -187,13 +169,13 @@ describe('yol ağı — düzgünlük ve eğim', () => {
         if (Math.abs(h - road.bed[i]!) <= 0.3) near++;
       }
     }
-    expect(total).toBeGreaterThan(20_000);
+    expect(total).toBeGreaterThan(8_000);
     expect(near / total).toBeGreaterThan(0.95);
   });
 });
 
-describe('yol ağı — köprüler', () => {
-  it('dere geçişleri köprüdür: ana/tali yol zemin noktalarının < %1’i akarsu içinde', () => {
+describe('yol ağı — köprüler ve tüneller', () => {
+  it('dere geçişleri köprüdür: ana/köy yolu zemin noktalarının < %1’i akarsu içinde', () => {
     const water = sw.water!;
     let wet = 0;
     let total = 0;
@@ -210,59 +192,47 @@ describe('yol ağı — köprüler', () => {
     expect(wet / total).toBeLessThan(0.01);
   });
 
-  it('köprüler var: yüzlerce dere köprüsü, ana yol ve patika dar farkıyla', () => {
+  it('köprüler kısa, arka arkaya ve tepeli değil; dere boyunca uzanan köprü yok', () => {
+    expect(metrics.bridges).toBeGreaterThan(120);
+    expect(metrics.bridges).toBeLessThan(450);
+    expect(metrics.bridgeMedian).toBeLessThan(18);
+    expect(metrics.bridgeP90).toBeLessThan(40);
+    expect(metrics.consecutiveBridges / metrics.bridges).toBeLessThan(0.15);
+    expect(metrics.peakedBridges / metrics.bridges).toBeLessThan(0.02);
+    expect(metrics.parallelBridges / metrics.bridges).toBeLessThan(0.03);
+  });
+
+  it('köprü türleri yola göre: beton, viyadük, taş kemer, ahşap; anayolda ahşap yok', () => {
     const plan = sw.map.plan;
-    expect(plan.spans.length).toBeGreaterThan(500);
-    const byClass = [0, 0, 0];
-    for (const span of plan.spans) byClass[plan.roads[span.road]!.cls]!++;
-    expect(byClass[0]).toBeGreaterThan(50);
-    expect(byClass[1]).toBeGreaterThan(50);
-    expect(byClass[2]).toBeGreaterThan(5);
-    // Köprü altı doğal kalır; kıyılar zeminde, aradaki noktalar köprü türünde.
-    for (const span of plan.spans.slice(0, 200)) {
+    const types = new Map<string, number>();
+    for (const span of plan.spans) {
+      if (span.kind !== SPAN_KIND.bridge) continue;
+      types.set(span.type, (types.get(span.type) ?? 0) + 1);
+      const cls = plan.roads[span.road]!.cls;
+      if (cls === 0) expect(['beam', 'viaduct']).toContain(span.type);
+      if (span.type === 'wooden') expect(cls).toBe(2);
+    }
+    for (const type of ['beam', 'viaduct', 'arch', 'wooden'])
+      expect(types.get(type) ?? 0).toBeGreaterThan(5);
+  });
+
+  it('dağların altından geçen tüneller var; tavan arazinin altında', () => {
+    expect(metrics.tunnels).toBeGreaterThanOrEqual(3);
+    const plan = sw.map.plan;
+    for (const span of plan.spans) {
+      if (span.kind !== SPAN_KIND.tunnel) continue;
       const r = plan.roads[span.road]!;
-      expect(r.kind[span.i0]).toBe(SPAN_KIND.ground);
-      expect(r.kind[span.i1]).toBe(SPAN_KIND.ground);
-      expect(r.kind[span.i0 + 1]).toBe(SPAN_KIND.bridge);
+      expect(r.cls).toBeLessThanOrEqual(1);
+      expect((span.i1 - span.i0) * r.step).toBeGreaterThan(30);
     }
   });
 });
 
-describe('yol ağı — yoğunluğa göre sınıf', () => {
-  it('yerleşimden çok uzakta tali yol (sınıf 1) neredeyse yok; anayol ve patika var', () => {
-    const t = towns();
-    const lens = [0, 0, 0];
-    let farClass1 = 0;
-    for (const line of sw.map.roadLines) {
-      if (sw.map.streetLines.includes(line)) continue;
-      for (let i = 0; i + 3 < line.xz.length; i += 2) {
-        const len = Math.hypot(line.xz[i + 2]! - line.xz[i]!, line.xz[i + 3]! - line.xz[i + 1]!);
-        lens[line.cls]! += len;
-        if (line.cls !== 1) continue;
-        const mx = (line.xz[i]! + line.xz[i + 2]!) / 2;
-        const mz = (line.xz[i + 1]! + line.xz[i + 3]!) / 2;
-        const d = Math.min(...t.map((s) => Math.hypot(mx - s.x, mz - s.z) - s.r));
-        if (d > (ROADS.ruralDistance as number) + 150) farClass1 += len;
-      }
-    }
-    expect(lens[0]).toBeGreaterThan(30_000);
-    expect(lens[2]).toBeGreaterThan(20_000);
-    expect(farClass1 / lens[1]!).toBeLessThan(0.1);
-  });
-
-  it('kent sokakları yapıların yanındadır (yapısız sokak yok) ve ana cadde sınıf 0', () => {
-    const buildings = sw.map.buildings;
-    let far = 0;
-    let main = 0;
-    for (const street of sw.map.streetLines) {
-      const mx = (street.xz[0]! + street.xz[street.xz.length - 2]!) / 2;
-      const mz = (street.xz[1]! + street.xz[street.xz.length - 1]!) / 2;
-      if (street.cls === 0) main++;
-      const near = buildings.some((b) => Math.hypot(b.x - mx, b.z - mz) <= 45);
-      if (!near) far++;
-    }
-    expect(sw.map.streetLines.length).toBeGreaterThan(100);
-    expect(far / sw.map.streetLines.length).toBeLessThan(0.05);
-    expect(main).toBeGreaterThan(5);
+describe('akarsular', () => {
+  it('dereler yamaçta durmaz: oyma ve korumadan sonra yamaçtaki örnek oranı doğal araziden az', () => {
+    const lines = world.features!.water.lines;
+    const natural = sidewaysStreamShare(sw.source.natural().heightAt, lines);
+    const graded = sidewaysStreamShare((x, z) => sw.source.heightAt(x, z), lines);
+    expect(graded).toBeLessThan(natural * 0.8);
   });
 });

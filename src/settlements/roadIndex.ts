@@ -1,5 +1,6 @@
 import { ROADS } from '../config';
 import type { RoadClass, RoadData } from '../data/settlements';
+import { roadHalfWidth } from './roadWidth';
 
 /** Bir sorgu sonucu: en yakın yol parçası. */
 export interface RoadHit {
@@ -18,6 +19,8 @@ interface Segment {
   bx: number;
   bz: number;
   cls: RoadClass;
+  /** Yarı genişlik (oyun m). */
+  half: number;
 }
 
 /**
@@ -49,6 +52,7 @@ export class RoadIndex {
         bx: xz[i + 2] as number,
         bz: xz[i + 3] as number,
         cls: road.cls,
+        half: roadHalfWidth(road),
       });
       this.count++;
     }
@@ -59,7 +63,7 @@ export class RoadIndex {
   }
 
   private insert(seg: Segment): void {
-    const pad = (ROADS.width[seg.cls] as number) / 2;
+    const pad = seg.half;
     const c0x = Math.floor((Math.min(seg.ax, seg.bx) - pad) / this.cellSize);
     const c1x = Math.floor((Math.max(seg.ax, seg.bx) + pad) / this.cellSize);
     const c0z = Math.floor((Math.min(seg.az, seg.bz) - pad) / this.cellSize);
@@ -95,7 +99,7 @@ export class RoadIndex {
           const d2 = distance2(s, x, z);
           if (d2 > r2) continue;
           const distance = Math.sqrt(d2);
-          const edge = distance - (ROADS.width[s.cls] as number) / 2;
+          const edge = distance - s.half;
           if (edge < bestEdge) {
             best = s;
             bestEdge = edge;
@@ -125,7 +129,7 @@ export class RoadIndex {
         const list = this.cells.get(this.key(cx, cz));
         if (!list) continue;
         for (const s of list) {
-          const reach = (ROADS.width[s.cls] as number) / 2 + margin;
+          const reach = s.half + margin;
           if (distance2(s, x, z) <= reach * reach) return true;
         }
       }
@@ -135,7 +139,7 @@ export class RoadIndex {
 }
 
 /** En geniş yolun yarı genişliği (oyun m). */
-const MAX_HALF = Math.max(...ROADS.width) / 2;
+const MAX_HALF = Math.max(...ROADS.width, ROADS.avenueWidth) / 2;
 
 /** Noktanın parçaya en kısa uzaklığının karesi. */
 function distance2(s: Segment, x: number, z: number): number {

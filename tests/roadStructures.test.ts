@@ -9,7 +9,11 @@ import {
 } from '../src/world/roadStructureGeometry';
 
 /** x ekseninde 30 m'lik düz bir köprü (noktalar 3 m), güverte 5 m yükseklikte, altta 0–5 m'lik vadi. */
-function bridgePlan(cls: 0 | 1 | 2 = 0, high = false): RoadPlan {
+function bridgePlan(
+  cls: 0 | 1 | 2 = 0,
+  high = false,
+  type: 'beam' | 'viaduct' | 'arch' | 'wooden' = high ? 'viaduct' : 'beam',
+): RoadPlan {
   const count = 15;
   const xz = new Float32Array(count * 2);
   const natural = new Float32Array(count);
@@ -24,13 +28,13 @@ function bridgePlan(cls: 0 | 1 | 2 = 0, high = false): RoadPlan {
   }
   const plan: RoadPlan = {
     roads: [{ cls, xz, step: 3, natural, bed, kind } satisfies PlannedRoad],
-    spans: [{ road: 0, i0: 2, i1: 12, kind: SPAN_KIND.bridge, viaduct: high }],
+    spans: [{ road: 0, i0: 2, i1: 12, kind: SPAN_KIND.bridge, viaduct: high, type }],
   };
   return plan;
 }
 
 describe('köprü şekli', () => {
-  it('güverte üst yüzü yatakta; iki yan korkuluk; çarpışanlar ve ayaklar ayrı', () => {
+  it('beton köprü: güverte üst yüzü yatakta, iki yan çelik korkuluk; viyadükte çarpışmayan ayaklar', () => {
     const plan = bridgePlan(0);
     const shape = structureShape(plan, plan.spans[0]!);
     const S = ROAD_STRUCTURES;
@@ -41,17 +45,64 @@ describe('köprü şekli', () => {
       expect(b.hw).toBeCloseTo((ROADS.width[0] as number) / 2 + (S.widthPad[0] as number), 3);
       expect(b.solid).toBe(true);
     }
-    const rails = shape.boxes.filter((b) => b.color === S.colors.parapet);
+    const rails = shape.boxes.filter((b) => b.color === S.colors.guardRail && b.solid);
     expect(rails).toHaveLength(20);
-    for (const b of rails) expect(b.y + b.hh).toBeCloseTo(5 + S.parapetHeight, 3);
-    // Alçak köprüde ayak yok; yüksek köprüde (viyadük) ayaklar var ve çarpışmaz.
-    expect(shape.boxes.some((b) => b.color === S.colors.pier)).toBe(false);
     const tall = bridgePlan(0, true);
-    const piers = structureShape(tall, tall.spans[0]!).boxes.filter(
-      (b) => b.color === S.colors.pier,
-    );
+    const tallShape = structureShape(tall, tall.spans[0]!);
+    const parapets = tallShape.boxes.filter((b) => b.color === S.colors.parapet);
+    expect(parapets).toHaveLength(20);
+    for (const b of parapets) expect(b.y + b.hh).toBeCloseTo(5 + S.parapetHeight, 3);
+    // Viyadükte ayaklar var ve çarpışmaz.
+    const piers = tallShape.boxes.filter((b) => b.color === S.colors.pier && !b.solid);
     expect(piers.length).toBeGreaterThan(0);
-    for (const p of piers) expect(p.solid).toBe(false);
+  });
+
+  it('taş kemer köprü: taş güverte, yanlarda kemere inen duvar (kemerin altı boş)', () => {
+    const plan = bridgePlan(1, true, 'arch'); // derin dere yatağı: kemer yükselir
+    const S = ROAD_STRUCTURES;
+    const shape = structureShape(plan, plan.spans[0]!);
+    // 10 güverte parçası + 2 ayak (istinat) bloğu.
+    expect(shape.boxes.filter((b) => b.color === S.colors.stone && b.solid).length).toBe(12);
+    const walls = shape.boxes.filter((b) => b.color === S.colors.stone && !b.solid);
+    expect(walls.length).toBeGreaterThan(0);
+    // Ortadaki duvar parçası kenardakilerden kısa (kemer ortada yükselir).
+    const heights = walls.map((b) => b.hh);
+    expect(Math.min(...heights)).toBeLessThan(Math.max(...heights));
+  });
+
+  it('ahşap patika köprüsü: kalas güverte, dikmeler, dar', () => {
+    const plan = bridgePlan(2, false, 'wooden');
+    const S = ROAD_STRUCTURES;
+    const shape = structureShape(plan, plan.spans[0]!);
+    const deck = shape.boxes.filter((b) => b.color === S.colors.wood && b.solid);
+    expect(deck).toHaveLength(10);
+    expect(shape.boxes.filter((b) => b.color === S.colors.woodLight).length).toBeGreaterThan(20);
+  });
+
+  it('tünel: zemin, kalın duvarlar ve tavan çarpışır; lambalar ışıklı; iki ağız cephesi', () => {
+    const plan = bridgePlan(0);
+    const road = plan.roads[0]!;
+    for (let i = 3; i <= 11; i++) road.kind[i] = SPAN_KIND.tunnel;
+    plan.spans[0] = {
+      road: 0,
+      i0: 2,
+      i1: 12,
+      kind: SPAN_KIND.tunnel,
+      viaduct: false,
+      type: 'beam',
+    };
+    const S = ROAD_STRUCTURES;
+    const shape = structureShape(plan, plan.spans[0]!);
+    const floor = shape.boxes.filter((b) => b.color === S.colors.tunnelFloor);
+    expect(floor).toHaveLength(12); // 10 parça + iki ağız önü
+    for (const b of floor) expect(b.y + b.hh).toBeCloseTo(5, 3);
+    const shell = shape.boxes.filter((b) => b.color === S.colors.tunnel);
+    expect(shell).toHaveLength(30); // iki duvar + tavan × 10
+    expect(shell.every((b) => b.solid)).toBe(true);
+    const roof = shell.filter((b) => b.y > 5 + S.tunnelHeight);
+    expect(roof).toHaveLength(10);
+    expect(shape.boxes.some((b) => b.emissive)).toBe(true);
+    expect(shape.boxes.filter((b) => b.color === S.colors.portal).length).toBe(6);
   });
 
   it('patika köprüsü ana yol köprüsünden dar', () => {

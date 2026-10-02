@@ -5,7 +5,10 @@ import { provinceAt } from '../src/world/provinces';
 import {
   OVERLAY_CHANNEL,
   OverlayRaster,
+  ROAD_CHANNEL,
+  buildRoadOverlay,
   buildTerrainOverlay,
+  type OverlayChannel,
   decodeOverlay,
   encodeOverlay,
   landBorderSegments,
@@ -76,8 +79,9 @@ describe('buildTerrainOverlay', () => {
   it('yollar sınıfa göre kanala, akarsular ve göl kıyıları su kanalına, sınırlar A kanalına', () => {
     const raster = buildTerrainOverlay(grid, {
       roads: [
-        { cls: 0, xz: Float32Array.of(-40, -30, 40, -30) },
+        { cls: 1, xz: Float32Array.of(-40, -30, 40, -30) },
         { cls: 2, xz: Float32Array.of(-40, -10, 40, -10) },
+        { cls: 0, xz: Float32Array.of(-40, -20, 40, -20) }, // anayol: yol dokusunda
       ],
       water: {
         lines: [{ kind: 'stream', intermittent: false, xz: Float64Array.of(-40, 10, 40, 10) }],
@@ -93,7 +97,8 @@ describe('buildTerrainOverlay', () => {
       borders: [-40, 0, 40, 0],
     });
     const P = OVERLAY_CHANNEL;
-    expect(raster.distanceAt(P.paved, 0, -30)).toBeCloseTo(-ROADS.width[0] / 2, 1);
+    expect(raster.distanceAt(P.paved, 0, -30)).toBeCloseTo(-ROADS.width[1] / 2, 1);
+    expect(raster.distanceAt(P.paved, 0, -20)).toBeGreaterThan(-ROADS.width[1] / 2 + 3);
     expect(raster.distanceAt(P.dirt, 0, -30)).toBeGreaterThan(7);
     expect(raster.distanceAt(P.dirt, 0, -10)).toBeCloseTo(-ROADS.width[2] / 2, 1);
     // Dere çok dar (1,2 m): boyamada en az minHalfWidth.
@@ -105,6 +110,35 @@ describe('buildTerrainOverlay', () => {
     expect(raster.distanceAt(P.water, 20, 17)).toBeCloseTo(3, 1);
     expect(raster.distanceAt(P.border, 5, 0)).toBeCloseTo(0, 1);
     expect(raster.distanceAt(P.border, 5, 2)).toBeCloseTo(2, 1);
+  });
+});
+
+describe('buildRoadOverlay', () => {
+  it('anayol R kanalına (kesik şerit evresiyle), kent sokağı G kanalına; diğerleri boş', () => {
+    const raster = buildRoadOverlay(grid, [
+      { cls: 0, xz: Float32Array.of(-40, -30, 40, -30) },
+      { cls: 3, xz: Float32Array.of(-40, 0, 40, 0), width: ROADS.avenueWidth },
+      { cls: 1, xz: Float32Array.of(-40, 20, 40, 20) },
+    ]);
+    const R = ROAD_CHANNEL;
+    expect(raster.distanceAt(R.main as OverlayChannel, 0, -30)).toBeCloseTo(-ROADS.width[0] / 2, 1);
+    expect(raster.distanceAt(R.street as OverlayChannel, 0, 0)).toBeCloseTo(
+      -ROADS.avenueWidth / 2,
+      1,
+    );
+    expect(raster.distanceAt(R.main as OverlayChannel, 0, 20)).toBeGreaterThan(7);
+    expect(raster.distanceAt(R.street as OverlayChannel, 0, 20)).toBeGreaterThan(7);
+    // Evre yol boyunca döner: dönemin yarısı uzaklıktaki iki noktada kosinüs işareti değişir.
+    const cosAt = (x: number) => {
+      const c = Math.round((x - grid.origin.x) / grid.cell);
+      const r = Math.round((-30 - grid.origin.z) / grid.cell);
+      return ((raster.data[(r * grid.width + c) * 4 + R.cos] as number) - 128) / 127;
+    };
+    const period = TERRAIN_OVERLAY.dashPeriod;
+    let flips = 0;
+    for (let x = -30; x < 30; x += grid.cell)
+      if (Math.sign(cosAt(x)) !== Math.sign(cosAt(x + grid.cell))) flips++;
+    expect(flips).toBeGreaterThanOrEqual(Math.floor((60 / period) * 2) - 2);
   });
 });
 

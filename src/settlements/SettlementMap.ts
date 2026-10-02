@@ -1,4 +1,4 @@
-import { SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
+import { ROADS, SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
 import type { LandmarkData, RoadData, SettlementData, SettlementsData } from '../data/settlements';
 import { BUILDING_SHAPES, MAX_BURY, isMosque } from './kinds';
 import { FootprintRegistry } from './footprints';
@@ -13,10 +13,22 @@ import {
   type LayoutTerrain,
 } from './layout';
 import { RoadIndex } from './roadIndex';
-import { groundRuns, planRoadProfiles, type RoadPlan } from './roadProfile';
-import { shapeRoadNetwork, type NetworkReport, type TownDisc } from './roadNetwork';
+import { groundRuns, planRoadProfiles, surfaceRuns, type RoadPlan } from './roadProfile';
+import {
+  buildRoadNetwork,
+  terrainRouteField,
+  type NetworkReport,
+  type TownDisc,
+} from './roadNetwork';
+import { findRoute } from './routeFinder';
 import { connectTownRoads } from './townNetwork';
-import { separateRoadsFromWater, smoothRoads, type NearestWater } from './roadRouting';
+import {
+  StreamGrid,
+  separateRoadsFromWater,
+  smoothRoads,
+  uncrossStreams,
+  type NearestWater,
+} from './roadRouting';
 
 /** Bir yerleşimin oyundaki hâli: veri + düzen. */
 export interface SettlementView {
@@ -70,8 +82,9 @@ export interface BuildingInterior {
 }
 
 /**
- * Yolları dairelerin (kent içleri) içinde keser: sınıf 0 (anayol) olduğu gibi kalır, diğerlerinin noktası
- * dairenin içine düşen parçaları atılır (kalan parçalar ayrı çizgiler olur).
+ * Yolları dairelerin (kent içleri) içinde keser: köy yolu ve patikanın dairenin içine düşen parçaları atılır (kalan
+ * parçalar ayrı çizgiler olur; uçları `townNetwork.ts` sokaklara bağlar). Anayol kesilmez: kentin içinden geçen kısmı
+ * kentin ana caddesi olur (sınıf 3, `ROADS.avenueWidth`).
  */
 export function cutRoads(
   roads: readonly RoadData[],
@@ -79,21 +92,17 @@ export function cutRoads(
 ): RoadData[] {
   const out: RoadData[] = [];
   for (const road of roads) {
-    if (road.cls === 0) {
-      out.push(road);
-      continue;
-    }
-    const xz = road.xz;
+    const raw = road.xz;
     // Yalnızca yolun sınır kutusuna değen daireler denetlenir.
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;
     let maxZ = -Infinity;
-    for (let i = 0; i + 1 < xz.length; i += 2) {
-      minX = Math.min(minX, xz[i] as number);
-      maxX = Math.max(maxX, xz[i] as number);
-      minZ = Math.min(minZ, xz[i + 1] as number);
-      maxZ = Math.max(maxZ, xz[i + 1] as number);
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      minX = Math.min(minX, raw[i] as number);
+      maxX = Math.max(maxX, raw[i] as number);
+      minZ = Math.min(minZ, raw[i + 1] as number);
+      maxZ = Math.max(maxZ, raw[i + 1] as number);
     }
     const near = circles.filter(
       (c) => c.x + c.r > minX && c.x - c.r < maxX && c.z + c.r > minZ && c.z - c.r < maxZ,
@@ -102,19 +111,66 @@ export function cutRoads(
       out.push(road);
       continue;
     }
-    const inside = (i: number) =>
-      near.some((c) => Math.hypot((xz[i] as number) - c.x, (xz[i + 1] as number) - c.z) < c.r);
+    const insideAt = (x: number, z: number) => near.some((c) => Math.hypot(x - c.x, z - c.z) < c.r);
+    // Uzun düz parça daireyi köşesiz geçebilir: daireye değen parçalar sıklaştırılır (sınır noktası bulunsun).
+    const dense: number[] = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const ax = raw[i] as number;
+      const az = raw[i + 1] as number;
+      if (i + 3 >= raw.length) {
+        dense.push(ax, az);
+        break;
+      }
+      const bx = raw[i + 2] as number;
+      const bz = raw[i + 3] as number;
+      const touches = near.some((c) => {
+        const dx = bx - ax;
+        const dz = bz - az;
+        const l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((c.x - ax) * dx + (c.z - az) * dz) / l2));
+        return Math.hypot(ax + t * dx - c.x, az + t * dz - c.z) < c.r;
+      });
+      const n = touches ? Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 2)) : 1;
+      for (let k = 0; k < n; k++) dense.push(ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n);
+    }
+    const xz = Float32Array.from(dense);
+    const trunk = road.cls === 0;
     let run: number[] = [];
+    let runInside = insideAt(xz[0] as number, xz[1] as number);
     const flush = () => {
-      if (run.length >= 4) out.push({ cls: road.cls, xz: Float32Array.from(run) });
+      if (run.length >= 4) {
+        if (!runInside) out.push({ cls: road.cls, xz: Float32Array.from(run) });
+        else if (trunk) out.push({ cls: 3, xz: Float32Array.from(run), width: ROADS.avenueWidth });
+      }
       run = [];
     };
     for (let i = 0; i + 1 < xz.length; i += 2) {
-      if (inside(i)) {
+      const x = xz[i] as number;
+      const z = xz[i + 1] as number;
+      const inside = insideAt(x, z);
+      if (i > 0 && inside !== runInside) {
+        // Sınır noktası (ikiye bölme): iki parça aynı noktada buluşur.
+        let ax = xz[i - 2] as number;
+        let az = xz[i - 1] as number;
+        let bx = x;
+        let bz = z;
+        for (let k = 0; k < 12; k++) {
+          const mx = (ax + bx) / 2;
+          const mz = (az + bz) / 2;
+          if (insideAt(mx, mz) === runInside) {
+            ax = mx;
+            az = mz;
+          } else {
+            bx = mx;
+            bz = mz;
+          }
+        }
+        run.push(ax, az);
         flush();
-        continue;
+        runInside = inside;
+        run.push(ax, az);
       }
-      run.push(xz[i] as number, xz[i + 1] as number);
+      run.push(x, z);
     }
     flush();
   }
@@ -220,16 +276,16 @@ const MAX_HALF_DIAGONAL = Math.max(
 export class SettlementMap {
   readonly settlements: SettlementView[] = [];
   readonly buildings: Building[] = [];
-  /** Çizilen yollar: kent içinde kesilmiş yollar + kent sokakları (sınıf 1). */
+  /** Tüm yollar: ağ yolları (kentte kesilmiş, kentten geçen anayol cadde), kent bağlantıları ve sokakları. */
   readonly roadLines: RoadData[];
   /** Yol profilleri, köprü ve tünel kesimleri (`roadProfile.ts`). */
   readonly plan: RoadPlan;
-  /** Kent sokakları (ana cadde sınıf 0, diğerleri 1) ve kesilen yolların sokaklara bağlantıları. */
+  /** Kent sokakları (sınıf 3; ana caddeler geniş) ve kesilen yolların sokaklara bağlantıları. */
   readonly streetLines: RoadData[];
   readonly joinLines: RoadData[];
   /** Arazi kaplamasında boyanan çizgiler: köprü/tünel olmayan yol kesimleri + sokaklar. */
   readonly paintLines: RoadData[];
-  /** Yol + sokak dizini (nesne eleme, insanların yürüyüşü). */
+  /** Yüzeydeki yol + sokak dizini (nesne eleme, insanların yürüyüşü; tünel içi hariç). */
   readonly roads: RoadIndex;
   /** Kapı önü merdivenleri (görsel + collider). */
   readonly stairs: Stair[] = [];
@@ -245,6 +301,8 @@ export class SettlementMap {
     terrain: LayoutTerrain & {
       /** Varsa akarsuya paralel yollar sudan ayrılır (`roadRouting.ts`). */
       nearestWater?: NearestWater;
+      /** Varsa akarsu çizgileri: köprüler yalnız yolun bunları kestiği yerde kurulur (`roadProfile.ts`). */
+      waterLines?: ReadonlyArray<{ kind: string; xz: ArrayLike<number> }>;
       /**
        * Varsa yol planı zemine uygulanır (`world/roadGrading.ts`): çağrıdan sonra `heightAt` düzeltilmiş zemini
        * verir ve yapı düzeni onun üstünde kurulur. Yoksa zemin doğal kalır.
@@ -264,29 +322,42 @@ export class SettlementMap {
         ...settlementCenter(s),
         r: footprintRadius(s) * SETTLEMENT_LAYOUT.innerRoadCut,
       }));
-    // Yollar: kafes basamakları yumuşatılır, akarsuya paralel kesimler sudan ayrılır (`roadRouting.ts`).
-    const smoothed = smoothRoads(data.roads);
-    const routed = terrain.nearestWater
-      ? separateRoadsFromWater(smoothed, terrain.nearestWater)
-      : smoothed;
-    // Yol ağı: çıkmazlar budanır, kırsalda tali yol patikaya iner, kopuk parçalar bağlanır (`roadNetwork.ts`).
+    // Yol ağı: veri yollarından seyrek, bağlı bir omurga seçilir (`roadNetwork.ts`): il/ilçe merkezleri arası anayol,
+    // köylere köy yolu / dağ patikası; ikiz şerit, göbek ve kopuk parçalar atılır.
     const towns: TownDisc[] = data.settlements.map((s) => ({
       ...settlementCenter(s),
       r: footprintRadius(s),
       rank: s.rank,
     }));
-    const shaped = shapeRoadNetwork(
-      routed,
+    const network = buildRoadNetwork(
+      data.roads,
       towns,
-      { ...terrain, bounds: terrain.bounds ?? boundsOf(routed) },
+      { ...terrain, bounds: terrain.bounds ?? boundsOf(data.roads) },
       networkReport,
     );
+    // Kafes basamakları yumuşatılır, akarsuya paralel kesimler sudan ayrılır (`roadRouting.ts`).
+    let smoothed = smoothRoads(network);
+    // Menderesli dereyi tekrar tekrar kesen kesimler derenin bir yakasından yeniden çizilir (köprü kümesi olmasın).
+    if (terrain.waterLines) {
+      const field = terrainRouteField({
+        ...terrain,
+        bounds: { minX: -Infinity, maxX: Infinity, minZ: -Infinity, maxZ: Infinity },
+      });
+      smoothed = uncrossStreams(smoothed, new StreamGrid(terrain.waterLines), (ax, az, bx, bz) =>
+        findRoute(ax, az, bx, bz, field, { pad: 30, maxNodes: 40000 }),
+      );
+    }
+    const shaped = terrain.nearestWater
+      ? separateRoadsFromWater(smoothed, terrain.nearestWater)
+      : smoothed;
     const roads = cutRoads(shaped, cuts);
-    // Yol profili: eğimi sınırlı, düzgün yatak; dere geçişleri köprü, derin kazılar tünel. Zemin yola uydurulur.
+    // Yol profili: eğimi sınırlı, düzgün yatak; dere geçişleri köprü, derin vadiler viyadük, sırtlar tünel. Zemin yola
+    // uydurulur.
     this.plan = planRoadProfiles(roads, {
       heightAt: terrain.heightAt,
       elevationAt: terrain.elevationAt,
       nearestWater: terrain.nearestWater,
+      waterLines: terrain.waterLines,
     });
     terrain.grade?.(this.plan);
     const layoutRoads = new RoadIndex(roads);
@@ -343,13 +414,23 @@ export class SettlementMap {
         this.grid.set(key, list);
       }
     }
-    // Kent içinde kesilen yolların uçları sokak ızgarasına bağlanır (yapıların arasından geçen kısa yollar).
-    const town = connectTownRoads(roads, streets, data, terrain, this.footprints);
+    // Kent içi: kesilen yol uçları sokaklara bağlanır, yalnızca kapıları kente bağlayan sokaklar kalır (`townNetwork.ts`).
+    const doors: Array<{ x: number; z: number; settlement: number }> = [];
+    for (const view of this.settlements) {
+      if (view.data.rank === 'koy') continue;
+      for (const b of view.buildings) {
+        const shape = BUILDING_SHAPES[b.kind];
+        const door = buildingLocalToWorld(b, shape.door.x, shape.depth / 2 + b.stairRun + 1);
+        doors.push({ ...door, settlement: view.data.id });
+      }
+    }
+    const town = connectTownRoads(roads, streets, data, terrain, this.footprints, doors);
     this.streetLines = town.streets;
     this.joinLines = town.joins;
     this.roadLines = [...roads, ...town.joins, ...town.streets];
     this.paintLines = [...groundRuns(this.plan), ...town.joins, ...town.streets];
-    this.roads = new RoadIndex(this.roadLines);
+    // Dizin yüzeydeki yollardır: tünelin içi dağın altındadır (üstünde ağaç kalır, insanlar oradan yürümez).
+    this.roads = new RoadIndex([...surfaceRuns(this.plan), ...town.joins, ...town.streets]);
     for (const b of this.buildings) {
       const stair = stairFor(b, terrain);
       if (stair) this.stairs.push(stair);

@@ -1,6 +1,10 @@
 import { CHUNK } from '../config';
 import { chunkCol0, chunkRow0, sampleX, sampleZ, type ChunkGrid } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
+import type { TerrainHoles } from './roadTunnels';
+
+/** Bu LOD'a kadar (dahil) tünel ağzı delikleri mesh'ten çıkarılır; uzakta ağız cephesi yeterlidir. */
+const HOLE_MAX_LOD = 1;
 
 /** Three.js'e bağımlı olmayan chunk geometrisi (typed array'ler). */
 export interface ChunkMeshData {
@@ -25,6 +29,8 @@ export function buildChunkMesh(
   cx: number,
   cy: number,
   lod: number,
+  /** Tünel ağzı delikleri: bu hücrelerin (LOD 0–1) üçgenleri çizilmez. */
+  holes: TerrainHoles | null = null,
 ): ChunkMeshData {
   const stride = CHUNK.lodStrides[lod];
   const skirt = CHUNK.skirtDepth[lod];
@@ -66,9 +72,24 @@ export function buildChunkMesh(
   const indices = new Uint16Array(surfaceQuads * 6 + 4 * (n - 1) * 6);
   let k = 0;
 
-  // Yüzey: her hücre iki üçgen, +Y'ye bakacak (saat yönünün tersi) sarım.
+  // Yüzey: her hücre iki üçgen, +Y'ye bakacak (saat yönünün tersi) sarım. Yakın LOD'larda tünel ağzı delik kalır.
+  const cut =
+    holes !== null &&
+    lod <= HOLE_MAX_LOD &&
+    holes.any(col0, row0, col0 + grid.cells, row0 + grid.cells);
   for (let r = 0; r < n - 1; r++) {
     for (let c = 0; c < n - 1; c++) {
+      if (
+        cut &&
+        holes.any(
+          col0 + c * stride,
+          row0 + r * stride,
+          col0 + (c + 1) * stride,
+          row0 + (r + 1) * stride,
+        )
+      ) {
+        continue;
+      }
       const a = r * n + c;
       const b = (r + 1) * n + c;
       const d = r * n + c + 1;
@@ -128,5 +149,11 @@ export function buildChunkMesh(
     }
   }
 
-  return { positions, normals, indices, surfaceVertices, verticesPerSide: n };
+  return {
+    positions,
+    normals,
+    indices: k < indices.length ? indices.slice(0, k) : indices,
+    surfaceVertices,
+    verticesPerSide: n,
+  };
 }

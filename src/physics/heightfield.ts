@@ -45,3 +45,49 @@ export function createChunkHeightfieldDesc(
     z: size,
   }).setTranslation(centerX, 0, centerZ);
 }
+
+/**
+ * Delikli chunk için üçgen ağı (trimesh) collider tanımı: `heights` satır satır (cells + 1)² köşe, (minX, minZ) chunk'ın
+ * kuzeybatı köşe örneği, `cell` örnek aralığı. `hole(c, r)` doğru olan hücrelerin üçgenleri atlanır (tünel ağzı).
+ */
+export function createChunkTrimeshDesc(
+  heights: Float32Array,
+  cells: number,
+  minX: number,
+  minZ: number,
+  cell: number,
+  hole: (col: number, row: number) => boolean,
+): RAPIER.ColliderDesc {
+  const n = cells + 1;
+  const vertices = new Float32Array(n * n * 3);
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const i = (r * n + c) * 3;
+      vertices[i] = minX + c * cell;
+      vertices[i + 1] = heights[r * n + c] as number;
+      vertices[i + 2] = minZ + r * cell;
+    }
+  }
+  const indices = new Uint32Array(cells * cells * 6);
+  let k = 0;
+  for (let r = 0; r < cells; r++) {
+    for (let c = 0; c < cells; c++) {
+      if (hole(c, r)) continue;
+      const a = r * n + c;
+      const b = (r + 1) * n + c;
+      const d = r * n + c + 1;
+      const e = (r + 1) * n + c + 1;
+      indices[k++] = a;
+      indices[k++] = b;
+      indices[k++] = d;
+      indices[k++] = d;
+      indices[k++] = b;
+      indices[k++] = e;
+    }
+  }
+  return RAPIER.ColliderDesc.trimesh(
+    vertices,
+    indices.slice(0, k),
+    RAPIER.TriMeshFlags.FIX_INTERNAL_EDGES,
+  );
+}

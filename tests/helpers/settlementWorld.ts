@@ -1,13 +1,14 @@
 import { FRESH_WATER } from '../../src/config';
 import type { RegionData } from '../../src/data/region';
 import { SettlementMap } from '../../src/settlements/SettlementMap';
-import type { NetworkReport } from '../../src/settlements/roadNetwork';
+import { emptyNetworkReport, type NetworkReport } from '../../src/settlements/roadNetwork';
 import type { LayoutTerrain } from '../../src/settlements/layout';
 import type { NearestWater } from '../../src/settlements/roadRouting';
 import { levelPad, lockFootprint } from '../../src/world/buildingPads';
 import { RegionHeightSource } from '../../src/world/RegionHeightSource';
 import { applyRoadGrading, type GradingStats } from '../../src/world/roadGrading';
 import { FreshWaterIndex } from '../../src/world/waterIndex';
+import { carveStreams } from '../../src/world/streamCarving';
 
 /** Gerçek dünyada `RegionWorld`'ün kurduğu gibi yerleşim haritası: yol düzeltmesi ve yapı terasları dahil. */
 export interface SettlementWorld {
@@ -32,6 +33,8 @@ export function buildSettlementWorld(
   const water = world.features
     ? new FreshWaterIndex(world.features.water, FRESH_WATER.indexCellSize)
     : null;
+  if (graded && world.features && !process.env.NOCARVE)
+    carveStreams(source, world.features.water.lines);
   let grading: GradingStats | null = null;
   const terrain: LayoutTerrain & { nearestWater?: NearestWater } = {
     heightAt: (x, z) => source.heightAt(x, z),
@@ -45,25 +48,18 @@ export function buildSettlementWorld(
         }
       : {}),
   };
-  const network: NetworkReport = {
-    edgesIn: 0,
-    edgesOut: 0,
-    pruned: 0,
-    demoted: 0,
-    linked: 0,
-    removedComponents: 0,
-    accessLinks: 0,
-  };
+  const network: NetworkReport = emptyNetworkReport();
   const t0 = performance.now();
   const map = new SettlementMap(
     world.settlements!,
     {
       ...terrain,
+      waterLines: world.features?.water.lines,
       bounds: source.bounds,
       ...(graded
         ? {
             grade: (plan: Parameters<typeof applyRoadGrading>[1]) =>
-              (grading = applyRoadGrading(source, plan)),
+              (grading = applyRoadGrading(source, plan, world.features?.water.lines)),
           }
         : {}),
     },

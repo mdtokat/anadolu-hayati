@@ -4,6 +4,7 @@ import type { MoveIntent } from '../src/core/inputMapping';
 import type { RegionData } from '../src/data/region';
 import { initPhysics } from '../src/physics/PhysicsWorld';
 import { BUILDING_SHAPES } from '../src/settlements/kinds';
+import { SPAN_KIND } from '../src/settlements/roadProfile';
 import { buildingLocalToWorld } from '../src/settlements/SettlementMap';
 import { loadRealRegion } from './helpers/realRegion';
 import { setupWorld, yawToward } from './helpers/walker';
@@ -21,10 +22,19 @@ describe('yerleşimlerde fizik (Faz 10)', () => {
   it('oyuncu cami merdiveninden çıkıp harime girer (içerisi kutsal barınak)', () => {
     const { world, player, step, dispose } = setupWorld(region, true);
     const map = world.settlementMap!;
-    // Merdivenli bir mahalle camisi (terasa çıkılır).
-    const stair = map.stairs.find(
-      (s) => map.building(s.building)?.kind === 'mosque' && s.rise > 0.8,
-    )!;
+    // Merdivenli bir mahalle camisi (terasa çıkılır); merdiven ayağının önü yürünebilir (komşu terasın şevi değil).
+    const footOf = (s: (typeof map.stairs)[number]) => {
+      const b = map.building(s.building)!;
+      return buildingLocalToWorld(b, 0, BUILDING_SHAPES[b.kind].depth / 2 + s.run + 1.5);
+    };
+    const stair = map.stairs.find((s) => {
+      if (map.building(s.building)?.kind !== 'mosque' || s.rise <= 0.8) return false;
+      const f = footOf(s);
+      const b = map.building(s.building)!;
+      const side = buildingLocalToWorld(b, 1.5, BUILDING_SHAPES[b.kind].depth / 2 + s.run + 1.5);
+      const h = world.terrain.heightAt(f.x, f.z);
+      return Math.abs(h - s.y0) < 0.6 && Math.abs(world.terrain.heightAt(side.x, side.z) - h) < 0.6;
+    })!;
     expect(stair).toBeDefined();
     const mosque = map.building(stair.building)!;
     const shape = BUILDING_SHAPES[mosque.kind];
@@ -42,6 +52,39 @@ describe('yerleşimlerde fizik (Faz 10)', () => {
     expect(entered).toBe(true);
     dispose();
   }, 120_000);
+
+  it('oyuncu tünelin bir ağzından girip öbüründen çıkar (ağızda arazi delik, içeride zemin)', () => {
+    const { world, player, step, dispose } = setupWorld(region, true);
+    const plan = world.settlementMap!.plan;
+    const span = plan.spans
+      .filter((s) => s.kind === SPAN_KIND.tunnel)
+      .sort((a, b) => a.i1 - a.i0 - (b.i1 - b.i0))[0]!;
+    expect(span).toBeDefined();
+    const road = plan.roads[span.road]!;
+    const at = (i: number) => ({ x: road.xz[i * 2]!, z: road.xz[i * 2 + 1]! });
+    const start = at(Math.max(0, span.i0 - 4));
+    world.prepare(start.x, start.z);
+    player.teleport({ x: start.x, y: world.terrain.heightAt(start.x, start.z) + 0.2, z: start.z });
+    let target = Math.max(0, span.i0 - 3);
+    let lowest = Infinity;
+    const end = Math.min(road.bed.length - 1, span.i1 + 4);
+    for (let k = 0; k < 60 * 120 && target <= end; k++) {
+      const p = player.position;
+      const t = at(target);
+      if (Math.hypot(t.x - p.x, t.z - p.z) < 2.5) {
+        target++;
+        continue;
+      }
+      step(walk, yawToward(t.x - p.x, t.z - p.z));
+      // Tünel içinde arazi yüzeyinin altında, zeminde yürür (düşmez).
+      if (target > span.i0 + 1 && target < span.i1 - 1) {
+        lowest = Math.min(lowest, player.position.y - road.bed[target]!);
+      }
+    }
+    expect(target).toBeGreaterThan(end);
+    expect(lowest).toBeGreaterThan(-1.5);
+    dispose();
+  }, 180_000);
 
   it('konutun duvarından geçilmez', () => {
     const { world, player, step, dispose } = setupWorld(region, true);

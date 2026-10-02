@@ -35,12 +35,17 @@ const DIRS: ReadonlyArray<readonly [number, number, number]> = [
 ];
 
 /** Küçük ikili yığın: (öncelik, düğüm) çiftleri. */
-class MinHeap {
+export class MinHeap {
   private keys: number[] = [];
   private items: number[] = [];
 
   get size(): number {
     return this.keys.length;
+  }
+
+  /** En küçük önceliğin değeri (yığın boşken tanımsız). */
+  peekKey(): number {
+    return this.keys[0] as number;
   }
 
   push(key: number, item: number): void {

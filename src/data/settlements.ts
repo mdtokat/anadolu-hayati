@@ -58,13 +58,19 @@ export interface LandmarkData {
   z: number;
 }
 
-/** Yol sınıfı: 0 anayol (otoyol/devlet yolu), 1 il-ilçe yolu, 2 köy yolu. */
-export type RoadClass = 0 | 1 | 2;
+/**
+ * Yol sınıfı. Veride: 0 anayol (otoyol/devlet yolu), 1 il-ilçe yolu, 2 köy yolu. Oyunda (yol ağı düzeninden sonra):
+ * 0 anayol (şehirler arası), 1 köy yolu (dar asfalt), 2 dağ patikası (toprak), 3 kent sokağı (parke taşı; yalnız
+ * çalışma zamanında üretilir, veride yoktur).
+ */
+export type RoadClass = 0 | 1 | 2 | 3;
 
 export interface RoadData {
   cls: RoadClass;
   /** Oyun X/Z çoklu çizgisi: [x0, z0, x1, z1, …]. */
   xz: Float32Array;
+  /** Varsa sınıfın genişliği yerine bu genişlik (oyun m; ör. kentin ana caddesi). */
+  width?: number;
 }
 
 export interface SettlementsData {

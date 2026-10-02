@@ -1,8 +1,14 @@
 import { ROADS, ROAD_STRUCTURES } from '../config';
-import { type PlannedRoad, type RoadPlan, type RoadSpan } from '../settlements/roadProfile';
+import {
+  SPAN_KIND,
+  type PlannedRoad,
+  type RoadPlan,
+  type RoadSpan,
+} from '../settlements/roadProfile';
+import { PORTAL_APRON } from './roadTunnels';
 
 /**
- * Yol yapılarının (köprü, viyadük) geometrisi (saf mantık, Three.js'siz): her yapı yönlü kutulardan kurulur.
+ * Yol yapılarının (köprü, viyadük, tünel) geometrisi (saf mantık, Three.js'siz): her yapı yönlü kutulardan kurulur.
  * Aynı kutular hem çizilir (`RoadStructureLayer`) hem çarpıştırılır (`RoadStructureColliders`); böylece görünen ile
  * basılan aynıdır. Kutu yönü: ileri (yol boyunca, eğimli), yan (yola dik, yatay) ve yukarı eksenlerinden oluşur.
  */
@@ -25,6 +31,8 @@ export interface StructureBox {
   color: number;
   /** Çarpışır mı (ayaklar ve süs kutuları değil)? */
   solid: boolean;
+  /** Işıklı (tünel lambası): ışıktan bağımsız parlak çizilir. */
+  emissive?: boolean;
 }
 
 /** Bir yapının kutuları ve sınırları. */
@@ -54,10 +62,15 @@ function frame(
   return { rx, rz, ux, uy, uz };
 }
 
-/** Birim yatay ileri yön (eğimsiz kutular: ayak, çerçeve). */
-function level(ax: { fx: number; fz: number }): { fx: number; fz: number } {
-  const h = Math.hypot(ax.fx, ax.fz) || 1;
-  return { fx: ax.fx / h, fz: ax.fz / h };
+/** Noktadaki (komşu noktalar arası) birim yatay yol yönü. */
+function levelAxis(road: PlannedRoad, i: number): { fx: number; fz: number } {
+  const n = road.xz.length / 2;
+  const a = Math.max(0, i - 1);
+  const b = Math.min(n - 1, i + 1);
+  const dx = (road.xz[b * 2] as number) - (road.xz[a * 2] as number);
+  const dz = (road.xz[b * 2 + 1] as number) - (road.xz[a * 2 + 1] as number);
+  const h = Math.hypot(dx, dz) || 1;
+  return { fx: dx / h, fz: dz / h };
 }
 
 /** Yol noktası dizinindeki (a → b) parça ekseni: birim ileri yön ve uzunluk. */
@@ -70,12 +83,23 @@ function segmentAxis(road: PlannedRoad, a: number, b: number) {
 }
 
 /**
- * Köprünün kutuları: güverte (yolun bedinde üst yüz), iki yan korkuluk, yüksekse ayaklar.
+ * Yapının kutuları (türe göre):
+ *
+ * - **beam** (beton kirişli köprü): beton güverte ve altında kiriş, alçak beton bordür + çelik korkuluk, köşeli ayaklar,
+ *   uçlarda istinat (ayak) blokları.
+ * - **viaduct**: beton güverte, yüksek beton korkuluk (parapet), yüksek çift ayaklar ve başlıkları.
+ * - **arch** (taş kemer): taş güverte; yanlar kemer eğrisine kadar inen taş duvar (kemerin altı boştur), taş korkuluk.
+ * - **wooden** (ahşap patika köprüsü): kalas güverte, dikmeli ahşap trabzan, kütük ayaklar.
+ * - **tunnel**: beton zemin, kalın yan duvarlar ve tavan (iç yüzü koyu), tavan lambaları (ışıklı), iki ağızda taş/beton
+ *   cephe (açıklığın iki yanı ve üstü).
+ *
+ * Güverte her zaman yatağın (bed) üstündedir ve iki ayak arasında düzdür (profil öyle tasarlar).
  */
 export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
   const road = plan.roads[span.road] as PlannedRoad;
   const half = (ROADS.width[road.cls] as number) / 2;
   const S = ROAD_STRUCTURES;
+  const C = S.colors;
   const boxes: StructureBox[] = [];
   const mid = (a: number, b: number, k: 'xz0' | 'xz1' | 'bed') =>
     k === 'bed'
@@ -84,6 +108,7 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
         ? ((road.xz[a * 2] as number) + (road.xz[b * 2] as number)) / 2
         : ((road.xz[a * 2 + 1] as number) + (road.xz[b * 2 + 1] as number)) / 2;
 
+  /** Parça (a → b) boyunca, eksenden `lateral` yanda, üst yüzü yatak + `top` olan eğimli kutu. */
   const push = (
     a: number,
     b: number,
@@ -94,6 +119,7 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
     color: number,
     solid: boolean,
     stretch = 0.06,
+    emissive = false,
   ) => {
     const ax = segmentAxis(road, a, b);
     const f = frame(ax.fx, ax.fy, ax.fz);
@@ -115,55 +141,257 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
       rz: f.rz,
       color,
       solid,
+      ...(emissive ? { emissive: true } : {}),
+    });
+  };
+  /** Yatay (eğimsiz) kutu: merkez (x, alt, z), yön noktası i'deki yol doğrultusu. */
+  const level = (
+    i: number,
+    lateral: number,
+    along: number,
+    bottom: number,
+    topY: number,
+    hl: number,
+    hw: number,
+    color: number,
+    solid: boolean,
+  ) => {
+    const ax = levelAxis(road, i);
+    const rx = ax.fz;
+    const rz = -ax.fx;
+    const hh = Math.max(0.05, (topY - bottom) / 2);
+    boxes.push({
+      x: (road.xz[i * 2] as number) + rx * lateral + ax.fx * along,
+      y: bottom + hh,
+      z: (road.xz[i * 2 + 1] as number) + rz * lateral + ax.fz * along,
+      hl,
+      hw,
+      hh,
+      fx: ax.fx,
+      fy: 0,
+      fz: ax.fz,
+      rx,
+      rz,
+      color,
+      solid,
     });
   };
 
-  {
-    const deckHalf = half + (S.widthPad[road.cls] as number);
-    for (let i = span.i0; i < span.i1; i++) {
-      push(i, i + 1, 0, 0, deckHalf, S.deckThickness / 2, S.colors.deck, true);
+  const i0 = span.i0;
+  const i1 = span.i1;
+  if (span.kind === SPAN_KIND.tunnel) {
+    const inner = half + S.tunnelSidePad;
+    const H = S.tunnelHeight;
+    const W = S.tunnelWall;
+    for (let i = i0; i < i1; i++) {
+      push(i, i + 1, 0, 0, inner + W, 0.35, C.tunnelFloor, true);
       for (const side of [-1, 1]) {
-        push(
-          i,
-          i + 1,
-          side * (deckHalf - S.parapetThickness / 2),
-          S.parapetHeight,
-          S.parapetThickness / 2,
-          S.parapetHeight / 2,
-          S.colors.parapet,
-          true,
-        );
+        push(i, i + 1, side * (inner + W / 2), H, W / 2, (H + 0.7) / 2, C.tunnel, true);
+      }
+      push(i, i + 1, 0, H + W, inner + W, W / 2, C.tunnel, true);
+    }
+    // Ağız önü zemini (beton): yolun ağızdan önceki parçası boyunca, yol eğimiyle (delinen kenar hücresini örter).
+    const last = road.xz.length / 2 - 1;
+    if (i0 > 0) push(i0 - 1, i0, 0, 0, inner, 0.35, C.tunnelFloor, true);
+    if (i1 < last) push(i1, i1 + 1, 0, 0, inner, 0.35, C.tunnelFloor, true);
+    // Lambalar: tavanın ortasında, ışıklı (ayrı malzeme).
+    const every = Math.max(1, Math.round(S.lampSpacing / road.step));
+    for (let i = i0 + Math.max(1, Math.floor(every / 2)); i < i1; i += every) {
+      push(i, i + 1, 0, H, 0.18, 0.06, C.lamp, false, -road.step * 0.35, true);
+    }
+    // Ağız cepheleri: açıklığın iki yanı ve üstü (yolun doğal zeminine kadar iner). Cephe ağız düzleminin dışındadır ve
+    // delinen kenar hücresini örtecek kalınlıktadır; önünde beton zemin.
+    for (const [i, out] of [
+      [i0, -1],
+      [i1, 1],
+    ] as const) {
+      const bed = road.bed[i] as number;
+      const wing = inner + W + S.portalWing;
+      const crown = bed + H + W + S.portalCrown;
+      const bottom = Math.min(bed, road.natural[i] as number) - 1;
+      const sideHalf = (wing - inner) / 2;
+      const along = out * (PORTAL_APRON / 2 + 0.2);
+      const thick = PORTAL_APRON / 2;
+      for (const side of [-1, 1]) {
+        level(i, side * (inner + sideHalf), along, bottom, crown, thick, sideHalf, C.portal, true);
+      }
+      level(i, 0, along, bed + H, crown, thick, inner, C.portal, true);
+      // Saçak: cephenin üstünde ince taşma.
+      level(i, 0, along, crown, crown + 0.35, thick + 0.25, wing + 0.3, C.stoneDark, false);
+    }
+  } else {
+    const type = span.type;
+    const deckHalf = half + (S.widthPad[road.cls] as number);
+    const stone = type === 'arch';
+    const wooden = type === 'wooden';
+    const deckColor = stone ? C.stone : wooden ? C.wood : C.deck;
+    const deckThick = wooden ? 0.25 : stone ? 0.9 : S.deckThickness;
+    for (let i = i0; i < i1; i++) {
+      push(i, i + 1, 0, 0, deckHalf, deckThick / 2, deckColor, true);
+      for (const side of [-1, 1]) {
+        if (type === 'beam') {
+          // Bordür + çelik korkuluk.
+          push(i, i + 1, side * (deckHalf - 0.18), 0.32, 0.18, 0.16, C.parapet, true);
+          push(i, i + 1, side * (deckHalf - 0.12), 0.95, 0.06, 0.13, C.guardRail, true);
+        } else if (type === 'viaduct') {
+          push(
+            i,
+            i + 1,
+            side * (deckHalf - S.parapetThickness / 2),
+            S.parapetHeight,
+            S.parapetThickness / 2,
+            S.parapetHeight / 2,
+            C.parapet,
+            true,
+          );
+        } else if (stone) {
+          push(i, i + 1, side * (deckHalf - 0.22), 0.75, 0.22, 0.375, C.stoneDark, true);
+        } else {
+          // Ahşap trabzan: üst kuşak (dikmeler aşağıda).
+          push(i, i + 1, side * (deckHalf - 0.08), 1.0, 0.06, 0.06, C.woodLight, true);
+        }
       }
     }
-    // Ayaklar: güverte zeminden yüksekse `pierSpacing` aralıkla (doğal zemine kadar).
-    const every = Math.max(1, Math.round(S.pierSpacing / road.step));
-    for (let i = span.i0 + every; i < span.i1; i += every) {
+    const length = (i1 - i0) * road.step;
+    if (type === 'beam') {
+      // Kiriş: güvertenin altında, ayak aralarında.
+      for (let i = i0; i < i1; i++)
+        push(i, i + 1, 0, -deckThick, deckHalf * 0.7, 0.3, C.pier, false);
+      // Çelik korkuluk dikmeleri.
+      for (let i = i0; i <= i1; i++) {
+        for (const side of [-1, 1]) {
+          const bed = road.bed[i] as number;
+          level(
+            i,
+            side * (deckHalf - 0.12),
+            0,
+            bed + 0.3,
+            bed + 1.05,
+            0.07,
+            0.07,
+            C.guardRail,
+            false,
+          );
+        }
+      }
+    }
+    if (wooden) {
+      for (let i = i0; i <= i1; i++) {
+        for (const side of [-1, 1]) {
+          const bed = road.bed[i] as number;
+          level(
+            i,
+            side * (deckHalf - 0.08),
+            0,
+            bed - 0.1,
+            bed + 1.06,
+            0.08,
+            0.08,
+            C.woodLight,
+            false,
+          );
+        }
+      }
+    }
+    if (stone) {
+      // Kemer: kenar duvarları, güvertenin altından kemer eğrisine kadar iner. Kemerin üzengisi açıklığın altındaki en
+      // alçak zeminde (dere yatağı); kemer yüksekliği açıklığın yarısını ve güverte altını aşmaz.
+      let spring = Number.POSITIVE_INFINITY;
+      for (let i = i0; i <= i1; i++) spring = Math.min(spring, road.natural[i] as number);
+      spring -= 0.3;
+      const deckLow = Math.min(road.bed[i0] as number, road.bed[i1] as number) - deckThick - 0.35;
+      const rise = Math.max(0.6, Math.min(length / 2, deckLow - spring));
+      for (let i = i0; i < i1; i++) {
+        const t = (i + 0.5 - i0) / (i1 - i0);
+        const archY = spring + rise * Math.sin(Math.PI * t);
+        const bedHere = ((road.bed[i] as number) + (road.bed[i + 1] as number)) / 2;
+        const depth = Math.max(0.2, bedHere - deckThick - archY);
+        for (const side of [-1, 1]) {
+          push(
+            i,
+            i + 1,
+            side * (deckHalf - 0.35),
+            -deckThick,
+            0.35,
+            depth / 2,
+            C.stone,
+            false,
+            0.02,
+          );
+        }
+        // Kemer taşı (alt kuşak): kemer eğrisini belirginleştirir.
+        push(i, i + 1, 0, -deckThick - depth, deckHalf, 0.18, C.stoneDark, false, 0.02);
+      }
+    }
+    // Ayaklar ve istinat blokları.
+    const pierColor = stone ? C.stone : wooden ? C.wood : C.pier;
+    for (const [i, out] of [
+      [i0, -1],
+      [i1, 1],
+    ] as const) {
+      const bed = road.bed[i] as number;
       const ground = road.natural[i] as number;
-      const bottom = (road.bed[i] as number) - S.deckThickness;
-      if (bottom - ground < S.pierMinHeight) continue;
-      const hh = (bottom - ground) / 2 + 0.4;
-      const ax = level(segmentAxis(road, i - 1, i));
-      const f = frame(ax.fx, 0, ax.fz);
-      boxes.push({
-        x: road.xz[i * 2] as number,
-        y: (bottom + ground) / 2 - 0.4 / 2,
-        z: road.xz[i * 2 + 1] as number,
-        hl: S.pierSize / 2,
-        hw: deckHalf * 0.8,
-        hh,
-        fx: ax.fx,
-        fy: 0,
-        fz: ax.fz,
-        rx: f.rx,
-        rz: f.rz,
-        color: S.colors.pier,
-        solid: false,
-      });
+      const bottom = Math.min(ground, bed) - 1.2;
+      if (wooden) {
+        for (const side of [-1, 1]) {
+          level(i, side * (deckHalf - 0.2), 0, bottom, bed - 0.12, 0.16, 0.16, C.wood, false);
+        }
+      } else {
+        level(i, 0, out * 0.6, bottom, bed - deckThick, 0.8, deckHalf + 0.3, pierColor, true);
+      }
+    }
+    const every = Math.max(1, Math.round((wooden ? 6 : S.pierSpacing) / road.step));
+    if (!stone) {
+      for (let i = i0 + every; i < i1 - every / 2; i += every) {
+        const ground = road.natural[i] as number;
+        const bottomOfDeck = (road.bed[i] as number) - deckThick - (type === 'beam' ? 0.6 : 0);
+        if (bottomOfDeck - ground < (wooden ? 0.4 : S.pierMinHeight)) continue;
+        if (wooden) {
+          for (const side of [-1, 1])
+            level(
+              i,
+              side * (deckHalf - 0.2),
+              0,
+              ground - 0.5,
+              bottomOfDeck,
+              0.15,
+              0.15,
+              C.wood,
+              false,
+            );
+        } else if (type === 'viaduct') {
+          // Çift ayak + başlık.
+          for (const side of [-1, 1]) {
+            level(
+              i,
+              side * deckHalf * 0.45,
+              0,
+              ground - 0.6,
+              bottomOfDeck - 0.6,
+              S.pierSize / 2,
+              S.pierSize / 2,
+              C.pier,
+              false,
+            );
+          }
+          level(
+            i,
+            0,
+            0,
+            bottomOfDeck - 0.6,
+            bottomOfDeck,
+            S.pierSize * 0.7,
+            deckHalf * 0.85,
+            C.pier,
+            false,
+          );
+        } else {
+          level(i, 0, 0, ground - 0.6, bottomOfDeck, S.pierSize / 2, deckHalf * 0.7, C.pier, false);
+        }
+      }
     }
   }
 
-  const i0 = span.i0;
-  const i1 = span.i1;
   const cx = ((road.xz[i0 * 2] as number) + (road.xz[i1 * 2] as number)) / 2;
   const cz = ((road.xz[i0 * 2 + 1] as number) + (road.xz[i1 * 2 + 1] as number)) / 2;
   const radius =
@@ -172,7 +400,7 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
       (road.xz[i1 * 2 + 1] as number) - (road.xz[i0 * 2 + 1] as number),
     ) /
       2 +
-    6;
+    8;
   return { span, boxes, cx, cz, radius };
 }
 

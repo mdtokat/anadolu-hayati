@@ -246,3 +246,21 @@ Yollar zemine uydurulur (kazı/dolgu terası), yumuşatılır, dere geçişlerin
 - [ ] **Yükleme süresi:** oyun açılışı önceki fazlara göre belirgin yavaşladı mı (düzen ≈ +2,5 sn)? ___ sn
 - [ ] **Performans:** Düzce, Bolu, Safranbolu'da FPS: ___ (köprü çizimi tek draw call)
 - Notlar: ____________________
+
+## 16. Yol ağı omurgası, köprü türleri, tüneller ve dere yatakları (Faz 10 sonrası, ROADMAP 10.13)
+
+Yol ağı artık il/ilçe merkezlerini ve köyleri bağlayan seyrek, tek parça bir omurgadır; dört yol tipi ayrı görünür; köprüler yalnız dere geçişlerinde ve kısadır, dört türü vardır; anayol ve köy yolu derin sırtların altından tünelle geçer; dereler oyulmuş yataklarında akar (`CLAUDE.md` "Yol ağı omurgası", ölçümler [faz-10-yol-kopru-tunel-olcumler.md](faz-10-yol-kopru-tunel-olcumler.md)). Kontrol için test modunda uçarak bakın; Düzce, Bolu, Gerede, Çaycuma, Bartın ve Karabük çevresi iyi örneklerdir.
+
+- [ ] **Parça parça yol kaldı mı?** Hiçbir yere varmayan kısa yol, ortada biten yol ya da tek başına duran parça görüyor musunuz? Nerede: ____________________
+- [ ] **Göbek / ayrım:** anayolda birbirine paralel ikiz yol, ayrılıp yeniden birleşen çatal ya da küçük halka kaldı mı? Nerede: ____________________
+- [ ] **Yol sayısı:** ağ fazla seyrek mi (köyler arası yol yok hissi) yoksa yeterli mi? Her köye bir yol varıyor mu?
+- [ ] **Dört yol tipi:** şehirlerarası anayol (koyu asfalt, kenar çizgileri, kesik orta şerit), köy yolu (açık, yamalı asfalt), dağ patikası (toprak, düzensiz kenar), kent sokağı (parke taşı + kaldırım) birbirinden kolayca ayırt ediliyor mu? Orta şerit kesikleri düzgün mü?
+- [ ] **Kent içi:** il/ilçe merkezinde sokaklar birbirine ve kente giren yollara bağlı mı; sokaklar yapıların kapılarına gidiyor mu? Ana cadde geniş görünüyor mu?
+- [ ] **Köprüler:** her dere geçişinde dev köprü hissi kalktı mı? Köprüler kısa ve düz (tepe yok) mü? Arka arkaya köprü kaldı mı? Nerede: ____________________
+- [ ] **Köprü türleri:** anayolda beton kirişli köprü (çelik korkuluk) ve yüksek ayaklı viyadük, köy yolunda taş kemer (kemerin altı boş), patikada ahşap köprü (dikmeli trabzan) görünüyor mu? Türler bulunduğu yere yakışıyor mu?
+- [ ] **Tüneller:** dağın içine giren tünel ağzı (taş/beton cephe, koyu açıklık) doğal görünüyor mu? Tünelden yürüyerek/uçarak geçilebiliyor mu; içeride lambalar, duvarlar ve zemin var mı; çıkışta takılma var mı? Üçüncü şahıs kamerada tünel içi görüntü kabul edilebilir mi? Tüneller: ____________________
+- [ ] **Dereler:** dere ve nehirler yamaçta "yan duran" bir şerit değil, kendi yatağında mı akıyor? Yol kenarında dere yatağı yol dolgusuyla kapanmış mı?
+- [ ] **Uzaktan bakış:** 350 m'den uzakta tünel ağzının içi arazi görünüyor (bilinen sınır); rahatsız edici mi?
+- [ ] **Yükleme süresi ve FPS:** açılış önceki sürüme göre belirgin yavaşladı mı? ___ sn; tünel/köprü yakınında FPS: ___
+- Notlar: ____________________
+

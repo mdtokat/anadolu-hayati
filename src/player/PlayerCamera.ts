@@ -72,14 +72,22 @@ export class PlayerCamera {
     }
 
     const pivot = { x: feet.x, y: feet.y + CAMERA.thirdPersonPivotHeight, z: feet.z };
-    const offset = thirdPersonOffset(this.look, CAMERA.thirdPersonDistance);
+    // Tünelde (ayak arazi yüzeyinin belirgin altında) kamera yakına gelir ve arazi yüzeyine itilmez: dağın üstüne
+    // fırlamasın.
+    const underground = feet.y < this.terrain.heightAt(feet.x, feet.z) - CAMERA.undergroundDepth;
+    const offset = thirdPersonOffset(
+      this.look,
+      underground ? CAMERA.undergroundDistance : CAMERA.thirdPersonDistance,
+    );
     const x = pivot.x + offset.x;
     const z = pivot.z + offset.z;
     // Yukarı bakarken kamera oyuncunun altına iner; yerin içine girmesin.
-    const y = Math.max(
-      pivot.y + offset.y,
-      this.terrain.heightAt(x, z) + CAMERA.thirdPersonGroundClearance,
-    );
+    const y = underground
+      ? Math.max(pivot.y + offset.y, feet.y + 0.4)
+      : Math.max(
+          pivot.y + offset.y,
+          this.terrain.heightAt(x, z) + CAMERA.thirdPersonGroundClearance,
+        );
     this.camera.position.set(x, y, z);
     this.camera.lookAt(pivot.x, pivot.y, pivot.z);
   }
