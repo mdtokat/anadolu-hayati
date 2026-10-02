@@ -1,5 +1,5 @@
 import { ROADS, SETTLEMENT_LAYOUT, SETTLEMENT_STYLES } from '../config';
-import type { LandmarkData, SettlementData, SettlementRank } from '../data/settlements';
+import type { LandmarkData, RoadClass, SettlementData, SettlementRank } from '../data/settlements';
 import { createRandom, seedFrom } from '../utils/random';
 import { LATTICE_CELL, latticeCol, latticeRow, latticeX, latticeZ } from '../world/lattice';
 import { FootprintRegistry, type OrientedBox } from './footprints';
@@ -41,6 +41,14 @@ export interface LayoutTerrain {
   elevationAt(x: number, z: number): number;
   /** (x, z)'ye `clearance` içinde tatlı su var mı? */
   isWater(x: number, z: number, clearance: number): boolean;
+  /**
+   * Varsa dik arazide yapı terası açılabilir: `box` ayak izi `y` seviyesine düzlenir (kazı + dolgu, çevresine yumuşak
+   * şevle). Çağrıdan sonra `heightAt` düzlenmiş zemini verir; sonraki yapılar onun üstünde kurulur. Yoksa yamaç
+   * yalnızca taş temel / gömülmeyle (`maxPlinth`, `MAX_BURY`) aşılır.
+   */
+  level?(box: OrientedBox, y: number): void;
+  /** Düzlenmeyen yapının ayak izini kilitler (sonraki teraslar zeminini değiştirmesin). */
+  lock?(box: OrientedBox): void;
 }
 
 export interface Building {
@@ -69,10 +77,16 @@ export interface Building {
   stairRun: number;
 }
 
+/** Kent sokağı: sınıfı (merkezden geçen ana cadde 0, diğerleri 1) ve dünya X/Z çizgisi ([x0, z0, x1, z1]). */
+export interface Street {
+  cls: RoadClass;
+  xz: Float32Array;
+}
+
 export interface LayoutResult {
   buildings: Building[];
-  /** Kent sokakları (il/ilçe): dünya X/Z çoklu çizgileri ([x0, z0, x1, z1, …]). */
-  streets: Float32Array[];
+  /** Kent sokakları (il/ilçe): yalnızca yapılara hizmet eden kesimler. */
+  streets: Street[];
   /** Yerleşim çerçevesi açısı (radyan) ve ayak izi yarıçapı (oyun m; büyütülmüş). */
   frame: number;
   radius: number;
@@ -318,10 +332,22 @@ export function layoutSettlement(
     // Camiler kıbleye döndüğünden kapı yokuş yukarı da bakabilir: yamaca gömülmez, taş bir set (teras) üstünde
     // durur (zemin katı en yüksek köşede). Diğer yapılar ön kenarın zeminindedir, arkası yamaca gömülür.
     const terrace = isMosque(kind);
-    const floor = terrace ? Math.max(fl.h, fr.h, bl.h, br.h, mid.h, back.h) : Math.max(fl.h, fr.h);
-    const base = Math.min(fl.h, fr.h, bl.h, br.h, mid.h, back.h);
-    if (Math.max(bl.h, br.h, mid.h, back.h) - floor > MAX_BURY[kind]) return reject('bury');
-    if (floor - base > (terrace ? L.maxTerrace : L.maxPlinth)) return reject('plinth');
+    let floor = terrace ? Math.max(fl.h, fr.h, bl.h, br.h, mid.h, back.h) : Math.max(fl.h, fr.h);
+    let base = Math.min(fl.h, fr.h, bl.h, br.h, mid.h, back.h);
+    const buried = Math.max(bl.h, br.h, mid.h, back.h) - floor > MAX_BURY[kind];
+    const plinth = floor - base > (terrace ? L.maxTerrace : L.maxPlinth);
+    // Dik arazide (bury/plinth sınırı aşılıyorsa) ve arazi düzlenebiliyorsa yapı bir terasa oturur: zemin kat ve temel
+    // medyan seviyede, merdiven ve taş temel gerekmez.
+    let padLevel: number | null = null;
+    if (buried || plinth) {
+      const hs = [fl.h, fr.h, bl.h, br.h, mid.h, back.h].sort((x, y) => x - y);
+      if (!terrain.level || (hs[5] as number) - (hs[0] as number) > L.maxPadRange) {
+        return reject(buried ? 'bury' : 'plinth');
+      }
+      padLevel = ((hs[2] as number) + (hs[3] as number)) / 2;
+      floor = padLevel;
+      base = padLevel;
+    }
     // Ayak izi (taşma payıyla) üzerinde örnekler: hiçbiri akarsuya/göle ya da yola değmesin.
     // Önce merkezden tek sorgu: yakında su/yol yoksa örneklere gerek yok (düzen süresi).
     const reach = Math.hypot(ex, ez);
@@ -342,7 +368,7 @@ export function layoutSettlement(
     // Kapı önü merdiveni (kat zemini kapı önündeki araziden yüksekse): uzunluğu tahminidir (uç zemini daha alçak
     // olabilir; `SettlementMap` gerçek merdiveni kurar), payla ayrılır.
     let stair: OrientedBox | null = null;
-    if (shape.enterable || shape.searchable) {
+    if (padLevel === null && (shape.enterable || shape.searchable)) {
       const door = local(shape.door.x, hd);
       const rise = floor - terrain.heightAt(door.x, door.z);
       if (rise >= STAIR_MIN_RISE) {
@@ -354,7 +380,7 @@ export function layoutSettlement(
         if (terrain.isWater(end.x, end.z, L.waterClearance)) return reject('water');
       }
     }
-    return { body, stair, x: p.x, z: p.z, y: floor, base };
+    return { body, stair, x: p.x, z: p.z, y: floor, base, pad: padLevel };
   };
 
   const add = (
@@ -378,6 +404,19 @@ export function layoutSettlement(
         ? clamp(Math.round(3 + floorsRoll * 2 + (n >= L.denseThreshold * 2 ? 1 : 0)), 3, 6)
         : 1;
     placedUV.push({ u, v });
+    if (s.pad !== null) {
+      const shape = BUILDING_SHAPES[kind];
+      terrain.level?.(
+        {
+          x: s.x,
+          z: s.z,
+          hx: shape.width / 2 + L.padMargin,
+          hz: shape.depth / 2 + L.padMargin,
+          yaw,
+        },
+        s.pad,
+      );
+    }
     const id = settlement.id * 1024 + placed.length;
     occupied.add(id, s.body);
     if (s.stair) occupied.add(id, s.stair);
@@ -620,54 +659,91 @@ export function layoutSettlement(
     }
   }
 
-  // 4. Sokaklar (il/ilçe): boş bırakılan ızgara sıraları, yerleşimin dolu olduğu kesimlerde.
-  const streets: Float32Array[] = [];
+  // 4. Sokaklar (il/ilçe): yapı bulunan her mahalle bloğunun dört kenarı sokak olur; komşu bloklar kenar paylaşır, böylece
+  // sokaklar bağlı bir ağ kurar ve yapısız yerde sokak çizilmez. Merkeze en yakın hat ana caddedir (sınıf 0).
+  const streets: Street[] = [];
   if (!village) {
-    const buildingsBox = placedUV.reduce(
-      (b, p) => ({
-        u0: Math.min(b.u0, p.u),
-        u1: Math.max(b.u1, p.u),
-        v0: Math.min(b.v0, p.v),
-        v1: Math.max(b.v1, p.v),
-      }),
-      { u0: Infinity, u1: -Infinity, v0: Infinity, v1: -Infinity },
-    );
-    const streetHalf = L.streetWidth / 2;
-    const okAt = (u: number, v: number): boolean => {
+    const okAt = (u: number, v: number, half: number): boolean => {
       if (Math.hypot(u, v) > radius) return false;
       const p = toWorld(u, v);
       return (
         densityAt(p.x, p.z) > 0 &&
         terrain.elevationAt(p.x, p.z) >= L.minElevationM &&
         // Sokak yapının (merdiveni dahil) ya da akarsuyun üstünden geçmez: orada kesilir.
-        !occupied.contains(p.x, p.z, streetHalf + 0.3) &&
+        !occupied.contains(p.x, p.z, half + 0.3) &&
         !inForeignCore(p.x, p.z) &&
-        !terrain.isWater(p.x, p.z, streetHalf + L.waterClearance)
+        !terrain.isWater(p.x, p.z, half + L.waterClearance)
       );
     };
     const step = pitch / 8;
-    for (let k = -steps; k <= steps; k++) {
-      if (!isStreet(k)) continue;
-      const fixed = k * pitch;
-      for (const along of ['u', 'v'] as const) {
-        const lo = along === 'u' ? buildingsBox.u0 : buildingsBox.v0;
-        const hi = along === 'u' ? buildingsBox.u1 : buildingsBox.v1;
-        const fixedLo = along === 'u' ? buildingsBox.v0 : buildingsBox.u0;
-        const fixedHi = along === 'u' ? buildingsBox.v1 : buildingsBox.u1;
-        if (!(fixed >= fixedLo - pitch && fixed <= fixedHi + pitch)) continue;
+    // Blok (a, b): parsel sıraları [blockMod·a, blockMod·a + blockLots − 1]; çevresindeki sokak sıraları blockMod·a − 1 ve
+    // blockMod·a + blockLots. Sokak hattı s (sıra blockMod·s + blockLots) a. ve (a+1). blokların arasındadır.
+    const built = new Set<number>();
+    const blockKey = (a: number, b: number) => (a + 4096) * 8192 + (b + 4096);
+    for (const p of placedUV) {
+      built.add(
+        blockKey(
+          Math.floor(Math.round(p.u / pitch) / blockMod),
+          Math.floor(Math.round(p.v / pitch) / blockMod),
+        ),
+      );
+    }
+    // Hat ('u' sabit = dikey hat 'V', 'v' sabit = 'H') → kullanılan blok dilimleri.
+    const slices = new Map<string, Set<number>>();
+    const use = (orientation: 'V' | 'H', line: number, slice: number) => {
+      const key = `${orientation}${line}`;
+      const set = slices.get(key) ?? new Set<number>();
+      set.add(slice);
+      slices.set(key, set);
+    };
+    for (const key of built) {
+      const a = Math.floor(key / 8192) - 4096;
+      const b = (key % 8192) - 4096;
+      use('V', a - 1, b);
+      use('V', a, b);
+      use('H', b - 1, a);
+      use('H', b, a);
+    }
+    const lineCoord = (line: number) => (blockMod * line + L.blockLots) * pitch;
+    const mainLine = [...slices.keys()].reduce<number | null>((best, key) => {
+      const line = Number(key.slice(1));
+      return best === null || Math.abs(lineCoord(line)) < Math.abs(lineCoord(best)) ? line : best;
+    }, null);
+    for (const [key, set] of slices) {
+      const along: 'u' | 'v' = key[0] === 'V' ? 'v' : 'u';
+      const line = Number(key.slice(1));
+      const fixed = lineCoord(line);
+      const cls: RoadClass = line === mainLine ? 0 : 1;
+      const half = (ROADS.width[cls] as number) / 2;
+      const sorted = [...set].sort((x, y) => x - y);
+      // Ardışık dilimler tek hatta birleşir.
+      let from = sorted[0] as number;
+      for (let i = 0; i < sorted.length; i++) {
+        const cur = sorted[i] as number;
+        if (i + 1 < sorted.length && sorted[i + 1] === cur + 1) continue;
+        const t0 = (blockMod * from - 1) * pitch;
+        const t1 = (blockMod * cur + L.blockLots) * pitch;
+        from = sorted[i + 1] as number;
         let run: number[] = [];
-        // Sokak sırası düz bir çizgidir: yalnızca kesintisiz parçanın iki ucu tutulur (dizin ve çizim hafif kalsın).
         const flush = () => {
           if (run.length >= 4) {
             const n = run.length;
-            streets.push(Float32Array.of(run[0]!, run[1]!, run[n - 2]!, run[n - 1]!));
+            streets.push({
+              cls,
+              xz: Float32Array.of(
+                run[0] as number,
+                run[1] as number,
+                run[n - 2] as number,
+                run[n - 1] as number,
+              ),
+            });
           }
           run = [];
         };
-        for (let t = Math.floor(lo / step) * step - pitch; t <= hi + pitch; t += step) {
+        for (let t = t0; t <= t1 + 1e-6; t += step) {
           const u = along === 'u' ? t : fixed;
           const v = along === 'u' ? fixed : t;
-          if (!okAt(u, v)) {
+          if (!okAt(u, v, half)) {
             flush();
             continue;
           }

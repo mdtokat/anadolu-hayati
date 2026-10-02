@@ -13,7 +13,7 @@ import { buildPropGeometry, type PropLod } from './propGeometry';
 import { PropIndex, propId } from './propIndex';
 import { PROP_KINDS, type PropId, type PropKind, type PropRef } from './propKinds';
 import type { RegionHeightSource } from './RegionHeightSource';
-import { scatterChunk, type ChunkProps } from './scatter';
+import { scatterChunk, type ChunkProps, type ScatterHeight } from './scatter';
 import type { FreshWaterIndex } from './waterIndex';
 
 /** Dev göstergesi / test için anlık sayımlar. */
@@ -58,6 +58,7 @@ export class PropLayer {
   private readonly blocked = new Set<PropId>();
   /** Tür başına (ölçek 1'de) yakın geometrinin yatay yarıçapı (oyun m): eleme yarıçapı. */
   private readonly baseRadius = new Float32Array(PROP_KINDS.length);
+  private readonly scatterHeight: ScatterHeight;
   private active: Array<{ cx: number; cy: number; key: number }> = [];
   private lastX = NaN;
   private lastZ = NaN;
@@ -72,7 +73,7 @@ export class PropLayer {
   >;
 
   constructor(
-    private readonly source: RegionHeightSource,
+    source: RegionHeightSource,
     private readonly cover: LandCoverMap,
     private readonly water: FreshWaterIndex | null,
     /**
@@ -82,6 +83,13 @@ export class PropLayer {
     private readonly isBlocked: ((x: number, z: number, radius: number) => boolean) | null = null,
   ) {
     this.grid = chunkGridFor(source);
+    // Dağılım doğal araziye göre elenir (yol düzeltmesi nesne kimliklerini kaydırmasın); duruş yüksekliği düzeltilmiş zemindir.
+    const natural = source.natural();
+    this.scatterHeight = {
+      heightAt: (x, z) => source.heightAt(x, z),
+      elevationAt: natural.elevationAt,
+      slopeDegAt: natural.slopeDegAt,
+    };
     this.index = new PropIndex(this.grid);
     this.group.name = 'props';
 
@@ -218,7 +226,7 @@ export class PropLayer {
         grid: this.grid,
         seed: SCATTER.seed,
         cover: this.cover,
-        height: this.source,
+        height: this.scatterHeight,
         isWater: (x, z, clearance) => this.water?.nearest(x, z, clearance) != null,
       });
       this.cache.set(chunk.key, props);

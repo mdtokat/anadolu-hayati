@@ -8,32 +8,21 @@ import {
   worldToBuildingLocal,
   SettlementMap,
 } from '../src/settlements/SettlementMap';
-import type { Building, LayoutTerrain } from '../src/settlements/layout';
-import type { NearestWater } from '../src/settlements/roadRouting';
-import { RegionHeightSource } from '../src/world/RegionHeightSource';
-import { FreshWaterIndex } from '../src/world/waterIndex';
+import type { Building } from '../src/settlements/layout';
 import { loadRealWorld } from './helpers/realRegion';
+import { buildSettlementWorld, type SettlementWorld } from './helpers/settlementWorld';
 
 let world: RegionData;
-let terrain: LayoutTerrain & { nearestWater?: NearestWater };
+let terrain: SettlementWorld['terrain'];
 let map: SettlementMap;
 let buildMs = 0;
 
 beforeAll(async () => {
   world = await loadRealWorld();
-  const source = RegionHeightSource.fromRegion(world);
-  const water = world.features
-    ? new FreshWaterIndex(world.features.water, FRESH_WATER.indexCellSize)
-    : null;
-  terrain = {
-    heightAt: (x, z) => source.heightAt(x, z),
-    elevationAt: (x, z) => source.elevationAt(x, z),
-    isWater: (x, z, c) => water?.nearest(x, z, c) != null,
-    nearestWater: (x, z, r) => water?.nearest(x, z, r) ?? null,
-  };
-  const t0 = performance.now();
-  map = new SettlementMap(world.settlements!, terrain);
-  buildMs = performance.now() - t0;
+  const built = buildSettlementWorld(world);
+  terrain = built.terrain;
+  map = built.map;
+  buildMs = built.buildMs;
 }, 60_000);
 
 describe('SettlementMap — gerçek dünya (Faz 10)', () => {
@@ -100,12 +89,14 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
           SETTLEMENT_LAYOUT.minElevationM,
         );
         expect(b.y - b.base).toBeLessThanOrEqual(SETTLEMENT_LAYOUT.maxTerrace + 1e-6);
-        // Arka kenar en çok MAX_BURY kadar gömülü.
+        // Arka kenar en çok MAX_BURY kadar gömülü (komşu terasların şevi 2 m'lik hücrelerde kenarı en çok birkaç metre oynatabilir).
         const back = worldToBuildingLocal(b, b.x, b.z); // merkez
         expect(back.x).toBeCloseTo(0);
         const bx = b.x - Math.sin(b.yaw) * (shape.depth / 2);
         const bz = b.z - Math.cos(b.yaw) * (shape.depth / 2);
-        expect(terrain.heightAt(bx, bz) - b.y).toBeLessThanOrEqual(MAX_BURY[b.kind] + 1e-6);
+        expect(terrain.heightAt(bx, bz) - b.y).toBeLessThanOrEqual(
+          MAX_BURY[b.kind] + SETTLEMENT_LAYOUT.buryTolerance + 1e-6,
+        );
       }
       // Aynı yerleşimde iki yapının merkezleri iç içe değil.
       for (let i = 0; i < list.length; i++) {
@@ -184,13 +175,13 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     }
   });
 
-  it('deterministik ve hızlı (açılışta < 2 sn)', () => {
-    const again = new SettlementMap(world.settlements!, terrain);
+  it('deterministik ve hızlı (yol ağı + zemin düzeltme + düzen açılışta < 6 sn)', () => {
+    const again = buildSettlementWorld(world).map;
     expect(again.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`)).toEqual(
       map.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`),
     );
     if (process.env.SETTLEMENT_REPORT) console.log(`düzen ${buildMs.toFixed(0)} ms`);
-    expect(buildMs).toBeLessThan(2000);
+    expect(buildMs).toBeLessThan(6000);
     const ids = new Set(map.buildings.map((b) => b.id));
     expect(ids.size).toBe(map.buildings.length);
   });

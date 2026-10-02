@@ -1642,11 +1642,11 @@ export const SETTLEMENT_LAYOUT = {
   /** Ayak izi büyütme çarpanı (merkez etrafında). */
   footprintScale: { il: 1.8, ilce: 1.6, koy: 1.3 },
   /** Parsel aralığı (oyun m): bir konut + sokak payı. */
-  lotPitch: { il: 12.5, ilce: 12, koy: 10.5 },
+  lotPitch: { il: 10, ilce: 9.5, koy: 10.5 },
   /** Il/ilçe: her `blockLots` parselden sonra bir sıra boş kalır (mahalle sokağı). */
   blockLots: 3,
   /** Bir parselin dolu olma olasılığı = min(1, n / fullDensity) (n = 100 m hücredeki gerçek bina sayısı). */
-  fullDensity: { il: 5, ilce: 4, koy: 2 },
+  fullDensity: { il: 3, ilce: 2.5, koy: 2 },
   /** n bu değerin üstündeyse "yoğun doku" (apartman ağırlıklı) sayılır. */
   denseThreshold: 6,
   /** Yerleşim başına en çok bina. */
@@ -1656,6 +1656,16 @@ export const SETTLEMENT_LAYOUT = {
   villageBuildingsPerHouse: 10,
   /** Yapının altında görünen taş temelin en büyük yüksekliği (oyun m; ön kenar ile en alçak köşe farkı). */
   maxPlinth: 5,
+  /**
+   * Dik arazide yapı terası (arazi düzlenebiliyorsa): ayak izindeki en yüksek ile en alçak zemin farkı bu kadardan (oyun m)
+   * azsa yapı, medyan seviyede düzlenmiş bir terasa oturur; `padMargin` ayak izinin her yana taşan düz payıdır.
+   */
+  maxPadRange: 9,
+  padMargin: 0.8,
+  /** Komşu terasların şevi yüzünden arka kenarı `MAX_BURY`'yi bu kadar (oyun m) aşan yapı atılır. */
+  buryTolerance: 2,
+  /** Terasın çevresine bağlanan şevin en büyük genişliği (oyun m). */
+  padBlend: 7,
   /** Camiler taş set (teras) üstüne oturur: setin en büyük yüksekliği (oyun m). */
   maxTerrace: 6,
   /** Yamaç eğimi: parselde ±`slopeProbe` (oyun m) arası fark bundan büyükse kapı aşağı (vadiye) bakar. */
@@ -1683,8 +1693,8 @@ export const SETTLEMENT_LAYOUT = {
   coreReserve: 0.35,
   /** Il/ilçe merkezinde ayak izi yarıçapının bu oranı içindeki il-ilçe ve köy yolları çizilmez (kentin içi sokak ızgarasıdır). */
   innerRoadCut: 0.85,
-  /** Kent sokaklarının genişliği (oyun m) ve örnekleme aralığı. */
-  streetWidth: 3,
+  /** Kent içinde kesilen yol ucu en yakın sokağa/anayola bu uzaklığa (oyun m) kadar bağlanır. */
+  joinReach: 70,
   /** Kaynak bölgenin kıble azimutu için temsilî nokta (enlem, boylam): Batı Karadeniz ortası. */
   qiblaFrom: { lat: 41.1, lon: 31.9 },
 } as const;
@@ -1713,13 +1723,13 @@ export const SETTLEMENT_STYLES = {
   },
 } as const;
 
-/** Yollar (Faz 10): sınıf başına genişlik (oyun m; gerçek genişlikler abartılı), yumuşatma ve sudan ayırma. */
+/** Yollar (Faz 10): sınıf başına genişlik (oyun m; gerçek genişlikler abartılı), yumuşatma, ağ düzeni ve zemin düzeltme. */
 export const ROADS = {
   /**
-   * 0 anayol, 1 il-ilçe yolu (ve kent sokakları), 2 köy yolu. Yollar arazi kaplamasında boyanır (renkler
-   * `TERRAIN_OVERLAY`): asfalt sınıf 0–1, toprak sınıf 2.
+   * 0 anayol (şehirler arası), 1 tali yol (ilçe/köy bağlantıları, kent sokakları), 2 patika (kırsal toprak yol).
+   * Yollar arazi kaplamasında boyanır (renkler `TERRAIN_OVERLAY`): asfalt sınıf 0–1, toprak sınıf 2.
    */
-  width: [5, 3.6, 2.6],
+  width: [6, 4, 2.4],
   /** Yol sorgularının uzamsal ızgara hücresi (oyun m). */
   indexCellSize: 32,
   /**
@@ -1728,12 +1738,6 @@ export const ROADS = {
    * yineleme sayısı (yumuşatılmış itme her geçişte kalan çakışmayı biraz daha giderir), `maxWaterShift` geçiş başına en büyük kaydırma (oyun m). Yol doğrultusu ile itme yönü
    * arasındaki açının kosinüsü `crossingCos`'tan büyükse nokta suyu kesiyordur (köprü): itilmez.
    */
-  /**
-   * Yumuşatma (`smoothRoads`): veri yolları 2 m kafese oturtulmuştur (merdiven gibi kırık). Bu sapmadan (oyun m) az
-   * kırıklar sadeleştirilir, sonra `smoothRounds` tur Chaikin köşe kesmesiyle virajlar yuvarlanır.
-   */
-  smoothTolerance: 2.2,
-  smoothRounds: 2,
   routeStep: 4,
   routePasses: 6,
   /** Geçiş başına kaydırmaları yumuşatma ([1, 2, 1] / 4 süzgeci) tekrar sayısı. */
@@ -1743,6 +1747,114 @@ export const ROADS = {
   routeSimplify: 0.25,
   maxWaterShift: 6,
   crossingCos: 0.5,
+  /**
+   * Yumuşatma (`smoothRoads`): veri yolları 2 m kafese oturtulmuştur (merdiven gibi kırık, dalgalı). Önce bu
+   * sapmadan (oyun m) az kırıklar sadeleştirilir, sonra yol `smoothStep` aralıklı noktalara bölünür ve sınıfa göre
+   * Gauss süzgeciyle (`smoothSigma`, oyun m) yumuşatılır: keskin köşeler yaklaşık σ yarıçaplı virajlara dönüşür,
+   * dalgalanma silinir. Uçlar (kavşaklar) yerinde kalır (σ uca yaklaştıkça sönümlenir).
+   */
+  smoothTolerance: 2.2,
+  smoothStep: 2,
+  smoothSigma: [14, 9, 5],
+  /** Yumuşatılmış yolun son sadeleştirme toleransı (oyun m). */
+  smoothSimplify: 0.2,
+  /**
+   * Ağ düzeni (`settlements/roadNetwork.ts`): iki uç `nodeSnap` (oyun m) içindeyse aynı kavşaktır; bir uç başka
+   * yolun gövdesine `junctionSnap` içindeyse yol orada bölünür (T kavşağı).
+   */
+  nodeSnap: 2.5,
+  junctionSnap: 2.2,
+  /**
+   * Çıkmaz budama: ucu hiçbir yerleşimin (disk yarıçapı + `anchorMargin`) ya da harita kenarının (`boundsMargin`)
+   * yakınında olmayan ve hiçbir noktası yerleşimde olmayan, anayol olmayan yol çıkmaz uçtan başlayarak silinir
+   * (ardından gerisi çıkmaz kalırsa o da). Yerleşime varan yol ucu boşta olsa da silinmez, bağlantı turunda
+   * en yakın yola bağlanır.
+   */
+  anchorMargin: 14,
+  boundsMargin: 16,
+  /**
+   * Kırsal sınıflandırma: yerleşim diskinin kenarından `ruralDistance` (oyun m) uzakta kalan tali yol (sınıf 1)
+   * patikaya (sınıf 2) iner. Binaların seyrek olduğu yerde tali yol da toprak patikadır.
+   */
+  ruralDistance: 34,
+  /**
+   * Bağlantı: bir yerleşim diskinin yakınında (`rim` × yarıçap + `accessPad` m) yol yoksa en yakın yola bağlanır;
+   * kopuk bileşenler `linkMax` (oyun m) içindeki başka bir yola A* ile bağlanır (en çok `linkRounds` tur), bağlanamayan
+   * ve yerleşimsiz bileşenler silinir.
+   */
+  accessPad: 22,
+  linkMax: 260,
+  linkRounds: 2,
+  /** Rota arama (`settlements/routeFinder.ts`): hücre, pencere payı, düğüm sınırı; dere geçişi ek maliyeti (köprü), eğim ölçeği. */
+  routeCell: 4,
+  routePad: 70,
+  routeMaxNodes: 120000,
+  routeBridgeCost: 16,
+  routeSlopeScale: 0.3,
+  routeSimplifyTolerance: 1.2,
+  /**
+   * Zemin düzeltme (`settlements/roadProfile.ts`, `world/roadGrading.ts`): yol, zemini yola uydurur. Boyuna profil
+   * araziyi `profileSigma` (oyun m) uzunluğunda yumuşatır, en dik eğimi `gradeMax` (yükselti / yatay) ile sınırlar;
+   * yol ekseninde zemin en çok `maxCut` (kazı, derin sırtlarda yarma) kadar alçalır, `maxFill` kadar yükselir (dereyi
+   * ve derin vadiyi geçen kesim = köprü/viyadük). Enine kesit: `shoulder` düz banket, ardından yamaca `batterCut` / `batterFill`
+   * (yükselti / yatay) eğimle yumuşakça bağlanır (en az `minBlend`, en çok `maxBlend` genişlik).
+   */
+  profileStep: 3,
+  profileSigma: [26, 18, 11],
+  gradeMax: [0.17, 0.23, 0.34],
+  maxCut: 10,
+  maxFill: [4.5, 4, 3],
+  shoulder: 0.7,
+  batterCut: 1,
+  batterFill: 0.65,
+  minBlend: 2.6,
+  /** Yol gövdesinin dışındaki bir hücrede zeminin doğal yüksekliğinden en çok değişimi (oyun m). */
+  maxEdgeChange: 8,
+  maxBlend: 11,
+  /**
+   * Dağ patikası istisnası: patikada (sınıf 2) arazinin eğimi `mountainSlopeDeg`'in üstündeyse zemin düzeltilmez;
+   * `mountainSlopeDeg − mountainBlendDeg` altında tam düzeltilir (arası yumuşak geçiş).
+   */
+  mountainSlopeDeg: 38,
+  mountainBlendDeg: 14,
+  /** Düzeltme denizden (oyun y) bu kadarın altına inmez ve deniz hücrelerine dokunmaz. */
+  minBedHeight: 0.18,
+} as const;
+
+/**
+ * Yol yapıları (köprü, viyadük): `settlements/roadProfile.ts` yerlerini seçer, `world/roadStructureGeometry.ts` çizer,
+ * `world/RoadStructureColliders.ts` çarpıştırır. Uzunluklar oyun metresi.
+ */
+export const ROAD_STRUCTURES = {
+  /** Köprü: suya `wetMargin` (+ su yarı genişliği) yaklaşan kesim; en kısa açıklık; gerçek dere geçişi için pay. */
+  wetMargin: 1.6,
+  minSpan: 5,
+  /** Güverte zeminden en az bu kadar yüksekte; güverte kalınlığı, korkuluk yüksekliği/kalınlığı. */
+  clearance: 0.8,
+  deckThickness: 0.55,
+  parapetHeight: 0.95,
+  parapetThickness: 0.28,
+  /** Güverte yolun toplam genişliğine (her yana) eklenen pay: sınıf başına. */
+  widthPad: [0.6, 0.45, 0.25],
+  /** Ayak aralığı (oyun m) ve kalınlığı: güverte zeminden `pierMinHeight`'tan yüksekse ayak konur. */
+  pierSpacing: 12,
+  pierSize: 0.9,
+  pierMinHeight: 2.2,
+  /** Yapı çizimi ve collider'ları oyuncuya bu uzaklıktaki (oyun m) yapılar için kurulur. */
+  drawRadius: 520,
+  colliderRadius: 90,
+  refreshDistance: 30,
+  /** Viyadük: güverte zeminden bu kadar (oyun m) yüksek olacak dolgu, en az bu uzunlukta sürerse köprü kurulur. */
+  viaductFill: 2.8,
+  viaductMinLength: 14,
+  /** Zeminde kalan noktada dolgu, sınırı bu kadar (oyun m) aşarsa o kesim köprüye alınır. */
+  fillSlack: 0.6,
+  /** Renkler 0xRRGGBB. */
+  colors: {
+    deck: 0x7b7870,
+    parapet: 0x9a9284,
+    pier: 0x86827a,
+  },
 } as const;
 
 /** Yerleşim yapılarının görünümü (Faz 10): renkler 0xRRGGBB, çizim uzaklıkları oyun m. */

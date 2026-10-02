@@ -67,15 +67,19 @@ export function quadsOverlap(a: Float64Array, b: Float64Array): boolean {
 
 /** Nokta dörtgenin (kenarlarından `margin` dışarısı dahil) içinde mi? Köşeler sırayla (saat yönü ya da tersi). */
 function pointInQuad(q: Float64Array, x: number, z: number, margin: number): boolean {
-  let sign = 0;
+  // Yön, dörtgenin kendi sargısından (ilk iki kenarın çarpımı) alınır; sorgu noktasının konumundan değil.
+  const e0x = (q[2] as number) - (q[0] as number);
+  const e0z = (q[3] as number) - (q[1] as number);
+  const e1x = (q[4] as number) - (q[2] as number);
+  const e1z = (q[5] as number) - (q[3] as number);
+  const sign = Math.sign(e0x * e1z - e0z * e1x) || 1;
   for (let i = 0; i < 4; i++) {
     const j = (i + 1) % 4;
     const ex = (q[j * 2] as number) - (q[i * 2] as number);
     const ez = (q[j * 2 + 1] as number) - (q[i * 2 + 1] as number);
     const len = Math.hypot(ex, ez) || 1;
+    // Kenarın iç tarafı: sargı yönünde sol (işaretli uzaklık > 0); `margin` kadar dışarısı da sayılır.
     const cross = (ex * (z - (q[i * 2 + 1] as number)) - ez * (x - (q[i * 2] as number))) / len;
-    if (sign === 0) sign = Math.sign(cross) || 1;
-    // İçeride: tüm kenarlarda aynı işaret; `margin` kadar dışarısı da sayılır.
     if (cross * sign < -margin) return false;
   }
   return true;

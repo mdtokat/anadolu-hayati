@@ -34,6 +34,8 @@ import { RegionHeightSource } from './RegionHeightSource';
 import type { PlaceCenter } from './placeNotice';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial, terrainUniforms, type TerrainUniforms } from './TerrainMaterial';
+import { levelPad, lockFootprint } from './buildingPads';
+import { applyRoadGrading } from './roadGrading';
 import { buildTerrainOverlay, landBorderSegments } from './terrainOverlay';
 import { LandCoverMap } from './LandCoverMap';
 import { PropLayer, type PropLayerStats } from './PropLayer';
@@ -45,6 +47,9 @@ import { SettlementMap } from '../settlements/SettlementMap';
 import type { PeopleWorld } from '../people/PeopleSystem';
 import { SettlementLayer } from './SettlementLayer';
 import { SettlementColliders } from './SettlementColliders';
+import { StructureIndex } from './roadStructureGeometry';
+import { RoadStructureLayer } from './RoadStructureLayer';
+import { RoadStructureColliders } from './RoadStructureColliders';
 
 /**
  * Gerçek bölge dünyası: chunk'lanmış LOD'lu arazi mesh'leri, yakın chunk'lar için Rapier
@@ -75,6 +80,9 @@ export class RegionWorld implements GameWorld {
   readonly settlementMap: SettlementMap | null;
   private readonly settlementLayer: SettlementLayer | null;
   private readonly settlementColliders: SettlementColliders | null;
+  /** Köprü/viyadük/tünel çizimi ve collider'ları (yol planından); yerleşim verisi yoksa null. */
+  private readonly structureLayer: RoadStructureLayer | null;
+  private readonly structureColliders: RoadStructureColliders | null;
   /** Diğer insanların arazi/yerleşim sorguları (Faz 10); yerleşim verisi yoksa null. */
   readonly peopleWorld: PeopleWorld | null;
 
@@ -98,6 +106,11 @@ export class RegionWorld implements GameWorld {
           elevationAt: (x, z) => this.source.elevationAt(x, z),
           isWater: (x, z, clearance) => freshWater?.nearest(x, z, clearance) != null,
           nearestWater: freshWater ? (x, z, r) => freshWater.nearest(x, z, r) : undefined,
+          bounds: this.source.bounds,
+          // Yol planı zemine uygulanır; yapı düzeni düzeltilmiş zeminin üstünde kurulur.
+          grade: (plan) => applyRoadGrading(this.source, plan),
+          level: (box, y) => levelPad(this.source, box, y),
+          lock: (box) => lockFootprint(this.source, box),
         })
       : null;
     const settlements = this.settlementMap;
@@ -110,7 +123,7 @@ export class RegionWorld implements GameWorld {
       origin: this.source.origin,
     };
     const overlay = buildTerrainOverlay(grid, {
-      roads: settlements?.roadLines ?? [],
+      roads: settlements?.paintLines ?? [],
       water: region.features?.water ?? null,
       borders: landBorderSegments(region.provinces),
     });
@@ -140,6 +153,13 @@ export class RegionWorld implements GameWorld {
     this.settlementLayer = settlements ? new SettlementLayer(settlements) : null;
     if (this.settlementLayer) this.scene.add(this.settlementLayer.group);
     this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
+    const structures =
+      settlements && settlements.plan.spans.length > 0
+        ? new StructureIndex(settlements.plan)
+        : null;
+    this.structureLayer = structures ? new RoadStructureLayer(structures) : null;
+    if (this.structureLayer) this.scene.add(this.structureLayer.group);
+    this.structureColliders = structures ? new RoadStructureColliders(physics, structures) : null;
     this.peopleWorld = settlements
       ? {
           heightAt: (x, z) => this.source.heightAt(x, z),
@@ -235,9 +255,11 @@ export class RegionWorld implements GameWorld {
   update(focusX: number, focusZ: number, timeSeconds: number): void {
     this.colliders.update(focusX, focusZ);
     this.settlementColliders?.update(focusX, focusZ);
+    this.structureColliders?.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
     this.props?.update(focusX, focusZ);
     this.settlementLayer?.update(focusX, focusZ);
+    this.structureLayer?.update(focusX, focusZ);
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
     this.environment.follow(focusX, focusZ);
@@ -289,8 +311,10 @@ export class RegionWorld implements GameWorld {
   prepare(x: number, z: number): void {
     this.colliders.ensureAround(x, z);
     this.settlementColliders?.update(x, z, true);
+    this.structureColliders?.update(x, z, true);
     this.props?.prepare(x, z);
     this.settlementLayer?.update(x, z);
+    this.structureLayer?.update(x, z);
   }
 
   /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa. */
@@ -361,6 +385,8 @@ export class RegionWorld implements GameWorld {
   }
 
   dispose(): void {
+    this.structureColliders?.dispose();
+    this.structureLayer?.dispose();
     this.settlementColliders?.dispose();
     this.settlementLayer?.dispose();
     this.props?.dispose();

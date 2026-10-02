@@ -1,6 +1,6 @@
 import { SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
 import type { LandmarkData, RoadData, SettlementData, SettlementsData } from '../data/settlements';
-import { BUILDING_SHAPES, isMosque } from './kinds';
+import { BUILDING_SHAPES, MAX_BURY, isMosque } from './kinds';
 import { FootprintRegistry } from './footprints';
 import {
   STAIR_MIN_RISE,
@@ -13,6 +13,9 @@ import {
   type LayoutTerrain,
 } from './layout';
 import { RoadIndex } from './roadIndex';
+import { groundRuns, planRoadProfiles, type RoadPlan } from './roadProfile';
+import { shapeRoadNetwork, type NetworkReport, type TownDisc } from './roadNetwork';
+import { connectTownRoads } from './townNetwork';
 import { separateRoadsFromWater, smoothRoads, type NearestWater } from './roadRouting';
 
 /** Bir yerleşimin oyundaki hâli: veri + düzen. */
@@ -38,6 +41,25 @@ export interface Stair {
   rise: number;
   run: number;
   width: number;
+}
+
+/** Yolların sınır kutusu (dünya kenarı verilmediğinde). */
+function boundsOf(roads: readonly RoadData[]): {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+} {
+  const b = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+  for (const road of roads) {
+    for (let i = 0; i + 1 < road.xz.length; i += 2) {
+      b.minX = Math.min(b.minX, road.xz[i] as number);
+      b.maxX = Math.max(b.maxX, road.xz[i] as number);
+      b.minZ = Math.min(b.minZ, road.xz[i + 1] as number);
+      b.maxZ = Math.max(b.maxZ, road.xz[i + 1] as number);
+    }
+  }
+  return b;
 }
 
 /** Barınak/iç mekân sorgusu sonucu. */
@@ -106,6 +128,8 @@ export function cutRoads(
 function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
   const shape = BUILDING_SHAPES[b.kind];
   if (!shape.enterable && !shape.searchable) return null;
+  // Düzen merdiven ayırmadıysa (teras üstü ya da kapı önü düz) merdiven yoktur.
+  if (b.stairRun <= 0) return null;
   const doorX = shape.door.x;
   const front = shape.depth / 2;
   const start = buildingLocalToWorld(b, doorX, front);
@@ -129,6 +153,38 @@ function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
     run,
     width: stairWidth(b.kind),
   };
+}
+
+/**
+ * Komşu teraslar yüzünden arka kenarı sınırdan (`MAX_BURY` + `buryTolerance`) fazla gömülen yapı (cami ve hükümet konağı
+ * hariç: kentin temel yapıları kalır).
+ */
+function buriedBySlope(b: Building, terrain: LayoutTerrain): boolean {
+  if (isMosque(b.kind) || b.kind === 'government') return false;
+  const shape = BUILDING_SHAPES[b.kind];
+  const back = buildingLocalToWorld(b, 0, -shape.depth / 2);
+  return (
+    terrain.heightAt(back.x, back.z) - b.y > MAX_BURY[b.kind] + SETTLEMENT_LAYOUT.buryTolerance
+  );
+}
+
+/** Yapının ayak izi altındaki en alçak zemin (taş temelin ineceği yer); en çok `maxTerrace` aşağıda. */
+function settledBase(b: Building, terrain: LayoutTerrain): number {
+  const shape = BUILDING_SHAPES[b.kind];
+  let low = b.y;
+  for (const [u, v] of [
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [-0.5, 0.5],
+    [0.5, 0.5],
+    [0, 0],
+    [0, -0.5],
+    [0, 0.5],
+  ] as const) {
+    const p = buildingLocalToWorld(b, u * shape.width, v * shape.depth);
+    low = Math.min(low, terrain.heightAt(p.x, p.z));
+  }
+  return Math.max(low, b.y - SETTLEMENT_LAYOUT.maxTerrace);
 }
 
 /** Yapı yerel → dünya (yapılarla aynı kural: `mesh.rotation.y = yaw`). */
@@ -166,6 +222,13 @@ export class SettlementMap {
   readonly buildings: Building[] = [];
   /** Çizilen yollar: kent içinde kesilmiş yollar + kent sokakları (sınıf 1). */
   readonly roadLines: RoadData[];
+  /** Yol profilleri, köprü ve tünel kesimleri (`roadProfile.ts`). */
+  readonly plan: RoadPlan;
+  /** Kent sokakları (ana cadde sınıf 0, diğerleri 1) ve kesilen yolların sokaklara bağlantıları. */
+  readonly streetLines: RoadData[];
+  readonly joinLines: RoadData[];
+  /** Arazi kaplamasında boyanan çizgiler: köprü/tünel olmayan yol kesimleri + sokaklar. */
+  readonly paintLines: RoadData[];
   /** Yol + sokak dizini (nesne eleme, insanların yürüyüşü). */
   readonly roads: RoadIndex;
   /** Kapı önü merdivenleri (görsel + collider). */
@@ -182,8 +245,17 @@ export class SettlementMap {
     terrain: LayoutTerrain & {
       /** Varsa akarsuya paralel yollar sudan ayrılır (`roadRouting.ts`). */
       nearestWater?: NearestWater;
+      /**
+       * Varsa yol planı zemine uygulanır (`world/roadGrading.ts`): çağrıdan sonra `heightAt` düzeltilmiş zemini
+       * verir ve yapı düzeni onun üstünde kurulur. Yoksa zemin doğal kalır.
+       */
+      grade?: (plan: RoadPlan) => void;
+      /** Dünya kenarı (yol ağı düzeni: kenardaki çıkmazlar budanmaz); yoksa yolların sınır kutusu. */
+      bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
     },
     seed: number = SETTLEMENT_LAYOUT.seed,
+    /** Ölçüm/test: yol ağı düzeninin sayımları doldurulur. */
+    networkReport?: NetworkReport,
   ) {
     // Il/ilçe merkezlerinin içinde il-ilçe ve köy yolları çizilmez: kentin içi kendi sokak ızgarasıdır.
     const cuts = data.settlements
@@ -197,7 +269,26 @@ export class SettlementMap {
     const routed = terrain.nearestWater
       ? separateRoadsFromWater(smoothed, terrain.nearestWater)
       : smoothed;
-    const roads = cutRoads(routed, cuts);
+    // Yol ağı: çıkmazlar budanır, kırsalda tali yol patikaya iner, kopuk parçalar bağlanır (`roadNetwork.ts`).
+    const towns: TownDisc[] = data.settlements.map((s) => ({
+      ...settlementCenter(s),
+      r: footprintRadius(s),
+      rank: s.rank,
+    }));
+    const shaped = shapeRoadNetwork(
+      routed,
+      towns,
+      { ...terrain, bounds: terrain.bounds ?? boundsOf(routed) },
+      networkReport,
+    );
+    const roads = cutRoads(shaped, cuts);
+    // Yol profili: eğimi sınırlı, düzgün yatak; dere geçişleri köprü, derin kazılar tünel. Zemin yola uydurulur.
+    this.plan = planRoadProfiles(roads, {
+      heightAt: terrain.heightAt,
+      elevationAt: terrain.elevationAt,
+      nearestWater: terrain.nearestWater,
+    });
+    terrain.grade?.(this.plan);
     const layoutRoads = new RoadIndex(roads);
     const streets: RoadData[] = [];
     const landmarksOf = new Map<number, LandmarkData[]>();
@@ -232,12 +323,18 @@ export class SettlementMap {
         cores.filter((c) => c.id !== s.id),
       );
       this.settlements.push({ data: s, buildings: layout.buildings, radius: layout.radius });
-      for (const xz of layout.streets) {
-        const street: RoadData = { cls: 1, xz };
+      for (const st of layout.streets) {
+        const street: RoadData = { cls: st.cls, xz: st.xz };
         streets.push(street);
         layoutRoads.add(street); // sonraki yerleşimlerin yapıları bu sokağa binmesin
       }
-      for (const b of layout.buildings) {
+    }
+    // Komşu terasların şevi bir yapının ayak izi altındaki zemini sonradan değiştirmiş olabilir: aşırı gömülen (nadir)
+    // yapılar atılır, kalanların taş temeli ayak izi altındaki gerçek en alçak zemine göre yeniden ölçülür.
+    for (const view of this.settlements) {
+      view.buildings = view.buildings.filter((b) => !buriedBySlope(b, terrain));
+      for (const b of view.buildings) {
+        b.base = settledBase(b, terrain);
         this.buildings.push(b);
         this.byId.set(b.id, b);
         const key = this.key(Math.floor(b.x / this.cell), Math.floor(b.z / this.cell));
@@ -246,7 +343,12 @@ export class SettlementMap {
         this.grid.set(key, list);
       }
     }
-    this.roadLines = [...roads, ...streets];
+    // Kent içinde kesilen yolların uçları sokak ızgarasına bağlanır (yapıların arasından geçen kısa yollar).
+    const town = connectTownRoads(roads, streets, data, terrain, this.footprints);
+    this.streetLines = town.streets;
+    this.joinLines = town.joins;
+    this.roadLines = [...roads, ...town.joins, ...town.streets];
+    this.paintLines = [...groundRuns(this.plan), ...town.joins, ...town.streets];
     this.roads = new RoadIndex(this.roadLines);
     for (const b of this.buildings) {
       const stair = stairFor(b, terrain);

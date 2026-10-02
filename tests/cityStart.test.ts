@@ -128,7 +128,7 @@ describe('RegionWorld.cityStart (gerçek bölge)', () => {
     expect(names.size).toBeGreaterThan(10);
     expect(provinces.size).toBeGreaterThanOrEqual(3);
     dispose();
-  });
+  }, 60_000);
 
   it('respawnPoint artık şehir merkezlerinden gelir ve ölüm sırasına göre değişir', () => {
     const { world, dispose } = setupWorld(region, true);
@@ -140,7 +140,7 @@ describe('RegionWorld.cityStart (gerçek bölge)', () => {
     }
     expect(points.size).toBeGreaterThan(6);
     dispose();
-  });
+  }, 60_000);
 
   it('yerleşim verisi yoksa eski pilot il doğmasına döner', () => {
     const { world, dispose } = setupWorld(region, false);
