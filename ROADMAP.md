@@ -316,6 +316,44 @@ Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulam
 
 ---
 
+## Faz 11 — İnşa II, Tarım, Silahlar, Eşkıya ve Drone
+**Plan:** [docs/faz-11-paralel-plan.md](docs/faz-11-paralel-plan.md) _(kullanıcı talimatı: "inşaat için farklı yapılar; çatı konan yerin üstüne bir şey konamasın, kat çıkılacaksa yan duvarların üstüne tekrar taban; merdiven ve merdivene göre şekil alan taban; menzilli, yukarıdan izleyen drone; çit; ekme biçme; şehirlerde yankesiciler, ormanda kamplar ve farklı etkinlikler; farklı silahlar, sniper dahil; silahlar üretilsin ve ganimetten çıksın." Plan onaylandı; akışlar ayrı oturumlarda paralel yürür.)_
+**Amaç:** Modüler inşayı katlı yapılara ve yeni parçalara genişletmek; yeni istasyonlar ve çitle tarımı (ekim, sulama, biçme, değirmen/fırın zinciri) eklemek; balistikli ilkel/ateşli silahları ve keskin nişancı tüfeğini hem üretim hem ganimetle getirmek; ormanda etkinlikleri olan eşkıya kampları ve şehirlerde yankesiciler; menzilli ve pilli gözlem drone'u. Harita/veri değişmez.
+
+**Kapsam dışı:** silahlı/bomba atan drone, silah aşınması, araçlar, eşkıyaların yapı inşa etmesi, mevsime bağlı ekim, yeni çalışma zamanı bağımlılığı, harita genişlemesi.
+
+Görevler (akış harfleri plan belgesindeki oturumlardır):
+- [ ] **11.0** İskele: tüm yeni eşya/yapı kimlikleri, yer tutucu simgeler ve tarifler, ganimet satırları, config blokları, olay bölümleri, tuşlar, `Settings.bandits`, ortak arayüzler (`HitTarget`, `fireShot`, `ObstacleQuery`, görüş odağı), kayıt v5 + `migrateV4toV5`, `Game` kancaları, bütçe 175 → 230 kB _(önce, tek oturum)_
+- [ ] **11.1 (A)** Modüler inşa II: çatı en üst parça (üstüne hiçbir şey konamaz); duvarlı hücrelerin üstüne üst kat tabanı (balkon çıkıntısı 1 hücre); merdiven (1 × 2 hücre, bir kat) ve üstündeki tabanın merdiven boşluklu + korkuluklu şekil alması; giriş basamağı, direk, korkuluk, yarım duvar, beşik çatı + alın duvarı; barınak/odak güncellemesi
+- [ ] **11.2 (B)** Tek parça yapılar: demirci ocağı + örs, taş fırın, el değirmeni, kurutma rafı (kuru et), döşek, güneş paneli
+- [ ] **11.3 (B)** Çit: ahşap çit, kuru taş duvar, çit kapısı (zemini izler); canlılar ve insanlar oyuncu duvarlarından/çitlerden geçmez (`ObstacleQuery`)
+- [ ] **11.4 (C)** Ekme biçme: çapa ile tarla, tohumlar (buğday, mısır, fasulye, patates), sulama, büyüme evreleri, orakla biçme, buğday → un → ekmek / mısır → mısır ekmeği, yaban domuzu tarla baskını
+- [ ] **11.5 (D)** Silahlar: balistik (mermi düşüşü, saçılma), sağ tık nişan, dürbün + nefes tutma, `R` doldurma, şarjör; sopa, demir kama, pala, sapan, yay + ok, av tüfeği, tabanca, piyade tüfeği, **keskin nişancı tüfeği** (dürbün yalnız ganimetten); mühimmat; atış sesi ve gürültü
+- [ ] **11.6 (E)** Eşkıya kampları (orman): seed'li kamplar, çadır/ateş/sandık; etkinlikler (ateş başı, uyku, nöbet, devriye, avlanma, odun, yol pususu); yakın/menzilli savaş, teslim olma, üst arama, kamp temizleme; camide saldırı yok; Ayarlar'dan kapatılabilir
+- [ ] **11.7 (E)** Yankesiciler (şehir): yaklaşıp eşya çalar ve kaçar; yakalanınca eşya geri gelir, kaçarsa kamp sandığına düşer
+- [ ] **11.8 (F)** Drone: üretim, uçuş (WASD, Space/`Z`), `Q` görüş geçişi, `H` eve dönüş, ~300 m menzil, pil ve güneş paneli şarjı, işaretleme (pusulada), düşme/geri alma, eşkıyalarca vurulma
+- [ ] **11.9** Kapanış: birleşik ölçüm ([docs/faz-11-olcumler.md](docs/faz-11-olcumler.md)), `CLAUDE.md` "Mevcut Durum", README, elle doğrulama kılavuzu bölüm 17
+
+Kabul kriterleri:
+- [ ] Çatının üstüne kurulum reddediliyor; duvarlı hücrenin üstüne üst kat tabanı kuruluyor; merdivenden üst kata yürünüyor ve üstteki taban merdiven boşluğu + korkuluk alıyor _(testli)_
+- [ ] Yeni istasyonlar tarifleri yalnızca yakında açıyor; çitli alana hayvan giremiyor _(testli)_
+- [ ] Ekim → büyüme → hasat → işleme zinciri oyun saatiyle çalışıyor; kayda giriyor _(testli)_
+- [ ] Her silah üretilebiliyor ve ganimetten çıkabiliyor; keskin nişancı tüfeği dürbün istiyor; balistik testleri geçiyor _(testli)_
+- [ ] Eşkıya kampları deterministik, etkinlikleri ve teslim olma çalışıyor; camide saldırı yok; ayar kapalıyken eşkıya yok _(testli)_
+- [ ] Drone menzil/pil sınırına uyuyor, işaretler kayda giriyor _(testli)_
+- [ ] Kayıt v5; v1–v4 kayıtlar yükleniyor _(testli)_
+- [ ] Draw call < 300, ilk yükleme < 10 sn _(başsız ölçüm)_
+- [ ] Lint, typecheck, Vitest, build ve build:check hatasız
+
+Elle doğrulanacak (kılavuz bölüm 17, 11.9'da yazılır):
+- [ ] Merdiven/üst kat/beşik çatının görünümü ve yürüme hissi
+- [ ] Tarım süreleri ve domuz baskınının dengesi
+- [ ] Silah hissi (nişan, dürbün, geri tepme, ses), mühimmat kıtlığı
+- [ ] Eşkıya zorluğu, pusu sıklığı, yankesici sıklığı
+- [ ] Drone kontrolü, menzil ve gerçek GPU'da FPS (yüksekten bakış)
+
+---
+
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
 
