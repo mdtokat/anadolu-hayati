@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FRESH_WATER, SCATTER } from '../src/config';
 import type { RegionData } from '../src/data/region';
@@ -47,12 +48,12 @@ describe('RegionHeightSource — yol düzeltmesi ve doğal arazi', () => {
 
   it('nesne dağılımı (adet ve sıra) yol düzeltmesinden bağımsız: kimlikler kaymaz', () => {
     const cover = LandCoverMap.fromRegion(world)!;
-    const water = new FreshWaterIndex(world.features!.water, FRESH_WATER.indexCellSize);
+    const water = new FreshWaterIndex(scatterWaterOf(world.features!), FRESH_WATER.indexCellSize);
     const plain = RegionHeightSource.fromRegion(world);
     const sw = buildSettlementWorld(world); // düzeltilmiş kaynak
     expect(sw.source.graded).toBe(true);
     const grid = chunkGridFor(plain);
-    const natural = sw.source.natural();
+    const natural = sw.source.scatterView();
     const scatterHeight = {
       heightAt: (x: number, z: number) => sw.source.heightAt(x, z),
       elevationAt: natural.elevationAt,
@@ -68,7 +69,7 @@ describe('RegionHeightSource — yol düzeltmesi ve doğal arazi', () => {
           grid,
           seed: SCATTER.seed,
           cover,
-          height: plain,
+          height: plain.scatterView(),
           isWater: (x, z, c) => water.nearest(x, z, c) !== null,
         });
         const b = scatterChunk({

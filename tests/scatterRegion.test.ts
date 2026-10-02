@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { REGION_PLAYER, SCATTER } from '../src/config';
 import type { RegionData } from '../src/data/region';
@@ -14,6 +15,7 @@ let region: RegionData;
 let source: RegionHeightSource;
 let cover: LandCoverMap;
 let water: FreshWaterIndex;
+let scatterSource: ReturnType<RegionHeightSource['scatterView']>;
 let grid: ChunkGrid;
 let all: ChunkProps[];
 let slowestMs = 0;
@@ -26,7 +28,7 @@ function inputFor(cx: number, cy: number): ScatterInput {
     grid,
     seed: SCATTER.seed,
     cover,
-    height: source,
+    height: source.scatterView(),
     isWater: (x, z, clearance) => water.nearest(x, z, clearance) !== null,
   };
 }
@@ -34,10 +36,11 @@ function inputFor(cx: number, cy: number): ScatterInput {
 beforeAll(async () => {
   region = await loadRealRegion();
   source = RegionHeightSource.fromRegion(region);
+  scatterSource = source.scatterView();
   const map = LandCoverMap.fromRegion(region);
   if (!map) throw new Error('landcover.bin gerekli');
   cover = map;
-  water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+  water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
   grid = chunkGridFor(source);
 
   all = [];
@@ -65,6 +68,8 @@ describe('scatterChunk (gerçek bölge)', { timeout: 60_000 }, () => {
 
   it('kurallar: deniz/kıyı yok, tatlı su tamponu, eğim sınırı, sınıf tablosu, y = zemin', () => {
     const density = SCATTER.density as Record<string, Partial<Record<PropKind, number>>>;
+    // Dağılım ham (yumuşatmasız) araziyle yapılır: kurallar o görünümde sınanır.
+    const source = scatterSource;
     for (const props of all) {
       for (let i = 0; i < props.count; i++) {
         const kind = PROP_KINDS[props.kind[i] as number] as PropKind;

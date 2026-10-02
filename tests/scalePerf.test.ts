@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CHUNK, FRESH_WATER } from '../src/config';
 import { createRegionCreatureTerrain } from '../src/creatures/regionTerrain';
@@ -56,7 +57,7 @@ function prepareWorld(region: RegionData) {
   const water = time(
     phases,
     'tatlı su indeksi',
-    () => new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize),
+    () => new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize),
   );
   const waterMesh = time(
     phases,

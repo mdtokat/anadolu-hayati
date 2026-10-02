@@ -170,7 +170,8 @@ describe('göller', () => {
 
   it('özellik dosyası eski ve yeni alanda su içerir (sınırdan geçen akarsular var)', () => {
     const lines = water()?.lines ?? [];
-    expect(lines.length).toBeGreaterThan(1000);
+    // Küçük dereler yüklemede ayıklanır (WATER_THINNING; ham veride ~2 340 çizgi).
+    expect(lines.length).toBeGreaterThan(800);
     const seamX = gridOriginOf({ col0: LEGACY.col0, row0: LEGACY.row0 }).x - LATTICE_CELL / 2;
     const crossing = lines.filter((l) => {
       let min = Infinity;

@@ -80,6 +80,11 @@ export interface WaterFeatures {
 
 export interface RegionFeatures {
   water: WaterFeatures;
+  /**
+   * Yüklemede ayıklanan küçük dereler (`data/waterThinning.ts`): oyunda yoktur (çizilmez, içilmez, oyulmaz); yalnızca
+   * nesne dağılımı onları hesaba katmaya devam eder (nesne kimlikleri kaymasın). Ayıklama yoksa boş/eksik.
+   */
+  minorStreams?: WaterLine[];
 }
 
 export interface RegionData {

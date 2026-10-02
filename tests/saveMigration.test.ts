@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -210,7 +211,7 @@ describe(
       region = await loadRealRegion();
       source = RegionHeightSource.fromRegion(region);
       cover = LandCoverMap.fromRegion(region)!;
-      water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+      water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
     }, 60_000);
 
     /** Göç edilen kimliğin yeni kodda gösterdiği nesne. */
@@ -227,7 +228,7 @@ describe(
           grid,
           seed: SCATTER.seed,
           cover: c,
-          height: s,
+          height: s.scatterView(),
           isWater: (x, z, clearance) => water.nearest(x, z, clearance) !== null,
         }),
       );

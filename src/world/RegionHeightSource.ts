@@ -1,7 +1,8 @@
-import { HORIZONTAL_SCALE, SEABED, VERTICAL_SCALE } from '../config';
+import { HORIZONTAL_SCALE, SEABED, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
 import type { RegionData, RegionMeta } from '../data/region';
 import type { HeightSource } from './HeightSource';
 import { seabedDepth, seaDistanceToLand } from './seabed';
+import { smoothLand } from './terrainSmoothing';
 
 export interface Bounds {
   minX: number;
@@ -32,9 +33,16 @@ export class RegionHeightSource implements HeightSource {
   /** Oyun yüksekliği (y = metre / VERTICAL_SCALE), satır satır. */
   private readonly game: Float32Array;
 
+  /**
+   * Yumuşatma uygulandıysa ham (uint16) örnekler: nesne dağılımı bunları okur (`scatterView`). Yumuşatılmamış
+   * kaynakta null (dağılım `natural()` ile aynıdır).
+   */
+  private readonly raw: Uint16Array | null;
+
   constructor(
     readonly meta: RegionMeta,
     heights: Uint16Array,
+    options: { smooth?: boolean } = {},
   ) {
     this.width = meta.gridWidth;
     this.height = meta.gridHeight;
@@ -47,6 +55,19 @@ export class RegionHeightSource implements HeightSource {
         (meta.elevationMin + ((heights[i] as number) / 65535) * range) / VERTICAL_SCALE;
     }
 
+    // Küçük tümsekler (deve sırtı) düzlenir; deniz hücreleri ve kıyı çizgisi değişmez (TERRAIN_SMOOTHING).
+    const smooth = options.smooth === true && TERRAIN_SMOOTHING.sigmaCells > 0;
+    this.raw = smooth ? heights : null;
+    if (smooth) {
+      smoothLand(
+        this.game,
+        this.width,
+        this.height,
+        (i) => heights[i] !== 0,
+        TERRAIN_SMOOTHING.sigmaCells,
+        TERRAIN_SMOOTHING.strength,
+      );
+    }
     this.applySeabed(heights);
 
     this.origin = { x: meta.gridOrigin.x, z: meta.gridOrigin.z };
@@ -67,8 +88,11 @@ export class RegionHeightSource implements HeightSource {
     }
   }
 
-  static fromRegion(region: RegionData): RegionHeightSource {
-    return new RegionHeightSource(region.meta, region.heights);
+  /** Oyunun yükseklik kaynağı: yumuşatılmış (`TERRAIN_SMOOTHING`); `smooth: false` ham veriyi verir. */
+  static fromRegion(region: RegionData, options: { smooth?: boolean } = {}): RegionHeightSource {
+    return new RegionHeightSource(region.meta, region.heights, {
+      smooth: options.smooth ?? true,
+    });
   }
 
   /** Dünya X/Z'nin dünya içinde (heightmap kapsamında) olup olmadığı. */
@@ -121,10 +145,34 @@ export class RegionHeightSource implements HeightSource {
    * kendisi gibi davranır. Yol planı doğal araziden tasarlanır; nesne dağılımı da doğal eğimi kullanır.
    */
   natural(): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
+    return this.view((i) => (this.base ?? this.game)[i] as number);
+  }
+
+  /**
+   * Nesne dağılımının okuduğu arazi: yumuşatma ve düzeltmeden önceki ham veri (deniz tabanı dahil). Nesne kimlikleri
+   * (`PropId`) dağılıma bağlı olduğundan arazi yumuşatması onları kaydırmasın. Yumuşatılmamış kaynakta `natural()`.
+   */
+  scatterView(): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
+    const raw = this.raw;
+    if (raw === null) return this.natural();
+    const { elevationMin, elevationMax } = this.meta;
+    const range = elevationMax - elevationMin;
+    return this.view((i) => {
+      const v = raw[i] as number;
+      // Deniz hücreleri yumuşatılmaz: çukurlaştırılmış taban olduğu gibi okunur.
+      if (v === 0) return (this.base ?? this.game)[i] as number;
+      // Kaynakla aynı float32 yuvarlaması: dağılım (ve kimlikler) yumuşatmasız kaynakla bit-eşdeğer kalsın.
+      return Math.fround((elevationMin + (v / 65535) * range) / VERTICAL_SCALE);
+    });
+  }
+
+  private view(
+    sample: (index: number) => number,
+  ): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
     const read = (col: number, row: number): number => {
       const c = Math.min(Math.max(col, 0), this.width - 1);
       const r = Math.min(Math.max(row, 0), this.height - 1);
-      return (this.base ?? this.game)[r * this.width + c] as number;
+      return sample(r * this.width + c);
     };
     const heightAt = (x: number, z: number): number => {
       const fc = Math.min(Math.max((x - this.origin.x) / this.cell, 0), this.width - 1);

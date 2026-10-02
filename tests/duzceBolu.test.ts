@@ -1,10 +1,10 @@
+import { isInProvince } from '../src/world/pilot';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FRESH_WATER, REGION_PLAYER, TELEPORTS, VERTICAL_SCALE } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { initPhysics } from '../src/physics/PhysicsWorld';
 import { latLonToGame } from '../src/world/geo';
 import { latticeX, latticeZ } from '../src/world/lattice';
-import { provinceAt } from '../src/world/provinces';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { findSafeSpawn } from '../src/world/spawn';
 import { FreshWaterIndex } from '../src/world/waterIndex';
@@ -50,9 +50,9 @@ describe('ışınlanma noktaları (1–9, 0)', () => {
     it(`${tp.name}: karada, beklenen ilde (${tp.province}), göl içinde değil`, () => {
       const p = safePoint(tp);
       expect(p).not.toBeNull();
-      const province = provinceAt(region.provinces, p.x, p.z);
-      expect(province?.name).toBe(tp.province);
-      expect(province?.inRegion).toBe(true);
+      // Kıyı şeridi (il çokgeni kıyıdan içeride) `isInProvince` tamponuyla sayılır (Amasra: yarımada kıyısı).
+      expect(isInProvince(region.provinces, tp.province, p.x, p.z)).toBe(true);
+      expect(region.provinces.find((q) => q.name === tp.province)?.inRegion).toBe(true);
       expect(source.elevationAt(p.x, p.z)).toBeGreaterThan(0);
       const hit = water.nearest(p.x, p.z, 0.01);
       expect(hit !== null && hit.distance === 0 && STILL_WATER.has(hit.kind)).toBe(false);

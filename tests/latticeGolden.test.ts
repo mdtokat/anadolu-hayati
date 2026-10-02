@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FRESH_WATER, SCATTER } from '../src/config';
 import type { CreatureTerrain } from '../src/creatures/kinds';
@@ -65,7 +66,7 @@ interface World {
 function worldOf(region: RegionData): World {
   const source = RegionHeightSource.fromRegion(region);
   const cover = LandCoverMap.fromRegion(region)!;
-  const water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+  const water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
   const terrain = createRegionCreatureTerrain({ source, cover, freshWater: water });
   return {
     source,
@@ -84,7 +85,7 @@ function scatterOf(world: World, cx: number, cy: number) {
     grid: world.grid,
     seed: SCATTER.seed,
     cover: world.cover,
-    height: world.source,
+    height: world.source.scatterView(),
     isWater: (x, z, clearance) => world.water.nearest(x, z, clearance) !== null,
   });
 }

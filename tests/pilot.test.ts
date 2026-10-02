@@ -101,7 +101,7 @@ describe('pilot il', () => {
     expect(PILOT.coastBufferM).toBeLessThan(40);
   });
 
-  it('başlangıç bakışı açık: ileriye 300 m boyunca arazi görüşü kapatmaz (kuzey yamaç duvarıdır)', () => {
+  it('başlangıç bakışı açık: ileriye 300 m boyunca arazi görüşü kapatmaz', () => {
     const { x, z } = latLonToGame(PILOT.start.lat, PILOT.start.lon, region.meta.originUtm);
     const start = findSafeSpawn(source, x, z, REGION_PLAYER.maxSlopeDeg)!;
     const eye = source.heightAt(start.x, start.z) + 1.6; // göz yüksekliği (oyun m)
@@ -116,7 +116,7 @@ describe('pilot il', () => {
       return max;
     };
     expect(blockedDeg(PILOT.start.yawDeg)).toBeLessThan(5);
-    expect(blockedDeg(0)).toBeGreaterThan(10); // varsayılan kuzey bakış yamaca bakar: bu yüzden yaw ayarlı
+    // (Arazi yumuşatmasından önce varsayılan kuzey bakış yamaca bakıyordu: bu yüzden yaw ayarlı.)
   });
 
   it('yeni oyun kaydı başlangıç bakışını taşır (radyan); varsayılan kuzeydir', () => {

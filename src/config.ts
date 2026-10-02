@@ -419,6 +419,13 @@ export const SCATTER = {
    * değebilirse nesne gizlenir (1 = hiç taşmaz; biraz taşan dal doğal görünür).
    */
   blockRadiusFactor: 0.85,
+  /**
+   * Seyreltme (kullanıcı talimatı: "ağaçlar çok sık"): bu türlerin bu oranı (kimlik karmasıyla, deterministik) gizlenir.
+   * Dağılım (ve `PropId`'ler) değişmez; gizlenen nesne görünmez ve toplanamaz (yapı/yol elemesi gibi).
+   */
+  thinning: { tree_broadleaf: 0.4, tree_conifer: 0.4, chestnut: 0.2 } as Partial<
+    Record<string, number>
+  >,
   /** Bu gerçek rakımın (m) altında (deniz/kıyı) nesne yok. */
   minElevation: 3,
   /** Tatlı suya bu uzaklıktan (oyun m) yakın yere ağaç/çalı dikilmez (kıyıda kaya/taş serbest). */
@@ -858,6 +865,20 @@ export const SEABED = {
   maxDepth: 4,
 } as const;
 
+/**
+ * Arazi yumuşatma (`world/terrainSmoothing.ts`; `RegionHeightSource.fromRegion`'da bir kez, kara hücrelerine): 100 m'lik
+ * DSM'deki küçük tümsekler (ağaç/bina izleri, kısa sırt dalgaları) dikey ölçekle ×3,3 dikleşip dağları "deve sırtı"
+ * gibi sürekli girintili çıkıntılı gösteriyordu. Kara hücreleri (deniz komşuları hesaba katılmadan) Gauss süzgeciyle
+ * düzlenir; büyük dağ biçimleri kalır, kısa dalgalar seyrekleşir. Deniz hücreleri ve kıyı çizgisi değişmez. Nesne
+ * dağılımı (eğim/rakım elemesi) yumuşatılmamış veriyi okur (`scatterView`): nesne kimlikleri kaymasın.
+ */
+export const TERRAIN_SMOOTHING = {
+  /** Gauss sapması (ızgara hücresi; 1 hücre = 100 gerçek m). 0 = kapalı. */
+  sigmaCells: 1.3,
+  /** Doğal yükseklikle karışım (0–1): 1 = tamamen yumuşatılmış. */
+  strength: 0.85,
+} as const;
+
 /** Deniz yüzeyi (Karadeniz) ayarları. */
 export const WATER = {
   /** Su yüzeyi yüksekliği (oyun m): 0'ın hemen üstü; kıyı çizgisinde zemin ile çakışıp titremesin. */
@@ -1198,6 +1219,23 @@ export const FRESH_WATER = {
   opacity: 0.85,
   /** Akarsu şeridinin zeminden yüksekliği (oyun m); göller için yüzey yüksekliği kıyıdan alınır. */
   lift: 0.12,
+} as const;
+
+/**
+ * Küçük derelerin ayıklanması (`data/waterThinning.ts`; yüklemede bir kez): veri her kısa dere kolunu taşıdığından
+ * arazide çok sayıda ince akarsu görünüyordu. Uç noktalarıyla bağlı dereler öbeklenir; öbeğin toplam uzunluğu
+ * (oyun m) eşikten kısaysa öbek kaldırılır. Nehir, kanal, göl ve kaynaklar etkilenmez. Kaldırılan dereler yalnızca
+ * nesne dağılımında hesaba katılmaya devam eder (`RegionFeatures.minorStreams`): nesne kimlikleri kaymasın.
+ */
+export const WATER_THINNING = {
+  /** Bu toplam uzunluktan (oyun m; 400 = 20 gerçek km) kısa dere öbekleri kaldırılır. */
+  minNetworkLength: 400,
+  /** Tamamı mevsimlik (kuruyabilen) dere öbekleri için eşik (oyun m). */
+  minIntermittentLength: 600,
+  /** Uç noktaları bu uzaklıktan (oyun m) yakın dereler bağlı sayılır. */
+  joinTolerance: 1.5,
+  /** İl/ilçe merkezine ya da oyunun yer adlarına bu uzaklıktan (oyun m) yakın geçen dere öbeği kalır (içme suyu). */
+  anchorReach: 60,
 } as const;
 
 /**

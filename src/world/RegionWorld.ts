@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../data/waterThinning';
 import { viewCenters } from './viewFocus';
 import { Scene, type MeshStandardMaterial } from 'three';
 import {
@@ -193,7 +194,9 @@ export class RegionWorld implements GameWorld {
       ? new PropLayer(
           this.source,
           cover,
-          this.freshWater,
+          region.features?.minorStreams?.length
+            ? new FreshWaterIndex(scatterWaterOf(region.features), FRESH_WATER.indexCellSize)
+            : this.freshWater,
           (x, z, r) =>
             (settlements?.blocksProp(x, z, r) ?? false) ||
             this.propBlockers.some((blocks) => blocks(x, z, r)),
