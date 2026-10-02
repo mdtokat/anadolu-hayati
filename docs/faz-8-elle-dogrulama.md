@@ -264,3 +264,23 @@ Yol ağı artık il/ilçe merkezlerini ve köyleri bağlayan seyrek, tek parça 
 - [ ] **Yükleme süresi ve FPS:** açılış önceki sürüme göre belirgin yavaşladı mı? ___ sn; tünel/köprü yakınında FPS: ___
 - Notlar: ____________________
 
+---
+
+## 17. Bina içleri, sandık/dolap ganimeti, camiler, şadırvan, namaz ve üretim paneli (Faz 10 sonrası, ROADMAP 10.14)
+
+Konutlar (ev, konak, apartman zemin katı, maden lojmanı), dükkânlar, kahvehane, hükümet konağı, hamam, han ve camiler artık içine girilebilir; içeride sandık ve dolaplar `E` basılı tutularak aranır. Camiler azaldı ve aralıklı; önlerinde şadırvan var; camide vakit namazı sağlık verir (vakit başına bir kez). Envanterin üretim listesinde süzgeç ve adet girişi var. Ayrıntı `CLAUDE.md` "Bina içleri, camiler ve üretim paneli".
+
+- [ ] **Kapıdan giriş:** evin/konağın/dükkânın kapısından takılmadan girilebiliyor mu? Merdivenli kapılarda (yamaç) çıkış rahat mı? Kapı boşluğu dar geliyor mu?
+- [ ] **İç mekân görünümü:** sıva, döşeme, kirişler, içten pencereler, sedir/kilim/ocak (ev), masalar ve semaver (kahvehane), raflar ve tezgâh (dükkân), göbek taşı ve kurnalar (hamam) yerinde ve inandırıcı mı? Arazi döşemenin içinden çıkan yer var mı? Nerede: ____________________
+- [ ] **Kamera:** üçüncü şahıs kamerada oda içi kabul edilebilir mi (kamera duvarın dışına çıkıyor mu)? Birinci şahısta sorun var mı?
+- [ ] **Sandık/dolap arama:** sandığa/dolaba bakınca "E (basılı tut): Sandık ara" çıkıyor mu; 1,6 sn sonra ganimet geliyor, kap "arandı, içi boş" oluyor mu? Kayıt/yükleme sonrası aranmış kaplar boş kalıyor mu?
+- [ ] **Ganimet dengesi:** bina başına ganimet (yiyecek dolapta, alet/silah sandıkta) çok mu cömert, çok mu cimri?
+- [ ] **Uzaktan görünüm:** ~70 m'den uzakta iç mekân çizilmez; kapı boşlukları karanlık görünür. Yaklaşırken iç mekânın "belirmesi" rahatsız edici mi?
+- [ ] **Cami sayısı ve aralığı:** kasabalarda cami sayısı makul mü; yan yana cami kaldı mı? Nerede: ____________________
+- [ ] **Şadırvan:** caminin önünde (merdivenin ötesinde ya da yanında) şadırvan duruyor mu; yanında `E` ile su içilebiliyor mu?
+- [ ] **Cami içi:** mihrap (kıble duvarında), minber, halı ve saf çizgileri, avize, içten görünen kubbe doğru mu; kubbe çevresinde gökyüzü görünen yarık var mı?
+- [ ] **Namaz:** vakit içindeyken harimde "E (basılı tut): Öğle namazını kıl" çıkıyor, 6 sn sonra sağlık +15 oluyor mu? Aynı vakitte ikinci kez kılınamıyor, sonraki vakitte yeniden kılınabiliyor mu? Güneş doğuşu–öğle arası "Namaz vakti değil" diyor mu?
+- [ ] **Üretim paneli:** Tümü/Silah/Alet/Yapı/Gıda/Malzeme sekmeleri doğru tarifleri gösteriyor mu? Bir tarif üretince liste başa atmıyor mu? Adet kutusu ve "En çok" düğmesi çalışıyor mu (malzeme yetene kadar üretir)?
+- [ ] **Ağaçlar ve yapılar:** yapraklı ağaçların dalları/kök genişlemesi, çam katları, kayalardaki yosun, kamp ateşi odunları/közleri, sundurma sırıkları, tezgâh aletleri, kulübe mahyası güzel görünüyor mu?
+- [ ] **FPS:** kasaba içinde (iç mekân kademesi açıkken) ve ormanda FPS: ___
+- Notlar: ____________________
