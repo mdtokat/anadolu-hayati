@@ -15,12 +15,19 @@ import {
   type BufferGeometry,
 } from 'three';
 import { BUILDING_LOOK } from '../config';
-import { BUILDING_SHAPES, GOVERNMENT_FLAG, type BuildingKind } from '../settlements/kinds';
+import {
+  BUILDING_SHAPES,
+  GOVERNMENT_FLAG,
+  isMosque,
+  type BuildingKind,
+} from '../settlements/kinds';
 import type { Building } from '../settlements/layout';
 import type { SettlementMap, Stair } from '../settlements/SettlementMap';
 import {
   buildBuildingGeometry,
+  buildFarGenericGeometry,
   buildPlinthGeometry,
+  farGenericSpec,
   buildStairsGeometry,
   drawTurkishFlag,
   type BuildingLod,
@@ -88,9 +95,22 @@ export class SettlementLayer {
     this.group.name = 'settlements';
     const counts = new Map<string, number>();
     for (const b of map.buildings) counts.set(variantKey(b), (counts.get(variantKey(b)) ?? 0) + 1);
+    // Uzak kademe: camiler kendi siluetleriyle (kubbe, minare), diğerleri iki ortak mesh'le (çatılı / düz).
+    let generic = 0;
+    for (const b of map.buildings) if (!isMosque(b.kind)) generic++;
+    for (const roofed of [true, false]) {
+      const geometry = buildFarGenericGeometry(roofed);
+      this.geometries.push(geometry);
+      const key = roofed ? FAR_ROOFED : FAR_FLAT;
+      const mesh = this.instanced(geometry, this.material, Math.max(1, generic), `building-${key}`);
+      const tier: Tier = { key, lod: 'far', mesh, count: 0 };
+      this.tiers.push(tier);
+      this.tierOf.set(`${key}/far`, tier);
+    }
     for (const [key, count] of [...counts.entries()].sort()) {
       const spec = parseKey(key);
-      for (const lod of ['near', 'far'] as const) {
+      const lods: BuildingLod[] = isMosque(spec.kind) ? ['near', 'far'] : ['near'];
+      for (const lod of lods) {
         const geometry = buildBuildingGeometry(spec.kind, lod, spec);
         this.geometries.push(geometry);
         const mesh = this.instanced(geometry, this.material, count, `building-${key}-${lod}`);
@@ -183,16 +203,21 @@ export class SettlementLayer {
       const d2 = dx * dx + dz * dz;
       if (d2 > far2) continue;
       const lod: BuildingLod = d2 <= near2 ? 'near' : 'far';
-      const tier = this.tierOf.get(`${variantKey(b)}/${lod}`);
+      const far =
+        lod === 'far' && !isMosque(b.kind) ? farGenericSpec(b.kind, b.floors, b.ruined) : null;
+      const key = far ? (far.roofed ? FAR_ROOFED : FAR_FLAT) : variantKey(b);
+      const tier = this.tierOf.get(`${key}/${lod}`);
       if (!tier) continue;
       tmpQuat.setFromAxisAngle(UP, b.yaw);
       tmpPos.set(b.x, b.y, b.z);
-      tmpScale.set(1, 1, 1);
+      if (far) tmpScale.set(far.w, far.h, far.d);
+      else tmpScale.set(1, 1, 1);
       tmpMatrix.compose(tmpPos, tmpQuat, tmpScale);
       tier.mesh.setMatrixAt(tier.count, tmpMatrix);
       let tone = toneLo + b.tone * (toneHi - toneLo);
       if (b.ruined) tone *= BUILDING_LOOK.ruinDarken;
-      tier.mesh.setColorAt(tier.count, colorOf(tone));
+      if (far) tier.mesh.setColorAt(tier.count, tintOf(far.tint, tone));
+      else tier.mesh.setColorAt(tier.count, colorOf(tone));
       tier.count++;
       if (lod === 'near') this.nearCount++;
       else this.farCount++;
@@ -251,6 +276,14 @@ export class SettlementLayer {
 }
 
 const sharedColor = new Color();
+/** Uzak ortak mesh anahtarları. */
+const FAR_ROOFED = 'far-roofed';
+const FAR_FLAT = 'far-flat';
+
+/** Duvar tonu × solgunluk (uzak ortak mesh'in örnek rengi). */
+function tintOf(hex: number, tone: number): Color {
+  return sharedColor.setHex(hex).multiplyScalar(tone);
+}
 function colorOf(tone: number): Color {
   return sharedColor.setRGB(tone, tone, tone);
 }

@@ -1068,3 +1068,56 @@ export function drawTurkishFlag(canvas: HTMLCanvasElement): void {
   g.closePath();
   g.fill();
 }
+
+/**
+ * Uzak kademe ortak geometrileri (draw call tasarrufu): cami dışındaki yapılar uzakta iki ortak mesh'le çizilir.
+ * Birim gövde (1 × 1 × 1, taban y = 0; çatılıda gövde 0,65 + kırma çatı 0,35); örnek matrisi yapının ölçülerine
+ * ölçekler, örnek rengi yapının duvar tonunu verir (vertex rengi beyaz; çatı kiremit tonundadır).
+ */
+export function buildFarGenericGeometry(roofed: boolean): BufferGeometry {
+  const parts: Part[] = roofed
+    ? [box(1, 0.65, 1, 0, 0, 0, 0xffffff), hipRoof(1, 1, 0.35, 0.65, 0xb06a4c, 0.04)]
+    : [box(1, 1, 1, 0, 0, 0, 0xffffff)];
+  return merge(parts, createRandom(11));
+}
+
+/** Uzak ortak geometride yapının ölçüsü (oyun m), çatılı olup olmadığı ve duvar tonu (0xRRGGBB). */
+export function farGenericSpec(
+  kind: BuildingKind,
+  floors: number,
+  ruined: boolean,
+): { w: number; h: number; d: number; roofed: boolean; tint: number } {
+  const s = D[kind] as { w: number; d: number; h?: number; floorH?: number };
+  const tint =
+    kind === 'konak'
+      ? C.konakWall
+      : kind === 'apartment'
+        ? C.concrete
+        : kind === 'factory' || kind === 'mine_tower'
+          ? C.brick
+          : kind === 'castle' || kind === 'han' || kind === 'hamam' || kind === 'cemetery'
+            ? C.stone
+            : kind === 'tomb' ||
+                kind === 'clock_tower' ||
+                kind === 'government' ||
+                kind === 'monument'
+              ? C.cutStone
+              : C.whitewash;
+  const flat = [
+    'apartment',
+    'factory',
+    'castle',
+    'cemetery',
+    'fountain',
+    'monument',
+    'clock_tower',
+    'mine_tower',
+  ];
+  const h =
+    kind === 'apartment'
+      ? floors * (s.floorH ?? 2.9)
+      : kind === 'cemetery'
+        ? 0.7
+        : (s.h ?? 4) * (ruined ? 0.55 : 1);
+  return { w: s.w, h, d: s.d, roofed: !ruined && !flat.includes(kind), tint };
+}
