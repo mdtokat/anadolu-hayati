@@ -3,7 +3,7 @@ import { Inventory } from '../items/Inventory';
 import { StructureSet } from '../placement/structures';
 import type { Vec3 } from '../player/movement';
 import { initialVitals } from '../survival/vitals';
-import { SAVE_FORMAT_VERSION, emptyHotbarSave, type SaveGame } from './saveGame';
+import { SAVE_FORMAT_VERSION, emptyFaz11Save, emptyHotbarSave, type SaveGame } from './saveGame';
 
 /**
  * Yeni oyunun başlangıç durumunu kayıt biçiminde verir: oyuncu `spawn`'da, göstergeler dolu, saat
@@ -34,5 +34,6 @@ export function createNewGameSave(
     creatures: { killed: [] },
     hotbar: emptyHotbarSave(),
     settlements: { searched: [] },
+    ...emptyFaz11Save(),
   };
 }

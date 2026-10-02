@@ -1,6 +1,9 @@
-import { HOTBAR, INVENTORY, WORLD } from '../config';
+import { DRONE, HOTBAR, INVENTORY, WORLD } from '../config';
+import { isCropId, type CropId } from '../farming/kinds';
 import { Hotbar, type HotbarSave } from '../items/hotbar';
-import { Inventory, type InventorySave } from '../items/Inventory';
+import { Inventory, type InventorySave, type ItemStack } from '../items/Inventory';
+import { isItemId } from '../items/itemDefs';
+import { WEAPON_IDS, type WeaponId } from '../items/weaponState';
 import { StructureSet, type StructureSave } from '../placement/structures';
 import type { VitalsState } from '../survival/vitals';
 import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkKeys';
@@ -17,8 +20,10 @@ import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkK
  * - v2 (Faz 7): dünya `WORLD.id`, nesne kimlikleri ve canlı hücre anahtarları mutlak (`world/chunkKeys.ts`).
  * - v3 (Faz 9): kısayol çubuğu (`hotbar`); yapılarda yeni türler (tezgâh, sandık, kulübe) ve sandık içeriği.
  * - v4 (Faz 10): yerleşimler (`settlements.searched`: aranmış yapı kimlikleri); yeni eşya kimlikleri (Türk kileri).
+ * - v5 (Faz 11): tarla (`farm`), silah şarjörleri (`weapons`), eşkıya kampları ve çalınan eşyalar (`bandits`), drone
+ *   (`drone`); yeni eşya/yapı kimlikleri. Alanlar v5 içinde sabittir (docs/faz-11-paralel-plan.md §2.4, §3.5).
  */
-export const SAVE_FORMAT_VERSION = 4;
+export const SAVE_FORMAT_VERSION = 5;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -76,6 +81,68 @@ export interface SaveGame {
   hotbar: HotbarSave;
   /** Yerleşimler (Faz 10): aranmış yapılar (`yerleşim · 1024 + sıra`). */
   settlements: SettlementsSave;
+  /** Faz 11 (C): tarlalar. */
+  farm: FarmSave;
+  /** Faz 11 (D): şarjördeki mermiler. */
+  weapons: WeaponsSave;
+  /** Faz 11 (E): temizlenen kamplar, kamp sandıkları, yankesicinin kaçırdığı eşyalar. */
+  bandits: BanditsSave;
+  /** Faz 11 (F): drone durumu ve işaretler. */
+  drone: DroneSave;
+}
+
+// ── Faz 11 (v5) alanları: zaman alanları oyun saatinin mutlak saniyesidir (`(gün · 24 + saat) · 3600`). ──
+
+/** Bir tarla hücresi (C). */
+export interface FarmPlotSave {
+  id: number;
+  x: number;
+  z: number;
+  /** Ekili ekin (yoksa null: boş tarla). */
+  crop: CropId | null;
+  plantedAt: number;
+  wateredAt: number;
+  /** Büyüme evresi (0 = yeni ekili … `FARMING.stages − 1` = olgun). */
+  stage: number;
+  dead: boolean;
+}
+
+export interface FarmSave {
+  plots: FarmPlotSave[];
+}
+
+export interface WeaponsSave {
+  loaded: Partial<Record<WeaponId, number>>;
+}
+
+export interface BanditsSave {
+  /** Temizlenen kamplar (`camp` kalıcı kamp kimliği) ve temizlendiği an. */
+  cleared: Array<{ camp: number; at: number }>;
+  /** Kamp sandıklarının içeriği (yalnızca değişmiş olanlar). */
+  chests: Array<{ camp: number; items: ItemStack[] }>;
+  /** Yankesicinin şu an taşıdığı (henüz bir sandığa düşmemiş) eşyalar. */
+  stolen: ItemStack[];
+}
+
+export interface DroneSave {
+  /** `stowed`: envanterde (eşya), `landed`: dünyada yere inmiş/düşmüş (yapı). */
+  state: 'stowed' | 'landed';
+  x: number;
+  y: number;
+  z: number;
+  /** Pil 0–1. */
+  battery: number;
+  marks: Array<{ x: number; z: number; label: string }>;
+}
+
+/** v5 alanlarının boş başlangıç değerleri (yeni oyun ve v4 → v5 göçü). */
+export function emptyFaz11Save(): Pick<SaveGame, 'farm' | 'weapons' | 'bandits' | 'drone'> {
+  return {
+    farm: { plots: [] },
+    weapons: { loaded: {} },
+    bandits: { cleared: [], chests: [], stolen: [] },
+    drone: { state: 'stowed', x: 0, y: 0, z: 0, battery: 1, marks: [] },
+  };
 }
 
 /** Yerleşimlerde kalıcı olan durum (Faz 10). */
@@ -196,6 +263,11 @@ function migrateV3toV4(raw: RawSave): RawSave {
   return { ...raw, settlements: { searched: [] } };
 }
 
+/** v4 → v5 (Faz 11): tarla, silah, eşkıya ve drone alanları boş eklenir; geri kalanı aynen kalır. */
+function migrateV4toV5(raw: RawSave): RawSave {
+  return { ...raw, ...emptyFaz11Save() };
+}
+
 /**
  * Sürüm `n` kaydını `n + 1`'e çeviren adımlar; bir adım girdisini değiştirmemeli, yeni nesne döndürmelidir.
  * Adım yalnızca yapıyı çevirir (taşınamayan kayıtta `SaveError` fırlatabilir); değerleri doğrulamak
@@ -205,6 +277,7 @@ export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   1: migrateV1toV2,
   2: migrateV2toV3,
   3: migrateV3toV4,
+  4: migrateV4toV5,
 };
 
 /**
@@ -279,6 +352,10 @@ export function parseSave(raw: unknown): SaveGame {
     throw invalid(`kısayol: ${messageOf(error)}`, error);
   }
   const settlements = parseSettlementsSave(save.settlements);
+  const farm = parseFarm(save.farm);
+  const weapons = parseWeapons(save.weapons);
+  const bandits = parseBandits(save.bandits);
+  const drone = parseDrone(save.drone);
 
   return {
     version: SAVE_FORMAT_VERSION,
@@ -292,7 +369,108 @@ export function parseSave(raw: unknown): SaveGame {
     creatures,
     hotbar,
     settlements,
+    farm,
+    weapons,
+    bandits,
+    drone,
   };
+}
+
+function parseFarm(raw: unknown): FarmSave {
+  const o = record(raw, 'farm');
+  if (!Array.isArray(o.plots)) throw invalid('farm.plots dizi değil');
+  const plots = o.plots.map((entry: unknown, index): FarmPlotSave => {
+    const name = `farm.plots[${index}]`;
+    const p = record(entry, name);
+    if (p.crop !== null && !isCropId(p.crop)) throw invalid(`${name}.crop tanınmıyor`);
+    if (typeof p.dead !== 'boolean') throw invalid(`${name}.dead mantıksal değil`);
+    return {
+      id: nonNegativeInt(p.id, `${name}.id`),
+      x: finite(p.x, `${name}.x`),
+      z: finite(p.z, `${name}.z`),
+      crop: p.crop,
+      plantedAt: nonNegative(p.plantedAt, `${name}.plantedAt`),
+      wateredAt: nonNegative(p.wateredAt, `${name}.wateredAt`),
+      stage: nonNegativeInt(p.stage, `${name}.stage`),
+      dead: p.dead,
+    };
+  });
+  if (new Set(plots.map((p) => p.id)).size !== plots.length) {
+    throw invalid('farm.plots yinelenen kimlik içeriyor');
+  }
+  return { plots };
+}
+
+function parseWeapons(raw: unknown): WeaponsSave {
+  const o = record(raw, 'weapons');
+  const loaded = record(o.loaded, 'weapons.loaded');
+  const out: Partial<Record<WeaponId, number>> = {};
+  for (const [key, value] of Object.entries(loaded)) {
+    if (!(WEAPON_IDS as readonly string[]).includes(key)) {
+      throw invalid(`weapons.loaded.${key} tanınmayan silah`);
+    }
+    out[key as WeaponId] = nonNegativeInt(value, `weapons.loaded.${key}`);
+  }
+  return { loaded: out };
+}
+
+function parseBandits(raw: unknown): BanditsSave {
+  const o = record(raw, 'bandits');
+  if (!Array.isArray(o.cleared)) throw invalid('bandits.cleared dizi değil');
+  if (!Array.isArray(o.chests)) throw invalid('bandits.chests dizi değil');
+  const cleared = o.cleared.map((entry: unknown, index) => {
+    const e = record(entry, `bandits.cleared[${index}]`);
+    return {
+      camp: nonNegativeInt(e.camp, `bandits.cleared[${index}].camp`),
+      at: nonNegative(e.at, `bandits.cleared[${index}].at`),
+    };
+  });
+  const chests = o.chests.map((entry: unknown, index) => {
+    const e = record(entry, `bandits.chests[${index}]`);
+    return {
+      camp: nonNegativeInt(e.camp, `bandits.chests[${index}].camp`),
+      items: itemStacks(e.items, `bandits.chests[${index}].items`),
+    };
+  });
+  return { cleared, chests, stolen: itemStacks(o.stolen, 'bandits.stolen') };
+}
+
+function parseDrone(raw: unknown): DroneSave {
+  const o = record(raw, 'drone');
+  if (o.state !== 'stowed' && o.state !== 'landed') throw invalid('drone.state tanınmıyor');
+  const battery = finite(o.battery, 'drone.battery');
+  if (battery < 0 || battery > 1) throw invalid('drone.battery [0, 1] dışında');
+  if (!Array.isArray(o.marks)) throw invalid('drone.marks dizi değil');
+  if (o.marks.length > DRONE.maxMarks) throw invalid('drone.marks çok fazla işaret');
+  const marks = o.marks.map((entry: unknown, index) => {
+    const m = record(entry, `drone.marks[${index}]`);
+    if (typeof m.label !== 'string') throw invalid(`drone.marks[${index}].label metin değil`);
+    return {
+      x: finite(m.x, `drone.marks[${index}].x`),
+      z: finite(m.z, `drone.marks[${index}].z`),
+      label: m.label,
+    };
+  });
+  return {
+    state: o.state,
+    x: finite(o.x, 'drone.x'),
+    y: finite(o.y, 'drone.y'),
+    z: finite(o.z, 'drone.z'),
+    battery,
+    marks,
+  };
+}
+
+/** Eşya yığını listesi: bilinen kimlik, pozitif tam sayı adet (kopyasını döner). */
+function itemStacks(value: unknown, name: string): ItemStack[] {
+  if (!Array.isArray(value)) throw invalid(`${name} dizi değil`);
+  return value.map((entry: unknown, index) => {
+    const e = record(entry, `${name}[${index}]`);
+    if (!isItemId(e.id)) throw invalid(`${name}[${index}].id tanınmayan eşya`);
+    const count = nonNegativeInt(e.count, `${name}[${index}].count`);
+    if (count < 1) throw invalid(`${name}[${index}].count pozitif değil`);
+    return { id: e.id, count };
+  });
 }
 
 function parseSettlementsSave(value: unknown): SettlementsSave {
