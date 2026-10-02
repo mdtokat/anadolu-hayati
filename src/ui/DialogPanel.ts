@@ -85,7 +85,7 @@ export class DialogPanel {
     );
     this.log.replaceChildren();
     this.say('them', model.opening);
-    this.panel.replaceChildren(header, this.log, this.choices);
+    this.panel.replaceChildren(header, el('div', 'ui-ornament'), this.log, this.choices);
     this.renderChoices();
   }
 

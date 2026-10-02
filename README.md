@@ -91,7 +91,8 @@ Oyun aşağıdaki açık verileri kullanır. Atıflar oyunun içinde (menü → 
 | İl sınırları | [geoBoundaries](https://www.geoboundaries.org/) (TUR, ADM1)                           | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 | Akarsu, göl (tatlı su) | [OpenStreetMap](https://www.openstreetmap.org/copyright), [Overture Maps](https://overturemaps.org/) `base/water` dağıtımı üzerinden | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
 | Arazi örtüsü (orman, çalı, çayır, tarım, yerleşim) | [ESA WorldCover 2021](https://esa-worldcover.org/), [Overture Maps](https://overturemaps.org/) `base/land_cover` dağıtımı üzerinden | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium |
-| Yol (ileri faz) | [OpenStreetMap](https://www.openstreetmap.org/copyright) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları |
+| Yollar, yerleşimler (il/ilçe/köy), bina yoğunluğu (Faz 10) | [OpenStreetMap](https://www.openstreetmap.org/copyright), [Overture Maps](https://docs.overturemaps.org/attribution/) `transportation`, `divisions`, `buildings` dağıtımı üzerinden (bina ayak izlerinin bir kısmı Microsoft/Google açık bina verisi) | [ODbL](https://opendatacommons.org/licenses/odbl/) — © OpenStreetMap katkıcıları; [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Simge yapı konumları (cami, han, hamam, kale…) | [Overture Maps Places](https://docs.overturemaps.org/attribution/) (elle seçildi) | [CDLA-Permissive-2.0](https://cdla.dev/permissive-2-0/) |
 
 Yükseklik verisi: _Contains modified Copernicus DEM GLO-30 data (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA; all rights reserved)._
 

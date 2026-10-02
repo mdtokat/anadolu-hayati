@@ -796,6 +796,8 @@ export const CLOCK = {
   latitudeDeg: 41.5,
   /** Güneş bu yüksekliğin (derece) altına inince "gece" sayılır (−6° = sivil alacakaranlığın sonu). */
   nightSunAltitudeDeg: -6,
+  /** Takvim yılı (Faz 10): oyun tarihi = bu yılın `dayOfYear`. günü + geçen günler (Miladî ve Hicrî gösterilir). */
+  startYear: 2026,
 } as const;
 
 /**

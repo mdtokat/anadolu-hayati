@@ -3,6 +3,7 @@ import {
   COMBAT,
   COMBAT_HUD,
   AMBIENT,
+  CLOCK,
   DISMANTLE,
   EQUIPMENT,
   HINTS,
@@ -99,6 +100,13 @@ import { PlayerCamera } from '../player/PlayerCamera';
 import { PlayerModel } from '../player/PlayerModel';
 import { activityFromIntent, gateIntent } from '../survival/activity';
 import { formatClock } from '../survival/clock';
+import {
+  PRAYER_NAMES,
+  formatGameDate,
+  nextPrayer,
+  prayerTimes,
+  prayersBetween,
+} from '../survival/islamicTime';
 import { SurvivalSystem } from '../survival/SurvivalSystem';
 import { canSprint, type Activity } from '../survival/vitals';
 import { DeathScreen } from '../ui/DeathScreen';
@@ -218,6 +226,9 @@ export class Game {
   readonly search = new BuildingSearch(this.events, this.inventory);
   /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
   private inSanctuary = false;
+  /** Namaz vakitleri (bölgenin enlemi ve yılın günü sabit) ve son bildirilen saat. */
+  private readonly prayerTimes = prayerTimes(CLOCK.latitudeDeg, CLOCK.dayOfYear);
+  private lastPrayerHour: number | null = null;
   /** Bu adımda bakılan leş (ipucu için). */
   private carcassTarget: CreatureView | null = null;
   /** Diğer insanlar (Faz 10): çok nadir, barışçıl. */
@@ -627,6 +638,7 @@ export class Game {
     this.lastSurvivalHudUpdate = -Infinity;
     this.lastLocationUpdate = -Infinity;
     this.provinceTracker.reset();
+    this.lastPrayerHour = null; // yükleme saati atlatır: arada kalan vakitler bildirilmesin
     this.placeTracker.reset();
     this.hintTracker.restart();
   }
@@ -1378,8 +1390,28 @@ export class Game {
       shelter: this.exposure.shelter,
       defense: defenseFor(this.inventory),
       daylight: clock.sun.altitudeDeg > 0,
+      date: formatGameDate(CLOCK.startYear, CLOCK.dayOfYear, clock.day),
+      prayer: this.prayerLabel(clock.hour),
     });
+    this.notifyPrayer(clock.hour);
     this.updateHints(now);
+  }
+
+  /** Sonraki namaz vakti: "Sonraki vakit: İkindi 15:21". */
+  private prayerLabel(hour: number): string {
+    const next = nextPrayer(this.prayerTimes, hour);
+    return `${PRAYER_NAMES[next.prayer]} ${formatClock(next.hour % 24)}`;
+  }
+
+  /** Vakit girince kısa bildirim (ezan sesi bilinçli olarak yok; güneş doğuşu namaz vakti değildir). */
+  private notifyPrayer(hour: number): void {
+    const last = this.lastPrayerHour;
+    this.lastPrayerHour = hour;
+    if (last === null || !this.survival.alive || hour === last) return;
+    for (const p of prayersBetween(this.prayerTimes, last, hour)) {
+      if (p === 'gunes') continue;
+      this.hud.notify(`${PRAYER_NAMES[p]} vakti girdi`, INTERACT.dayNightToastMs);
+    }
   }
 
   /**

@@ -171,7 +171,28 @@ export class RegionWorld implements GameWorld {
   /** Enlem/boylam için en yakın yürünebilir nokta (ayak tabanı, oyun koordinatı). */
   safePointFor(lat: number, lon: number): Vec3 | null {
     const { x, z } = latLonToGame(lat, lon, this.region.meta.originUtm);
-    return findSafeSpawn(this.source, x, z, this.maxSlopeDeg);
+    return this.clearOfBuildings(findSafeSpawn(this.source, x, z, this.maxSlopeDeg));
+  }
+
+  /**
+   * Nokta bir yapının (Faz 10) içine düşüyorsa çevresinde (sarmal arama) yapı dışında, yürünebilir en yakın noktayı
+   * döner; zaten dışındaysa aynısını. Bulunamazsa null.
+   */
+  private clearOfBuildings(point: Vec3 | null): Vec3 | null {
+    const map = this.settlementMap;
+    if (!point || !map || map.buildingAt(point.x, point.z, 1) === null) return point;
+    for (let r = 3; r <= 60; r += 3) {
+      const steps = Math.max(8, Math.round((2 * Math.PI * r) / 3));
+      for (let k = 0; k < steps; k++) {
+        const a = (k / steps) * Math.PI * 2;
+        const x = point.x + Math.cos(a) * r;
+        const z = point.z + Math.sin(a) * r;
+        if (map.buildingAt(x, z, 1) !== null) continue;
+        const safe = findSafeSpawn(this.source, x, z, this.maxSlopeDeg);
+        if (safe && map.buildingAt(safe.x, safe.z, 1) === null) return safe;
+      }
+    }
+    return null;
   }
 
   update(focusX: number, focusZ: number, timeSeconds: number): void {
@@ -216,11 +237,13 @@ export class RegionWorld implements GameWorld {
   }
 
   respawnPoint(deathIndex: number): Vec3 | null {
-    return pickRespawnPoint(
-      this.region.provinces,
-      this.source,
-      this.maxSlopeDeg,
-      respawnRandom(deathIndex),
+    return this.clearOfBuildings(
+      pickRespawnPoint(
+        this.region.provinces,
+        this.source,
+        this.maxSlopeDeg,
+        respawnRandom(deathIndex),
+      ),
     );
   }
 

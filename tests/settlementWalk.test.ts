@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { TELEPORTS } from '../src/config';
 import type { MoveIntent } from '../src/core/inputMapping';
 import type { RegionData } from '../src/data/region';
 import { initPhysics } from '../src/physics/PhysicsWorld';
@@ -63,6 +64,21 @@ describe('yerleşimlerde fizik (Faz 10)', () => {
     expect(
       Math.abs(local.x) > shape.width / 2 - 0.05 || Math.abs(local.z) > shape.depth / 2 - 0.05,
     ).toBe(true);
+    dispose();
+  }, 120_000);
+
+  it('başlangıç, ışınlanma yerleri ve yeniden doğma noktaları yapıların içine düşmez', () => {
+    const { world, dispose } = setupWorld(region, true);
+    const map = world.settlementMap!;
+    expect(map.buildingAt(world.spawn.x, world.spawn.z, 0.5)).toBeNull();
+    for (const place of TELEPORTS) {
+      const p = world.safePointFor(place.lat, place.lon);
+      if (p) expect(map.buildingAt(p.x, p.z, 0.5), place.name).toBeNull();
+    }
+    for (let i = 0; i < 8; i++) {
+      const p = world.respawnPoint(i);
+      if (p) expect(map.buildingAt(p.x, p.z, 0.5)).toBeNull();
+    }
     dispose();
   }, 120_000);
 

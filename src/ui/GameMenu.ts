@@ -24,7 +24,8 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
   [
     'Hayatta kalma',
     [
-      [['E'], 'Topla, leş kes, pişir, yakıt at, su iç (basılı tut)'],
+      [['E'], 'Topla, leş kes, pişir, yakıt at, ev ara, su iç (basılı tut)'],
+      [['E'], 'Sandık aç, insanlarla konuş (bas)'],
       [['Sol tık'], 'Saldır · hayalet varken kur'],
       [['F'], 'Hızlı yemek'],
       [['I', 'Tab'], 'Envanter ve üretim'],
@@ -53,6 +54,7 @@ const DEV_CONTROLS: readonly ControlRow[] = [
   [['T', '1–0'], 'Işınlan'],
   [['Shift', '1–0'], 'İldeki yerlere ışınlan'],
   [['P', 'O'], 'Malzeme / inşa eşyası ver'],
+  [['L', 'N'], 'Erzak ver / önüne bir yolcu çıkar'],
   [['[', ']'], 'Saati ±1 saat'],
   [['K'], 'Canı sıfırla'],
 ];
@@ -134,7 +136,11 @@ export class GameMenu {
     const tagline = document.createElement('p');
     tagline.className = 'pause-menu-tagline';
     tagline.textContent = 'Batı Karadeniz’de hayatta kal';
-    brand.append(logo, title, tagline);
+    // Selçuklu yıldızı (sekiz köşeli geçme) bordürü: çini turkuazı (Faz 10).
+    const ornament = document.createElement('div');
+    ornament.className = 'ui-ornament';
+    ornament.setAttribute('aria-hidden', 'true');
+    brand.append(logo, title, tagline, ornament);
     this.subtitle.className = 'pause-menu-subtitle';
     this.latest.className = 'pause-menu-latest';
     this.buttons.className = 'pause-menu-buttons';
