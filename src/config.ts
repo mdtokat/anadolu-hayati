@@ -656,6 +656,8 @@ export const CREATURES = {
   knockbackDecay: 6,
   /** Vurulunca "kışkırtılmış" kalma süresi (gerçek sn): oyuncunun yerini bilir, saldırgan/kaçak davranır. */
   provokedSeconds: 10,
+  /** Faz 11: yüksek gürültü (`noise:made`, ör. atış) duyan canlı bu süre (gerçek sn) kaynağından kaçar (ateşten kaçar gibi). */
+  noiseFleeSeconds: 6,
   /** Vurulma parlamasının sönüm hızı (1/sn). */
   hitFlashDecay: 4,
   /** Oyuncu hareketinin gürültü çarpanı (duyma menzili): dinlenirken neredeyse duyulmaz. */
