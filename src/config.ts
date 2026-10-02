@@ -2383,8 +2383,8 @@ export const BANDITS = {
   leaderWeapons: { sniper_rifle: 1, shotgun: 1 },
   /** Yakın dövüş: hasar, menzil (gövde kenarına), hamle süresi ve bekleme (sn). */
   melee: {
-    pala: { damage: 14, reach: 1.7, windup: 0.45, cooldown: 1.4 },
-    club: { damage: 10, reach: 1.6, windup: 0.5, cooldown: 1.3 },
+    pala: { damage: 12, reach: 1.7, windup: 0.45, cooldown: 1.8 },
+    club: { damage: 9, reach: 1.6, windup: 0.5, cooldown: 1.6 },
   },
   /**
    * Menzilli: tercih edilen uzaklık, atış aralığı (sn), ek nişan hatası (derece; hareket ederken ×2). Hasar
