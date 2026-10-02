@@ -26,10 +26,11 @@ const BUDGET = {
   door: 100,
   roof: 200,
   // Faz 11 (11.0): yer tutucu kutular; sahibi akış gerçek geometriyle bütçesini ayarlar.
+  // 11.1 (A): merdiven 12 basamak + 2 kiriş, korkuluk parmaklıklı, beşik çatı iki yüz + şeritler.
   stairs: 200,
   entry_step: 120,
   pillar: 120,
-  railing: 120,
+  railing: 200,
   half_wall: 220,
   gable_roof: 200,
   gable_wall: 220,

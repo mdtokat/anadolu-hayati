@@ -76,7 +76,7 @@ import {
 } from '../placement/structures';
 import { Dismantler } from '../placement/dismantle';
 import { stationsNear } from '../placement/stations';
-import { isPieceKind } from '../placement/pieces';
+import { isPieceKind, isPlateKind } from '../placement/pieces';
 import { transferAll, transferSlot } from '../placement/storage';
 import { structureInView, type FocusPose } from '../placement/structureFocus';
 import { PlacementController } from '../placement/PlacementController';
@@ -228,6 +228,8 @@ const FAZ11_DEV_STRUCTURES: readonly ItemId[] = [
   'pillar',
   'railing',
   'half_wall',
+  'gable_roof',
+  'gable_wall',
   'forge',
   'stone_oven',
   'hand_mill',
@@ -1814,9 +1816,8 @@ export class Game {
     if (isShelter && this.exposure.sheltered) return null;
     // Modüler parçalar: plakalar (üstünde durulur) hiç, duvarlar içerideyken (sürekli bakılır) ipucu göstermez.
     if (isPieceKind(target.kind)) {
-      if (target.kind === 'foundation' || target.kind === 'roof' || this.exposure.sheltered) {
-        return null;
-      }
+      // 11.1 (A): beşik çatı da plakadır.
+      if (isPlateKind(target.kind) || this.exposure.sheltered) return null;
     }
     return structureHint(target.kind);
   }

@@ -324,7 +324,7 @@ Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulam
 
 Görevler (akış harfleri plan belgesindeki oturumlardır):
 - [x] **11.0** İskele: tüm yeni eşya/yapı kimlikleri, yer tutucu simgeler ve tarifler, ganimet satırları, config blokları, olay bölümleri, tuşlar, `Settings.bandits`, ortak arayüzler (`HitTarget`, `fireShot`, `ObstacleQuery`, görüş odağı), kayıt v5 + `migrateV4toV5`, `Game` kancaları, bütçe 175 → 230 kB _(önce, tek oturum; `farm_plot` yalnızca ad taşıyan eşya kimliği de aldı, `HitTarget.kind`'e `player` eklendi, ölüm nedeni "vurularak")_
-- [ ] **11.1 (A)** Modüler inşa II: çatı en üst parça (üstüne hiçbir şey konamaz); duvarlı hücrelerin üstüne üst kat tabanı (balkon çıkıntısı 1 hücre); merdiven (1 × 2 hücre, bir kat) ve üstündeki tabanın merdiven boşluklu + korkuluklu şekil alması; giriş basamağı, direk, korkuluk, yarım duvar, beşik çatı + alın duvarı; barınak/odak güncellemesi
+- [x] **11.1 (A)** Modüler inşa II: çatı en üst parça (üstüne hiçbir şey konamaz); duvarlı hücrelerin üstüne üst kat tabanı (balkon çıkıntısı 1 hücre); merdiven (1 × 2 hücre, bir kat) ve üstündeki tabanın merdiven boşluklu + korkuluklu şekil alması; giriş basamağı, direk, korkuluk, yarım duvar, beşik çatı + alın duvarı; barınak/odak güncellemesi _(merdiven yönü bakıştan, `R` tersine çevirir; beşik çatı mahyası bakışa dik, `R` paralel; taban varyantı — yükseltilmiş/boşluklu — komşulardan türetilir, kayda girmez; rampa ve beşik çatı collider'ları eğik kutu, mermi için `solidBoxes` eksen hizalı kalır; merdiven boşluğu iki katı tek oda yapar; yeni engel nedenleri `on_roof`, `stairwell`; katlı yapıda küçük yapı oyuncunun katındaki tabana oturur)_
 - [ ] **11.2 (B)** Tek parça yapılar: demirci ocağı + örs, taş fırın, el değirmeni, kurutma rafı (kuru et), döşek, güneş paneli
 - [ ] **11.3 (B)** Çit: ahşap çit, kuru taş duvar, çit kapısı (zemini izler); canlılar ve insanlar oyuncu duvarlarından/çitlerden geçmez (`ObstacleQuery`)
 - [ ] **11.4 (C)** Ekme biçme: çapa ile tarla, tohumlar (buğday, mısır, fasulye, patates), sulama, büyüme evreleri, orakla biçme, buğday → un → ekmek / mısır → mısır ekmeği, yaban domuzu tarla baskını
@@ -335,7 +335,7 @@ Görevler (akış harfleri plan belgesindeki oturumlardır):
 - [ ] **11.9** Kapanış: birleşik ölçüm ([docs/faz-11-olcumler.md](docs/faz-11-olcumler.md)), `CLAUDE.md` "Mevcut Durum", README, elle doğrulama kılavuzu bölüm 17
 
 Kabul kriterleri:
-- [ ] Çatının üstüne kurulum reddediliyor; duvarlı hücrenin üstüne üst kat tabanı kuruluyor; merdivenden üst kata yürünüyor ve üstteki taban merdiven boşluğu + korkuluk alıyor _(testli)_
+- [x] Çatının üstüne kurulum reddediliyor; duvarlı hücrenin üstüne üst kat tabanı kuruluyor; merdivenden üst kata yürünüyor ve üstteki taban merdiven boşluğu + korkuluk alıyor _(testli: `tests/pieces2`, Rapier yürüyüşü `tests/stairs`)_
 - [ ] Yeni istasyonlar tarifleri yalnızca yakında açıyor; çitli alana hayvan giremiyor _(testli)_
 - [ ] Ekim → büyüme → hasat → işleme zinciri oyun saatiyle çalışıyor; kayda giriyor _(testli)_
 - [x] Her silah üretilebiliyor ve ganimetten çıkabiliyor; keskin nişancı tüfeği dürbün istiyor; balistik testleri geçiyor _(testli)_

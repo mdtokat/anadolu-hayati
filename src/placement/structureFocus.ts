@@ -1,5 +1,5 @@
 import { radiusOf } from './placeRules';
-import { isPieceKind } from './pieces';
+import { isPieceKind, isPlateKind } from './pieces';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
 /** Oyuncunun ayak konumu ve bakış yönü (yaw; ileri = (−sin, −cos)). */
@@ -56,10 +56,12 @@ export function structureInView(
 }
 
 /**
- * Odak sıralamasında parça türü payı: plakalar (taban/çatı) duvarlara ve diğer yapılara yenilir, kapı kapılı duvarın
- * önüne geçer (aynı konumdadırlar).
+ * Odak sıralamasında parça türü payı: plakalar (taban, çatı, beşik çatı) duvarlara ve diğer yapılara yenilir; üstünde
+ * yürünen merdiven ve giriş basamağı da duvar/korkuluk/direğe yenilir (merdivende dururken yandaki duvar seçilsin);
+ * kapı kapılı duvarın önüne geçer (aynı konumdadırlar).
  */
 function pieceBias(kind: StructureKind): number {
-  if (kind === 'foundation' || kind === 'roof') return 1.5;
+  if (isPlateKind(kind)) return 1.5;
+  if (kind === 'stairs' || kind === 'entry_step') return 1;
   return kind === 'door' ? -0.2 : 0;
 }

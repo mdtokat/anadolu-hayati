@@ -1,6 +1,17 @@
 import { RAPIER, type PhysicsWorld } from '../physics/PhysicsWorld';
-import { localToWorld, solidBoxes } from '../placement/structureShapes';
-import { placementKey, type StructureId, type StructureSet } from '../placement/structures';
+import { isPieceKind, pieceVariantKey } from '../placement/pieces';
+import {
+  localToWorld,
+  pieceColliderBoxes,
+  solidBoxes,
+  type LocalBox,
+} from '../placement/structureShapes';
+import {
+  placementKey,
+  type Structure,
+  type StructureId,
+  type StructureSet,
+} from '../placement/structures';
 
 interface Entry {
   key: string;
@@ -36,18 +47,18 @@ export class StructureColliders {
     const present = new Set<StructureId>();
     for (const s of this.structures.all()) {
       present.add(s.id);
-      const key = placementKey(s);
+      // ── 11.1 (A) ── modüler parçalar komşularına göre şekil alır (varyant imzaya eklenir; değişince yenilenir).
+      const variant = isPieceKind(s.kind) ? pieceVariantKey(this.structures, s) : '';
+      const key = variant ? `${placementKey(s)}|${variant}` : placementKey(s);
       const existing = this.entries.get(s.id);
       if (existing?.key === key) continue;
       if (existing) this.removeEntry(s.id, existing);
-      const half = s.yaw / 2;
-      const rotation = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
-      const list = solidBoxes(s.kind, s.open === true).map((b) => {
+      const list = this.boxesOf(s, variant).map((b) => {
         const center = localToWorld(s, b.cx, b.cz);
         return this.physics.addStaticCollider(
           RAPIER.ColliderDesc.cuboid(b.hx, b.hy, b.hz)
             .setTranslation(center.x, s.y + b.cy, center.z)
-            .setRotation(rotation),
+            .setRotation(boxRotation(s.yaw, b.pitch ?? 0)),
         );
       });
       this.entries.set(s.id, { key, colliders: list });
@@ -55,6 +66,13 @@ export class StructureColliders {
     for (const [id, entry] of this.entries) {
       if (!present.has(id)) this.removeEntry(id, entry);
     }
+  }
+
+  /** Yapının collider kutuları: modüler parçalarda eğik yüzeyli ve varyantlı (11.1), diğerlerinde `solidBoxes`. */
+  private boxesOf(s: Readonly<Structure>, variant: string): LocalBox[] {
+    return isPieceKind(s.kind)
+      ? pieceColliderBoxes(s.kind, variant, s.open === true)
+      : solidBoxes(s.kind, s.open === true);
   }
 
   dispose(): void {
@@ -66,4 +84,13 @@ export class StructureColliders {
     for (const collider of entry.colliders) this.physics.removeCollider(collider);
     this.entries.delete(id);
   }
+}
+
+/** Önce yerel X etrafında eğim (`pitch`), sonra yaw: q = q_yaw · q_pitch (Three.js `rotation.y` ile aynı sözleşme). */
+function boxRotation(yaw: number, pitch: number): { x: number; y: number; z: number; w: number } {
+  const sy = Math.sin(yaw / 2);
+  const cy = Math.cos(yaw / 2);
+  const sx = Math.sin(pitch / 2);
+  const cx = Math.cos(pitch / 2);
+  return { x: cy * sx, y: cx * sy, z: -sy * sx, w: cy * cx };
 }

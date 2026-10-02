@@ -1349,14 +1349,15 @@ export const PLACEMENT = {
     door: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
     roof: { maxSlopeDeg: 45, radius: 1.45, aimDistance: 3, maxReach: 7 },
     // ── Faz 11 (11.0 yer tutucu; sahibi akış kendi satırlarını ayarlar) ──
-    // A (11.1): modüler inşa II parçaları (A ızgara kurallarına bağlayana dek genel kurallarla konur).
-    stairs: { maxSlopeDeg: 35, radius: 2, aimDistance: 3.5, maxReach: 6 },
-    entry_step: { maxSlopeDeg: 35, radius: 1, aimDistance: 3, maxReach: 6 },
-    pillar: { maxSlopeDeg: 45, radius: 0.3, aimDistance: 3, maxReach: 6 },
-    railing: { maxSlopeDeg: 45, radius: 1, aimDistance: 3, maxReach: 6 },
-    half_wall: { maxSlopeDeg: 45, radius: 1, aimDistance: 3, maxReach: 6 },
-    gable_roof: { maxSlopeDeg: 45, radius: 2, aimDistance: 3.5, maxReach: 7 },
-    gable_wall: { maxSlopeDeg: 45, radius: 2, aimDistance: 3.5, maxReach: 7 },
+    // A (11.1): modüler inşa II parçaları; geçerlilik `placement/pieces.ts`'te (ızgara yuvaları, destek). `radius`
+    // odak/sökme menzili ve diğer yapılarla aralık içindir (merdiven 1 × 2 hücre, beşik çatı 2 hücre genişliğinde).
+    stairs: { maxSlopeDeg: 45, radius: 2, aimDistance: 3.5, maxReach: 6.5 },
+    entry_step: { maxSlopeDeg: 45, radius: 1.65, aimDistance: 3, maxReach: 6 },
+    pillar: { maxSlopeDeg: 45, radius: 0.4, aimDistance: 3, maxReach: 6 },
+    railing: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
+    half_wall: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
+    gable_roof: { maxSlopeDeg: 45, radius: 2.35, aimDistance: 3.5, maxReach: 7.5 },
+    gable_wall: { maxSlopeDeg: 45, radius: 2, aimDistance: 3.5, maxReach: 7.5 },
     // B (11.2/11.3): istasyonlar, döşek, güneş paneli, çitler.
     forge: { maxSlopeDeg: 30, radius: 0.9 },
     stone_oven: { maxSlopeDeg: 30, radius: 1 },
@@ -2158,20 +2159,31 @@ export const PEOPLE = {
  * duvarı; üst kat tabanı. Ölçüler oyun metresidir; ızgara ve kat yüksekliği `PIECES`'ten gelir.
  */
 export const PIECES_II = {
-  /** Merdiven: ızgara hücresi cinsinden uzunluk (1 × `cells`), bir kat çıkar; görsel basamak sayısı. */
-  stairs: { cells: 2, steps: 12 },
-  /** Giriş basamağı: zeminden tabana çıkış; basamak sayısı ve en çok yükseklik farkı. */
-  entryStep: { steps: 3, maxRise: 1.2 },
+  /**
+   * Merdiven: ızgara hücresi cinsinden uzunluk (1 × `cells`), bir kat (`STOREY`) çıkar; görsel basamak sayısı ve
+   * basamakların yarı genişliği (duvar kalınlığına pay bırakır). Collider eğik rampadır (basamak burunlarından geçer).
+   */
+  stairs: { cells: 2, steps: 12, halfWidth: 0.86 },
+  /**
+   * Giriş basamağı: tabanın kenarına dışarıdan; zemine doğru `depth` boyunca `maxRise` kadar iner (eğik rampa
+   * collider'ı). Dış ucunda zemin tabanın üst yüzünden `maxRise` + `gapTolerance`'tan aşağıdaysa kurulamaz.
+   */
+  entryStep: { steps: 4, maxRise: 1.2, depth: 1.6, halfWidth: 0.8, gapTolerance: 0.15 },
   /** Direk kesiti (kare kenarı). */
   pillar: { size: 0.25 },
-  /** Korkuluk yüksekliği ve kalınlığı. */
-  railing: { height: 1, thickness: 0.08 },
-  /** Yarım duvar yüksekliği. */
+  /** Korkuluk yüksekliği (plakanın üstünden), görsel kalınlığı ve collider kalınlığı. */
+  railing: { height: 1, thickness: 0.08, solidThickness: 0.14 },
+  /** Yarım duvar yüksekliği (plakanın üstünden). */
   halfWall: { height: 1.1 },
-  /** Beşik çatı: genişlik (hücre), eğim (derece) ve saçak payı. */
-  gableRoof: { cells: 2, pitchDeg: 30, overhang: 0.3 },
-  /** Üst kat tabanı: alt kat duvarı olmayan komşu hücreye en çok bu kadar hücre çıkıntı (balkon). */
+  /**
+   * Beşik çatı: mahyaya dik genişlik (hücre; mahya boyunca 1 hücre), eğim (derece), saçak payı ve kaplama kalınlığı.
+   * Mahya yüksekliği `cell · tan(pitchDeg)` (≈ 1,15 m).
+   */
+  gableRoof: { cells: 2, pitchDeg: 30, overhang: 0.3, thickness: 0.12 },
+  /** Üst kat tabanı: alt kat duvarı/direği olmayan hücreye, desteklenen üst tabandan en çok bu kadar hücre çıkıntı (balkon). */
   upperFloor: { overhangCells: 1 },
+  /** Merdiven boşluklu taban: deliğin çevresinde kalan kenar şeridi (oyun m). */
+  stairwell: { rim: 0.12 },
 } as const;
 
 /** ── Faz 11: B (11.3) ── Çitler: ahşap çit, kuru taş duvar, çit kapısı (2 m ızgara kenarı, zemini izler). */

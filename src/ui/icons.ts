@@ -154,13 +154,20 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
   scope:
     '<rect x="3" y="9" width="18" height="6" rx="3" fill="#2a2e32"/><rect x="2" y="8" width="4" height="8" rx="1.4" fill="#3c4146"/><rect x="18" y="8.5" width="4" height="7" rx="1.4" fill="#3c4146"/><circle cx="21.2" cy="12" r="2" fill="#6fb3d9"/><path d="M10 9V6.5h4V9" fill="#3c4146"/>',
   // ── Faz 11: A ──
-  stairs: PLACEHOLDER_ICON.placeable,
-  entry_step: PLACEHOLDER_ICON.placeable,
-  pillar: PLACEHOLDER_ICON.placeable,
-  railing: PLACEHOLDER_ICON.placeable,
-  half_wall: PLACEHOLDER_ICON.placeable,
-  gable_roof: PLACEHOLDER_ICON.placeable,
-  gable_wall: PLACEHOLDER_ICON.placeable,
+  stairs:
+    '<path d="M3 21h18V3h-4v4.5h-4.3V12H8.3v4.5H3z" fill="#a8723c"/><path d="M3 16.5h5.3M8.3 12h4.4M12.7 7.5H17M17 3h4" stroke="#6e4522" stroke-width="1.4"/><path d="M5 21 19 4" stroke="#7a4f2a" stroke-width="1.2" opacity=".6"/>',
+  entry_step:
+    '<path d="M2 21h20v-4.5h-5.5V12h-5V7.5H2z" fill="#9a958c"/><path d="M2 7.5h9.5v1.2H2zM11.5 12h5v1.2h-5zM16.5 16.5H22v1.2h-5.5z" fill="#5f5a52"/><path d="M5 11v3M14 15v3" stroke="#7d786f" stroke-width="1"/>',
+  pillar:
+    '<rect x="9" y="5" width="6" height="14" fill="#8a5a2e"/><rect x="7" y="2.5" width="10" height="2.8" rx=".5" fill="#6e4522"/><rect x="6.5" y="18.8" width="11" height="2.7" rx=".5" fill="#8f8a80"/><path d="M11 6v12M13 6v12" stroke="#6e4522" stroke-width=".9"/>',
+  railing:
+    '<rect x="2" y="6" width="20" height="2.4" rx=".6" fill="#6e4522"/><rect x="2" y="16" width="20" height="1.8" fill="#a8723c"/><path d="M3.5 6v15M20.5 6v15" stroke="#6e4522" stroke-width="2"/><path d="M7 8.4v7.6M10.5 8.4v7.6M14 8.4v7.6M17.5 8.4v7.6" stroke="#a8723c" stroke-width="1.4"/>',
+  half_wall:
+    '<rect x="3" y="11" width="18" height="10" rx="1" fill="#a8723c"/><rect x="2" y="9.5" width="20" height="2.2" rx=".6" fill="#6e4522"/><path d="M3 16h18M9 11.7V16M15 16v5" stroke="#7a4f2a" stroke-width="1.3"/>',
+  gable_roof:
+    '<path d="M1.5 16 12 5l10.5 11h-3L12 8.2 4.5 16z" fill="#6b5744"/><path d="M4.5 16 12 8.2 19.5 16z" fill="#4f4235" opacity=".55"/><path d="M5 12.6 7.3 15M8.2 9.3l3.2 3.4M15.8 9.3l-3.2 3.4M19 12.6 16.7 15" stroke="#8a7560" stroke-width="1"/><path d="M10.5 5.3h3" stroke="#3a3027" stroke-width="1.6" stroke-linecap="round"/>',
+  gable_wall:
+    '<path d="M2 19 12 6l10 13z" fill="#a8723c"/><path d="M6.6 13h10.8M4.3 16h15.4" stroke="#7a4f2a" stroke-width="1.2"/><rect x="1.5" y="18.5" width="21" height="2.2" rx=".5" fill="#6e4522"/><path d="M12 6v12.5" stroke="#7a4f2a" stroke-width=".8" opacity=".6"/>',
   // ── Faz 11: B ──
   forge: PLACEHOLDER_ICON.placeable,
   stone_oven: PLACEHOLDER_ICON.placeable,
