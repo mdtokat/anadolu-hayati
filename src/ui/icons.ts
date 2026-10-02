@@ -169,16 +169,26 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
   gable_wall:
     '<path d="M2 19 12 6l10 13z" fill="#a8723c"/><path d="M6.6 13h10.8M4.3 16h15.4" stroke="#7a4f2a" stroke-width="1.2"/><rect x="1.5" y="18.5" width="21" height="2.2" rx=".5" fill="#6e4522"/><path d="M12 6v12.5" stroke="#7a4f2a" stroke-width=".8" opacity=".6"/>',
   // ── Faz 11: B ──
-  forge: PLACEHOLDER_ICON.placeable,
-  stone_oven: PLACEHOLDER_ICON.placeable,
-  hand_mill: PLACEHOLDER_ICON.placeable,
-  drying_rack: PLACEHOLDER_ICON.placeable,
-  bedroll: PLACEHOLDER_ICON.placeable,
-  solar_panel: PLACEHOLDER_ICON.placeable,
-  wood_fence: PLACEHOLDER_ICON.placeable,
-  stone_fence: PLACEHOLDER_ICON.placeable,
-  fence_gate: PLACEHOLDER_ICON.placeable,
-  dried_meat: PLACEHOLDER_ICON.food,
+  forge:
+    '<rect x="3" y="12" width="18" height="9" rx="1" fill="#7b7870"/><path d="M3 16.5h18M9 12v4.5M15 16.5V21" stroke="#5f5a52" stroke-width="1.2"/><rect x="9" y="3" width="5" height="9" fill="#6e6b64"/><rect x="8" y="2.5" width="7" height="1.8" fill="#4a4741"/><rect x="5" y="9.5" width="5" height="2.5" rx=".6" fill="#3d3b38"/><path d="M5 9.5h5.5" stroke="#1f1e1c" stroke-width="1.2"/><rect x="5.5" y="13.5" width="4.5" height="2.2" rx=".5" fill="#d2541a"/>',
+  stone_oven:
+    '<path d="M3 21v-6c0-5 4-10 9-10s9 5 9 10v6z" fill="#86837a"/><path d="M3 15h18M8 8.2 9 15M16 8.2 15 15" stroke="#5f5a52" stroke-width="1.1" fill="none"/><path d="M8.5 21v-5.2c0-1.8 1.5-3.2 3.5-3.2s3.5 1.4 3.5 3.2V21z" fill="#2a2725"/><path d="M10 21v-4M14 21v-4" stroke="#d2541a" stroke-width="1.2" opacity=".8"/><rect x="14.8" y="2.5" width="2.4" height="5" fill="#3d3b38"/>',
+  hand_mill:
+    '<rect x="4" y="16" width="16" height="4.5" rx="1" fill="#6a4a2e"/><ellipse cx="12" cy="14.5" rx="7.5" ry="2.8" fill="#9a958c"/><path d="M4.5 14.5v-2.2c0-1.6 3.4-2.8 7.5-2.8s7.5 1.2 7.5 2.8v2.2" fill="#86837a"/><ellipse cx="12" cy="12.3" rx="7.5" ry="2.7" fill="#a8a39a"/><circle cx="12" cy="12.3" r="1.1" fill="#4a4741"/><path d="M16.5 12.2 17.5 4.5" stroke="#8a5a2e" stroke-width="2" stroke-linecap="round"/><circle cx="17.7" cy="4.2" r="1.4" fill="#6e4522"/>',
+  drying_rack:
+    '<path d="M3.5 22 6 4M20.5 22 18 4" stroke="#6b4b2d" stroke-width="2.2" stroke-linecap="round"/><path d="M5.2 6.5h13.6M4.6 12.5h14.8" stroke="#8a5a2e" stroke-width="2" stroke-linecap="round"/><g fill="#7a3b2a"><rect x="7" y="7.5" width="2.4" height="6.5" rx=".8"/><rect x="11" y="7.5" width="2.4" height="7.5" rx=".8"/><rect x="15" y="7.5" width="2.2" height="5.5" rx=".8"/></g>',
+  bedroll:
+    '<rect x="2.5" y="12" width="19" height="7.5" rx="2.4" fill="#9a7b4f"/><rect x="2.5" y="12" width="6.5" height="7.5" rx="2.4" fill="#cdbf9f"/><path d="M9.5 12.4v7M13 12.4v7M16.5 12.4v7" stroke="#7a5f3a" stroke-width="1" opacity=".7"/><path d="M3.5 12.2c0-2 1-3.2 2.8-3.2h12.4c1.8 0 2.8 1.2 2.8 3.2" fill="none" stroke="#6b5744" stroke-width="1.3"/>',
+  solar_panel:
+    '<path d="M5.5 8.5 22 8.5 18.5 17.5H2z" fill="#3d3b38" transform="translate(-1 0)"/><path d="M5 9.7h14.6l-2.8 6.6H3z" fill="#1f3b66"/><path d="M8.4 9.7 6.7 16.3M12.7 9.7l-1.6 6.6M16.6 9.7l-1.5 6.6M4.4 12.9h14.4" stroke="#6fb3d9" stroke-width=".8" opacity=".8"/><path d="M9 17.5 8 22M14.5 17.5 16 22M7 22h11" stroke="#3d3b38" stroke-width="2" stroke-linecap="round"/><circle cx="19.5" cy="4.5" r="2" fill="#f4c542"/>',
+  wood_fence:
+    '<path d="M2.5 9h19M2.5 15.5h19" stroke="#6a4a2e" stroke-width="2.2" stroke-linecap="round"/><g fill="#a8723c"><rect x="3" y="5.5" width="3.4" height="15" rx=".5"/><rect x="8" y="6.5" width="3.4" height="14" rx=".5"/><rect x="13" y="5.5" width="3.4" height="15" rx=".5"/><rect x="18" y="6.5" width="3.2" height="14" rx=".5"/></g><path d="M3 5.5 4.7 3.5 6.4 5.5M13 5.5l1.7-2 1.7 2" stroke="#a8723c" stroke-width="1" fill="#a8723c"/>',
+  stone_fence:
+    '<g><rect x="2" y="15" width="8" height="5.5" rx="1.2" fill="#7b7870"/><rect x="10.4" y="15" width="6" height="5.5" rx="1.2" fill="#6e6b64"/><rect x="16.8" y="15" width="5.2" height="5.5" rx="1.2" fill="#86837a"/><rect x="3.5" y="9.5" width="5.5" height="5" rx="1.2" fill="#86837a"/><rect x="9.4" y="9.5" width="8" height="5" rx="1.2" fill="#777068"/><rect x="17.8" y="9.5" width="3.5" height="5" rx="1.2" fill="#6e6b64"/><rect x="2" y="4.5" width="7.5" height="4.5" rx="1.2" fill="#6e6b64"/><rect x="10" y="4.5" width="6" height="4.5" rx="1.2" fill="#86837a"/><rect x="16.5" y="4.5" width="5.5" height="4.5" rx="1.2" fill="#7b7870"/></g>',
+  fence_gate:
+    '<path d="M3 3.5v18M21 3.5v18" stroke="#6b4b2d" stroke-width="2.6" stroke-linecap="round"/><path d="M5 8h14M5 17h14" stroke="#6a4a2e" stroke-width="2.2"/><path d="M5.5 16.5 18.5 8.5" stroke="#6a4a2e" stroke-width="1.8"/><g fill="#a8723c"><rect x="7" y="8" width="2" height="9"/><rect x="11" y="8" width="2" height="9"/><rect x="15" y="8" width="2" height="9"/></g>',
+  dried_meat:
+    '<path d="M5 6.5c3.5-2 9.2-2 13 .5 1.6 3.2 1 8.6-1.8 11-3.4 1.4-8.7.4-11-2.4C4 13 3.6 9 5 6.5z" fill="#7a3b2a"/><path d="M7 8.5c2.4-1.2 6-1.2 8.6.2M6.6 12c3-.9 7.6-.8 10 .6" stroke="#4e2418" stroke-width="1.1" fill="none"/><path d="M8.5 7.2c1-1.2 2.4-1.4 3.6-.9" stroke="#a65d46" stroke-width=".9" fill="none"/>',
   // ── Faz 11: C ──
   hoe: PLACEHOLDER_ICON.tool,
   sickle: PLACEHOLDER_ICON.tool,

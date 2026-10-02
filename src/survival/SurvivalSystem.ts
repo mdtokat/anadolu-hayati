@@ -29,6 +29,8 @@ export interface SurvivalContext {
   sheltered?: boolean;
   /** Barınağın türü (Faz 9; kulübe daha iyi korur). */
   shelter?: ShelterKind | null;
+  /** Faz 11 (11.2): döşeğin üstünde mi? */
+  bed?: boolean;
 }
 
 /** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */
@@ -114,6 +116,7 @@ export class SurvivalSystem {
         warmthC: context.warmthC,
         sheltered: context.sheltered,
         shelter: context.shelter,
+        bed: context.bed,
       },
       dt,
     );

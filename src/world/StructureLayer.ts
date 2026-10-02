@@ -8,11 +8,14 @@ import {
 } from 'three';
 import { STRUCTURE_LOOK } from '../config';
 import type { Ghost } from '../placement/PlacementController';
+import { fenceVariantKey, isFenceKind } from '../placement/fences';
 import { isPieceKind, pieceVariantKey } from '../placement/pieces';
+import { rackVariantKey } from '../placement/rack';
 import {
   STRUCTURE_KINDS,
   isLit,
   placementKey,
+  type Structure,
   type StructureId,
   type StructureKind,
   type StructureSet,
@@ -127,9 +130,14 @@ export class StructureLayer {
         mesh.rotation.y = ghost.yaw;
         mesh.material = ghost.valid ? this.ghostMaterials.valid : this.ghostMaterials.invalid;
         // 11.1 (A): üst kat tabanının hayaleti eteksiz, merdiven üstündeki boşluklu görünür.
+        // 11.3 (B): çit hayaleti iki ucundaki zemine göre eğimlidir.
         mesh.geometry = this.geometryFor(
           kind,
-          isPieceKind(kind) ? pieceVariantKey(this.structures, ghost) : '',
+          isPieceKind(kind)
+            ? pieceVariantKey(this.structures, ghost)
+            : isFenceKind(kind)
+              ? fenceVariantKey({ rise: ghost.rise })
+              : '',
         );
       }
     }
@@ -160,7 +168,7 @@ export class StructureLayer {
     for (const s of this.structures.all()) {
       present.add(s.id);
       // 11.1 (A): modüler parça komşularına göre şekil alır; varyant değişince düğüm yeniden kurulur.
-      const variant = isPieceKind(s.kind) ? pieceVariantKey(this.structures, s) : '';
+      const variant = variantOf(this.structures, s);
       const key = variant ? `${placementKey(s)}|${variant}` : placementKey(s);
       let node = this.nodes.get(s.id);
       if (node && node.key !== key) {
@@ -248,6 +256,16 @@ export class StructureLayer {
       if (node?.flame) node.flame.scale.y = 1 + 0.12 * flicker;
     });
   }
+}
+
+/**
+ * Yapının görsel varyant anahtarı: modüler parça (11.1: komşulara göre şekil), çit (11.3: eğim ve kapı durumu), kurutma
+ * rafı (11.2: üstünde et var mı); boş = varsayılan geometri.
+ */
+function variantOf(structures: StructureSet, s: Readonly<Structure>): string {
+  if (isPieceKind(s.kind)) return pieceVariantKey(structures, s);
+  if (isFenceKind(s.kind)) return fenceVariantKey(s);
+  return s.kind === 'drying_rack' ? rackVariantKey(s) : '';
 }
 
 /** −1…1 arası titreme (kimliğe bağlı evreli, birkaç sinüsün toplamı). */

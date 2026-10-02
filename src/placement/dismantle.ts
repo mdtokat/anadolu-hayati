@@ -56,6 +56,10 @@ export class Dismantler {
     if (storage && storage.slots.some((stack) => stack !== null)) {
       return { ...base, status: 'not_empty' };
     }
+    // Faz 11 (11.2): üstünde et asılı kurutma rafı sökülmez (et kaybolmasın): önce boşaltılır.
+    if (structure.rack && structure.rack.raw + structure.rack.dried > 0) {
+      return { ...base, status: 'not_empty' };
+    }
     return { ...base, status: fits(this.inventory, items) ? 'ready' : 'no_space' };
   }
 

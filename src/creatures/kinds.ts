@@ -1,4 +1,5 @@
 import type { LandCoverClass } from '../data/landcover';
+import type { ObstacleQuery } from '../placement/obstacles';
 import type { Activity } from '../survival/vitals';
 
 /**
@@ -95,6 +96,8 @@ export interface CreatureContext {
   structures?: ReadonlyArray<{ x: number; z: number }>;
   /** Arazi sorguları; destekleyen dünya yoksa (test arenası) null ve canlı oluşmaz. */
   terrain: CreatureTerrain | null;
+  /** Faz 11 (11.3): oyuncu yapıları (çit, duvar, kapalı kapı) canlıların yürüyüşünü keser; verilmezse engel yok. */
+  obstacles?: ObstacleQuery;
 }
 
 /** Dev HUD satırı ve testler için anlık sayımlar. */

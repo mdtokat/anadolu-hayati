@@ -40,9 +40,9 @@ const BUDGET = {
   drying_rack: 200,
   bedroll: 100,
   solar_panel: 200,
-  wood_fence: 120,
+  wood_fence: 200,
   stone_fence: 200,
-  fence_gate: 120,
+  fence_gate: 260,
   farm_plot: 200,
   drone: 400, // F: dört kollu drone (motorlar, kızaklar, pervaneler)
   flame: 120,

@@ -1,5 +1,6 @@
 import { CREATURES } from '../config';
 import type { EventBus } from '../core/EventBus';
+import { NO_OBSTACLES, type ObstacleQuery } from '../placement/obstacles';
 import type { GameEvents } from '../core/events';
 import type { CreaturesSave } from '../save/saveGame';
 import { createRandom, seedFrom, type Random } from '../utils/random';
@@ -119,12 +120,16 @@ export class CreatureSystem {
   /** Öldürülen canlının hücresi → yeniden doğmaya izin verilen zaman (sistem saati, gerçek sn). */
   private readonly killedUntil = new Map<number, number>();
 
+  /** Faz 11 (11.3): oyuncu yapılarının (çit, duvar, kapalı kapı…) hareketi kesmesi; her adımda bağlamdan alınır. */
+  private obstacles: ObstacleQuery = NO_OBSTACLES;
+
   constructor(private readonly events?: EventBus<GameEvents>) {}
 
   /** Sabit adım (dt sn). */
   update(dt: number, context: CreatureContext): void {
     this.time += dt;
     this.tick++;
+    this.obstacles = context.obstacles ?? NO_OBSTACLES;
     const terrain = context.terrain;
     if (!terrain) {
       if (this.records.size > 0) this.clearAll();
@@ -494,7 +499,7 @@ export class CreatureSystem {
       const species = SPECIES[brain.kind];
       const nx = brain.x + rec.kbx * dt;
       const nz = brain.z + rec.kbz * dt;
-      if (passable(species, terrain, nx, nz)) {
+      if (this.canStep(species, terrain, brain.x, brain.z, nx, nz)) {
         brain.x = nx;
         brain.z = nz;
       } else {
@@ -629,14 +634,14 @@ export class CreatureSystem {
       const fromX = brain.x;
       const fromZ = brain.z;
       if (!water) {
-        if (passable(species, terrain, nx, nz)) {
+        if (this.canStep(species, terrain, fromX, fromZ, nx, nz)) {
           brain.x = nx;
           brain.z = nz;
           moved = true;
-        } else if (passable(species, terrain, nx, brain.z)) {
+        } else if (this.canStep(species, terrain, fromX, fromZ, nx, fromZ)) {
           brain.x = nx;
           moved = true;
-        } else if (passable(species, terrain, brain.x, nz)) {
+        } else if (this.canStep(species, terrain, fromX, fromZ, fromX, nz)) {
           brain.z = nz;
           moved = true;
         }
@@ -716,12 +721,30 @@ export class CreatureSystem {
     const dz = -Math.cos(yaw);
     let run = 0;
     for (let d = STEER_STEP; d <= STEER_LOOK; d += STEER_STEP) {
-      if (!passable(species, terrain, x + dx * d, z + dz * d)) break;
+      const from = d - STEER_STEP;
+      if (!this.canStep(species, terrain, x + dx * from, z + dz * from, x + dx * d, z + dz * d)) {
+        break;
+      }
       run = d;
     }
     // Göl içi: yalnızca uzak uçta (pahalı); suya çıkan yol kısaltılır.
     while (run > 0 && terrain.waterNear(x + dx * run, z + dz * run, IN_WATER)) run -= STEER_STEP;
     return run;
+  }
+
+  /** (fromX, fromZ)'den (toX, toZ)'ye adım atılabilir mi: hedef nokta geçilebilir ve yolda oyuncu yapısı yok. */
+  private canStep(
+    species: SpeciesDef,
+    terrain: CreatureTerrain,
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+  ): boolean {
+    return (
+      passable(species, terrain, toX, toZ) &&
+      !this.obstacles.blocked(fromX, fromZ, toX, toZ, species.radius)
+    );
   }
 
   /** Noktanın çevresinde (3 m) en az 5/8 yön geçilebilir mi (cep değil)? */
@@ -745,7 +768,7 @@ export class CreatureSystem {
         const x = brain.x + Math.cos(angle) * radius;
         const z = brain.z + Math.sin(angle) * radius;
         if (
-          passable(species, terrain, x, z) &&
+          this.canStep(species, terrain, brain.x, brain.z, x, z) &&
           terrain.slopeDegAt(x, z) <= species.maxSlopeDeg - RESCUE_SLOPE_MARGIN_DEG &&
           !terrain.waterNear(x, z, 1) &&
           this.roomy(species, terrain, x, z)

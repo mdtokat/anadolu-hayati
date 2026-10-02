@@ -505,22 +505,22 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
   wood_fence: {
     id: 'wood_fence',
     name: 'Ahşap Çit',
-    weightG: 2500,
-    stackMax: 1,
+    weightG: 1500,
+    stackMax: 12,
     category: 'placeable',
   },
   stone_fence: {
     id: 'stone_fence',
     name: 'Kuru Taş Duvar',
-    weightG: 6000,
-    stackMax: 1,
+    weightG: 3500,
+    stackMax: 8,
     category: 'placeable',
   },
   fence_gate: {
     id: 'fence_gate',
     name: 'Çit Kapısı',
-    weightG: 3000,
-    stackMax: 1,
+    weightG: 2500,
+    stackMax: 4,
     category: 'placeable',
   },
   dried_meat: {
