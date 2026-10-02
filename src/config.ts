@@ -2327,45 +2327,128 @@ export const AMMO = {
 /**
  * ── Faz 11: E (11.6) ── Eşkıya kampları (ormanda): kamp sayısı/yerleşimi, boyu, etkinlik saatleri, algı, silah
  * dağılımı, teslim olma ve yeniden dolma. Ayarlar'dan kapatılabilir (`Settings.bandits`); camide saldırmazlar.
+ * Uzaklıklar oyun metresidir (1 oyun m = 50 gerçek m).
  */
 export const BANDITS = {
-  /** Dünyadaki kamp sayısı (yaklaşık; uygun yer bulunamazsa daha az). */
+  /** Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). */
   campCount: 18,
-  /** Kamp yeri kuralları: yerleşimlere en az uzaklık, yola uzaklık aralığı (oyun m), en dik eğim (derece). */
+  /**
+   * Kamp yeri kuralları (`bandits/camps.ts`): il/ilçe merkezinin ayak izi kenarına en az `minSettlementDistance`,
+   * köyün kenarına en az `minVillageDistance` (341 köy haritayı sık örttüğünden köylere ayrı, kısa uzaklık), en yakın
+   * yolun kenarına `roadDistance` aralığı, orman örtüsü, merkezde ve kamp çemberinde en dik eğim `maxSlopeDeg` (oyun
+   * eğimi: dikey ölçek gerçek yamacı ×3,3 diktir, 32° ≈ gerçek 10°; 22°'de gerçek dünyada yalnızca 3 kamp çıkıyordu).
+   */
   minSettlementDistance: 400,
-  roadDistance: [100, 400],
-  maxSlopeDeg: 22,
-  /** Kampın yarıçapı (oyun m) ve kamp başına eşkıya sayısı aralığı. */
+  minVillageDistance: 120,
+  roadDistance: [80, 400],
+  maxSlopeDeg: 32,
+  /** Aday ızgarası hücresi (her hücrede `campCellTries`² noktalı seed'li ızgara denenir) ve iki kamp arası en az uzaklık. */
+  campCell: 120,
+  campCellTries: 6,
+  campSpacing: 260,
+  /** Kampın yarıçapı (oyun m) ve kamp başına eşkıya sayısı aralığı (reis dahil). */
   campRadius: 12,
   members: [3, 5],
-  /** Etkinlikler: uyku saatleri [başlangıç, bitiş) (oyun saati). */
+  /** Pusu yeri: kamp tarafında yol kenarından bu kadar içeride (oyun m). */
+  ambushOffset: 6,
+  /** Etkinlikler: uyku saatleri [başlangıç, bitiş) (oyun saati); pusu yalnızca bu saatler arasında kurulur. */
   sleepHours: [23, 5],
-  /** Algı: gündüz görüş, gece görüş çarpanı, duyma (oyun m), görüş konisi (derece). */
+  ambushHours: [7, 20],
+  /** Etkinlik dönüşümü: üyenin etkinliği bu kadar oyun saatinde bir yeniden seçilir. */
+  activityHours: 2,
+  /** Hızlar (oyun m/sn): yürüyüş, koşu (oyuncunun koşusundan yavaş: kaçılabilir). */
+  walkSpeed: 1.3,
+  runSpeed: 4.6,
+  /** Devriye ve odun toplama yarıçapları, avlanma menzili (oyun m). */
+  patrolRadius: 32,
+  woodRadius: 26,
+  huntRadius: 70,
+  huntRange: 45,
+  /** Algı: gündüz görüş, gece görüş çarpanı, duyma (oyun m), görüş konisi (derece), her yönden fark etme yakınlığı. */
   sightRange: 70,
   nightSightFactor: 0.45,
   hearingRange: 30,
   viewConeDeg: 140,
-  /** Silah dağılımı (olasılık ağırlıkları); reis keskin nişancı ya da av tüfeği taşır. */
+  senseRadius: 5,
+  /** Uyurken duyma çarpanı; göz yüksekliği (oyun m; görüş hattı arazi ışınıyla sınanır). */
+  sleepHearingFactor: 0.35,
+  eyeHeight: 1.6,
+  /** Pusudaki eşkıya oyuncu bu kadar yaklaşınca saldırır (oyun m). */
+  ambushTrigger: 24,
+  /** Uyarı (sesi duyup bakınma) süresi ve görüş kaybından sonra arama süresi (sn). */
+  alertSeconds: 12,
+  lostSeconds: 6,
+  /** Silah dağılımı (olasılık ağırlıkları, üyeler); reis keskin nişancı ya da av tüfeği taşır. */
   weapons: { pala: 3, club: 2, pistol: 2, shotgun: 2, rifle: 1 },
-  /** Teslim olma: can bu oranın altına düşünce (0–1). */
+  leaderWeapons: { sniper_rifle: 1, shotgun: 1 },
+  /** Yakın dövüş: hasar, menzil (gövde kenarına), hamle süresi ve bekleme (sn). */
+  melee: {
+    pala: { damage: 14, reach: 1.7, windup: 0.45, cooldown: 1.4 },
+    club: { damage: 10, reach: 1.6, windup: 0.5, cooldown: 1.3 },
+  },
+  /**
+   * Menzilli: tercih edilen uzaklık, atış aralığı (sn), ek nişan hatası (derece; hareket ederken ×2). Hasar
+   * `RANGED.weapons` × `damageScale` (oyuncunun 100 canı var; eşkıya ateşi ölümcül ama anında değil).
+   */
+  ranged: {
+    pistol: { preferred: 18, interval: 1.5, aimErrorDeg: 3 },
+    shotgun: { preferred: 10, interval: 2.4, aimErrorDeg: 2.5 },
+    rifle: { preferred: 35, interval: 2.6, aimErrorDeg: 1.6 },
+    sniper_rifle: { preferred: 55, interval: 3.6, aimErrorDeg: 0.8 },
+  },
+  damageScale: 0.55,
+  /** Can: üye ve reis. */
+  health: 80,
+  leaderHealth: 120,
+  /** Geri çekilme (siper): can bu oranın altına inince bu süre (sn) geri çekilir. */
+  retreatHealthFraction: 0.5,
+  retreatSeconds: 5,
+  /** Teslim olma: can bu oranın altına düşünce (0–1); bağışlanan eşkıya kaçıp kaybolur (sn). */
   surrenderHealthFraction: 0.25,
+  fleeSeconds: 20,
+  /** Teslim olan / ölü eşkıyayla etkileşim: erişim (oyun m), bakış konisi (derece), üst arama süresi (sn). */
+  interactReach: 2.4,
+  interactConeDeg: 50,
+  searchSeconds: 2.5,
+  /** Kamp sandığını boşaltma süresi (sn) ve erişimi (oyun m). */
+  chestSeconds: 2,
+  chestReach: 2,
   /** Temizlenen kampın yeniden dolması (oyun günü). */
   reoccupyDays: 5,
-  /** Etkinleşme yarıçapı: oyuncu bu uzaklıktaki kampın eşkıyalarını canlandırır (oyun m). */
+  /** Etkinleşme: oyuncu bu uzaklıktaki kampın eşkıyalarını canlandırır; bunun `despawnMargin` ötesinde kaldırır. */
   activeRadius: 260,
+  despawnMargin: 80,
+  /** Kamp çizimi ve collider yarıçapları (oyun m). */
+  drawRadius: 420,
+  colliderRadius: 90,
   seed: 0xba4d17,
 } as const;
 
 /** ── Faz 11: E (11.7) ── Yankesiciler (il/ilçe merkezlerinde): nadir; yaklaşıp bir eşya çalıp kaçar. */
 export const PICKPOCKETS = {
-  /** Doğma denemesi aralığı (gerçek sn) ve kent merkezinde olasılığı. */
+  /** Doğma denemesi aralığı (gerçek sn) ve il/ilçe merkezinde olasılığı; doğma uzaklığı (oyun m). */
   spawnCheckSeconds: 90,
   spawnChance: 0.08,
+  spawnDistance: [25, 40],
   /** Aynı anda en çok yankesici. */
   maxActive: 1,
-  /** Çalma uzaklığı (oyun m) ve çalma süresi (sn, oyuncunun yanında kalınca). */
+  /** Yaklaşma hızı, kaçış hızı (oyuncunun koşusundan, 7, biraz yavaş: yakalanabilir). */
+  walkSpeed: 1.5,
+  runSpeed: 6.2,
+  /** Selam (ve "biri çok yaklaştı" ipucu) uzaklığı; çalma uzaklığı (oyun m) ve oyuncunun yanında kalma süresi (sn). */
+  greetDistance: 5,
   stealDistance: 1.4,
   stealSeconds: 1.2,
+  /** Yakalama: oyuncu kaçan yankesiciye bu kadar yaklaşırsa eşyayı geri verir (oyun m). */
+  catchDistance: 1.6,
+  /** Kaçış: bu uzaklık ya da süre (sn) aşılınca eşya en yakın kamp sandığına düşer. */
+  escapeDistance: 70,
+  escapeSeconds: 45,
+  /** Yaklaşırken vazgeçme süresi (sn). */
+  giveUpSeconds: 60,
+  /** Gövde (hedef silindiri). */
+  radius: 0.35,
+  height: 1.75,
   seed: 0x9c4e7a,
 } as const;
 
