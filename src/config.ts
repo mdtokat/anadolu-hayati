@@ -1334,6 +1334,28 @@ export const PLACEMENT = {
     window_wall: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
     door: { maxSlopeDeg: 45, radius: 1.1, aimDistance: 3, maxReach: 6 },
     roof: { maxSlopeDeg: 45, radius: 1.45, aimDistance: 3, maxReach: 7 },
+    // ── Faz 11 (11.0 yer tutucu; sahibi akış kendi satırlarını ayarlar) ──
+    // A (11.1): modüler inşa II parçaları (A ızgara kurallarına bağlayana dek genel kurallarla konur).
+    stairs: { maxSlopeDeg: 35, radius: 2, aimDistance: 3.5, maxReach: 6 },
+    entry_step: { maxSlopeDeg: 35, radius: 1, aimDistance: 3, maxReach: 6 },
+    pillar: { maxSlopeDeg: 45, radius: 0.3, aimDistance: 3, maxReach: 6 },
+    railing: { maxSlopeDeg: 45, radius: 1, aimDistance: 3, maxReach: 6 },
+    half_wall: { maxSlopeDeg: 45, radius: 1, aimDistance: 3, maxReach: 6 },
+    gable_roof: { maxSlopeDeg: 45, radius: 2, aimDistance: 3.5, maxReach: 7 },
+    gable_wall: { maxSlopeDeg: 45, radius: 2, aimDistance: 3.5, maxReach: 7 },
+    // B (11.2/11.3): istasyonlar, döşek, güneş paneli, çitler.
+    forge: { maxSlopeDeg: 30, radius: 0.9 },
+    stone_oven: { maxSlopeDeg: 30, radius: 1 },
+    hand_mill: { maxSlopeDeg: 30, radius: 0.6 },
+    drying_rack: { maxSlopeDeg: 35, radius: 0.9 },
+    bedroll: { maxSlopeDeg: 25, radius: 1 },
+    solar_panel: { maxSlopeDeg: 35, radius: 0.9 },
+    wood_fence: { maxSlopeDeg: 40, radius: 1 },
+    stone_fence: { maxSlopeDeg: 40, radius: 1 },
+    fence_gate: { maxSlopeDeg: 40, radius: 1 },
+    // C (11.4): tarla hücresi (çapayla açılır). F (11.8): yere inmiş drone.
+    farm_plot: { maxSlopeDeg: 20, radius: 1 },
+    drone: { maxSlopeDeg: 45, radius: 0.4 },
   },
   /** İki yapının merkezleri arasındaki en az uzaklık: yarıçapların toplamı + bu pay (oyun m). */
   spacingMargin: 0.3,
@@ -1393,6 +1415,11 @@ export const STORAGE = {
 /** Üretim istasyonları (Faz 9): tarifin `station` alanı, istasyonun bu yarıçapında (oyun m) olmayı ister. */
 export const STATIONS = {
   workbench: { reach: 4 },
+  // ── Faz 11: B (11.2) yeni istasyonların erişimi (yalnızca B ayarlar) ──
+  forge: { reach: 3 },
+  stone_oven: { reach: 3 },
+  hand_mill: { reach: 3 },
+  drying_rack: { reach: 3 },
 } as const;
 
 /**

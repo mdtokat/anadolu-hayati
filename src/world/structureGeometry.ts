@@ -392,6 +392,45 @@ function doorParts(open: boolean): Part[] {
   ];
 }
 
+/**
+ * Faz 11 (11.0) yer tutucu: zemine gömülü etek + tek renkli gövde kutusu. Sahibi akış (A, B, C, F) kendi bölüm
+ * başlığı altında gerçek geometriyi yazar ve `PARTS`'taki satırını değiştirir.
+ */
+function placeholderParts(width: number, height: number, depth: number, color: number): Part[] {
+  const w = width / 2;
+  const d = depth / 2;
+  return [
+    slab(-w, w, -0.5, 0, -d, d, C.skirt),
+    slab(-w, w, 0, Math.max(height, 0.35), -d, d, color),
+  ];
+}
+
+// ── 11.1 (A) ──
+const stairsParts = (): Part[] => placeholderParts(2, 2.6, 4, C.plank);
+const entryStepParts = (): Part[] => placeholderParts(2, 0.5, 1, C.slab);
+const pillarParts = (): Part[] => placeholderParts(0.3, 2.6, 0.3, C.log);
+const railingParts = (): Part[] => placeholderParts(2, 1, 0.1, C.plank);
+const halfWallParts = (): Part[] => placeholderParts(2, 1.1, 0.18, C.wall);
+const gableRoofParts = (): Part[] => placeholderParts(4, 1.5, 2, C.roofSlab);
+const gableWallParts = (): Part[] => placeholderParts(4, 1.5, 0.18, C.wall);
+
+// ── 11.2/11.3 (B) ──
+const forgeParts = (): Part[] => placeholderParts(1.4, 1.1, 1, C.stone);
+const stoneOvenParts = (): Part[] => placeholderParts(1.6, 1.4, 1.4, C.stone);
+const handMillParts = (): Part[] => placeholderParts(0.9, 0.6, 0.9, C.stone);
+const dryingRackParts = (): Part[] => placeholderParts(1.6, 1.6, 0.5, C.pole);
+const bedrollParts = (): Part[] => placeholderParts(0.9, 0.35, 2, C.hutRoof);
+const solarPanelParts = (): Part[] => placeholderParts(1.4, 1, 1, C.iron);
+const woodFenceParts = (): Part[] => placeholderParts(2, 1.1, 0.1, C.plank);
+const stoneFenceParts = (): Part[] => placeholderParts(2, 0.9, 0.5, C.stone);
+const fenceGateParts = (): Part[] => placeholderParts(2, 1.1, 0.1, C.darkPlank);
+
+// ── 11.4 (C) ──
+const farmPlotParts = (): Part[] => placeholderParts(2, 0.35, 2, C.skirt);
+
+// ── 11.8 (F) ──
+const droneParts = (): Part[] => placeholderParts(0.6, 0.35, 0.6, C.iron);
+
 const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
   campfire: campfireParts,
   lean_to: leanToParts,
@@ -404,6 +443,28 @@ const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
   window_wall: windowWallParts,
   door: () => doorParts(false),
   roof: roofParts,
+  // ── 11.1 (A) ──
+  stairs: stairsParts,
+  entry_step: entryStepParts,
+  pillar: pillarParts,
+  railing: railingParts,
+  half_wall: halfWallParts,
+  gable_roof: gableRoofParts,
+  gable_wall: gableWallParts,
+  // ── 11.2/11.3 (B) ──
+  forge: forgeParts,
+  stone_oven: stoneOvenParts,
+  hand_mill: handMillParts,
+  drying_rack: dryingRackParts,
+  bedroll: bedrollParts,
+  solar_panel: solarPanelParts,
+  wood_fence: woodFenceParts,
+  stone_fence: stoneFenceParts,
+  fence_gate: fenceGateParts,
+  // ── 11.4 (C) ──
+  farm_plot: farmPlotParts,
+  // ── 11.8 (F) ──
+  drone: droneParts,
 };
 
 /** Yapı türünün gövde geometrisi (alev hariç). */

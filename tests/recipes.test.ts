@@ -60,6 +60,19 @@ describe('tarif tablosu', () => {
   it('ulaşılabilirlik: elle toplananlardan başlayarak her tarif yapılabilir (plan §2.3)', () => {
     // Elle: dal, taş, kav. Baltayla ek olarak: kütük, kabuk. Avla (leş kesme, Faz 5): deri, kemik.
     const have = new Set<ItemId>(['stick', 'stone', 'tinder', 'hide', 'bone']);
+    // Faz 11: ganimetten (hurda, kükürt, elektronik, pil, pervane, dürbün) ve tarladan (buğday, mısır) gelenler.
+    for (const id of [
+      'scrap_metal',
+      'sulfur',
+      'electronic_parts',
+      'battery',
+      'propeller',
+      'scope',
+      'wheat',
+      'corn',
+    ] as const) {
+      have.add(id);
+    }
     const axeOnly: ItemId[] = ['log', 'bark'];
     const done = new Set<string>();
     for (let changed = true; changed;) {
