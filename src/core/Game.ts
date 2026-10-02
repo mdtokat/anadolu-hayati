@@ -1535,6 +1535,7 @@ export class Game {
     const now = performance.now();
     this.world.update(feet.x, feet.z, now / 1000);
     this.world.setSun?.(this.survival.clock.sun);
+    this.applyAimCamera(alpha);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
     this.structureLayer.update(now / 1000, feet.x, feet.z, this.campFires());
@@ -2043,9 +2044,18 @@ export class Game {
       moving: speed > 0.5,
       running: !this.player.grounded || speed > PLAYER.walkSpeed * 1.15,
     });
-    const cam = aimCamera(this.ranged.weapon, this.ranged.aimFraction, CAMERA.fov);
-    this.playerCamera.setAim(cam.fovDeg, cam.sensitivity, cam.firstPerson);
-    const sway = this.ranged.sway;
+  }
+
+  /**
+   * Nişan kamerasını (görüş açısı, hassasiyet, göz hizası geçişi, dürbün salınımı) çizim karesinde uygular: nişan oranı
+   * ve salınım sabit adımlar arasında aradeğerlenir; 60 Hz'lik basamaklar yüksek yakınlaştırmada titreme olurdu.
+   */
+  private applyAimCamera(alpha: number): void {
+    const weapon = this.survival.alive ? this.ranged.weapon : null;
+    const aim = weapon ? this.ranged.aimFractionAt(alpha) : 0;
+    const cam = aimCamera(weapon, aim, CAMERA.fov);
+    this.playerCamera.setAim(cam.fovDeg, cam.sensitivity, cam.firstPerson, aim);
+    const sway = weapon ? this.ranged.swayAt(alpha) : { yaw: 0, pitch: 0 };
     this.playerCamera.setViewOffset(sway.yaw, sway.pitch);
   }
 

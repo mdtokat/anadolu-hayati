@@ -100,6 +100,9 @@ export class RangedSystem {
   private cooldownLeft = 0;
   private reloadState: { weapon: WeaponId; left: number; total: number } | null = null;
   private aim = 0;
+  /** Önceki sabit adımın nişan oranı ve adımın süresi: çizimde adımlar arası aradeğerleme (`aimFractionAt`, `swayAt`). */
+  private prevAim = 0;
+  private lastDt = 1 / 60;
   private breathLeft: number = RANGED.steadySeconds;
   private breathOut = false;
   private steadyActive = false;
@@ -161,11 +164,25 @@ export class RangedSystem {
     return this.pending.length;
   }
 
+  /** Nişan oranının iki sabit adım arasındaki değeri (`alpha` 0..1; çizim her karede 60 Hz adımına bağlı kalmasın). */
+  aimFractionAt(alpha: number): number {
+    const t = Math.min(Math.max(alpha, 0), 1);
+    return this.prevAim + (this.aim - this.prevAim) * t;
+  }
+
   /**
    * Dürbün salınımı (radyan): bakışa eklenen yaw/pitch kayması. Yalnızca dürbünlü silah nişandayken; nefes tutunca
    * azalır, nefes tükenince artar.
    */
   get sway(): { yaw: number; pitch: number } {
+    return this.swayAt(1);
+  }
+
+  /**
+   * `sway`'in iki sabit adım arasındaki değeri: yüksek yakınlaştırmada (dürbün 12°) 60 Hz'lik basamaklı salınım ekranda
+   * titreme olarak görünür; çizim bu aradeğerle her karede akıcı kalır.
+   */
+  swayAt(alpha: number): { yaw: number; pitch: number } {
     if (!this.scoped) return { yaw: 0, pitch: 0 };
     const s = RANGED.sway;
     const k = this.steadyActive
@@ -173,10 +190,12 @@ export class RangedSystem {
       : this.breathOut
         ? RANGED.exhaustedSwayScale
         : 1;
-    const a = s.amplitude * k * this.aim;
+    const t = Math.min(Math.max(alpha, 0), 1);
+    const time = this.time - this.lastDt * (1 - t);
+    const a = s.amplitude * k * this.aimFractionAt(t);
     return {
-      yaw: a * Math.sin(2 * Math.PI * s.freqX * this.time),
-      pitch: a * Math.sin(2 * Math.PI * s.freqY * this.time + 0.7),
+      yaw: a * Math.sin(2 * Math.PI * s.freqX * time),
+      pitch: a * Math.sin(2 * Math.PI * s.freqY * time + 0.7),
     };
   }
 
@@ -217,6 +236,8 @@ export class RangedSystem {
       this.reset();
     }
     this.time += dt;
+    this.lastDt = dt;
+    this.prevAim = this.aim;
     this.input = input;
     this.cooldownLeft = Math.max(this.cooldownLeft - dt, 0);
     const weapon = this.weapon;
@@ -225,7 +246,9 @@ export class RangedSystem {
     // Nişan geçişi (silah yoksa ya da ölüyken söner).
     const wanted = alive && weapon !== null && input.aiming ? 1 : 0;
     const step = RANGED.aimSpeed * dt;
-    this.aim = wanted > this.aim ? Math.min(this.aim + step, 1) : Math.max(this.aim - step, 0);
+    // Hedefe varınca yerinde kalır: eşitlikte de azaltmak tam nişanda her adım 1 ↔ 0,85 salınıp görüş açısını titretirdi.
+    if (wanted > this.aim) this.aim = Math.min(this.aim + step, wanted);
+    else if (wanted < this.aim) this.aim = Math.max(this.aim - step, wanted);
 
     // Nefes tutma: dürbün nişanında Shift; enerji harcar, süre bitince bir süre tutulamaz.
     const canSteady =
@@ -382,6 +405,7 @@ export class RangedSystem {
     this.pending.length = 0;
     this.cooldownLeft = 0;
     this.aim = 0;
+    this.prevAim = 0;
     this.breathLeft = RANGED.steadySeconds;
     this.breathOut = false;
     this.steadyActive = false;
