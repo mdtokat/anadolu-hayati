@@ -14,9 +14,11 @@ export const BUILD_BUDGET = {
   chunks: {
     /**
      * Oyun kodu (`src/`). Faz 10 sonrası yol omurgası, köprü türleri ve tüneller (10.13) 150 → 175 kB gzip
-     * (ölçülen ~156 kB; ~%10 pay).
+     * (ölçülen ~156 kB; ~%10 pay). Faz 11 (11.0, docs/faz-11-paralel-plan.md): altı akışın (inşa II, yapılar/çit,
+     * tarım, silahlar, eşkıya, drone) ekleyeceği saf mantık + geometri için 175 → 230 kB gzip, ham 560 → 740 kB
+     * (aynı oran); bir akış tek başına 15 kB'tan fazla eklerse PR'ında ölçümü yazar.
      */
-    'index.js': { gzipKB: 175, rawKB: 560 },
+    'index.js': { gzipKB: 230, rawKB: 740 },
     /** Three.js; sürüm yükseltmesinde büyüyebilir. */
     'three.js': { gzipKB: 180, rawKB: 700 },
     /** Rapier: WASM base64 gömülüdür (~4,3 MB ham); `vite.config.ts` uyarı eşiği de bu `rawKB`'dir. */

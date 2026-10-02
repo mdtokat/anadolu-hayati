@@ -61,7 +61,7 @@ export interface GameEvents {
 
   // ── Faz 5: Oyuncu tarafı (Hesap B yayınlar; bu bölüme yalnızca B ekler) ──
   /** Oyuncu hasar alınca (savunma sonrası). */
-  'player:damaged': { amount: number; cause: 'creature'; sourceKind?: CreatureKind };
+  'player:damaged': { amount: number; cause: 'creature' | 'shot'; sourceKind?: CreatureKind };
   /** Oyuncu saldırınca; `hitId` isabet ettiği canlı (ıskaladıysa null). */
   'player:attacked': { weapon: ItemId | 'fist'; hitId: CreatureId | null };
   /** Bir leş kesilince alınan eşyalar. */

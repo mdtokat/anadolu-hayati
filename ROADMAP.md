@@ -323,7 +323,7 @@ Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulam
 **Kapsam dışı:** silahlı/bomba atan drone, silah aşınması, araçlar, eşkıyaların yapı inşa etmesi, mevsime bağlı ekim, yeni çalışma zamanı bağımlılığı, harita genişlemesi.
 
 Görevler (akış harfleri plan belgesindeki oturumlardır):
-- [ ] **11.0** İskele: tüm yeni eşya/yapı kimlikleri, yer tutucu simgeler ve tarifler, ganimet satırları, config blokları, olay bölümleri, tuşlar, `Settings.bandits`, ortak arayüzler (`HitTarget`, `fireShot`, `ObstacleQuery`, görüş odağı), kayıt v5 + `migrateV4toV5`, `Game` kancaları, bütçe 175 → 230 kB _(önce, tek oturum)_
+- [x] **11.0** İskele: tüm yeni eşya/yapı kimlikleri, yer tutucu simgeler ve tarifler, ganimet satırları, config blokları, olay bölümleri, tuşlar, `Settings.bandits`, ortak arayüzler (`HitTarget`, `fireShot`, `ObstacleQuery`, görüş odağı), kayıt v5 + `migrateV4toV5`, `Game` kancaları, bütçe 175 → 230 kB _(önce, tek oturum; `farm_plot` yalnızca ad taşıyan eşya kimliği de aldı, `HitTarget.kind`'e `player` eklendi, ölüm nedeni "vurularak")_
 - [ ] **11.1 (A)** Modüler inşa II: çatı en üst parça (üstüne hiçbir şey konamaz); duvarlı hücrelerin üstüne üst kat tabanı (balkon çıkıntısı 1 hücre); merdiven (1 × 2 hücre, bir kat) ve üstündeki tabanın merdiven boşluklu + korkuluklu şekil alması; giriş basamağı, direk, korkuluk, yarım duvar, beşik çatı + alın duvarı; barınak/odak güncellemesi
 - [ ] **11.2 (B)** Tek parça yapılar: demirci ocağı + örs, taş fırın, el değirmeni, kurutma rafı (kuru et), döşek, güneş paneli
 - [ ] **11.3 (B)** Çit: ahşap çit, kuru taş duvar, çit kapısı (zemini izler); canlılar ve insanlar oyuncu duvarlarından/çitlerden geçmez (`ObstacleQuery`)

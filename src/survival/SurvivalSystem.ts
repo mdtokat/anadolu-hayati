@@ -32,9 +32,12 @@ export interface SurvivalContext {
 }
 
 /** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */
-export type DamageSource = 'creature';
+export type DamageSource = 'creature' | 'shot';
 
-const DAMAGE_DEATH_CAUSE: Readonly<Record<DamageSource, DeathCause>> = { creature: 'mauled' };
+const DAMAGE_DEATH_CAUSE: Readonly<Record<DamageSource, DeathCause>> = {
+  creature: 'mauled',
+  shot: 'shot',
+};
 
 export interface DeathInfo {
   cause: DeathCause;

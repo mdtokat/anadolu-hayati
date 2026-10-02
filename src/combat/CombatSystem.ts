@@ -109,6 +109,20 @@ export class CombatSystem {
     };
   }
 
+  /**
+   * Menzilli atış isabeti (Faz 11 ortak; eşkıya atışı, `playerTargetProvider`): savunma ve dokunulmazlıkla işlenir,
+   * ölüm nedeni "vurularak". Gerçekten düşen hasarı döner.
+   */
+  receiveShot(rawDamage: number): number {
+    if (!this.survival.alive || this.invulnerability.active) return 0;
+    const dealt = this.survival.applyDamage(
+      mitigate(rawDamage, defenseFor(this.inventory)),
+      'shot',
+    );
+    if (dealt > 0) this.invulnerability.start();
+    return dealt;
+  }
+
   dispose(): void {
     for (const off of this.offs) off();
     this.offs.length = 0;

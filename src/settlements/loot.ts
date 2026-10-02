@@ -22,7 +22,9 @@ const e = (item: ItemId, chance: number, min = 1, max = min): LootEntry => ({
 /**
  * Terk edilmiş yapıların ganimeti (Faz 10; veri, denge elle ayarlanır). Türk kileri: bulgur, tarhana, kuru fasulye,
  * pekmez, leblebi, kuru kayısı, peksimet, Rize çayı; bakır tencere, yün battaniye; serenderde fındık ve kestane;
- * madenlerde madenci lambası. Cami, türbe, mezarlık aranmaz (saygı) ve tabloları yoktur.
+ * madenlerde madenci lambası. Cami, türbe, mezarlık aranmaz (saygı) ve tabloları yoktur. Faz 11 satırları her
+ * tablonun sonuna eklenir (önceki satırların zarları değişmesin: aynı yapı eski eşyalarını vermeye devam eder). Kale
+ * aranabilir olmadığından planın kale satırları (pala, dürbün) yoktur.
  */
 export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> = {
   house: [
@@ -37,6 +39,13 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('hazelnut', 0.25, 3, 8),
     e('copper_pot', 0.12),
     e('wool_blanket', 0.12),
+    // ── Faz 11 (11.0; sahibi akış kendi eşyasının oranını ayarlar): köy evi tohumluğu (C), nadir barut ve av tüfeği (D) ──
+    e('wheat_seed', 0.2, 3, 8),
+    e('corn_seed', 0.15, 3, 8),
+    e('potato', 0.2, 2, 5),
+    e('gunpowder', 0.05, 1, 2),
+    e('shotgun', 0.03),
+    e('shotgun_shell', 0.08, 2, 6),
   ],
   konak: [
     e('bulgur', 0.4, 1, 2),
@@ -47,6 +56,10 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('peksimet', 0.3, 1, 3),
     e('copper_pot', 0.3),
     e('wool_blanket', 0.3),
+    // ── Faz 11 (11.0): nadir tabanca ve mermi, pala (D) ──
+    e('pistol', 0.04),
+    e('pistol_ammo', 0.08, 4, 10),
+    e('pala', 0.08),
   ],
   apartment: [
     e('bulgur', 0.4, 1, 3),
@@ -57,6 +70,13 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('leblebi', 0.3, 1, 3),
     e('copper_pot', 0.15),
     e('wool_blanket', 0.2),
+    // ── Faz 11 (11.0): hurda, elektronik, pil, pervane (B/F); nadir tabanca ve mermi (D) ──
+    e('scrap_metal', 0.3, 1, 3),
+    e('electronic_parts', 0.2, 1, 2),
+    e('battery', 0.15),
+    e('propeller', 0.05),
+    e('pistol', 0.03),
+    e('pistol_ammo', 0.08, 4, 12),
   ],
   lojman: [
     e('peksimet', 0.4, 1, 3),
@@ -65,7 +85,15 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('miner_lamp', 0.25),
     e('wool_blanket', 0.2),
   ],
-  serender: [e('hazelnut', 0.8, 5, 15), e('chestnut', 0.5, 3, 8), e('dry_beans', 0.3, 1, 2)],
+  serender: [
+    e('hazelnut', 0.8, 5, 15),
+    e('chestnut', 0.5, 3, 8),
+    e('dry_beans', 0.3, 1, 2),
+    // ── Faz 11 (11.0): tohumluk (C) ──
+    e('wheat_seed', 0.35, 4, 10),
+    e('corn_seed', 0.3, 4, 10),
+    e('potato', 0.25, 2, 5),
+  ],
   shop_row: [
     e('leblebi', 0.6, 2, 5),
     e('peksimet', 0.6, 2, 5),
@@ -73,9 +101,23 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('pekmez', 0.4, 1, 2),
     e('bulgur', 0.4, 1, 3),
     e('dried_apricot', 0.5, 2, 4),
+    // ── Faz 11 (11.0): hurda, elektronik, pil, pervane (B/F) ──
+    e('scrap_metal', 0.25, 1, 2),
+    e('electronic_parts', 0.3, 1, 3),
+    e('battery', 0.25, 1, 2),
+    e('propeller', 0.15, 1, 2),
   ],
   kahvehane: [e('black_tea', 0.8, 2, 5), e('copper_pot', 0.4), e('peksimet', 0.3, 1, 2)],
-  government: [e('peksimet', 0.3, 1, 2), e('wool_blanket', 0.3), e('black_tea', 0.3)],
+  government: [
+    e('peksimet', 0.3, 1, 2),
+    e('wool_blanket', 0.3),
+    e('black_tea', 0.3),
+    // ── Faz 11 (11.0): barut, nadir piyade tüfeği ve mermi, çok nadir dürbün (D) ──
+    e('gunpowder', 0.12, 1, 3),
+    e('rifle', 0.04),
+    e('rifle_ammo', 0.1, 3, 8),
+    e('scope', 0.02),
+  ],
   han: [
     e('wool_blanket', 0.5),
     e('copper_pot', 0.4),
@@ -83,8 +125,23 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('dry_beans', 0.3, 1, 2),
   ],
   hamam: [e('copper_pot', 0.4), e('wool_blanket', 0.3)],
-  mine_tower: [e('miner_lamp', 0.7), e('peksimet', 0.3, 1, 2)],
-  factory: [e('miner_lamp', 0.2), e('peksimet', 0.2), e('wool_blanket', 0.2)],
+  mine_tower: [
+    e('miner_lamp', 0.7),
+    e('peksimet', 0.3, 1, 2),
+    // ── Faz 11 (11.0): hurda ve kükürt (B/D) ──
+    e('scrap_metal', 0.5, 1, 4),
+    e('sulfur', 0.4, 1, 3),
+  ],
+  factory: [
+    e('miner_lamp', 0.2),
+    e('peksimet', 0.2),
+    e('wool_blanket', 0.2),
+    // ── Faz 11 (11.0): hurda, elektronik, pil, pervane (B/F) ──
+    e('scrap_metal', 0.6, 2, 5),
+    e('electronic_parts', 0.25, 1, 2),
+    e('battery', 0.15),
+    e('propeller', 0.15, 1, 2),
+  ],
 };
 
 /** Yapının ganimeti (deterministik: aynı yapı kimliği aynı ganimeti verir; boş çıkabilir). */

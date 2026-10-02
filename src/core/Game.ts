@@ -157,6 +157,9 @@ import { GameLoop } from './GameLoop';
 import { Input } from './Input';
 import { DEV_TELEPORT_KEY, teleportSlotForKey } from './inputMapping';
 import { createRandom, seedFrom } from '../utils/random';
+import { TargetRegistry, creatureTargetProvider, playerTargetProvider } from '../combat/targets';
+import { WeaponState } from '../items/weaponState';
+import { resolveContextAction } from './inputMapping';
 
 /** Hangi dünyanın oynanacağı: gerçek bölge ya da Faz 1 test arenası (`?world=test`). */
 export type WorldKind = 'region' | 'test';
@@ -179,6 +182,45 @@ const randomSeedInt = (): number => Math.floor(Math.random() * 2 ** 31);
 const DOOR_REACH = 2.5;
 
 const PILOT_START_YAW = (PILOT.start.yawDeg * Math.PI) / 180;
+
+/** Faz 11 dev tuşu eşyaları (yalnızca dev modu; ağırlık sınırı kadar verilir). */
+const FAZ11_DEV_STRUCTURES: readonly ItemId[] = [
+  'stairs',
+  'entry_step',
+  'pillar',
+  'railing',
+  'half_wall',
+  'forge',
+  'stone_oven',
+  'hand_mill',
+  'drying_rack',
+  'bedroll',
+  'solar_panel',
+  'wood_fence',
+  'fence_gate',
+];
+const FAZ11_DEV_WEAPONS: ReadonlyArray<readonly [ItemId, number]> = [
+  ['pistol', 1],
+  ['pistol_ammo', 24],
+  ['rifle', 1],
+  ['rifle_ammo', 20],
+  ['shotgun_shell', 10],
+  ['bow', 1],
+  ['arrow', 15],
+  ['pala', 1],
+];
+const FAZ11_DEV_FARMING: ReadonlyArray<readonly [ItemId, number]> = [
+  ['hoe', 1],
+  ['sickle', 1],
+  ['wheat_seed', 10],
+  ['corn_seed', 10],
+  ['potato', 5],
+  ['dry_beans', 4],
+];
+const FAZ11_DEV_DRONE: ReadonlyArray<readonly [ItemId, number]> = [
+  ['drone', 1],
+  ['battery', 2],
+];
 
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
@@ -233,6 +275,13 @@ export class Game {
   );
   /** Terk edilmiş yapıları arama (Faz 10). */
   readonly search = new BuildingSearch(this.events, this.inventory);
+  // ── Faz 11 ortak (11.0) ──
+  /** Menzilli atışın vurabileceği hedefler: canlılar ve oyuncu (11.0); eşkıyalar (E) ve drone (F) eklenir. */
+  readonly targets = new TargetRegistry();
+  /** Şarjörlü silahların durumu (D doldurur/boşaltır; kayıtta `weapons`). */
+  readonly weapons = new WeaponState();
+  /** Eşkıyalar ve yankesiciler açık mı (Ayarlar, `Settings.bandits`; E okur)? */
+  private banditsEnabled = true;
   /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
   private inSanctuary = false;
   /** Namaz vakitleri (bölgenin enlemi ve yılın günü sabit) ve son bildirilen saat. */
@@ -440,12 +489,17 @@ export class Game {
         this.hud.setVisible(true);
         this.ambient.start();
       }),
-      this.events.on('input:action', ({ action }) => {
+      this.events.on('input:action', ({ action: raw }) => {
+        // Faz 11: `R` hayalet açıkken döndürür, değilse doldurur (bağlam önceliği `resolveContextAction`).
+        const action = resolveContextAction(raw, { placing: this.placement.aiming !== null });
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
         if (action === 'toggleBorders') this.world.toggleBorders?.();
         if (action === 'placeCampfire') this.togglePlacement('campfire');
         if (action === 'placeShelter') this.togglePlacement('lean_to');
         if (action === 'rotatePlacement') this.placement.rotate();
+        if (action === 'reload') this.reloadWeapon();
+        if (action === 'droneView') this.toggleDroneView();
+        if (action === 'droneHome') this.droneHome();
         if (action === 'primaryAction') this.primaryAction();
         if (action === 'toggleInventory') this.openInventory();
         if (action === 'eat') this.quickEatFood();
@@ -516,6 +570,25 @@ export class Game {
         this.playerModel.setVisible(mode === 'thirdPerson'),
       ),
     );
+    // Faz 11 ortak (11.0): hedefler (canlılar, oyuncu) ve gürültü → canlı kaçışı; akış kancaları.
+    this.offs.push(
+      this.targets.register(creatureTargetProvider(this.creatures)),
+      this.targets.register(
+        playerTargetProvider({
+          position: () => (this.survival.alive ? this.player.position : null),
+          radius: PLAYER.radius,
+          height: PLAYER.height,
+          damage: (amount) => this.combat.receiveShot(amount),
+        }),
+      ),
+      this.events.on('noise:made', ({ x, z, radius }) => this.creatures.hearNoise(x, z, radius)),
+    );
+    this.setupBuilding2();
+    this.setupStations();
+    this.setupFarming();
+    this.setupRanged();
+    this.setupBandits();
+    this.setupDrone();
     this.offs.push(this.settings.subscribe((settings) => this.applySettings(settings)));
     this.applySettings(this.settings.current);
     window.addEventListener('resize', this.onResize);
@@ -558,12 +631,21 @@ export class Game {
       this.inventory.add('stick', 10);
       this.inventory.add('log', 2);
     }
-    // O: inşa denemek için tezgâh, sandık ve kulübe ver (Faz 9; ağırlık sınırı kadar).
-    if (event.code === 'KeyO') {
+    // O: inşa denemek için tezgâh, sandık ve kulübe ver (Faz 9; ağırlık sınırı kadar). Faz 11: Shift+O yeni
+    // yapı eşyalarını (A ve B: merdiven, ocak, fırın, çit…) verir (ağırlık sınırı kadar).
+    if (event.code === 'KeyO' && !event.shiftKey) {
       for (const id of ['workbench', 'storage_chest', 'wooden_hut'] as const) {
         if (this.inventory.add(id, 1) === 0) this.hotbar.autoAssign(id);
       }
     }
+    if (event.code === 'KeyO' && event.shiftKey) {
+      for (const id of FAZ11_DEV_STRUCTURES) this.inventory.add(id, 1);
+    }
+    // Faz 11 dev tuşları (11.0 verir; sahibi akış kendi davranışını ekler): J silah + mühimmat (D), Y tohum + çapa +
+    // orak (C), M drone + pil (F). U (E): önüne eşkıya / yakın kampa ışınla — E yazar.
+    if (event.code === 'KeyJ') this.giveDev(FAZ11_DEV_WEAPONS);
+    if (event.code === 'KeyY') this.giveDev(FAZ11_DEV_FARMING);
+    if (event.code === 'KeyM') this.giveDev(FAZ11_DEV_DRONE);
     // L: Faz 10 eşyaları (kiler erzakı, bakır tencere); N: önüne bir yolcu çıkar (konuşma/takas denemesi).
     if (event.code === 'KeyL') {
       for (const id of ['bulgur', 'tarhana', 'black_tea', 'copper_pot', 'pekmez'] as const) {
@@ -595,6 +677,16 @@ export class Game {
       `Işınlanma: ${target.name}${ok ? '' : ' (yürünebilir nokta bulunamadı ya da bu dünyada desteklenmiyor)'}`,
     );
   };
+
+  /** Dev: eşyaları envantere koyar (sığmayanlar atılır), aletleri kısayola bağlar. */
+  private giveDev(items: ReadonlyArray<readonly [ItemId, number]>): void {
+    for (const [id, count] of items) {
+      if (this.inventory.add(id, count) < count && ITEMS[id].category === 'tool') {
+        this.hotbar.autoAssign(id);
+      }
+    }
+    this.inventoryPanel.refresh();
+  }
 
   /**
    * Oyuncuyu enlem/boylama ışınlar (en yakın yürünebilir noktaya). Yalnızca gerçek bölgede çalışır;
@@ -750,8 +842,14 @@ export class Game {
       creatures: this.creatures,
       hotbar: this.hotbar,
       search: this.search,
+      // Faz 11 (v5): C `farm`, E `bandits`, F `drone` bölümlerini kendi setup'larında bağlar (`saveSections`).
+      weapons: this.weapons,
+      ...this.saveSections,
     };
   }
+
+  /** Faz 11 akışlarının kendi `setupX()`'lerinde doldurduğu kayıt bölümleri (C `farm`, E `bandits`, F `drone`). */
+  private readonly saveSections: Pick<SaveTargets, 'farm' | 'bandits' | 'drone'> = {};
 
   start(): void {
     this.loop.start();
@@ -821,6 +919,13 @@ export class Game {
     this.structureSystem.update(step);
     this.creatures.update(step, this.creatureContext(activityFromIntent(intent)));
     this.combat.update(step);
+    // Faz 11 akışları (her akış yalnızca kendi yönteminin gövdesini yazar).
+    this.updateBuilding2(step);
+    this.updateStations(step);
+    this.updateFarming(step);
+    this.updateRanged(step);
+    this.updateBandits(step);
+    this.updateDrone(step);
     // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
     const held = this.input.interactHeld;
     const nearby = this.world.propsNear?.(feet.x, feet.z, INTERACT.reach) ?? [];
@@ -901,8 +1006,21 @@ export class Game {
           })
         : null;
     if (this.doorTarget && interactPressed) this.toggleDoor(this.doorTarget.id);
+    // Faz 11: `E` sırasının sonu (kapıdan sonra, sudan önce): E teslim olan eşkıya, üst arama, kamp sandığı.
+    const banditTook = this.interactBandits(
+      interaction.taker === null &&
+        this.personTarget === null &&
+        this.storageTarget === null &&
+        this.doorTarget === null,
+      interactPressed,
+      held,
+      step,
+    );
     const drinkAllowed =
-      interaction.drinkAllowed && this.storageTarget === null && this.doorTarget === null;
+      interaction.drinkAllowed &&
+      this.storageTarget === null &&
+      this.doorTarget === null &&
+      !banditTook;
     // Sökme (Faz 9): bakılan yapıya `X` basılı (yerleştirme hayaleti açıkken yok).
     this.dismantleTarget = this.placement.aiming
       ? null
@@ -1348,6 +1466,12 @@ export class Game {
     this.updateTorch(now / 1000, feet);
     this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
     this.peopleLayer.sync(this.people.list());
+    // Faz 11 akışlarının çizim katmanları (her akış yalnızca kendi yönteminin gövdesini yazar).
+    this.drawStations(now / 1000, feet);
+    this.drawFarming(now / 1000, feet);
+    this.drawRanged(now / 1000, feet);
+    this.drawBandits(now / 1000, feet);
+    this.drawDrone(now / 1000, feet);
 
     this.renderer.render(this.world.scene, this.playerCamera.camera);
     this.fps?.frame();
@@ -1576,6 +1700,13 @@ export class Game {
       this.hud.setPrompt(doorPrompt(door.open === true));
       return;
     }
+    // Faz 11 (E): eşkıya etkileşimi (teslim, üst arama, kamp sandığı).
+    const bandit = alive ? this.promptBandits() : null;
+    if (bandit) {
+      this.hud.setPrompt(bandit.text);
+      this.hud.setProgress(bandit.progress);
+      return;
+    }
     this.hud.setProgress(this.filler.progress > 0 ? this.filler.progress : null);
     const drink = this.drinkPrompt();
     this.hud.setPrompt(
@@ -1680,6 +1811,8 @@ export class Game {
     if (!this.survival.alive || this.overlayOpen || this.loop.paused) return;
     const result = this.combat.attack(this.meleeAim());
     if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
+    // Faz 11 (E): canlıya isabet etmeyen salınış eşkıyaya/yankesiciye vurabilir.
+    if (result.status === 'miss' && result.weapon !== null) this.meleeBandits(result.weapon);
   }
 
   /** Yerleştirmeyi onaylar; engel varsa nedenini söyler. */
@@ -1727,6 +1860,7 @@ export class Game {
     this.world.setQuality?.(preset);
     this.playerCamera.setSensitivityScale(settings.mouseSensitivity);
     this.setTestMode(settings.testMode);
+    this.banditsEnabled = settings.bandits;
   }
 
   /** Test modunu açar/kapatır: toplama tükenmez, uçuş kapanır (kapanınca), rozet güncellenir. */
@@ -1759,4 +1893,60 @@ export class Game {
     this.renderer.setSize(width, height);
     this.playerCamera.resize(width, height);
   }
+
+  // ════════════════════════════════════════════════════════════════════════════════════════════════════════
+  // Faz 11 akış kancaları (11.0 boş açar; docs/faz-11-paralel-plan.md §2.2–§2.3). Her akış YALNIZCA kendi
+  // yöntemlerinin gövdesini yazar. Kurulum `setupX` (kurucunun sonunda; temizlik `this.offs`'a eklenir), sabit adım
+  // `updateX(dt)` (canlı ve savaş güncellemesinden sonra), çizim `drawX(time, feet)` (render karesinde).
+  // ════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  // ── Faz 11: A (11.1 modüler inşa II) ──
+  private setupBuilding2(): void {}
+  private updateBuilding2(_dt: number): void {}
+
+  // ── Faz 11: B (11.2/11.3 yapılar, çit, engel sorgusu) ──
+  private setupStations(): void {}
+  private updateStations(_dt: number): void {}
+  private drawStations(_time: number, _feet: { x: number; y: number; z: number }): void {}
+
+  // ── Faz 11: C (11.4 ekme biçme) ──
+  private setupFarming(): void {}
+  private updateFarming(_dt: number): void {}
+  private drawFarming(_time: number, _feet: { x: number; y: number; z: number }): void {}
+
+  // ── Faz 11: D (11.5 silahlar) ──
+  private setupRanged(): void {}
+  private updateRanged(_dt: number): void {}
+  private drawRanged(_time: number, _feet: { x: number; y: number; z: number }): void {}
+  /** `R` (hayalet kapalıyken): elde silah varsa doldur. */
+  private reloadWeapon(): void {}
+
+  // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici) ──
+  private setupBandits(): void {}
+  private updateBandits(_dt: number): void {
+    if (!this.banditsEnabled) return;
+  }
+  private drawBandits(_time: number, _feet: { x: number; y: number; z: number }): void {}
+  /**
+   * `E` sırasının sonu (kapıdan sonra, sudan önce). `free`: önceki hiçbir eylem `E`'yi almadı; `pressed` basış anı,
+   * `held` basılı tutma. `E`'yi aldıysa true (su içme engellenir).
+   */
+  private interactBandits(_free: boolean, _pressed: boolean, _held: boolean, _dt: number): boolean {
+    return false;
+  }
+  /** Eşkıya etkileşimi ipucu ve basılı tutma ilerlemesi (yoksa null). */
+  private promptBandits(): { text: string; progress: number | null } | null {
+    return null;
+  }
+  /** Canlıya isabet etmeyen yakın dövüş salınışı (`weapon`: kullanılan silah; bekleme/enerji işlendi). */
+  private meleeBandits(_weapon: string): void {}
+
+  // ── Faz 11: F (11.8 drone) ──
+  private setupDrone(): void {}
+  private updateDrone(_dt: number): void {}
+  private drawDrone(_time: number, _feet: { x: number; y: number; z: number }): void {}
+  /** `Q`: oyuncu ↔ drone görüşü. */
+  private toggleDroneView(): void {}
+  /** `H`: drone'u eve döndür ve indir. */
+  private droneHome(): void {}
 }
