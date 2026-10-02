@@ -52,6 +52,17 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
     ],
   ],
   [
+    'Drone',
+    [
+      [['Sol tık'], 'Kısayolda seçiliyken kaldır · görüşte işaretle'],
+      [['Q'], 'Oyuncu ↔ drone görüşü'],
+      [['W', 'A', 'S', 'D'], 'Drone görüşünde uç (Shift hızlı)'],
+      [['Boşluk', 'Z'], 'Yüksel / alçal'],
+      [['Tekerlek'], 'Yakınlaştır'],
+      [['H'], 'Eve dön ve in'],
+    ],
+  ],
+  [
     'Diğer',
     [
       [['B'], 'İl sınırları'],
@@ -67,6 +78,7 @@ const DEV_CONTROLS: readonly ControlRow[] = [
   [['P', 'O'], 'Malzeme / inşa eşyası ver'],
   [['L', 'N'], 'Erzak ver / önüne bir yolcu çıkar'],
   [['J'], 'Silah ve mühimmat ver'],
+  [['M'], 'Drone ve pil ver'],
   [['[', ']'], 'Saati ±1 saat'],
   [['K'], 'Canı sıfırla'],
 ];

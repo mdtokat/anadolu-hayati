@@ -11,6 +11,7 @@ import { CHEST, HUT, PIECE_SHAPE as P, WORKBENCH } from '../placement/structureS
 import type { StructureKind } from '../placement/structures';
 import { createRandom } from '../utils/random';
 import { blob, merge, place, type Part } from './propGeometry';
+import { ROTOR_POSITIONS, droneBodyParts } from './droneGeometry';
 
 /**
  * Yapılar için düşük poligonlu prosedürel geometri (doku yok; renk vertex renginde, düz gölgeli). Geometri
@@ -429,7 +430,14 @@ const fenceGateParts = (): Part[] => placeholderParts(2, 1.1, 0.1, C.darkPlank);
 const farmPlotParts = (): Part[] => placeholderParts(2, 0.35, 2, C.skirt);
 
 // ── 11.8 (F) ──
-const droneParts = (): Part[] => placeholderParts(0.6, 0.35, 0.6, C.iron);
+/** Yere inmiş/düşmüş drone: uçan drone gövdesi + pervaneler; altında gömülü koyu taban (yamaçta boşluk kalmasın). */
+const droneParts = (): Part[] => [
+  ...droneBodyParts(),
+  ...ROTOR_POSITIONS.map(([x, y, z]) =>
+    slab(x - 0.11, x + 0.11, y + 0.005, y + 0.015, z - 0.02, z + 0.02, C.iron),
+  ),
+  slab(-0.15, 0.15, -0.4, 0, -0.18, 0.18, C.skirt),
+];
 
 const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
   campfire: campfireParts,

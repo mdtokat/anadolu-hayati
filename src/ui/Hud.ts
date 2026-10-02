@@ -99,6 +99,9 @@ export class Hud {
   private readonly compass = el('div', 'hud-compass');
   private readonly compassTape = el('div', 'hud-compass-tape');
   private readonly compassReadout = el('div', 'hud-compass-readout');
+  /** Faz 11 (F): drone işaretlerinin pusula şeridindeki katmanı. */
+  private readonly compassMarks = el('div', 'hud-compass-marks');
+  private compassMarksKey = '';
   private lastBearing = Number.NaN;
   private readonly warningList = el('div', 'hud-warnings');
   private readonly prompt = el('div', 'hud-prompt');
@@ -193,6 +196,7 @@ export class Hud {
       mark.title = 'Kıble yönü';
       this.compassTape.append(mark);
     }
+    this.compassTape.append(this.compassMarks);
     const window = el('div', 'hud-compass-window');
     window.append(this.compassTape);
     this.compass.append(window, this.compassReadout);
@@ -305,6 +309,27 @@ export class Hud {
     const offset = compassOffset(bearing, HUD_STYLE.compassWidthPx);
     this.compassTape.style.transform = `translateX(${offset.toFixed(1)}px)`;
     setText(this.compassReadout, `${compassLabel(bearing)} ${Math.round(bearing) % 360}°`);
+  }
+
+  /**
+   * Faz 11 (F): drone işaretlerini pusulaya yerleştirir (`bearing` derece, 0 = kuzey; ad ve uzaklık ipucu). Liste
+   * değişmediyse dokunmaz.
+   */
+  setCompassMarks(marks: ReadonlyArray<{ bearing: number; label: string }>): void {
+    const key = marks.map((m) => `${m.bearing.toFixed(0)}:${m.label}`).join('|');
+    if (key === this.compassMarksKey) return;
+    this.compassMarksKey = key;
+    const nodes: HTMLElement[] = [];
+    for (const m of marks) {
+      for (const deg of [m.bearing - 360, m.bearing, m.bearing + 360]) {
+        if (deg < -180 || deg >= 540) continue;
+        const node = el('span', 'hud-compass-mark');
+        node.style.left = `${(deg + 180) * HUD_STYLE.compassPxPerDeg}px`;
+        node.title = m.label;
+        nodes.push(node);
+      }
+    }
+    this.compassMarks.replaceChildren(...nodes);
   }
 
   /** Kısayol çubuğunu (alt orta) ve elde tutulan eşyayı çizer. */

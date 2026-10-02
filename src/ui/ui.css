@@ -2117,3 +2117,157 @@
     transition: none;
   }
 }
+
+/* ── Faz 11: F (11.8 drone) ── pusula işaretleri, drone görüşü, işaret listesi */
+.hud-compass-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hud-compass-mark {
+  position: absolute;
+  top: 1px;
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--ui-danger);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.drone-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--ui-font);
+  color: var(--ui-text);
+}
+.drone-hud-view {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
+}
+.drone-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 3px),
+    repeating-radial-gradient(
+      circle at 17% 31%,
+      rgba(255, 255, 255, 0.18) 0 1px,
+      transparent 1px 5px
+    ),
+    repeating-radial-gradient(circle at 71% 63%, rgba(0, 0, 0, 0.35) 0 1px, transparent 1px 4px);
+  background-size:
+    100% 3px,
+    64px 64px,
+    48px 48px;
+}
+.drone-reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border: 1px solid rgba(244, 239, 228, 0.7);
+  border-radius: 4px;
+}
+.drone-reticle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: var(--ui-danger);
+}
+.drone-info {
+  position: absolute;
+  left: 16px;
+  top: 64px;
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  background: linear-gradient(var(--ui-surface-top), var(--ui-surface-bottom));
+  font-size: 12px;
+}
+.drone-title {
+  font-family: var(--ui-font-mono);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--ui-tile);
+}
+.drone-battery {
+  height: 6px;
+  margin: 6px 0;
+  border-radius: 3px;
+  background: var(--ui-surface-3);
+  overflow: hidden;
+}
+.drone-battery-fill {
+  height: 100%;
+  background: var(--ui-good);
+}
+.drone-battery-fill[data-low='true'] {
+  background: var(--ui-danger);
+}
+.drone-stats {
+  color: var(--ui-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.drone-status {
+  margin-top: 6px;
+  font-weight: 700;
+  color: var(--ui-warn);
+}
+.drone-hint {
+  position: absolute;
+  left: 50%;
+  top: 64px;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ui-text-muted);
+  background: rgba(12, 15, 13, 0.6);
+  white-space: nowrap;
+}
+.drone-chip {
+  position: absolute;
+  left: 50%;
+  top: 64px;
+  transform: translateX(-50%);
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ui-text);
+  background: rgba(12, 15, 13, 0.6);
+  border: 1px solid var(--ui-border);
+  white-space: nowrap;
+}
+.drone-marks {
+  position: absolute;
+  right: 16px;
+  top: 190px;
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  font-size: 12px;
+  border-radius: 10px;
+  background: rgba(12, 15, 13, 0.55);
+  border: 1px solid var(--ui-border);
+}
+.drone-mark::before {
+  content: '◆ ';
+  color: var(--ui-danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  .drone-noise {
+    background-position: 0 0 !important;
+  }
+}
