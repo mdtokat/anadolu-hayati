@@ -7,12 +7,15 @@ import {
   Vector3,
 } from 'three';
 import { PIECES, PIECES_II, STRUCTURE_LOOK } from '../config';
+import { isFenceKind, parseFenceVariant } from '../placement/fences';
 import { parseFoundationVariant, type FoundationVariant } from '../placement/pieces';
 import {
   CHEST,
+  FENCE_SHAPE,
   HUT,
   PIECE2_SHAPE as Q,
   PIECE_SHAPE as P,
+  STATION_SHAPE as ST,
   WORKBENCH,
   wellRims,
 } from '../placement/structureShapes';
@@ -640,15 +643,318 @@ function foundationVariantParts(v: FoundationVariant): Part[] {
 }
 
 // ── 11.2/11.3 (B) ──
-const forgeParts = (): Part[] => placeholderParts(1.4, 1.1, 1, C.stone);
-const stoneOvenParts = (): Part[] => placeholderParts(1.6, 1.4, 1.4, C.stone);
-const handMillParts = (): Part[] => placeholderParts(0.9, 0.6, 0.9, C.stone);
-const dryingRackParts = (): Part[] => placeholderParts(1.6, 1.6, 0.5, C.pole);
-const bedrollParts = (): Part[] => placeholderParts(0.9, 0.35, 2, C.hutRoof);
-const solarPanelParts = (): Part[] => placeholderParts(1.4, 1, 1, C.iron);
-const woodFenceParts = (): Part[] => placeholderParts(2, 1.1, 0.1, C.plank);
-const stoneFenceParts = (): Part[] => placeholderParts(2, 0.9, 0.5, C.stone);
-const fenceGateParts = (): Part[] => placeholderParts(2, 1.1, 0.1, C.darkPlank);
+/** Taş tonları (kuru taş duvar ve fırın): ana taş rengi biraz oynatılır. */
+const STONE_TONES = [0x7b7870, 0x6e6b64, 0x86837a, 0x777068] as const;
+const stoneTone = (i: number): number => STONE_TONES[i % STONE_TONES.length] ?? C.stone;
+const COAL = 0x2b1d14;
+const GLOW = 0xd2541a;
+const PANEL_BLUE = 0x1f3b66;
+const BEDDING = 0x9a7b4f;
+const PILLOW = 0xcdbf9f;
+
+/** Demirci ocağı ve örs: taş ocak (arkada ocak gözü ve bacası), üstünde ateş yatağı ve demir örs. */
+function forgeParts(): Part[] {
+  const f = ST.forge;
+  return [
+    slab(-f.halfX, f.halfX, -0.5, 0, -f.halfZ, f.halfZ, C.skirt),
+    slab(-f.halfX, f.halfX, 0, 0.8, -f.halfZ, f.halfZ, C.stone),
+    slab(-f.halfX + 0.05, 0.05, 0.8, 0.86, -f.halfZ + 0.08, 0.2, COAL), // ateş yatağı
+    slab(-0.35, -0.05, 0.86, 0.92, -0.15, 0.1, GLOW), // kor
+    slab(
+      -f.chimneyHalf,
+      f.chimneyHalf,
+      0.86,
+      f.chimneyHeight,
+      -f.halfZ,
+      -f.halfZ + 2 * f.chimneyHalf,
+      C.stone,
+    ),
+    slab(
+      -0.3,
+      0.3,
+      f.chimneyHeight - 0.08,
+      f.chimneyHeight,
+      -f.halfZ - 0.05,
+      -f.halfZ + 0.35,
+      C.darkPlank,
+    ),
+    slab(-0.3, 0.2, 0.2, 0.55, f.halfZ, f.halfZ + 0.02, C.ash), // ön göz
+    // Örs: gövde, yüz ve boynuz.
+    slab(0.3, 0.6, 0.8, 0.88, 0.02, 0.4, C.iron),
+    slab(0.36, 0.54, 0.88, 0.96, 0.05, 0.36, C.iron),
+    slab(0.58, 0.72, 0.88, 0.94, 0.14, 0.26, C.iron),
+  ];
+}
+
+/** Taş fırın: taş kaide, kubbe, önde ağız ve arkada demir baca. */
+function stoneOvenParts(): Part[] {
+  const o = ST.stoneOven;
+  return [
+    slab(-o.halfX, o.halfX, -0.5, 0, -o.halfZ, o.halfZ, C.skirt),
+    slab(-o.halfX, o.halfX, 0, 0.5, -o.halfZ, o.halfZ, C.stone),
+    blob(0.78, 1, [1, 0.82, 0.88], [0, 0.55, 0], C.stone, 0.12, SEED + 61),
+    slab(-0.28, 0.28, 0.5, 0.95, o.halfZ * 0.8, o.halfZ * 0.8 + 0.12, C.ash), // ağız
+    slab(-0.34, 0.34, 0.92, 1, o.halfZ * 0.8 - 0.02, o.halfZ * 0.8 + 0.14, C.darkPlank),
+    beam([0, 1, -0.3], [0, 1.45, -0.3], 0.09, C.iron, 6),
+  ];
+}
+
+/** El değirmeni: tahta kaide, iki taş, üstteki taşta kol. */
+function handMillParts(): Part[] {
+  const m = ST.handMill;
+  return [
+    slab(-m.half, m.half, -0.5, 0.3, -m.half, m.half, C.darkPlank),
+    { geometry: place(new CylinderGeometry(0.4, 0.42, 0.2, 12), 0, 0.4, 0), color: C.stone },
+    { geometry: place(new CylinderGeometry(0.37, 0.4, 0.16, 12), 0, 0.58, 0), color: stoneTone(2) },
+    slab(-0.05, 0.05, 0.62, 0.78, 0.2, 0.3, C.pole), // dikey kol
+    beam([0.25, 0.7, 0.25], [0.02, 0.7, 0.02], 0.025, C.pole, 5), // mil
+    slab(-0.04, 0.04, 0.62, 0.7, -0.04, 0.04, C.iron), // orta mil
+  ];
+}
+
+/** Kurutma rafı: iki yan çerçeve ve üst çubuk; `loaded` ise çubuklardan et şeritleri sarkar. */
+function dryingRackParts(loaded = false): Part[] {
+  const r = ST.rack;
+  const parts: Part[] = [];
+  for (const side of [-1, 1]) {
+    const x = side * (r.halfX - r.postHalf);
+    for (const z of [-r.halfZ + r.postHalf, r.halfZ - r.postHalf]) {
+      parts.push(
+        slab(
+          x - r.postHalf,
+          x + r.postHalf,
+          -0.5,
+          r.height,
+          z - r.postHalf,
+          z + r.postHalf,
+          C.pole,
+        ),
+      );
+    }
+  }
+  parts.push(slab(-r.halfX, r.halfX, r.height - 0.14, r.height - 0.06, -0.04, 0.04, C.darkPlank)); // üst çubuk
+  parts.push(slab(-r.halfX, r.halfX, 0.95, 1.03, -0.04, 0.04, C.darkPlank)); // orta çubuk
+  parts.push(slab(-r.halfX, r.halfX, 0.8, 0.84, -r.halfZ, -r.halfZ + 0.08, C.pole)); // arka bağ
+  parts.push(slab(-r.halfX, r.halfX, 0.8, 0.84, r.halfZ - 0.08, r.halfZ, C.pole)); // ön bağ
+  if (loaded) {
+    for (let i = 0; i < 4; i++) {
+      const x = -0.55 + i * 0.37;
+      parts.push(slab(x - 0.07, x + 0.07, 0.62, r.height - 0.14, -0.03, 0.03, 0x7a3b2a));
+    }
+  }
+  return parts;
+}
+
+/** Döşek: yerde serili yatak, başında yastık, ucunda katlı örtü. */
+function bedrollParts(): Part[] {
+  const b = ST.bedroll;
+  return [
+    slab(-b.halfX, b.halfX, -0.4, 0.1, -b.halfZ, b.halfZ, C.skirt),
+    slab(
+      -b.halfX + 0.05,
+      b.halfX - 0.05,
+      0.02,
+      b.height - 0.06,
+      -b.halfZ + 0.05,
+      b.halfZ - 0.05,
+      BEDDING,
+    ),
+    slab(-0.3, 0.3, b.height - 0.06, b.height + 0.06, -b.halfZ + 0.1, -b.halfZ + 0.5, PILLOW),
+    slab(
+      -b.halfX + 0.05,
+      b.halfX - 0.05,
+      b.height - 0.06,
+      b.height + 0.02,
+      0.3,
+      b.halfZ - 0.1,
+      C.hutRoof,
+    ),
+  ];
+}
+
+/** Güneş paneli: iki ayaklı demir sehpa ve öne eğik mavi panel (çerçeveli). */
+function solarPanelParts(): Part[] {
+  const s = ST.solar;
+  const tilt = (-35 * Math.PI) / 180;
+  const panel = (w: number, d: number, y: number, color: number, lift: number): Part => {
+    const geometry = new BoxGeometry(w, 0.05, d);
+    geometry.applyMatrix4(new Matrix4().makeRotationX(tilt));
+    return { geometry: place(geometry, 0, y + lift, 0.05), color };
+  };
+  return [
+    slab(-s.halfX + 0.1, s.halfX - 0.1, -0.5, 0, -s.halfZ + 0.1, s.halfZ - 0.1, C.skirt),
+    slab(
+      -s.halfX + 0.1,
+      -s.halfX + 0.1 + 2 * s.standHalf,
+      0,
+      0.55,
+      -s.halfZ + 0.12,
+      -s.halfZ + 0.12 + 2 * s.standHalf,
+      C.iron,
+    ),
+    slab(
+      s.halfX - 0.1 - 2 * s.standHalf,
+      s.halfX - 0.1,
+      0,
+      0.55,
+      -s.halfZ + 0.12,
+      -s.halfZ + 0.12 + 2 * s.standHalf,
+      C.iron,
+    ),
+    slab(
+      -s.halfX + 0.1,
+      -s.halfX + 0.1 + 2 * s.standHalf,
+      0,
+      0.3,
+      s.halfZ - 0.12 - 2 * s.standHalf,
+      s.halfZ - 0.12,
+      C.iron,
+    ),
+    slab(
+      s.halfX - 0.1 - 2 * s.standHalf,
+      s.halfX - 0.1,
+      0,
+      0.3,
+      s.halfZ - 0.12 - 2 * s.standHalf,
+      s.halfZ - 0.12,
+      C.iron,
+    ),
+    panel(s.halfX * 2, 0.95, 0.72, C.iron, 0),
+    panel(s.halfX * 2 - 0.12, 0.83, 0.72, PANEL_BLUE, 0.03),
+  ];
+}
+
+/** Düz (yerel Z boyunca ±1 m) çit gövdesi: tilt/ölçek `buildFenceGeometry`'de uygulanır. */
+function flatFenceParts(kind: StructureKind): Part[] {
+  const h = FENCE_SHAPE.half;
+  const skirt = FENCE_SHAPE.skirt;
+  if (kind === 'stone_fence') {
+    const t = FENCE_SHAPE.stone.halfX;
+    const top = FENCE_SHAPE.stone.height;
+    const parts: Part[] = [slab(-t, t, -skirt, 0, -h, h, C.skirt)];
+    // Üç sıra taş: her sıra farklı uzunlukta, yarım taş kaymalı; üstte kapak taşları.
+    const courses: Array<[number, number, number[]]> = [
+      [0, 0.3, [0.7, 0.65, 0.65]],
+      [0.3, 0.6, [0.45, 0.7, 0.6, 0.25]],
+      [0.6, top - 0.08, [0.6, 0.7, 0.7]],
+    ];
+    courses.forEach(([y0, y1, lengths], row) => {
+      let z = -h;
+      lengths.forEach((len, i) => {
+        const z1 = Math.min(z + len, h);
+        const inset = 0.02 + ((i + row) % 3) * 0.015;
+        parts.push(
+          slab(-t + inset, t - inset, y0, y1, z + 0.015, z1 - 0.015, stoneTone(i + row * 2)),
+        );
+        z = z1;
+      });
+    });
+    for (let i = 0; i < 3; i++) {
+      const z0 = -h + (i * (2 * h)) / 3;
+      parts.push(
+        slab(
+          -t - 0.03,
+          t + 0.03,
+          top - 0.08,
+          top,
+          z0 + 0.02,
+          z0 + (2 * h) / 3 - 0.02,
+          stoneTone(i + 1),
+        ),
+      );
+    }
+    return parts;
+  }
+  const top = FENCE_SHAPE.wood.height;
+  const post = FENCE_SHAPE.wood.post;
+  const parts: Part[] = [];
+  // Üç direk (uçlarda ve ortada), iki yatay tabla, sık dikmeler.
+  for (const z of [-h + post, 0, h - post]) {
+    parts.push(slab(-post, post, -skirt, top + 0.08, z - post, z + post, C.pole));
+  }
+  parts.push(slab(-0.05, 0.05, 0.28, 0.38, -h, h, C.darkPlank));
+  parts.push(slab(-0.05, 0.05, 0.72, 0.82, -h, h, C.darkPlank));
+  for (let i = 0; i < 7; i++) {
+    const z = -h + 0.18 + i * ((2 * h - 0.36) / 6);
+    parts.push(slab(0.0, 0.07, 0, top - (i % 2) * 0.06, z - 0.045, z + 0.045, C.plank));
+  }
+  return parts;
+}
+
+/** Çit kapısının kanadı: menteşe z = 0, serbest uç z = `gateLeaf` (kapalıyken menteşe −z ucundadır). */
+function gateLeafParts(): Part[] {
+  const L = FENCE_SHAPE.gateLeaf;
+  const top = FENCE_SHAPE.gate.height;
+  const parts: Part[] = [
+    slab(-0.05, 0.05, 0.22, 0.34, 0, L, C.darkPlank),
+    slab(-0.05, 0.05, top - 0.34, top - 0.22, 0, L, C.darkPlank),
+    slab(-0.05, 0.05, 0.22, top - 0.22, 0, 0.1, C.darkPlank),
+    slab(-0.05, 0.05, 0.22, top - 0.22, L - 0.1, L, C.darkPlank),
+    beam([0.0, 0.3, 0.1], [0.0, top - 0.3, L - 0.1], 0.04, C.darkPlank, 5),
+  ];
+  for (let i = 0; i < 5; i++) {
+    const z = 0.22 + i * ((L - 0.44) / 4);
+    parts.push(slab(0.04, 0.1, 0.1, top - 0.1, z - 0.045, z + 0.045, C.plank));
+  }
+  return parts;
+}
+
+/** Çit kapısının iki ucundaki direkler ve (kapalıyken) kapalı kanat; `rise`/açık durumuna göre konumlanır. */
+function fenceGateParts(open: boolean, rise: number): Part[] {
+  const h = FENCE_SHAPE.half;
+  const skirt = FENCE_SHAPE.skirt;
+  const post = FENCE_SHAPE.gate.post;
+  const top = FENCE_SHAPE.gate.height + 0.15;
+  const parts: Part[] = [];
+  const postAt = (z: number, shift: number): Part => ({
+    geometry: place(
+      new BoxGeometry(post * 2, top + skirt, post * 2),
+      0,
+      (top - skirt) / 2 + shift,
+      z,
+    ),
+    color: C.pole,
+  });
+  parts.push(postAt(-h + post, -rise / 2), postAt(h - post, rise / 2));
+  const hingeZ = -h + 2 * post;
+  const leaf = gateLeafParts();
+  if (open) {
+    // Kanat menteşede dik açıyla +X'e döner; menteşe ucunun yüksekliğine oturur.
+    for (const part of leaf) {
+      part.geometry.applyMatrix4(new Matrix4().makeRotationY(Math.PI / 2));
+      place(part.geometry, 0, -rise / 2, hingeZ);
+      parts.push(part);
+    }
+  } else {
+    for (const part of leaf) {
+      place(part.geometry, 0, 0, hingeZ);
+      parts.push(part);
+    }
+  }
+  return parts;
+}
+
+/**
+ * Çit parçasının geometrisi: gövde iki ucundaki zemine göre kaydırılır (`y += rise · z / 2`): direkler dikey kalır,
+ * tablalar eğimi izler (düz dönüş yerine kayma; komşu parçalarla uç uca oturur). Açık çit kapısında yalnızca direkler
+ * ucun zeminine oturur, kanat eğimsizdir.
+ */
+export function buildFenceGeometry(kind: StructureKind, rise = 0, open = false): BufferGeometry {
+  const random = createRandom(
+    SEED + 70 + (kind === 'stone_fence' ? 1 : kind === 'fence_gate' ? 2 : 0),
+  );
+  if (kind === 'fence_gate' && open) return merge(fenceGateParts(true, rise), random);
+  const parts = kind === 'fence_gate' ? fenceGateParts(false, 0) : flatFenceParts(kind);
+  if (rise !== 0) {
+    const k = rise / (2 * FENCE_SHAPE.half);
+    const shear = new Matrix4().set(1, 0, 0, 0, 0, 1, k, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+    for (const part of parts) part.geometry.applyMatrix4(shear);
+  }
+  return merge(parts, random);
+}
+
+const woodFenceParts = (): Part[] => flatFenceParts('wood_fence');
+const stoneFenceParts = (): Part[] => flatFenceParts('stone_fence');
 
 // ── 11.4 (C) ──
 const farmPlotParts = (): Part[] => placeholderParts(2, 0.35, 2, C.skirt);
@@ -687,12 +993,12 @@ const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
   forge: forgeParts,
   stone_oven: stoneOvenParts,
   hand_mill: handMillParts,
-  drying_rack: dryingRackParts,
+  drying_rack: () => dryingRackParts(false),
   bedroll: bedrollParts,
   solar_panel: solarPanelParts,
   wood_fence: woodFenceParts,
   stone_fence: stoneFenceParts,
-  fence_gate: fenceGateParts,
+  fence_gate: () => fenceGateParts(false, 0),
   // ── 11.4 (C) ──
   farm_plot: farmPlotParts,
   // ── 11.8 (F) ──
@@ -710,6 +1016,14 @@ export function buildStructureGeometry(kind: StructureKind): BufferGeometry {
  * yalnızca taban şekil alır (yükseltilmiş, merdiven boşluklu).
  */
 export function buildPieceVariantGeometry(kind: StructureKind, variant: string): BufferGeometry {
+  // 11.3 (B): çit varyantı eğim ve (kapıda) açık durumdur; 11.2 (B): dolu kurutma rafı.
+  if (isFenceKind(kind)) {
+    const v = parseFenceVariant(variant);
+    return buildFenceGeometry(kind, v.rise, v.open);
+  }
+  if (kind === 'drying_rack' && variant !== '') {
+    return merge(dryingRackParts(true), createRandom(SEED + 10));
+  }
   if (kind !== 'foundation' || variant === '') return buildStructureGeometry(kind);
   return merge(foundationVariantParts(parseFoundationVariant(variant)), createRandom(SEED + 10));
 }

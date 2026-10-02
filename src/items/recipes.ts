@@ -460,13 +460,13 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
       { id: 'bark', count: 1 },
     ],
     tool: 'stone_axe',
-    output: { id: 'wood_fence', count: 1 },
+    output: { id: 'wood_fence', count: 2 },
   },
   stone_fence: {
     id: 'stone_fence',
     name: 'Kuru Taş Duvar',
     inputs: [{ id: 'stone', count: 6 }],
-    output: { id: 'stone_fence', count: 1 },
+    output: { id: 'stone_fence', count: 2 },
   },
   fence_gate: {
     id: 'fence_gate',

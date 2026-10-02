@@ -1,6 +1,8 @@
 import { RAPIER, type PhysicsWorld } from '../physics/PhysicsWorld';
+import { isFenceKind } from '../placement/fences';
 import { isPieceKind, pieceVariantKey } from '../placement/pieces';
 import {
+  fenceColliderBoxes,
   localToWorld,
   pieceColliderBoxes,
   solidBoxes,
@@ -70,6 +72,8 @@ export class StructureColliders {
 
   /** Yapının collider kutuları: modüler parçalarda eğik yüzeyli ve varyantlı (11.1), diğerlerinde `solidBoxes`. */
   private boxesOf(s: Readonly<Structure>, variant: string): LocalBox[] {
+    // 11.3 (B): çit gövdesi iki ucundaki zemine göre eğik kutudur (`rise`).
+    if (isFenceKind(s.kind)) return fenceColliderBoxes(s.kind, s.rise ?? 0, s.open === true);
     return isPieceKind(s.kind)
       ? pieceColliderBoxes(s.kind, variant, s.open === true)
       : solidBoxes(s.kind, s.open === true);

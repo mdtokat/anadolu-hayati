@@ -1365,9 +1365,11 @@ export const PLACEMENT = {
     drying_rack: { maxSlopeDeg: 35, radius: 0.9 },
     bedroll: { maxSlopeDeg: 25, radius: 1 },
     solar_panel: { maxSlopeDeg: 35, radius: 0.9 },
-    wood_fence: { maxSlopeDeg: 40, radius: 1 },
-    stone_fence: { maxSlopeDeg: 40, radius: 1 },
-    fence_gate: { maxSlopeDeg: 40, radius: 1 },
+    // Çitler: geçerlilik `placement/fences.ts`'te (ızgara kenarı, uç yükseklik farkı `FENCES.maxEndRise`); `maxSlopeDeg`
+    // kullanılmaz. Yarıçap çitin yarı uzunluğudur (odak/sökme menzili).
+    wood_fence: { maxSlopeDeg: 40, radius: 1, aimDistance: 3, maxReach: 6 },
+    stone_fence: { maxSlopeDeg: 40, radius: 1, aimDistance: 3, maxReach: 6 },
+    fence_gate: { maxSlopeDeg: 40, radius: 1, aimDistance: 3, maxReach: 6 },
     // C (11.4): tarla hücresi (çapayla açılır). F (11.8): yere inmiş drone.
     farm_plot: { maxSlopeDeg: 20, radius: 1 },
     drone: { maxSlopeDeg: 45, radius: 0.4 },
@@ -2196,6 +2198,40 @@ export const FENCES = {
   gate: { height: 1.1, thickness: 0.1 },
   /** Bir parçanın iki ucu arasındaki en büyük yükseklik farkı (oyun m); daha dik yere çit konmaz. */
   maxEndRise: 1.6,
+  /** Uç yükseklik farkı kayda ve geometriye bu adımla (oyun m) yuvarlanarak girer (geometri önbelleği küçük kalır). */
+  riseStep: 0.1,
+  /** Parçanın zemine gömülü kısmı (oyun m): kirişin altında ve yamaçta boşluk kalmasın. */
+  skirt: 0.5,
+  /**
+   * Hayalet yuvası seçimi: bakışa dik uzanan kenar tercih edilir (çit bakışın önünden geçer); bu pay (oyun m)
+   * tercih edilmeyen yönün kenar uzaklığına eklenir. `R` yalnızca bakışa paralel kenarları aday yapar.
+   */
+  axisBias: 0.7,
+} as const;
+
+/** ── Faz 11: B (11.2) ── Kurutma rafı: çiğ et belli sürede kurutulmuş ete dönüşür (bozulmaz yiyecek). */
+export const DRYING = {
+  /** Rafın aynı anda kurutabildiği en çok parça. */
+  capacity: 4,
+  /** Bir partinin kuruma süresi (gerçek sn; 240 sn = 4 oyun saati). */
+  seconds: 240,
+  /** Her çiğ et parçasından çıkan kurutulmuş et. */
+  yieldPerPiece: 1,
+  /** Rafa `E` ile erişim: rafın kenarına en çok bu kadar yatay uzaklık (oyun m). */
+  reach: 2.5,
+} as const;
+
+/**
+ * ── Faz 11: B (11.3) ── Engel sorgusu (`placement/obstacles.ts`): oyuncu yapıları canlıların, insanların ve eşkıyaların
+ * kinematik yürüyüşünü keser. Yalnızca zemine yakın katı kutular sayılır.
+ */
+export const STRUCTURE_OBSTACLES = {
+  /** Uzamsal ızgara hücresi (oyun m). */
+  cell: 8,
+  /** Bir kutu, yapının tabanından bu yükseklikten (oyun m) aşağıda başlıyorsa yürüyen gövdeyi keser (lento sayılmaz). */
+  maxBottom: 0.6,
+  /** Kutunun tepesi en az bu kadar yüksekse engeldir (plakalar ve basamaklar yürünür). */
+  minTop: 0.4,
 } as const;
 
 /** ── Faz 11: B (11.2) ── Döşek: üstünde hareketsiz dinlenirken barınak etkisinin üstüne eklenen çarpanlar. */
@@ -2216,6 +2252,8 @@ export const SOLAR = {
   fullSunAltitudeDeg: 45,
   /** Panelin şarj ettiği yarıçap (oyun m). */
   reach: 4,
+  /** Aynı noktayı şarj eden panellerin etkili sayısı bu değeri aşmaz (üst üste yığılma sınırı). */
+  maxPanels: 3,
 } as const;
 
 /** ── Faz 11: C (11.4) ── Ekme biçme: tarla, ekin süreleri, sulama, kuruma, verim, domuz baskını. */

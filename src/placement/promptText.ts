@@ -3,8 +3,10 @@ import type { ItemStack } from '../items/Inventory';
 import { ITEMS } from '../items/itemDefs';
 import type { DismantleOffer } from './dismantle';
 import type { ConfirmFailure, Ghost, ToggleResult } from './PlacementController';
+import { isFenceKind } from './fences';
 import { isPieceKind, pieceRotation, type PieceRotation } from './pieces';
 import type { StructureKind } from './structures';
+import type { RackOffer } from './rack';
 import type { TendOffer } from './tend';
 
 const FAILURE_TEXT: Record<ConfirmFailure, string> = {
@@ -58,7 +60,11 @@ export function aimPrompt(ghost: Readonly<Ghost>, cancelKey?: string): string {
   const cancel = cancelKey ?? KEY_FOR_KIND[ghost.kind];
   // Modüler parçalar ızgaraya kilitlidir: taban/çatı döndürülmez, duvar/kapı iç-dış yüzü, merdiven yönü, beşik çatı
   // mahyası çevrilir.
-  const rotateText = isPieceKind(ghost.kind) ? ROTATE_TEXT[pieceRotation(ghost.kind)] : 'döndür';
+  const rotateText = isFenceKind(ghost.kind)
+    ? 'çit hattını çevir'
+    : isPieceKind(ghost.kind)
+      ? ROTATE_TEXT[pieceRotation(ghost.kind)]
+      : 'döndür';
   const rotate = rotateText ? `${ROTATE_KEY}: ${rotateText}` : null;
   return [`Sol tık: ${ITEMS[ghost.kind].name} kur`, rotate, cancel ? `${cancel}: iptal` : null]
     .filter((part) => part !== null)
@@ -106,15 +112,42 @@ export function storagePrompt(kind: StructureKind): string {
   return `${INTERACT_KEY}: ${open} · ${DISMANTLE_KEY} (basılı tut): sök`;
 }
 
-/** Kapıya bakarken: "E: Kapıyı aç · X (basılı tut): sök". */
-export function doorPrompt(open: boolean): string {
-  return `${INTERACT_KEY}: Kapıyı ${open ? 'kapat' : 'aç'} · ${DISMANTLE_KEY} (basılı tut): sök`;
+/** Kapıya ya da çit kapısına bakarken: "E: Kapıyı aç · X (basılı tut): sök". */
+export function doorPrompt(open: boolean, kind: StructureKind = 'door'): string {
+  const name = kind === 'fence_gate' ? 'Çit kapısını' : 'Kapıyı';
+  return `${INTERACT_KEY}: ${name} ${open ? 'kapat' : 'aç'} · ${DISMANTLE_KEY} (basılı tut): sök`;
 }
+
+/** Kurutma rafına bakarken (Faz 11, 11.2): hazır et alma, çiğ et asma, kuruma süresi ya da engel. */
+export function rackPrompt(offer: RackOffer): string {
+  const dismantle = `${DISMANTLE_KEY} (basılı tut): sök`;
+  switch (offer.status) {
+    case 'collect':
+      return `${INTERACT_KEY}: Kurutulmuş eti al (${offer.pieces}) · ${dismantle}`;
+    case 'load':
+      return `${INTERACT_KEY}: Çiğ eti rafa as (${offer.pieces}) · ${dismantle}`;
+    case 'drying':
+      return `Et kuruyor · yaklaşık ${Math.max(0.1, gameHours(offer.remaining)).toFixed(1).replace('.', ',')} sa kaldı · ${dismantle}`;
+    case 'no_space':
+      return 'Envanter dolu: kurutulmuş et sığmıyor';
+    case 'no_meat':
+      return `Kurutma Rafı · asmak için çiğ et gerekir · ${dismantle}`;
+  }
+}
+
+/** Üretim istasyonlarının "…da üret" ipucu (Faz 11: demirci ocağı, taş fırın, el değirmeni). */
+const STATION_PLACE: Partial<Record<StructureKind, string>> = {
+  workbench: 'tezgâhta',
+  forge: 'demirci ocağında',
+  stone_oven: 'taş fırında',
+  hand_mill: 'el değirmeninde',
+};
 
 /** Bakılan yapı (başka ipucu yokken): adı, tezgâhta üretim hatırlatması ve sökme tuşu. */
 export function structureHint(kind: StructureKind): string {
   const name = ITEMS[kind].name;
-  const craft = kind === 'workbench' ? ` · ${INVENTORY_KEY}: tezgâhta üret` : '';
+  const place = STATION_PLACE[kind];
+  const craft = place ? ` · ${INVENTORY_KEY}: ${place} üret` : '';
   return `${name}${craft} · ${DISMANTLE_KEY} (basılı tut): sök`;
 }
 

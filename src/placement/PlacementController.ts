@@ -1,6 +1,7 @@
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
+import { isFenceKind, resolveFence } from './fences';
 import { isPieceKind, pieceRotation, resolvePiece } from './pieces';
 import { aimDistanceOf, validatePlacement, type PlaceCheck, type PlaceFailure } from './placeRules';
 import type { Structure, StructureKind, StructureSet } from './structures';
@@ -33,6 +34,8 @@ export interface Ghost {
   valid: boolean;
   /** Geçersizse nedeni. */
   reason: PlaceFailure | null;
+  /** Faz 11 (B): yalnızca çitlerde, uç yüksekliği farkı (oyun m; geometri bu eğimle çizilir). */
+  rise?: number;
 }
 
 export type ToggleResult = 'started' | 'cancelled' | 'no_item' | 'dead';
@@ -105,7 +108,10 @@ export class PlacementController {
    */
   rotate(): boolean {
     if (this.kind === null) return false;
-    if (isPieceKind(this.kind)) {
+    // Faz 11 (B): çit yuvası tercihi (bakışa dik / paralel kenar) çevrilir.
+    if (isFenceKind(this.kind)) {
+      this.flip = !this.flip;
+    } else if (isPieceKind(this.kind)) {
       if (pieceRotation(this.kind) === 'none') return false;
       this.flip = !this.flip;
     } else {
@@ -132,6 +138,7 @@ export class PlacementController {
       yaw: spot.yaw,
       valid: spot.check.ok,
       reason: spot.check.ok ? null : spot.check.reason,
+      ...(spot.rise !== undefined ? { rise: spot.rise } : {}),
     };
   }
 
@@ -153,15 +160,22 @@ export class PlacementController {
       return { ok: false, reason: 'no_item' };
     }
 
-    const structure = this.deps.structures.add(kind, spot.x, spot.check.y, spot.z, spot.yaw);
+    const structure = this.deps.structures.add(
+      kind,
+      spot.x,
+      spot.check.y,
+      spot.z,
+      spot.yaw,
+      spot.rise,
+    );
     this.deps.events.emit('structure:placed', {
       id: structure.id,
       kind,
       x: structure.x,
       z: structure.z,
     });
-    // Modüler parçalar art arda kurulur: eşya sürdükçe (ya da test modunda) hedefleme açık kalır.
-    if (isPieceKind(kind) && this.owns(kind)) {
+    // Modüler parçalar ve çitler art arda kurulur: eşya sürdükçe (ya da test modunda) hedefleme açık kalır.
+    if ((isPieceKind(kind) || isFenceKind(kind)) && this.owns(kind)) {
       this.update(pose);
     } else {
       this.cancel();
@@ -178,7 +192,7 @@ export class PlacementController {
   private evaluate(
     kind: StructureKind,
     pose: AimPose,
-  ): { x: number; y: number; z: number; yaw: number; check: PlaceCheck } {
+  ): { x: number; y: number; z: number; yaw: number; rise?: number; check: PlaceCheck } {
     const context = {
       heightAt: (x: number, z: number) => this.deps.world.heightAt(x, z),
       nearFreshWater: this.deps.world.nearFreshWater?.bind(this.deps.world),
@@ -186,6 +200,10 @@ export class PlacementController {
     };
     if (isPieceKind(kind)) {
       const { target, check } = resolvePiece(kind, pose, this.flip, context);
+      return { ...target, check };
+    }
+    if (isFenceKind(kind)) {
+      const { target, check } = resolveFence(kind, pose, this.flip, context);
       return { ...target, check };
     }
     const distance = aimDistanceOf(kind);

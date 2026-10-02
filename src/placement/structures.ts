@@ -1,4 +1,4 @@
-import { FIRE, STORAGE } from '../config';
+import { DRYING, FENCES, FIRE, STORAGE } from '../config';
 import { Inventory, type InventorySave } from '../items/Inventory';
 
 /**
@@ -47,6 +47,23 @@ export function isStructureKind(value: unknown): value is StructureKind {
   return typeof value === 'string' && (STRUCTURE_KINDS as readonly string[]).includes(value);
 }
 
+// ── Faz 11: B (11.3) ──
+/** Çit türleri: 2 m ızgara kenarına oturur, iki ucundaki zemine göre eğimlenir (`Structure.rise`). */
+export const FENCE_KINDS = [
+  'wood_fence',
+  'stone_fence',
+  'fence_gate',
+] as const satisfies readonly StructureKind[];
+
+export function isFenceKind(kind: StructureKind): boolean {
+  return (FENCE_KINDS as readonly StructureKind[]).includes(kind);
+}
+
+/** `E` ile açılıp kapanan yapılar (kapı kanadı, çit kapısı); `Structure.open` yalnızca bunlarda bulunur. */
+export function isOpenableKind(kind: StructureKind): boolean {
+  return kind === 'door' || kind === 'fence_gate';
+}
+
 /** İçinde eşya saklanan yapılar (her biri kendi `Inventory`'sine sahiptir). */
 export const STORAGE_KINDS = ['storage_chest'] as const satisfies readonly StructureKind[];
 
@@ -71,8 +88,25 @@ export interface Structure {
   yaw: number;
   /** Yalnızca kamp ateşinde: kalan yanma süresi (gerçek sn); 0 = sönük (kül). */
   fuelSeconds?: number;
-  /** Yalnızca kapıda: açık mı? */
+  /** Yalnızca kapıda ve çit kapısında: açık mı? */
   open?: boolean;
+  /**
+   * Yalnızca çitlerde (Faz 11, 11.3): parçanın yerel +Z ucundaki zemin yüksekliği eksi −Z ucundakine (oyun m;
+   * `FENCES.riseStep` adımına yuvarlı). Çit uçlarındaki zemini izler (eğimlenir); `y` ortadaki zemindir.
+   */
+  rise?: number;
+  /** Yalnızca kurutma rafında (Faz 11, 11.2): kuruyan çiğ et, hazır kurutulmuş et ve parti ilerlemesi (gerçek sn). */
+  rack?: RackState;
+}
+
+/** Kurutma rafının içeriği. */
+export interface RackState {
+  /** Kurumakta olan çiğ et parçaları (parti birlikte kurur). */
+  raw: number;
+  /** Alınmayı bekleyen kurutulmuş et parçaları. */
+  dried: number;
+  /** Kurumakta olan partinin ilerlemesi (gerçek sn; `DRYING.seconds`'ta biter). */
+  progress: number;
 }
 
 /** Kayıttaki yapı girdisi: sandıklarda içerik de yazılır (Faz 9; alan yalnızca sandıkta bulunur). */
@@ -94,7 +128,7 @@ export const STRUCTURE_SAVE_VERSION = 1;
 
 /** Yapının yerleşim imzası: kayıt yüklenince aynı kimlik başka bir yapıyı gösterebilir (görsel/collider yenilenir). */
 export function placementKey(s: Readonly<Structure>): string {
-  return `${s.kind}|${s.x}|${s.y}|${s.z}|${s.yaw}${s.open ? '|open' : ''}`;
+  return `${s.kind}|${s.x}|${s.y}|${s.z}|${s.yaw}${s.open ? '|open' : ''}${s.rise ? `|r${s.rise}` : ''}`;
 }
 
 /** Yanan bir ateş mi? */
@@ -130,11 +164,23 @@ export class StructureSet {
     return this.items.get(id);
   }
 
-  /** Yeni yapı ekler; kamp ateşi `FIRE.burnSeconds` yakıtla yanık başlar, sandık boş envanterle gelir. */
-  add(kind: StructureKind, x: number, y: number, z: number, yaw = 0): Readonly<Structure> {
+  /**
+   * Yeni yapı ekler; kamp ateşi `FIRE.burnSeconds` yakıtla yanık başlar, sandık boş envanterle gelir. `rise`: çitin uç
+   * yüksekliği farkı (yalnızca çitlerde anlamlı).
+   */
+  add(
+    kind: StructureKind,
+    x: number,
+    y: number,
+    z: number,
+    yaw = 0,
+    rise = 0,
+  ): Readonly<Structure> {
     const structure: Structure = { id: this.nextId++, kind, x, y, z, yaw };
     if (kind === 'campfire') structure.fuelSeconds = FIRE.burnSeconds;
-    if (kind === 'door') structure.open = false;
+    if (isOpenableKind(kind)) structure.open = false;
+    if (isFenceKind(kind) && rise !== 0) structure.rise = rise;
+    if (kind === 'drying_rack') structure.rack = { raw: 0, dried: 0, progress: 0 };
     this.items.set(structure.id, structure);
     if (isStorageKind(kind)) this.storages.set(structure.id, new Inventory(storageOptions()));
     this.revision += 1;
@@ -149,13 +195,38 @@ export class StructureSet {
     return true;
   }
 
-  /** Kapıyı açar/kapatır; yeni durumu döndürür (kapı değilse null). */
+  /** Kapıyı ya da çit kapısını açar/kapatır; yeni durumu döndürür (açılır bir yapı değilse null). */
   toggleDoor(id: StructureId): boolean | null {
     const structure = this.items.get(id);
-    if (!structure || structure.kind !== 'door') return null;
+    if (!structure || !isOpenableKind(structure.kind)) return null;
     structure.open = !structure.open;
     this.revision += 1;
     return structure.open;
+  }
+
+  /**
+   * Kurutma rafına çiğ et koyar (parti kuruyor ya da hazır et beklemiyorsa): raf boşken en çok `DRYING.capacity`
+   * parça. Gerçekten konan parça sayısını döndürür (raf değil, dolu ya da hazır et bekliyorsa 0).
+   */
+  loadRack(id: StructureId, pieces: number): number {
+    const rack = this.items.get(id)?.rack;
+    if (!rack || rack.raw > 0 || rack.dried > 0) return 0;
+    const put = Math.min(Math.max(0, Math.floor(pieces)), DRYING.capacity);
+    if (put === 0) return 0;
+    rack.raw = put;
+    rack.progress = 0;
+    this.revision += 1;
+    return put;
+  }
+
+  /** Rafta hazır kurutulmuş eti boşaltır (hepsi); alınan parça sayısını döndürür. */
+  collectRack(id: StructureId): number {
+    const rack = this.items.get(id)?.rack;
+    if (!rack || rack.dried === 0) return 0;
+    const taken = rack.dried;
+    rack.dried = 0;
+    this.revision += 1;
+    return taken;
   }
 
   /** Sandığın envanteri (yerinde değiştirilir); sandık değilse null. */
@@ -200,6 +271,16 @@ export class StructureSet {
   update(dt: number): StructureId[] {
     const extinguished: StructureId[] = [];
     for (const s of this.items.values()) {
+      // Kurutma rafı: parti `DRYING.seconds` sonunda kurur (görsel/ipucu için `version` artar).
+      if (s.rack && s.rack.raw > 0) {
+        s.rack.progress += dt;
+        if (s.rack.progress >= DRYING.seconds) {
+          s.rack.dried += s.rack.raw * DRYING.yieldPerPiece;
+          s.rack.raw = 0;
+          s.rack.progress = 0;
+          this.revision += 1;
+        }
+      }
       if (s.kind !== 'campfire' || (s.fuelSeconds ?? 0) <= 0) continue;
       s.fuelSeconds = Math.max(0, (s.fuelSeconds ?? 0) - dt);
       if (s.fuelSeconds === 0) {
@@ -216,7 +297,8 @@ export class StructureSet {
       nextId: this.nextId,
       structures: [...this.items.values()].map((s) => {
         const storage = this.storages.get(s.id);
-        return storage ? { ...s, storage: storage.toJSON() } : { ...s };
+        const entry: StructureSaveEntry = s.rack ? { ...s, rack: { ...s.rack } } : { ...s };
+        return storage ? { ...entry, storage: storage.toJSON() } : entry;
       }),
     };
   }
@@ -284,13 +366,50 @@ export class StructureSet {
       } else if (s.fuelSeconds !== undefined) {
         throw new Error(`Yapı ${s.id}: ${s.kind} yakıt taşımaz`);
       }
-      if (s.kind === 'door') {
+      if (isOpenableKind(s.kind)) {
         if (s.open !== undefined && typeof s.open !== 'boolean') {
           throw new Error(`Yapı ${s.id}: geçersiz kapı durumu`);
         }
         structure.open = s.open === true;
       } else if (s.open !== undefined) {
         throw new Error(`Yapı ${s.id}: ${s.kind} açılıp kapanmaz`);
+      }
+      // Faz 11 (B): çit uç yüksekliği farkı (eksik = düz) ve kurutma rafı içeriği (eksik = boş).
+      if (isFenceKind(s.kind)) {
+        if (s.rise !== undefined) {
+          if (
+            typeof s.rise !== 'number' ||
+            !Number.isFinite(s.rise) ||
+            Math.abs(s.rise) > FENCES.maxEndRise + 1e-6
+          ) {
+            throw new Error(`Yapı ${s.id}: geçersiz çit eğimi (${String(s.rise)})`);
+          }
+          if (s.rise !== 0) structure.rise = s.rise;
+        }
+      } else if (s.rise !== undefined) {
+        throw new Error(`Yapı ${s.id}: ${s.kind} çit değildir`);
+      }
+      if (s.kind === 'drying_rack') {
+        const r = s.rack as Partial<RackState> | undefined;
+        if (r === undefined) {
+          structure.rack = { raw: 0, dried: 0, progress: 0 };
+        } else {
+          const ok = (v: unknown, max: number): v is number =>
+            typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max;
+          const cap = DRYING.capacity * DRYING.yieldPerPiece;
+          if (
+            typeof r !== 'object' ||
+            r === null ||
+            !ok(r.raw, DRYING.capacity) ||
+            !ok(r.dried, cap) ||
+            !ok(r.progress, DRYING.seconds)
+          ) {
+            throw new Error(`Yapı ${s.id}: geçersiz raf içeriği`);
+          }
+          structure.rack = { raw: r.raw, dried: r.dried, progress: r.progress };
+        }
+      } else if (s.rack !== undefined) {
+        throw new Error(`Yapı ${s.id}: ${s.kind} raf değildir`);
       }
       if (isStorageKind(s.kind)) {
         // İçeriksiz sandık (elle yazılmış/eski kayıt) boş sayılır.

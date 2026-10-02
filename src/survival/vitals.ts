@@ -1,4 +1,4 @@
-import { SHELTER_EFFECTS, SURVIVAL } from '../config';
+import { BEDS, SHELTER_EFFECTS, SURVIVAL } from '../config';
 
 export type Activity = 'rest' | 'walk' | 'run';
 
@@ -43,6 +43,8 @@ export interface VitalsInput {
    * kulübe gibi korur. Yalnızca `sheltered` iken anlamlıdır.
    */
   shelter?: ShelterKind | null;
+  /** Faz 11 (11.2): döşeğin üstünde mi? Dinlenirken enerji/can dolumu barınak çarpanının üstüne `BEDS` çarpanını alır. */
+  bed?: boolean;
 }
 
 /** Barınak türü: sundurma, kulübe (Faz 9), kasaba yapısı ve cami içi (Faz 10). */
@@ -146,7 +148,9 @@ export function stepVitals(state: VitalsState, input: VitalsInput, dt: number): 
   // Enerji: koşarak biter, yürürken yavaş, dinlenirken hızlı dolar (barınakta daha hızlı).
   const sheltered = input.sheltered === true;
   const shelterEffects = shelterFactors(input.shelter);
-  const restFactor = sheltered ? shelterEffects.restRefillFactor : 1;
+  const onBed = input.bed === true && activity === 'rest';
+  const restFactor =
+    (sheltered ? shelterEffects.restRefillFactor : 1) * (onBed ? BEDS.energyMultiplier : 1);
   let energy = state.energy;
   if (activity === 'run' && !state.exhausted) energy -= (MAX / SURVIVAL.runEmptySeconds) * dt;
   else if (activity === 'walk') energy += (MAX / SURVIVAL.walkRefillSeconds) * dt;
@@ -193,7 +197,9 @@ export function stepVitals(state: VitalsState, input: VitalsInput, dt: number): 
     bodyTemp >= minTemp &&
     bodyTemp <= maxTemp;
   if (canRegen) {
-    const regenFactor = sheltered && activity === 'rest' ? shelterEffects.restHealthFactor : 1;
+    const regenFactor =
+      (sheltered && activity === 'rest' ? shelterEffects.restHealthFactor : 1) *
+      (onBed ? BEDS.healthMultiplier : 1);
     health += SURVIVAL.healthRegenPerSecond * regenFactor * dt;
   }
   health = clamp(health, 0, MAX);

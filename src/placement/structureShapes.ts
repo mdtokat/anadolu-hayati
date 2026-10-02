@@ -1,6 +1,6 @@
-import { PIECES, PIECES_II } from '../config';
+import { FENCES, PIECES, PIECES_II } from '../config';
 import { GABLE_RISE, STOREY, parseFoundationVariant, type FoundationVariant } from './pieces';
-import type { StructureKind } from './structures';
+import { isFenceKind, type StructureKind } from './structures';
 
 /**
  * Yapıların ölçüleri ve katı (çarpışan) kutuları (Faz 9; saf, Three.js/Rapier'siz). Görsel geometri
@@ -179,16 +179,18 @@ export function solidBoxes(kind: StructureKind, open = false): LocalBox[] {
     case 'gable_roof':
     case 'gable_wall':
       return pieces2Boxes(kind);
-    // ── 11.2/11.3 (B) ── yer tutucu: katı değil (B istasyon, çit ve çit kapısı kutularını yazar).
+    // ── 11.2/11.3 (B) ── istasyonlar, güneş paneli (katı), çitler (düz kutu; eğimli collider `fenceColliderBoxes`).
     case 'forge':
     case 'stone_oven':
     case 'hand_mill':
     case 'drying_rack':
-    case 'bedroll':
     case 'solar_panel':
     case 'wood_fence':
     case 'stone_fence':
     case 'fence_gate':
+      return stationBoxes(kind, open);
+    // Döşek yerde serilidir: üstünden yürünür.
+    case 'bedroll':
       return [];
     // Tarla (C) ve yere inmiş drone (F) içinden geçilir.
     case 'farm_plot':
@@ -441,4 +443,160 @@ export function pieceColliderBoxes(kind: StructureKind, variant: string, open = 
     default:
       return solidBoxes(kind, open);
   }
+}
+
+// ── 11.2/11.3 (B) ──
+
+/** Tek parça yapıların ve çitlerin ölçüleri (yerel uzay; zemin y = 0; çitler yerel Z boyunca uzanır, ±1 m). */
+export const STATION_SHAPE = {
+  forge: { halfX: 0.7, halfZ: 0.5, height: 1, chimneyHalf: 0.2, chimneyHeight: 1.9 },
+  stoneOven: { halfX: 0.8, halfZ: 0.7, height: 1.35 },
+  handMill: { half: 0.45, height: 0.8 },
+  rack: { halfX: 0.8, halfZ: 0.25, postHalf: 0.07, height: 1.6 },
+  bedroll: { halfX: 0.45, halfZ: 1, height: 0.3 },
+  solar: { halfX: 0.7, halfZ: 0.5, standHalf: 0.12, height: 1.05 },
+} as const;
+
+/** Çit parçasının yarı uzunluğu ve yerel kutu ölçüleri. */
+export const FENCE_SHAPE = {
+  half: FENCES.length / 2,
+  skirt: FENCES.skirt,
+  wood: { halfX: FENCES.wood.thickness / 2, height: FENCES.wood.height, post: 0.08 },
+  stone: { halfX: FENCES.stone.thickness / 2, height: FENCES.stone.height },
+  gate: { halfX: FENCES.gate.thickness / 2, height: FENCES.gate.height, post: 0.08 },
+  /** Açık kapı kanadının uzunluğu (menteşeden dik açıyla). */
+  gateLeaf: FENCES.length - 0.2,
+} as const;
+
+function fenceHeight(kind: StructureKind): number {
+  return kind === 'stone_fence'
+    ? FENCE_SHAPE.stone.height
+    : kind === 'fence_gate'
+      ? FENCE_SHAPE.gate.height
+      : FENCE_SHAPE.wood.height;
+}
+
+function fenceHalfX(kind: StructureKind): number {
+  return kind === 'stone_fence'
+    ? FENCE_SHAPE.stone.halfX
+    : kind === 'fence_gate'
+      ? FENCE_SHAPE.gate.halfX
+      : FENCE_SHAPE.wood.halfX;
+}
+
+/** Düz çit kutuları: engel sorgusu ve mermi isabeti için (kapı açıkken uç direkler ve kanat). */
+function flatFenceBoxes(kind: StructureKind, open: boolean): LocalBox[] {
+  const h = FENCE_SHAPE.half;
+  const top = fenceHeight(kind);
+  const hx = fenceHalfX(kind);
+  if (kind === 'fence_gate' && open) {
+    const g = FENCE_SHAPE.gate;
+    // Kanat menteşe ucunda (z = −h) yerel +X'e uzanır; uç direkler ayakta kalır.
+    return [
+      box(-g.post, g.post, -FENCE_SHAPE.skirt, top, -h, -h + 2 * g.post),
+      box(-g.post, g.post, -FENCE_SHAPE.skirt, top, h - 2 * g.post, h),
+      box(0, FENCE_SHAPE.gateLeaf, 0.15, top, -h, -h + 2 * g.halfX),
+    ];
+  }
+  return [box(-hx, hx, -FENCE_SHAPE.skirt, top, -h, h)];
+}
+
+/** Tek parça yapıların ve çitlerin eksen hizalı katı kutuları (`solidBoxes`'in B kolu). */
+function stationBoxes(kind: StructureKind, open: boolean): LocalBox[] {
+  const S = STATION_SHAPE;
+  switch (kind) {
+    case 'forge':
+      return [
+        box(-S.forge.halfX, S.forge.halfX, -0.3, S.forge.height, -S.forge.halfZ, S.forge.halfZ),
+        box(
+          -S.forge.chimneyHalf,
+          S.forge.chimneyHalf,
+          S.forge.height,
+          S.forge.chimneyHeight,
+          -S.forge.halfZ,
+          -S.forge.halfZ + 2 * S.forge.chimneyHalf,
+        ),
+      ];
+    case 'stone_oven':
+      return [
+        box(
+          -S.stoneOven.halfX,
+          S.stoneOven.halfX,
+          -0.3,
+          S.stoneOven.height,
+          -S.stoneOven.halfZ,
+          S.stoneOven.halfZ,
+        ),
+      ];
+    case 'hand_mill':
+      return [
+        box(
+          -S.handMill.half,
+          S.handMill.half,
+          -0.3,
+          S.handMill.height,
+          -S.handMill.half,
+          S.handMill.half,
+        ),
+      ];
+    case 'drying_rack':
+      // İki ayak: arası açık (içinden eğilip geçilmez ama canlı/insan gövdesi iki direk arasından sığmaz).
+      return [
+        box(
+          -S.rack.halfX,
+          -S.rack.halfX + 2 * S.rack.postHalf,
+          -0.3,
+          S.rack.height,
+          -S.rack.halfZ,
+          S.rack.halfZ,
+        ),
+        box(
+          S.rack.halfX - 2 * S.rack.postHalf,
+          S.rack.halfX,
+          -0.3,
+          S.rack.height,
+          -S.rack.halfZ,
+          S.rack.halfZ,
+        ),
+      ];
+    case 'solar_panel':
+      return [
+        box(-S.solar.halfX, S.solar.halfX, -0.3, S.solar.height, -S.solar.halfZ, S.solar.halfZ),
+      ];
+    case 'wood_fence':
+    case 'stone_fence':
+    case 'fence_gate':
+      return flatFenceBoxes(kind, open);
+    default:
+      return [];
+  }
+}
+
+/** Eğimli çitin collider dilim sayısı: dilim başına en çok bu kadar (oyun m) basamak oluşur. */
+const FENCE_SLICE_RISE = 0.35;
+
+/**
+ * Çitin fizik collider'ı kutuları: gövde iki ucundaki zemine göre eğimlidir (`rise`). Kutular dönmez (direkler dikey
+ * kalır): eğimli çit, her biri kendi orta noktasındaki zemine göre kaydırılmış birkaç dikey dilim olarak kurulur
+ * (düz çitte tek kutu). Açık kapıda uç direkler ve menteşeden dik açılan kanat (eğimsiz; menteşe ucunun yüksekliğine oturur).
+ */
+export function fenceColliderBoxes(kind: StructureKind, rise: number, open = false): LocalBox[] {
+  if (!isFenceKind(kind)) return solidBoxes(kind, open);
+  if (kind === 'fence_gate' && open) {
+    return flatFenceBoxes(kind, true).map((b, i) => {
+      // Direkler ucun zeminine göre: −Z ucu −rise/2, +Z ucu +rise/2; kanat menteşe (−Z) ucunda.
+      const shift = i === 1 ? rise / 2 : -rise / 2;
+      return { ...b, cy: b.cy + shift };
+    });
+  }
+  const [flat] = flatFenceBoxes(kind, false);
+  if (!flat) return [];
+  const slices =
+    rise === 0 ? 1 : Math.min(6, Math.max(2, Math.ceil(Math.abs(rise) / FENCE_SLICE_RISE)));
+  const h = FENCE_SHAPE.half;
+  const sliceHalf = h / slices;
+  return Array.from({ length: slices }, (_, k) => {
+    const zc = -h + (2 * k + 1) * sliceHalf;
+    return { ...flat, cz: zc, hz: sliceHalf, cy: flat.cy + (rise * zc) / (2 * h) };
+  });
 }

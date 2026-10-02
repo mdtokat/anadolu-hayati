@@ -8,6 +8,7 @@ import {
   AMBIENT,
   CLOCK,
   DISMANTLE,
+  DRYING,
   EQUIPMENT,
   HINTS,
   INPUT,
@@ -32,7 +33,7 @@ import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CookingSystem } from '../combat/cooking';
 import { BuildingSearch, searchPrompt, searchTarget, searchedToast } from '../settlements/search';
-import { PeopleSystem, personInView, type Person } from '../people/PeopleSystem';
+import { PeopleSystem, personInView, type Person, type PeopleWorld } from '../people/PeopleSystem';
 import { GREETINGS, ROLES } from '../people/roles';
 import { directionsAnswer, executeTrade, tradeText } from '../people/dialog';
 import { PeopleLayer } from '../world/PeopleLayer';
@@ -75,6 +76,9 @@ import {
   type StructureKind,
 } from '../placement/structures';
 import { Dismantler } from '../placement/dismantle';
+import { StructureObstacles } from '../placement/obstacles';
+import { rackOffer, useRack } from '../placement/rack';
+import { bedAt } from '../placement/beds';
 import { stationsNear } from '../placement/stations';
 import { isPieceKind, isPlateKind } from '../placement/pieces';
 import { transferAll, transferSlot } from '../placement/storage';
@@ -89,6 +93,7 @@ import {
   placeFailureText,
   placedToast,
   doorPrompt,
+  rackPrompt,
   storagePrompt,
   structureHint,
   tendPrompt,
@@ -237,6 +242,7 @@ const FAZ11_DEV_STRUCTURES: readonly ItemId[] = [
   'bedroll',
   'solar_panel',
   'wood_fence',
+  'stone_fence',
   'fence_gate',
 ];
 const FAZ11_DEV_WEAPONS: ReadonlyArray<readonly [ItemId, number]> = [
@@ -388,8 +394,14 @@ export class Game {
   private storageTarget: Readonly<Structure> | null = null;
   /** Bu adımda bakılan (sökülebilecek) yapı. */
   private dismantleTarget: Readonly<Structure> | null = null;
-  /** Bakılan kapı (modüler parça): `E` basışında açılır/kapanır. */
+  /** Bakılan kapı (modüler parça) ya da çit kapısı: `E` basışında açılır/kapanır. */
   private doorTarget: Readonly<Structure> | null = null;
+  /** Bakılan kurutma rafı (Faz 11, 11.2): `E` basışında çiğ et asılır / kurutulmuş et alınır. */
+  private rackTarget: Readonly<Structure> | null = null;
+  /** Oyuncu yapılarının engel dizini (Faz 11, 11.3): canlılar, insanlar ve eşkıyalar çitlerden/duvarlardan geçmez. */
+  private obstacles: StructureObstacles | null = null;
+  /** `peopleWorld` + engel dizini (yapı kümesi/dünya değişmedikçe aynı nesne). */
+  private peopleWorldGuarded: { base: PeopleWorld; guarded: PeopleWorld } | null = null;
   /** Kısayoldan açılan yerleştirme: yapı türü ve slotu (hayalet kapanınca seçim de kalkar). */
   private heldPlacement: { kind: StructureKind; slot: number } | null = null;
   /** Test modu (Ayarlar): uçma, sınırsız malzeme (`TEST_MODE`). */
@@ -1036,7 +1048,7 @@ export class Game {
     );
 
     // Diğer insanlar (Faz 10): kinematik yürüyüş; bakılan kişiyle `E` ile konuşulur (basış anında).
-    const peopleWorld = this.world instanceof RegionWorld ? this.world.peopleWorld : null;
+    const peopleWorld = this.guardedPeopleWorld();
     if (peopleWorld) {
       this.people.update(step, { x: feet.x, z: feet.z, alive: this.survival.alive }, peopleWorld);
     }
@@ -1061,13 +1073,26 @@ export class Game {
           })
         : null;
     if (this.storageTarget && interactPressed) this.openStorage(this.storageTarget.id);
-    // Kapı (modüler parça): `E`'yi başka eylem almadıysa bakılan kapı açılır/kapanır (basış anında).
-    this.doorTarget =
+    // Faz 11 (11.2): kurutma rafı — `E` basışında çiğ et asılır / kurutulmuş et alınır.
+    this.rackTarget =
       interaction.taker === null && this.personTarget === null && this.storageTarget === null
+        ? structureInView(structures, pose, {
+            reach: DRYING.reach,
+            viewConeDeg: STORAGE.viewConeDeg,
+            kinds: ['drying_rack'],
+          })
+        : null;
+    if (this.rackTarget && interactPressed) this.useRackTarget(this.rackTarget.id);
+    // Kapı (modüler parça) ve çit kapısı: `E`'yi başka eylem almadıysa bakılan kapı açılır/kapanır (basış anında).
+    this.doorTarget =
+      interaction.taker === null &&
+      this.personTarget === null &&
+      this.storageTarget === null &&
+      this.rackTarget === null
         ? structureInView(structures, pose, {
             reach: DOOR_REACH,
             viewConeDeg: STORAGE.viewConeDeg,
-            kinds: ['door'],
+            kinds: ['door', 'fence_gate'],
           })
         : null;
     if (this.doorTarget && interactPressed) this.toggleDoor(this.doorTarget.id);
@@ -1076,6 +1101,7 @@ export class Game {
       interaction.taker === null &&
         this.personTarget === null &&
         this.storageTarget === null &&
+        this.rackTarget === null &&
         this.doorTarget === null,
       interactPressed,
       held,
@@ -1084,6 +1110,7 @@ export class Game {
     const drinkAllowed =
       interaction.drinkAllowed &&
       this.storageTarget === null &&
+      this.rackTarget === null &&
       this.doorTarget === null &&
       !banditTook;
     // Sökme (Faz 9): bakılan yapıya `X` basılı (yerleştirme hayaleti açıkken yok).
@@ -1121,6 +1148,8 @@ export class Game {
       warmthC: this.exposure.warmthC + clothingWarmth(this.inventory),
       sheltered: this.exposure.sheltered,
       shelter: this.exposure.shelter,
+      // Faz 11 (11.2): döşeğin üstünde dinlenirken enerji/can dolumu artar.
+      bed: bedAt(structures, feet.x, feet.y, feet.z),
     });
     // Su kabı: susuzluk giderildikten sonra (içmiyorken) `E` basılı kalırsa boş kap dolar.
     this.filler.update(step, {
@@ -1163,6 +1192,7 @@ export class Game {
       fires: [...this.structureSystem.structures.all().filter(isLit), ...this.campFires()],
       structures: [...this.structureSystem.structures.all(), ...this.campFires()],
       terrain: this.world.creatureTerrain ?? null,
+      ...(this.obstacles ? { obstacles: this.obstacles } : {}),
     };
   }
 
@@ -1362,8 +1392,41 @@ export class Game {
 
   /** Bakılan kapıyı açar/kapatır. */
   private toggleDoor(id: number): void {
-    const open = this.structureSystem.structures.toggleDoor(id);
-    if (open !== null) this.hud.notify(open ? 'Kapı açıldı' : 'Kapı kapandı', INTERACT.toastMs);
+    const structures = this.structureSystem.structures;
+    const gate = structures.get(id)?.kind === 'fence_gate';
+    const open = structures.toggleDoor(id);
+    if (open === null) return;
+    const name = gate ? 'Çit kapısı' : 'Kapı';
+    this.hud.notify(`${name} ${open ? 'açıldı' : 'kapandı'}`, INTERACT.toastMs);
+  }
+
+  /** Bakılan kurutma rafıyla `E`: kurutulmuş et alınır ya da envanterdeki çiğ et asılır (Faz 11, 11.2). */
+  private useRackTarget(id: number): void {
+    const result = useRack(this.structureSystem.structures, id, this.inventory);
+    if (!result.ok) return;
+    this.hud.notify(
+      result.kind === 'collect'
+        ? `+${result.pieces} ${ITEMS.dried_meat.name}`
+        : `Rafa ${result.pieces} parça et asıldı`,
+      INTERACT.toastMs,
+    );
+  }
+
+  /** Engel dizinini kurar ve insan dünyasını ona bağlar (engel yoksa insan dünyası olduğu gibi kalır). */
+  private guardedPeopleWorld(): PeopleWorld | null {
+    const base = this.world instanceof RegionWorld ? this.world.peopleWorld : null;
+    const obstacles = this.obstacles;
+    if (!base || !obstacles) return base;
+    if (this.peopleWorldGuarded?.base !== base) {
+      this.peopleWorldGuarded = {
+        base,
+        guarded: {
+          ...base,
+          blocked: (x, z) => base.blocked(x, z) || obstacles.contains(x, z, 0.35),
+        },
+      };
+    }
+    return this.peopleWorldGuarded.guarded;
   }
 
   /** Oyuncunun yanındaki üretim istasyonları (tezgâh). */
@@ -1779,10 +1842,16 @@ export class Game {
       this.hud.setPrompt(droneText);
       return;
     }
+    const rack = alive ? this.rackTarget : null;
+    if (rack?.rack) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(rackPrompt(rackOffer(rack.rack, this.inventory)));
+      return;
+    }
     const door = alive ? this.doorTarget : null;
     if (door) {
       this.hud.setProgress(null);
-      this.hud.setPrompt(doorPrompt(door.open === true));
+      this.hud.setPrompt(doorPrompt(door.open === true, door.kind));
       return;
     }
     // Faz 11 (E): eşkıya etkileşimi (teslim, üst arama, kamp sandığı).
@@ -1994,7 +2063,13 @@ export class Game {
   private updateBuilding2(_dt: number): void {}
 
   // ── Faz 11: B (11.2/11.3 yapılar, çit, engel sorgusu) ──
-  private setupStations(): void {}
+  private setupStations(): void {
+    const settlements = this.world.settlementMap ?? null;
+    this.obstacles = new StructureObstacles(this.structureSystem.structures, {
+      heightAt: (x, z) => this.world.terrain.heightAt(x, z),
+      ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
+    });
+  }
   private updateStations(_dt: number): void {}
   private drawStations(_time: number, _feet: { x: number; y: number; z: number }): void {}
 
@@ -2261,6 +2336,8 @@ export class Game {
       darkness: darknessOf(clock.sun.altitudeDeg),
       now: (clock.day * 24 + clock.hour) * 3600,
       targets: this.targets,
+      // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser.
+      ...(this.obstacles ? { obstacles: this.obstacles } : {}),
       // Faz 11 (F): alçak uçan drone'a ateş ederler.
       drone: this.drone.state,
       prey: (x, z, r) =>
