@@ -2437,21 +2437,21 @@ export const AMMO = {
  */
 export const BANDITS = {
   /** Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). */
-  campCount: 18,
+  campCount: 48,
   /**
    * Kamp yeri kuralları (`bandits/camps.ts`): il/ilçe merkezinin ayak izi kenarına en az `minSettlementDistance`,
    * köyün kenarına en az `minVillageDistance` (341 köy haritayı sık örttüğünden köylere ayrı, kısa uzaklık), en yakın
    * yolun kenarına `roadDistance` aralığı, orman örtüsü, merkezde ve kamp çemberinde en dik eğim `maxSlopeDeg` (oyun
    * eğimi: dikey ölçek gerçek yamacı ×3,3 diktir, 32° ≈ gerçek 10°; 22°'de gerçek dünyada yalnızca 3 kamp çıkıyordu).
    */
-  minSettlementDistance: 400,
+  minSettlementDistance: 250,
   minVillageDistance: 120,
-  roadDistance: [80, 400],
+  roadDistance: [60, 700],
   maxSlopeDeg: 32,
   /** Aday ızgarası hücresi (her hücrede `campCellTries`² noktalı seed'li ızgara denenir) ve iki kamp arası en az uzaklık. */
   campCell: 120,
   campCellTries: 6,
-  campSpacing: 260,
+  campSpacing: 160,
   /** Kampın yarıçapı (oyun m) ve kamp başına eşkıya sayısı aralığı (reis dahil). */
   campRadius: 12,
   members: [3, 5],
@@ -2522,7 +2522,7 @@ export const BANDITS = {
   /** Temizlenen kampın yeniden dolması (oyun günü). */
   reoccupyDays: 5,
   /** Etkinleşme: oyuncu bu uzaklıktaki kampın eşkıyalarını canlandırır; bunun `despawnMargin` ötesinde kaldırır. */
-  activeRadius: 260,
+  activeRadius: 350,
   despawnMargin: 80,
   /** Kamp çizimi ve collider yarıçapları (oyun m). */
   drawRadius: 420,
@@ -2533,8 +2533,8 @@ export const BANDITS = {
 /** ── Faz 11: E (11.7) ── Yankesiciler (il/ilçe merkezlerinde): nadir; yaklaşıp bir eşya çalıp kaçar. */
 export const PICKPOCKETS = {
   /** Doğma denemesi aralığı (gerçek sn) ve il/ilçe merkezinde olasılığı; doğma uzaklığı (oyun m). */
-  spawnCheckSeconds: 90,
-  spawnChance: 0.08,
+  spawnCheckSeconds: 25,
+  spawnChance: 0.25,
   spawnDistance: [25, 40],
   /** Aynı anda en çok yankesici. */
   maxActive: 1,
