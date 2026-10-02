@@ -328,7 +328,7 @@ Görevler (akış harfleri plan belgesindeki oturumlardır):
 - [ ] **11.2 (B)** Tek parça yapılar: demirci ocağı + örs, taş fırın, el değirmeni, kurutma rafı (kuru et), döşek, güneş paneli
 - [ ] **11.3 (B)** Çit: ahşap çit, kuru taş duvar, çit kapısı (zemini izler); canlılar ve insanlar oyuncu duvarlarından/çitlerden geçmez (`ObstacleQuery`)
 - [ ] **11.4 (C)** Ekme biçme: çapa ile tarla, tohumlar (buğday, mısır, fasulye, patates), sulama, büyüme evreleri, orakla biçme, buğday → un → ekmek / mısır → mısır ekmeği, yaban domuzu tarla baskını
-- [ ] **11.5 (D)** Silahlar: balistik (mermi düşüşü, saçılma), sağ tık nişan, dürbün + nefes tutma, `R` doldurma, şarjör; sopa, demir kama, pala, sapan, yay + ok, av tüfeği, tabanca, piyade tüfeği, **keskin nişancı tüfeği** (dürbün yalnız ganimetten); mühimmat; atış sesi ve gürültü
+- [x] **11.5 (D)** Silahlar: balistik (mermi düşüşü, saçılma), sağ tık nişan, dürbün + nefes tutma, `R` doldurma, şarjör; sopa, demir kama, pala, sapan, yay + ok, av tüfeği, tabanca, piyade tüfeği, **keskin nişancı tüfeği** (dürbün yalnız ganimetten); mühimmat; atış sesi ve gürültü _(mermi yolu sabit adımlı, arazi + oyuncu yapıları + binalar durdurur; isabet uçuş süresi kadar gecikir; nişangâh sıfırlı; saçma taneleri tek isabette toplanır; keskin nişancı tarifi piyade tüfeği yerine ondan pahalı metal + dürbün ister (tarif girdileri yalnızca malzeme kuralı); atış gürültüsü kışkırtılmış yırtıcıyı da kaçırır (11.0 canlı tepkisi), bu yüzden bot karşılaşmalarında ateşli silahla hasar alınmıyor — elle denge değerlendirmesine bırakıldı)_
 - [x] **11.6 (E)** Eşkıya kampları (orman): seed'li kamplar, çadır/ateş/sandık; etkinlikler (ateş başı, uyku, nöbet, devriye, avlanma, odun, yol pususu); yakın/menzilli savaş, teslim olma, üst arama, kamp temizleme; camide saldırı yok; Ayarlar'dan kapatılabilir _(gerçek dünyada 15 kamp; kamp yeri kuralı ölçümle gevşetildi: eğim 32°, köylere 120 m, yola 80–400 m)_
 - [x] **11.7 (E)** Yankesiciler (şehir): yaklaşıp eşya çalar ve kaçar; yakalanınca eşya geri gelir, kaçarsa kamp sandığına düşer
 - [ ] **11.8 (F)** Drone: üretim, uçuş (WASD, Space/`Z`), `Q` görüş geçişi, `H` eve dönüş, ~300 m menzil, pil ve güneş paneli şarjı, işaretleme (pusulada), düşme/geri alma, eşkıyalarca vurulma
@@ -338,7 +338,7 @@ Kabul kriterleri:
 - [ ] Çatının üstüne kurulum reddediliyor; duvarlı hücrenin üstüne üst kat tabanı kuruluyor; merdivenden üst kata yürünüyor ve üstteki taban merdiven boşluğu + korkuluk alıyor _(testli)_
 - [ ] Yeni istasyonlar tarifleri yalnızca yakında açıyor; çitli alana hayvan giremiyor _(testli)_
 - [ ] Ekim → büyüme → hasat → işleme zinciri oyun saatiyle çalışıyor; kayda giriyor _(testli)_
-- [ ] Her silah üretilebiliyor ve ganimetten çıkabiliyor; keskin nişancı tüfeği dürbün istiyor; balistik testleri geçiyor _(testli)_
+- [x] Her silah üretilebiliyor ve ganimetten çıkabiliyor; keskin nişancı tüfeği dürbün istiyor; balistik testleri geçiyor _(testli)_
 - [ ] Eşkıya kampları deterministik, etkinlikleri ve teslim olma çalışıyor; camide saldırı yok; ayar kapalıyken eşkıya yok _(testli)_
 - [ ] Drone menzil/pil sınırına uyuyor, işaretler kayda giriyor _(testli)_
 - [ ] Kayıt v5; v1–v4 kayıtlar yükleniyor _(testli)_

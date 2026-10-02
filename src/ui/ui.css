@@ -1911,3 +1911,209 @@
   background-position: center;
   opacity: 0.75;
 }
+
+/* ── Faz 11: D (11.5) silah HUD'u: nişangâh, dürbün, mermi sayacı ── */
+[data-ranged] .hud-crosshair {
+  display: none;
+}
+.ranged-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 890;
+  font: 14px/1.4 var(--ui-font);
+  color: var(--ui-text);
+  text-shadow: var(--ui-text-shadow);
+  user-select: none;
+}
+.ranged-cross {
+  --gap: 6px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+.ranged-cross-arm {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  border-radius: 1px;
+  transition:
+    transform 60ms linear,
+    opacity 120ms;
+}
+.ranged-cross-arm[data-side='t'],
+.ranged-cross-arm[data-side='b'] {
+  width: 2px;
+  height: 8px;
+  left: -1px;
+}
+.ranged-cross-arm[data-side='l'],
+.ranged-cross-arm[data-side='r'] {
+  width: 8px;
+  height: 2px;
+  top: -1px;
+}
+.ranged-cross-arm[data-side='t'] {
+  top: calc(-1 * var(--gap) - 8px);
+}
+.ranged-cross-arm[data-side='b'] {
+  top: var(--gap);
+}
+.ranged-cross-arm[data-side='l'] {
+  left: calc(-1 * var(--gap) - 8px);
+}
+.ranged-cross-arm[data-side='r'] {
+  left: var(--gap);
+}
+.ranged-cross-dot {
+  position: absolute;
+  left: -1.5px;
+  top: -1.5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ui-accent-hi);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+/* Saçma: açık daire (yarıçap = saçılma) */
+[data-kind='spread'] .ranged-cross::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--gap));
+  top: calc(-1 * var(--gap));
+  width: calc(2 * var(--gap));
+  height: calc(2 * var(--gap));
+  box-sizing: border-box;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+}
+[data-kind='spread'] .ranged-cross-arm {
+  opacity: 0.55;
+}
+/* Yay/sapan: alttaki kol uzun, kavis için aşağıda kademe işaretleri */
+[data-kind='bow'] .ranged-cross-arm[data-side='b'] {
+  height: 26px;
+  background: linear-gradient(
+    rgba(255, 255, 255, 0.92) 0 30%,
+    transparent 30% 40%,
+    rgba(255, 255, 255, 0.92) 40% 70%,
+    transparent 70% 80%,
+    rgba(255, 255, 255, 0.92) 80%
+  );
+}
+/* Dürbün: ortada daire, çevresi siyah; artı ve mil noktaları */
+.ranged-scope {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 calc(min(42vh, 42vw) - 2px),
+    rgba(0, 0, 0, 0.92) min(42vh, 42vw),
+    #000 calc(min(42vh, 42vw) + 30px)
+  );
+}
+.ranged-scope-reticle {
+  position: absolute;
+  inset: 0;
+}
+.ranged-scope-reticle::before,
+.ranged-scope-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(0, 0, 0, 0.85);
+}
+.ranged-scope-reticle::before {
+  left: 50%;
+  top: calc(50% - min(42vh, 42vw));
+  width: 1.5px;
+  height: calc(2 * min(42vh, 42vw));
+  transform: translateX(-50%);
+}
+.ranged-scope-reticle::after {
+  top: 50%;
+  left: calc(50% - min(42vh, 42vw));
+  height: 1.5px;
+  width: calc(2 * min(42vh, 42vw));
+  transform: translateY(-50%);
+}
+.ranged-scope-mil {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + var(--mil) * min(4vh, 4vw));
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.85);
+}
+.ranged-breath {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + min(42vh, 42vw) - 40px);
+  width: 120px;
+  height: 4px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ranged-breath-fill {
+  height: 100%;
+  background: var(--ui-info);
+}
+.ranged-breath[data-out='1'] .ranged-breath-fill {
+  background: var(--ui-danger);
+}
+/* Mermi sayacı: kısayol çubuğunun sağında */
+.ranged-ammo {
+  position: absolute;
+  left: calc(50% + 247px);
+  bottom: 16px;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 8px 14px 8px 10px;
+  min-width: 132px;
+}
+.ranged-ammo-icon .item-icon {
+  width: 34px;
+  height: 34px;
+}
+.ranged-ammo-text {
+  display: flex;
+  flex-direction: column;
+}
+.ranged-ammo-name {
+  font-size: 12px;
+  color: var(--ui-text-muted);
+}
+.ranged-ammo-count {
+  font: 600 20px/1.1 var(--ui-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.ranged-ammo[data-level='low'] .ranged-ammo-count {
+  color: var(--ui-warn);
+}
+.ranged-ammo[data-level='empty'] .ranged-ammo-count {
+  color: var(--ui-danger);
+}
+.ranged-reload {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ranged-reload-fill {
+  height: 100%;
+  background: var(--ui-accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ranged-cross-arm {
+    transition: none;
+  }
+}

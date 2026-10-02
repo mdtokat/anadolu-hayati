@@ -91,6 +91,15 @@ export interface GameEvents {
   // ── Faz 11: C (11.4 ekme biçme; bu bölüme yalnızca C ekler) ──
 
   // ── Faz 11: D (11.5 silahlar; bu bölüme yalnızca D ekler) ──
+  /**
+   * Oyuncu menzilli silahla ateş etti (`combat/RangedSystem`): ağız konumu, isabet eden (tekil) hedef sayısı. Gürültü
+   * ayrıca `noise:made` ile yayınlanır.
+   */
+  'weapon:fired': { weapon: ItemId; x: number; y: number; z: number; hits: number };
+  /** Şarjör envanterden dolduruldu (`rounds`: giren mermi). */
+  'weapon:reloaded': { weapon: ItemId; rounds: number };
+  /** Boş tetik: şarjör boş ve yedek mühimmat yok. */
+  'weapon:empty': { weapon: ItemId };
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici; bu bölüme yalnızca E ekler) ──
   /** Bir eşkıya oyuncuyu fark edip saldırıya geçti (çatışma başına bir kez). */

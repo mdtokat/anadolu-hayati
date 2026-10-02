@@ -43,6 +43,15 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
     ],
   ],
   [
+    'Silahlar',
+    [
+      [['Sol tık'], 'Ateş et (elde menzilli silah)'],
+      [['Sağ tık'], 'Nişan al · dürbün'],
+      [['R'], 'Doldur'],
+      [['Shift'], 'Nişanda nefes tut (dürbün sallanmaz)'],
+    ],
+  ],
+  [
     'Diğer',
     [
       [['B'], 'İl sınırları'],
@@ -57,6 +66,7 @@ const DEV_CONTROLS: readonly ControlRow[] = [
   [['Shift', '1–0'], 'İldeki yerlere ışınlan'],
   [['P', 'O'], 'Malzeme / inşa eşyası ver'],
   [['L', 'N'], 'Erzak ver / önüne bir yolcu çıkar'],
+  [['J'], 'Silah ve mühimmat ver'],
   [['[', ']'], 'Saati ±1 saat'],
   [['K'], 'Canı sıfırla'],
 ];

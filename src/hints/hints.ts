@@ -10,6 +10,8 @@ export const HINT_IDS = [
   'hunt',
   'town',
   'person',
+  // ── Faz 11: D (11.5) ──
+  'ranged',
 ] as const;
 export type HintId = (typeof HINT_IDS)[number];
 
@@ -26,6 +28,8 @@ export const HINT_TEXT: Readonly<Record<HintId, string>> = {
   town: 'Terk edilmiş bir yerleşimdesin: evlerin ve dükkânların kapısında E basılı tutarak kilerleri ara. Camiler kutsal ve güvenli sığınaktır (yağmalanmaz); çeşmelerden su içebilirsin. Bulgur ve tarhanayı bakır tencereyle ateşte pişir.',
   person:
     'Yakında biri var: yanına gidince selam verir. Yüzüne bakıp E’ye basarak konuş; yol sorabilir, takas yapabilirsin.',
+  ranged:
+    'Elinde menzilli silah var: sağ tık nişan alır, sol tık ateş eder, R doldurur. Mermi uzakta düşer: uzak hedefe biraz yukarıdan nişan al. Dürbünde Shift nefesini tutar. Atış sesi hayvanları kaçırır.',
 };
 
 /** İpucu kararı için oyundan alınan anlık durum (saf veri). */
@@ -46,6 +50,8 @@ export interface HintContext {
   inSettlement?: boolean;
   /** Faz 10: yakında bir kişi var mı? */
   personNearby?: boolean;
+  /** Faz 11.5: elde menzilli silah var mı? */
+  rangedHeld?: boolean;
 }
 
 export interface HintTrackerOptions {
@@ -126,6 +132,8 @@ export class HintTracker {
         return ctx.inSettlement === true;
       case 'person':
         return ctx.personNearby === true;
+      case 'ranged':
+        return ctx.rangedHeld === true;
     }
   }
 }

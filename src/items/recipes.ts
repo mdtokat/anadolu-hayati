@@ -628,13 +628,14 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     station: 'forge',
     output: { id: 'rifle', count: 1 },
   },
-  // Keskin nişancı tüfeği dürbün ister (yalnızca ganimetten); D girdiyi piyade tüfeği + dürbün yapar.
+  // Keskin nişancı tüfeği dürbün ister (yalnızca ganimetten). Tarif girdileri yalnızca malzemedir (tarif tablosu
+  // kuralı), bu yüzden piyade tüfeği girdi değildir; bunun yerine ondan pahalı metal ister.
   sniper_rifle: {
     id: 'sniper_rifle',
     name: 'Keskin Nişancı Tüfeği',
     inputs: [
-      { id: 'iron_ingot', count: 4 },
-      { id: 'scrap_metal', count: 3 },
+      { id: 'iron_ingot', count: 5 },
+      { id: 'scrap_metal', count: 4 },
       { id: 'scope', count: 1 },
     ],
     station: 'forge',

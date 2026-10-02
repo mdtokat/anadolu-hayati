@@ -69,6 +69,8 @@ describe('HintTracker', () => {
     const town = { ...prey, inSettlement: true };
     expect(t.update(town, 1000)).toBe('town');
     expect(t.update({ ...town, personNearby: true }, 1030)).toBe('person');
+    // Faz 11.5: elde menzilli silah.
+    expect(t.update({ ...town, personNearby: true, rangedHeld: true }, 1060)).toBe('ranged');
     expect(t.seenIds).toEqual([...HINT_IDS]);
   });
 

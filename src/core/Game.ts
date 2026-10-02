@@ -175,8 +175,18 @@ import { CampColliders } from '../world/CampColliders';
 import { darknessOf } from '../creatures/perception';
 import type { ItemStack } from '../items/Inventory';
 import type { PersonRole } from '../people/roles';
-import { WeaponState } from '../items/weaponState';
+import { WEAPON_IDS, WeaponState } from '../items/weaponState';
 import { resolveContextAction } from './inputMapping';
+// ── Faz 11: D (11.5 silahlar) ──
+import { CAMERA } from '../config';
+import { RangedSystem, aimCamera, type FireResult } from '../combat/RangedSystem';
+import { ammoOf } from '../combat/ammo';
+import type { SolidQuery } from '../combat/ballistics';
+import { shotSolids } from '../combat/shotSolids';
+import type { MoveIntent } from './inputMapping';
+import { GunshotAudio } from '../audio/gunshot';
+import { RangedHud } from '../ui/RangedHud';
+import { TracerLayer } from '../world/TracerLayer';
 
 /** Hangi dünyanın oynanacağı: gerçek bölge ya da Faz 1 test arenası (`?world=test`). */
 export type WorldKind = 'region' | 'test';
@@ -225,6 +235,10 @@ const FAZ11_DEV_WEAPONS: ReadonlyArray<readonly [ItemId, number]> = [
   ['bow', 1],
   ['arrow', 15],
   ['pala', 1],
+  // D (11.5): av tüfeği, keskin nişancı, sapan (taşla).
+  ['shotgun', 1],
+  ['sniper_rifle', 1],
+  ['slingshot', 1],
 ];
 const FAZ11_DEV_FARMING: ReadonlyArray<readonly [ItemId, number]> = [
   ['hoe', 1],
@@ -238,6 +252,11 @@ const FAZ11_DEV_DRONE: ReadonlyArray<readonly [ItemId, number]> = [
   ['drone', 1],
   ['battery', 2],
 ];
+
+/** Faz 11 (D): boş tetik bildirimi, silah başına ("Mühimmat yok: Tüfek Mermisi"). */
+const RANGED_AMMO_NAMES: Partial<Record<string, string>> = Object.fromEntries(
+  WEAPON_IDS.map((w) => [w, `Mühimmat yok: ${ITEMS[ammoOf(w)].name}`]),
+);
 
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
@@ -299,6 +318,13 @@ export class Game {
   readonly weapons = new WeaponState();
   /** Eşkıyalar ve yankesiciler açık mı (Ayarlar, `Settings.bandits`; E okur)? */
   private banditsEnabled = true;
+  // ── Faz 11: D (11.5 silahlar) ──
+  /** Menzilli silahlar: nişan, atış, doldurma (saf mantık). */
+  readonly ranged = new RangedSystem(this.events, this.inventory, this.weapons, this.survival);
+  private rangedHud: RangedHud | null = null;
+  private gunAudio: GunshotAudio | null = null;
+  private tracers: TracerLayer | null = null;
+  private shotSolidQuery: SolidQuery | null = null;
   /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
   private inSanctuary = false;
   /** Namaz vakitleri (bölgenin enlemi ve yılın günü sabit) ve son bildirilen saat. */
@@ -927,7 +953,10 @@ export class Game {
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
     const polled = this.input.pollIntent();
     // Test modunda bitkinlik koşuyu/uçuşu kısıtlamaz.
-    const intent = this.testMode ? polled : gateIntent(polled, canSprint(this.survival.state));
+    // Faz 11 (D): nişan alırken Shift nefes tutmadır, koşu değil (`rangedIntent`).
+    const intent = this.rangedIntent(
+      this.testMode ? polled : gateIntent(polled, canSprint(this.survival.state)),
+    );
     this.player.update(step, intent, this.playerCamera.yaw);
     this.physics.step();
 
@@ -1642,6 +1671,7 @@ export class Game {
       personNearby: this.people
         .list()
         .some((p) => Math.hypot(p.x - feet.x, p.z - feet.z) <= HINTS.preyRadiusM),
+      rangedHeld: this.ranged.weapon !== null,
     };
     const id = this.hintTracker.update(ctx, now / 1000);
     if (id === null) return;
@@ -1837,6 +1867,8 @@ export class Game {
   /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
   private attack(): void {
     if (!this.survival.alive || this.overlayOpen || this.loop.paused) return;
+    // Faz 11 (D): elde menzilli silah varsa sol tık ateş eder (yakın dövüş yok).
+    if (this.fireRanged()) return;
     const result = this.combat.attack(this.meleeAim());
     if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
     // Faz 11 (E): canlıya isabet etmeyen salınış eşkıyaya/yankesiciye vurabilir.
@@ -1943,11 +1975,104 @@ export class Game {
   private drawFarming(_time: number, _feet: { x: number; y: number; z: number }): void {}
 
   // ── Faz 11: D (11.5 silahlar) ──
-  private setupRanged(): void {}
-  private updateRanged(_dt: number): void {}
-  private drawRanged(_time: number, _feet: { x: number; y: number; z: number }): void {}
+  private setupRanged(): void {
+    this.rangedHud = new RangedHud(this.container);
+    this.gunAudio = new GunshotAudio(this.settings);
+    this.tracers = new TracerLayer();
+    this.world.scene.add(this.tracers.object);
+    this.shotSolidQuery = shotSolids(
+      this.structureSystem.structures,
+      this.world.settlementMap ?? null,
+    );
+    this.offs.push(
+      this.events.on('weapon:reloaded', () => this.gunAudio?.click()),
+      this.events.on('weapon:empty', ({ weapon }) => {
+        this.gunAudio?.click();
+        if (weapon in RANGED_AMMO_NAMES)
+          this.hud.notify(RANGED_AMMO_NAMES[weapon]!, INTERACT.toastMs);
+      }),
+      this.events.on('player:died', () => {
+        this.playerCamera.setAim(CAMERA.fov, 1, false);
+        this.playerCamera.setViewOffset(0, 0);
+      }),
+      this.events.on('player:respawned', () => this.ranged.reset()),
+      () => {
+        this.rangedHud?.dispose();
+        this.gunAudio?.dispose();
+        this.tracers?.dispose();
+      },
+    );
+  }
+
+  private updateRanged(dt: number): void {
+    const v = this.player.currentVelocity;
+    const speed = Math.hypot(v.x, v.z);
+    const frozen = this.overlayOpen || this.loop.paused;
+    this.ranged.update(dt, {
+      held: this.hotbar.selectedItem,
+      aiming: !frozen && this.input.aimHeld && this.placement.aiming === null,
+      steady: this.input.steadyHeld,
+      moving: speed > 0.5,
+      running: !this.player.grounded || speed > PLAYER.walkSpeed * 1.15,
+    });
+    const cam = aimCamera(this.ranged.weapon, this.ranged.aimFraction, CAMERA.fov);
+    this.playerCamera.setAim(cam.fovDeg, cam.sensitivity, cam.firstPerson);
+    const sway = this.ranged.sway;
+    this.playerCamera.setViewOffset(sway.yaw, sway.pitch);
+  }
+
+  private drawRanged(time: number, _feet: { x: number; y: number; z: number }): void {
+    this.tracers?.update(time);
+    // Üçüncü şahısta nişan alınca görüntü göz hizasına geçer: oyuncu modeli gizlenir.
+    this.playerModel.setVisible(
+      this.playerCamera.mode === 'thirdPerson' && !this.playerCamera.viewFirstPerson,
+    );
+    const visible = this.survival.alive && !this.overlayOpen && !this.loop.paused;
+    this.rangedHud?.update(this.ranged.hudState(), visible, this.playerCamera.camera.fov);
+  }
+
   /** `R` (hayalet kapalıyken): elde silah varsa doldur. */
-  private reloadWeapon(): void {}
+  private reloadWeapon(): void {
+    if (!this.survival.alive || this.overlayOpen || this.loop.paused) return;
+    const weapon = this.ranged.weapon;
+    if (weapon && this.ranged.reload() === 'no_ammo') {
+      this.hud.notify(RANGED_AMMO_NAMES[weapon] ?? 'Mühimmat yok', INTERACT.toastMs);
+    }
+  }
+
+  /** Nişan alırken (sağ tık, elde menzilli silah) koşu kapanır: Shift nefes tutmaya ayrılır. */
+  private rangedIntent(intent: MoveIntent): MoveIntent {
+    if (!intent.run || this.ranged.weapon === null || !this.input.aimHeld) return intent;
+    return { ...intent, run: false };
+  }
+
+  /** Sol tık: elde menzilli silah varsa ateş eder ve true döner (sonuç ne olursa olsun); yoksa false. */
+  private fireRanged(): boolean {
+    if (this.ranged.weaponOf(this.hotbar.selectedItem) === null) return false;
+    const feet = this.player.position;
+    const result: FireResult = this.ranged.fire(
+      {
+        x: feet.x,
+        y: feet.y + PLAYER.eyeHeight,
+        z: feet.z,
+        yaw: this.playerCamera.yaw,
+        pitch: this.playerCamera.pitch,
+      },
+      {
+        heightAt: (x, z) => this.world.terrain.heightAt(x, z),
+        targets: this.targets,
+        solids: this.shotSolidQuery ?? undefined,
+      },
+    );
+    if (result.status === 'fired' && result.weapon) {
+      this.playerCamera.kick(result.recoil);
+      this.tracers?.add(result.weapon, result.shots, performance.now() / 1000);
+      this.gunAudio?.play(result.weapon);
+    } else if (result.status === 'exhausted') {
+      this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
+    }
+    return true;
+  }
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici) ──
   /** Eşkıya kampları (yerleşim verisi olan gerçek dünyada; yoksa null). */
