@@ -1,3 +1,4 @@
+import { viewCenters } from './viewFocus';
 import { Scene, type MeshStandardMaterial } from 'three';
 import {
   CHUNK,
@@ -66,7 +67,7 @@ export class RegionWorld implements GameWorld {
   private placeCentersCache: readonly PlaceCenter[] | null = null;
   /** Faz 11 (E): ek nesne engelleyiciler (eşkıya kampları); nesne chunk'ı kurulurken sorulur. */
   private readonly propBlockers: Array<(x: number, z: number, radius: number) => boolean> = [];
-  /** Faz 11: drone görüş odağı (11.0'da etkisiz). */
+  /** Faz 11 (F): drone görüş odağı (yoksa oyuncu). */
   private viewFocus: { x: number; z: number } | null = null;
   readonly maxSlopeDeg = REGION_PLAYER.maxSlopeDeg;
   readonly creatureTerrain: CreatureTerrain;
@@ -268,16 +269,18 @@ export class RegionWorld implements GameWorld {
   }
 
   update(focusX: number, focusZ: number, timeSeconds: number): void {
+    // Faz 11 (F): collider'lar oyuncuda, çizim görüş odağında (drone görüşü; yoksa oyuncu).
+    const { visual } = viewCenters({ x: focusX, z: focusZ }, this.viewFocus);
     this.colliders.update(focusX, focusZ);
     this.settlementColliders?.update(focusX, focusZ);
     this.structureColliders?.update(focusX, focusZ);
-    this.chunks.update(focusX, focusZ);
-    this.props?.update(focusX, focusZ);
-    this.settlementLayer?.update(focusX, focusZ);
-    this.structureLayer?.update(focusX, focusZ);
+    this.chunks.update(visual.x, visual.z);
+    this.props?.update(visual.x, visual.z);
+    this.settlementLayer?.update(visual.x, visual.z);
+    this.structureLayer?.update(visual.x, visual.z);
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
-    this.environment.follow(focusX, focusZ);
+    this.environment.follow(visual.x, visual.z);
   }
 
   setSun(sun: SkyPosition): void {
@@ -393,7 +396,10 @@ export class RegionWorld implements GameWorld {
     this.propBlockers.push(blocks);
   }
 
-  /** Görüş odağı (Faz 11 sözleşmesi): 11.0'da yalnızca saklanır, etkisizdir; F LOD/nesne merkezini taşır. */
+  /**
+   * Görüş odağı (Faz 11 sözleşmesi; F): verilirse arazi LOD'u, nesne/yerleşim/yapı çizimi ve gökyüzü bu noktayı izler
+   * (`update`); collider'lar oyuncuda kalır.
+   */
   setViewFocus(p: { x: number; z: number } | null): void {
     this.viewFocus = p ? { x: p.x, z: p.z } : null;
   }

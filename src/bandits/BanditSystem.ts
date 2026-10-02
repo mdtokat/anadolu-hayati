@@ -1,4 +1,4 @@
-import { BANDITS, RANGED } from '../config';
+import { BANDITS, DRONE, RANGED } from '../config';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import { fireShot, rayTerrain } from '../combat/ranged';
@@ -56,6 +56,8 @@ export interface BanditContext {
   /** Avlanabilecek karacalar (hedef kimliğiyle). */
   prey(x: number, z: number, r: number): ReadonlyArray<{ id: string; x: number; z: number }>;
   obstacles?: ObstacleQuery;
+  /** Faz 11 (F): uçan drone (yoksa null); alçak uçarsa görenler ateş eder. */
+  drone?: { x: number; y: number; z: number } | null;
 }
 
 /** Bir eşkıyanın simülasyon kaydı. */
@@ -75,12 +77,25 @@ interface Member {
   noise: { x: number; z: number } | null;
   /** Kampsız (dev/test) eşkıyanın sabit etkinliği. */
   freeActivity: BanditActivity;
+  /** Faz 11 (F): drone'a iki atış arası bekleme (sn). */
+  droneCooldown: number;
 }
 
 /** Bir kampın oturumluk hafızası: ölen/kaçan üyeler (kayda girmez; temizlenen kamp girer). */
 interface CampMemory {
   gone: Map<number, { x: number; z: number; yaw: number; dead: boolean; searched: boolean }>;
 }
+
+/** Faz 11 (F): drone'u izleyebilen durumlar (uyanık, oyuncuyla çatışmada olmayan). */
+const DRONE_WATCH_STATES: ReadonlySet<string> = new Set([
+  'sit',
+  'guard',
+  'patrol',
+  'hunt',
+  'wood',
+  'ambush',
+  'alert',
+]);
 
 /** Eşkıya kimliği: kamp · 8 + sıra (serbest eşkıyalar büyük ayrı aralıkta). */
 const MEMBERS_PER_CAMP = 8;
@@ -341,6 +356,7 @@ export class BanditSystem implements TargetProvider {
       searched: false,
       noise: null,
       freeActivity: activity,
+      droneCooldown: 0,
     });
     return id;
   }
@@ -394,6 +410,7 @@ export class BanditSystem implements TargetProvider {
     const result = stepBandit(m.brain, senses, dt, m.rng);
     m.brain = result.next;
     for (const action of result.actions) this.act(m, action, ctx);
+    this.watchDrone(m, dt, ctx);
     this.move(m, result.intent, dt, ctx.obstacles ?? NO_OBSTACLES);
     // Bağışlanıp kaçan eşkıya süre dolunca ya da uzaklaşınca kaybolur.
     if (m.brain.state === 'flee') {
@@ -442,6 +459,36 @@ export class BanditSystem implements TargetProvider {
     return { player, noise: m.noise, activity, home, camp: center, prey };
   }
 
+  /**
+   * Faz 11 (F): alçak uçan drone'u gören (uyanık, oyuncuyla çatışmada olmayan) tüfekli/tabancalı eşkıya ona ateş eder;
+   * kılıçlılar yalnızca bakınır (sesi araştırır gibi).
+   */
+  private watchDrone(m: Member, dt: number, ctx: BanditContext): void {
+    m.droneCooldown = Math.max(0, m.droneCooldown - dt);
+    const drone = ctx.drone;
+    const b = m.brain;
+    if (!drone || !DRONE_WATCH_STATES.has(b.state)) return;
+    if (drone.y - this.world.heightAt(drone.x, drone.z) > DRONE.shootableAltitude) return;
+    const eye = { x: b.x, y: m.y + BANDITS.eyeHeight, z: b.z };
+    const night = 1 + (BANDITS.nightSightFactor - 1) * Math.min(Math.max(ctx.darkness, 0), 1);
+    if (Math.hypot(drone.x - b.x, drone.z - b.z, drone.y - eye.y) > BANDITS.sightRange * night)
+      return;
+    if (!this.lineOfSight(eye, drone)) return;
+    if (isMeleeWeapon(b.weapon)) {
+      if (b.state !== 'alert') m.noise = { x: drone.x, z: drone.z };
+      return;
+    }
+    if (m.droneCooldown > 0) return;
+    m.droneCooldown = DRONE.banditShotInterval;
+    this.shootAt(m, drone.x, drone.y, drone.z, ctx, {
+      x: b.x,
+      y: m.y,
+      z: b.z,
+      by: 'bandit',
+      weapon: b.weapon,
+    });
+  }
+
   /** Arazi görüş hattı (`rayTerrain`): gözden hedefe arazi araya girmiyor mu? */
   private lineOfSight(
     from: { x: number; y: number; z: number },
@@ -482,17 +529,29 @@ export class BanditSystem implements TargetProvider {
     ctx: BanditContext,
     from: HitSource,
   ): void {
+    const targetY =
+      action.target === 'player'
+        ? ctx.player.y + 1.2
+        : this.world.heightAt(action.x, action.z) + 0.6;
+    this.shootAt(m, action.x, targetY, action.z, ctx, from);
+  }
+
+  /** (x, y, z) noktasına nişan hatasıyla atış (eşkıyalar hariç her hedefi vurabilir); gürültü yayılır. */
+  private shootAt(
+    m: Member,
+    tx: number,
+    targetY: number,
+    tz: number,
+    ctx: BanditContext,
+    from: HitSource,
+  ): void {
     const b = m.brain;
     if (isMeleeWeapon(b.weapon)) return;
     const weapon = b.weapon;
     const spec = RANGED.weapons[weapon];
     const origin = { x: b.x, y: m.y + 1.5, z: b.z };
-    const targetY =
-      action.target === 'player'
-        ? ctx.player.y + 1.2
-        : this.world.heightAt(action.x, action.z) + 0.6;
-    const dx = action.x - origin.x;
-    const dz = action.z - origin.z;
+    const dx = tx - origin.x;
+    const dz = tz - origin.z;
     const horizontal = Math.hypot(dx, dz);
     const baseYaw = Math.atan2(dz, dx);
     const basePitch = Math.atan2(targetY - origin.y, horizontal);
@@ -606,6 +665,7 @@ export class BanditSystem implements TargetProvider {
         searched: gone?.searched ?? false,
         noise: null,
         freeActivity: 'sit',
+        droneCooldown: 0,
       });
     }
   }

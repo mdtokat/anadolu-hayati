@@ -2558,20 +2558,58 @@ export const PICKPOCKETS = {
   seed: 0x9c4e7a,
 } as const;
 
-/** ── Faz 11: F (11.8) ── Drone: hız, menzil, irtifa, pil, şarj, işaretler, düşürülme. */
+/**
+ * ── Faz 11: F (11.8) ── Drone: tezgâhta üretilir, kısayolda seçiliyken sol tıkla kalkar, `Q` ile görüş geçer, `H` ile
+ * eve döner. Menzil oyuncuya yataydır; sınıra yaklaştıkça görüntü karlanır, aşınca kendiliğinden geri döner. Pil bitince
+ * düşer ve yerde `drone` yapısı olarak kalır (`E` ile alınır). Uzaklıklar oyun metresidir.
+ */
 export const DRONE = {
-  /** Yatay ve dikey hız (oyun m/sn). */
+  /** Yatay ve dikey hız (oyun m/sn); Shift ile hızlı uçuş çarpanı; hız değişimi (oyun m/sn²). */
   speed: 12,
   climbSpeed: 6,
+  fastFactor: 1.8,
+  acceleration: 24,
   /** Oyuncudan en uzak menzil (oyun m) ve karlanmanın başladığı oran. */
   range: 300,
   noiseStart: 0.8,
-  /** Yerden en yüksek irtifa (oyun m). */
+  /** Menzil aşılınca kendiliğinden dönüş, oyuncuya bu oran kadar yaklaşınca denetim geri gelir. */
+  returnUntil: 0.85,
+  /** Yerden en yüksek irtifa ve zemine en çok yaklaşma (oyun m). */
   maxAltitude: 120,
-  /** Tam pille uçuş süresi (gerçek sn). */
+  minClearance: 0.8,
+  /** Kalkış: oyuncunun önüne uzaklık ve yerden yükseklik (oyun m). */
+  launchAhead: 1.5,
+  launchHeight: 2.5,
+  /** Eve dönüşte iniş: oyuncuya bu yatay uzaklıkta alçalır ve alınır (oyun m). */
+  landDistance: 2.5,
+  /** Tam pille uçuş süresi (gerçek sn); bu oranın altında uyarı; kalkış için en az pil. */
   batterySeconds: 240,
-  /** En çok işaret sayısı. */
+  lowBattery: 0.2,
+  minLaunchBattery: 0.08,
+  /** Pil bitince düşüş hızı (oyun m/sn). */
+  fallSpeed: 9,
+  /** Dayanıklılık (eşkıya atışı; hasar `RANGED` silah hasarıdır). */
+  health: 30,
+  /** Hedef silindiri (oyun m). */
+  radius: 0.45,
+  height: 0.35,
+  /** Drone kamerası: varsayılan eğim (rad, aşağı), eğim sınırları, görüş açısı ve tekerlekle yakınlaştırma aralığı. */
+  pitchDefault: -0.6,
+  pitchMin: -1.5,
+  pitchMax: 0.25,
+  fovDeg: 70,
+  fovMinDeg: 18,
+  fovStepDeg: 6,
+  /** İşaretleme: en çok işaret, bakış ışınına en büyük açı (derece), en uzak (oyun m), varolan işareti kaldırma yakınlığı. */
   maxMarks: 8,
-  /** Eşkıyaların drone'u fark edip ateş ettiği en yüksek irtifa (yerden, oyun m). */
+  markPickDeg: 3.5,
+  markRange: 320,
+  markRemoveRadius: 8,
+  /** Eşkıyaların drone'u fark edip ateş ettiği en yüksek irtifa (yerden, oyun m) ve iki atış arası (sn). */
   shootableAltitude: 40,
+  banditShotInterval: 3,
+  /** Drone görüşündeyken oyuncu hasar alırsa görüş kendiliğinden oyuncuya döner. */
+  autoReturnOnDamage: true,
+  /** Pervane dönüş hızı (rad/sn; çizim). */
+  rotorSpeed: 60,
 } as const;
