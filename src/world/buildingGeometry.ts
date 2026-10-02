@@ -22,7 +22,15 @@ import {
   WALL_THICKNESS,
   mosqueOffset,
   type BuildingKind,
+  type LocalBox,
 } from '../settlements/kinds';
+import {
+  boxesOverlap,
+  paneHole,
+  subtractHoles,
+  windowPanes,
+  withoutOffset,
+} from '../settlements/windows';
 import { createRandom, type Random } from '../utils/random';
 
 /**
@@ -44,6 +52,10 @@ interface Part {
   inner?: boolean;
   /** Yalnızca iç mekân çizilmezken (`near`) gerekli parça (kapı boşluğunun karanlığı). */
   outer?: boolean;
+  /** Camlı pencerede delinecek duvar/sıva kutusu (eksene hizalı; `interior` kademesinde delinir). */
+  cut?: boolean;
+  /** Dış pencere levhası (cam/tahta): camlı pencerede `interior` kademesinde kaldırılır (içi görünsün). */
+  pane?: boolean;
 }
 
 /**
@@ -230,7 +242,9 @@ function windows(
       if (r === 0 && avoid.some((a) => Math.abs(a - along) < ww / 2 + 0.9)) continue;
       const y = rows[r] as number;
       const boarded = random.next() < boardedChance;
-      const local: Part[] = [box(ww, wh, t, 0, y, 0, boarded ? C.boarded : C.window)];
+      const local: Part[] = [
+        { ...box(ww, wh, t, 0, y, 0, boarded ? C.boarded : C.window), pane: true },
+      ];
       if (!boarded) {
         // orta kayıt: yalnız yakın ayrıntı kademesinde (`interior`)
         local.push(...indoor([box(0.06, wh, 0.04, 0, y, 0.03, C.timber)]));
@@ -259,39 +273,84 @@ function orient(
 }
 
 /**
- * İçten görünen pencereler (girilebilir yapılar): iç sıvanın önünde aydınlık cam ve ahşap kasa. Yüz ve konumlar
- * `windows` ile aynı kuraldır (`offset` iç yüzün uzaklığı; parça içe bakar).
+ * Camlı pencerelerin iç kasası (girilebilir yapılar; `settlements/windows.ts`): iç sıvanın önünde ahşap kasa ve duvar
+ * kalınlığınca orta kayıt. Cam ayrı katmandadır (`GlassLayer`); duvar `cut` parçalarında delinir.
  */
-function innerWindows(
-  face: 'front' | 'back' | 'left' | 'right',
-  span: number,
-  offset: number,
-  rows: readonly number[],
-  cols: number,
-  size: readonly [number, number],
-  avoid: readonly number[] = [],
-): Part[] {
+function windowFrames(kind: BuildingKind): Part[] {
   const parts: Part[] = [];
-  const [ww, wh] = size;
-  // İç yüz dış yüzün tersine bakar: ön yüzün içi "arka" yönlü parçadır.
-  const inward = { front: 'back', back: 'front', left: 'right', right: 'left' } as const;
-  for (let r = 0; r < rows.length; r++) {
-    for (let c = 0; c < cols; c++) {
-      const along = -span / 2 + (span / cols) * (c + 0.5);
-      if (r === 0 && avoid.some((a) => Math.abs(a - along) < ww / 2 + 0.9)) continue;
-      const y = rows[r] as number;
-      const local: Part[] = [
-        box(ww, wh, 0.04, 0, y, 0, C.windowInner),
-        box(ww + 0.14, 0.07, 0.07, 0, y - 0.07, 0.02, C.timber),
-        box(ww + 0.14, 0.07, 0.07, 0, y + wh, 0.02, C.timber),
-        box(0.07, wh, 0.07, -ww / 2 - 0.035, y, 0.02, C.timber),
-        box(0.07, wh, 0.07, ww / 2 + 0.035, y, 0.02, C.timber),
-        box(0.05, wh, 0.05, 0, y, 0.03, C.timber),
-      ];
-      parts.push(...orient(local, inward[face], along, -offset));
-    }
+  const t = WALL_THICKNESS;
+  for (const pane of windowPanes(kind)) {
+    const hole = withoutOffset(paneHole(pane, 0), kind);
+    const { w: ww, h: wh } = pane;
+    const y = hole.cy - wh / 2;
+    const inset = t / 2 + 0.035;
+    // İç yüz: duvar orta düzleminden içeri t/2 + 0.035.
+    const local: Part[] = [
+      box(ww + 0.14, 0.07, 0.07, 0, y - 0.07, 0, C.timber),
+      box(ww + 0.14, 0.07, 0.07, 0, y + wh, 0, C.timber),
+      box(0.07, wh, 0.07, -ww / 2 - 0.035, y, 0, C.timber),
+      box(0.07, wh, 0.07, ww / 2 + 0.035, y, 0, C.timber),
+      // orta kayıt duvarın içinden geçer (cam iki yanında)
+      box(0.05, wh, t, 0, y, inset, C.timber),
+      // pencere içi denizlik (duvar kalınlığınca)
+      box(ww, 0.04, t, 0, y - 0.04, inset, C.sill),
+    ];
+    const m = new Matrix4();
+    // Yerel +z dışarı bakar: kasa z = 0'da (iç yüz), orta kayıt z = inset'te (duvar ortası).
+    if (pane.face === 'front') m.makeTranslation(hole.cx, 0, hole.cz - inset);
+    else if (pane.face === 'back')
+      m.makeRotationY(Math.PI).setPosition(hole.cx, 0, hole.cz + inset);
+    else if (pane.face === 'left')
+      m.makeRotationY(-Math.PI / 2).setPosition(hole.cx + inset, 0, hole.cz);
+    else m.makeRotationY(Math.PI / 2).setPosition(hole.cx - inset, 0, hole.cz);
+    for (const p of local) p.geometry.applyMatrix4(m);
+    parts.push(...local);
   }
   return indoor(parts);
+}
+
+/**
+ * Camlı pencereler (kullanıcı talimatı: içeriden dışarısı görünsün). Dış pencere levhası camlı pencerede hiç tahtalı
+ * olmaz (kademeler arası tutarlı); `interior` kademesinde levha kaldırılır ve duvar/sıva (`cut`) delinir.
+ */
+function openWindows(kind: BuildingKind, parts: Part[], lod: BuildingLod): Part[] {
+  const holes = windowPanes(kind).map((pane) => withoutOffset(paneHole(pane), kind));
+  if (holes.length === 0) return parts;
+  const out: Part[] = [];
+  for (const part of parts) {
+    if (!part.pane && !(part.cut && lod === 'interior')) {
+      out.push(part);
+      continue;
+    }
+    part.geometry.computeBoundingBox();
+    const bb = part.geometry.boundingBox!;
+    const local: LocalBox = {
+      cx: (bb.min.x + bb.max.x) / 2,
+      cy: (bb.min.y + bb.max.y) / 2,
+      cz: (bb.min.z + bb.max.z) / 2,
+      hx: (bb.max.x - bb.min.x) / 2,
+      hy: (bb.max.y - bb.min.y) / 2,
+      hz: (bb.max.z - bb.min.z) / 2,
+    };
+    const hit = holes.some((h) => boxesOverlap(local, h));
+    if (!hit) {
+      out.push(part);
+      continue;
+    }
+    if (part.pane) {
+      if (lod === 'interior') part.geometry.dispose();
+      else out.push({ ...part, color: C.window });
+      continue;
+    }
+    part.geometry.dispose();
+    for (const b of subtractHoles([local], holes)) {
+      out.push({
+        ...box(b.hx * 2, b.hy * 2, b.hz * 2, b.cx, b.cy - b.hy, b.cz, part.color),
+        ...(part.inner ? { inner: true } : {}),
+      });
+    }
+  }
+  return out;
 }
 
 function door(w: number, h: number, z: number, x = 0): Part {
@@ -387,26 +446,35 @@ function roomShell(o: RoomOptions): Part[] {
   const id = d - 2 * t;
   const L = 0.02;
   // Dış duvarlar döşemenin altına `SKIRT` iner: yamaçta duvar dibi ile zemin arasında boşluk görünmesin.
-  const parts: Part[] = [
+  const walls: Part[] = [
     box(w, h + SKIRT, t, 0, -SKIRT, -d / 2 + t / 2, wall),
     box(t, h + SKIRT, id, -w / 2 + t / 2, -SKIRT, 0, wall),
     box(t, h + SKIRT, id, w / 2 - t / 2, -SKIRT, 0, wall),
     box(left, h + SKIRT, t, -w / 2 + left / 2, -SKIRT, fz, wall),
     box(right, h + SKIRT, t, w / 2 - right / 2, -SKIRT, fz, wall),
     box(dw, h - doorH, t, doorX, doorH, fz, wall),
+  ];
+  // Camlı pencerelerde (`settlements/windows.ts`) duvar ve iç sıva delinir.
+  for (const p of walls) p.cut = true;
+  const parts: Part[] = [
+    ...walls,
     box(dw, 0.08, t + 0.1, doorX, -0.04, fz + 0.05, C.darkStone), // eşik
     ...doorFrame(dw, doorH, d / 2 + 0.03, doorX),
     // Uzaktan (iç mekân çizilmezken) kapı boşluğu karanlık görünür.
     { ...box(dw, doorH, 0.03, doorX, 0, fz - 0.05, C.window), outer: true },
   ];
-  const inside: Part[] = [
-    // iç sıva
+  const plaster: Part[] = [
     box(iw, h, L, 0, 0, -d / 2 + t + L / 2, inner),
     box(L, h, id, -w / 2 + t + L / 2, 0, 0, inner),
     box(L, h, id, w / 2 - t - L / 2, 0, 0, inner),
     box(left - t, h, L, -w / 2 + t + (left - t) / 2, 0, d / 2 - t - L / 2, inner),
     box(right - t, h, L, w / 2 - t - (right - t) / 2, 0, d / 2 - t - L / 2, inner),
     box(dw, h - doorH, L, doorX, doorH, d / 2 - t - L / 2, inner),
+  ];
+  for (const p of plaster) p.cut = true;
+  const inside: Part[] = [
+    // iç sıva
+    ...plaster,
     // süpürgelik
     box(iw, 0.14, 0.04, 0, 0, -d / 2 + t + 0.03, C.plankDark),
     box(0.04, 0.14, id, -w / 2 + t + 0.03, 0, 0, C.plankDark),
@@ -700,8 +768,6 @@ function houseParts(random: Random, ruined: boolean): Part[] {
     ...windows('left', d, w / 2 + 0.02, rows, 2, size, random),
     ...windows('right', d, w / 2 + 0.02, rows, 2, size, random),
     ...windows('back', w, d / 2 + 0.02, rows, 3, size, random),
-    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, rows, 3, size, [r.doorX]),
-    ...innerWindows('left', d, w / 2 - WALL_THICKNESS - 0.03, rows, 2, size),
     // baca
     box(0.55, 1.4, 0.55, 0.5, wallH + 0.5, -hd + 0.3, C.plaster),
     box(0.7, 0.12, 0.7, 0.5, wallH + 1.9, -hd + 0.3, C.darkStone),
@@ -747,7 +813,6 @@ function konakParts(random: Random, ruined: boolean): Part[] {
     ...band(w + over - 0.1, d + over - 0.1, ground - 0.1, 0.2, C.timber, 0.05),
     hipRoof(w + over, d + over, h - ground - upper, ground + upper, C.roofTile, 0.75),
     ...windows('front', w, d / 2 + 0.02, [1], 2, [0.6, 0.8], random, 0.4, false, [r.doorX]),
-    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, [1], 2, [0.6, 0.8], [r.doorX]),
     // üst kat: sık, dikdörtgen pencereler (kafesli görünüm: koyu)
     ...windows(
       'front',
@@ -831,10 +896,7 @@ function apartmentParts(random: Random, floors: number): Part[] {
   parts.push(...windows('back', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random));
   parts.push(...windows('left', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
   parts.push(...windows('right', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
-  parts.push(...innerWindows('back', w, d / 2 - WALL_THICKNESS - 0.03, [0.9], 4, [1.1, 1.2]));
-  parts.push(
-    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, [0.9], 4, [1.1, 1.2], [r.doorX]),
-  );
+  parts.push();
   // Balkonlar (ön cephe, birinci kattan itibaren).
   for (let f = 1; f < floors; f++) {
     const y = f * floorH;
@@ -872,7 +934,6 @@ function lojmanParts(random: Random, ruined: boolean): Part[] {
       other,
     ]),
     ...windows('back', w, d / 2 + 0.02, [0.9, 3.4], 6, [0.8, 1], random),
-    ...innerWindows('back', w, d / 2 - WALL_THICKNESS - 0.03, [0.9], 6, [0.8, 1]),
     box(0.5, 1.3, 0.5, -w * 0.3, wallH + 0.5, 0, C.brick),
     box(0.5, 1.3, 0.5, w * 0.3, wallH + 0.5, 0, C.brick),
     // iç: soba, ranza (kerevet), masa
@@ -1001,7 +1062,6 @@ function kahvehaneParts(random: Random, ruined: boolean): Part[] {
     ...band(w, d, 0, 0.4, C.stone, 0.03),
     hipRoof(w, d, h - wallH, wallH, C.roofTile),
     ...windows('front', w, d / 2 + 0.02, [0.8], 2, big, random, 0.15),
-    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, [0.8], 2, big),
     ...windows('left', d, w / 2 + 0.02, [1], 2, [0.8, 1.1], random),
     // tente (yırtık, solmuş) ve önde taş sedir
     box(w, 0.08, 1.6, 0, 2.5, d / 2 + 0.8, C.awning),
@@ -1060,9 +1120,6 @@ function governmentParts(random: Random): Part[] {
     ...windows('back', w, d / 2 + 0.02, [1, 4], 7, [0.9, 1.6], random),
     ...windows('left', d, w / 2 + 0.02, [1, 4], 3, [0.9, 1.6], random),
     ...windows('right', d, w / 2 + 0.02, [1, 4], 3, [0.9, 1.6], random),
-    ...innerWindows('back', w, d / 2 - WALL_THICKNESS - 0.03, [1], 7, [0.9, 1.6]),
-    ...innerWindows('left', d, w / 2 - WALL_THICKNESS - 0.03, [1], 3, [0.9, 1.6]),
-    ...innerWindows('right', d, w / 2 - WALL_THICKNESS - 0.03, [1], 3, [0.9, 1.6]),
     // bayrak direği (bayrak ayrı çizilir: SettlementLayer)
     cylinder(
       0.08,
@@ -1233,9 +1290,6 @@ function mosqueParts(kind: 'mosque_grand' | 'mosque'): Part[] {
     ...placeParts(counter(1.2, 1.2, 1.1, C.wood), -2.8, -s.d / 2 + t + 2.4, 0),
     ...prayerCarpet(iw - 0.1, id - 0.1),
     ...chandelier(s.h - 1.6, Math.min(3, s.w * 0.22), s.h + 1 + s.dome * 0.9),
-    ...innerWindows('left', s.d, s.w / 2 - t - 0.03, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6]),
-    ...innerWindows('right', s.d, s.w / 2 - t - 0.03, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6]),
-    ...innerWindows('back', s.w, s.d / 2 - t - 0.03, [s.h * 0.62], grand ? 4 : 3, [0.9, 1.6]),
   ];
   // Taçkapı yan ayağı (sağ): solun simetriği.
   parts.push(box(0.6, s.h * 0.55 - 0.1, 0.25, doorW / 2 + 0.3, 0, s.d / 2 + 0.12, C.marble));
@@ -1332,8 +1386,6 @@ function woodenMosqueParts(): Part[] {
   const r = createRandom(23);
   parts.push(...windows('left', s.d, s.w / 2 + 0.02, [1.4], 3, [0.8, 1.2], r, 0));
   parts.push(...windows('right', s.d, s.w / 2 + 0.02, [1.4], 3, [0.8, 1.2], r, 0));
-  parts.push(...innerWindows('left', s.d, s.w / 2 - t - 0.03, [1.4], 3, [0.8, 1.2]));
-  parts.push(...innerWindows('right', s.d, s.w / 2 - t - 0.03, [1.4], 3, [0.8, 1.2]));
   // Ahşap minare: ince gövde, ahşap şerefe, külah.
   const x = s.w / 2 + 0.7;
   const z = s.d / 2 - 0.7;
@@ -1843,6 +1895,10 @@ export function buildBuildingGeometry(
   const random = createRandom(0xb1d + kind.length * 131 + floors * 7 + (ruined ? 3 : 0));
   let parts =
     lod === 'far' ? farParts(kind, ruined, floors) : nearParts(kind, ruined, floors, random);
+  if (lod !== 'far' && !ruined) {
+    // Camlı pencereler: duvar delinir, iç kasa eklenir (yalnız `interior`; kasalar `inner` parçadır).
+    parts = [...openWindows(kind, parts, lod), ...windowFrames(kind)];
+  }
   if (lod !== 'far') {
     // `near`: iç mekân parçaları atılır; `interior`: kapı boşluğu karartması atılır (içi görünür).
     const keep = (p: Part) => (lod === 'interior' ? !p.outer : !p.inner);

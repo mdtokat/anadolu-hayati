@@ -200,8 +200,8 @@ import { resolveContextAction } from './inputMapping';
 import { CAMERA } from '../config';
 import { RangedSystem, aimCamera, type FireResult } from '../combat/RangedSystem';
 import { ammoOf } from '../combat/ammo';
-import type { SolidQuery } from '../combat/ballistics';
-import { shotSolids } from '../combat/shotSolids';
+import type { PaneQuery, SolidQuery } from '../combat/ballistics';
+import { shotPanes, shotSolids } from '../combat/shotSolids';
 import type { MoveIntent } from './inputMapping';
 import { GunshotAudio } from '../audio/gunshot';
 import { RangedHud } from '../ui/RangedHud';
@@ -352,6 +352,8 @@ export class Game {
   private gunAudio: GunshotAudio | null = null;
   private tracers: TracerLayer | null = null;
   private shotSolidQuery: SolidQuery | null = null;
+  /** Kırılabilir pencere camları (yerleşim binaları). */
+  private shotPaneQuery: PaneQuery | null = null;
   /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
   private inSanctuary = false;
   /** Oyuncunun içinde bulunduğu girilebilir yapı (yoksa null; her adım güncellenir). */
@@ -2130,7 +2132,13 @@ export class Game {
       this.structureSystem.structures,
       this.world.settlementMap ?? null,
     );
+    const glass = this.world.glass ?? null;
+    this.shotPaneQuery = glass ? shotPanes(this.world.settlementMap ?? null, glass.broken) : null;
     this.offs.push(
+      this.events.on('glass:broken', ({ ids, x, z }) => {
+        glass?.breakPanes(ids, { x, z });
+        this.gunAudio?.glass();
+      }),
       this.events.on('weapon:reloaded', () => this.gunAudio?.click()),
       this.events.on('weapon:empty', ({ weapon }) => {
         this.gunAudio?.click();
@@ -2217,6 +2225,7 @@ export class Game {
         heightAt: (x, z) => this.world.terrain.heightAt(x, z),
         targets: this.targets,
         solids: this.shotSolidQuery ?? undefined,
+        panes: this.shotPaneQuery ?? undefined,
       },
     );
     if (result.status === 'fired' && result.weapon) {

@@ -1,3 +1,4 @@
+import { GlassLayer } from './GlassLayer';
 import { scatterWaterOf } from '../data/waterThinning';
 import { viewCenters } from './viewFocus';
 import { Scene, type MeshStandardMaterial } from 'three';
@@ -87,6 +88,8 @@ export class RegionWorld implements GameWorld {
   /** Yerleşimler (Faz 10): veri yoksa null. */
   readonly settlementMap: SettlementMap | null;
   private readonly settlementLayer: SettlementLayer | null;
+  /** Pencere camları (kırılabilir; yerleşim verisi yoksa null). */
+  readonly glass: GlassLayer | null;
   private readonly settlementColliders: SettlementColliders | null;
   /** Köprü/viyadük/tünel çizimi ve collider'ları (yol planından); yerleşim verisi yoksa null. */
   private readonly structureLayer: RoadStructureLayer | null;
@@ -167,6 +170,8 @@ export class RegionWorld implements GameWorld {
 
     this.settlementLayer = settlements ? new SettlementLayer(settlements) : null;
     if (this.settlementLayer) this.scene.add(this.settlementLayer.group);
+    this.glass = settlements ? new GlassLayer(settlements) : null;
+    if (this.glass) this.scene.add(this.glass.group);
     this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
     const structures =
       settlements && settlements.plan.spans.length > 0
@@ -280,6 +285,7 @@ export class RegionWorld implements GameWorld {
     this.chunks.update(visual.x, visual.z);
     this.props?.update(visual.x, visual.z);
     this.settlementLayer?.update(visual.x, visual.z);
+    this.glass?.update(visual.x, visual.z, timeSeconds);
     this.structureLayer?.update(visual.x, visual.z);
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
@@ -431,6 +437,7 @@ export class RegionWorld implements GameWorld {
     this.structureLayer?.dispose();
     this.settlementColliders?.dispose();
     this.settlementLayer?.dispose();
+    this.glass?.dispose();
     this.props?.dispose();
     this.freshWaterMesh?.dispose();
     this.water.dispose();

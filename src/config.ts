@@ -2579,6 +2579,26 @@ export const RANGED = {
 } as const;
 
 /**
+ * Pencere camları (`world/GlassLayer.ts`, `settlements/windows.ts`): girilebilir yapıların camlı pencerelerinden
+ * içeriden dışarısı görünür; mermi camdan geçer ve camı kırar (kırık camlar oturumluktur, kayda girmez).
+ */
+export const GLASS = {
+  /** Cam rengi ve saydamlığı (0 görünmez – 1 opak). */
+  color: 0xbfdbe6,
+  opacity: 0.18,
+  /** Kırılan camdan düşen kırık sayısı, ömrü (sn), yerçekimi (oyun m/sn²). */
+  shardCount: 14,
+  shardSeconds: 2.2,
+  gravity: 9.8,
+  /** Kırık camın yapısını ararken atış noktasına en çok uzaklık (oyun m; tüfek menzili). */
+  searchRadius: 420,
+  /** Kırık saçılımı tohumu. */
+  shardSeed: 0x61a55,
+  /** Cam kırılma sesi: tepe kazancı ve sönme süresi (sn). */
+  sound: { gain: 0.45, decay: 0.5 },
+} as const;
+
+/**
  * ── Faz 11: D (11.5) ── Mühimmat: ganimette bulunan aralık (min–max; `settlements/loot.ts` satırları okur). Tarif
  * başına üretim adedi tariflerin `output`'undadır (`items/recipes.ts`). Mühimmat kıt tutulur (denge riski: plan §7).
  */

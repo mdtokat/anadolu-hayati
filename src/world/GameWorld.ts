@@ -1,3 +1,4 @@
+import type { GlassLayer } from './GlassLayer';
 import type { Scene } from 'three';
 import type { SettlementMap } from '../settlements/SettlementMap';
 import type { CreatureTerrain } from '../creatures/kinds';
@@ -80,6 +81,8 @@ export interface GameWorld {
   setQuality?(quality: WorldQuality): void;
   /** Yerleşimler: kasabalar, yapılar, yollar (Faz 10); destekleyen dünyalarda (veri varsa). */
   readonly settlementMap?: SettlementMap | null;
+  /** Pencere camları (kırılabilir); yerleşimsiz dünyada yok. */
+  readonly glass?: GlassLayer | null;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
   toggleBorders?(): void;
   /**

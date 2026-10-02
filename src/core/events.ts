@@ -108,6 +108,8 @@ export interface GameEvents {
   'weapon:reloaded': { weapon: ItemId; rounds: number };
   /** Boş tetik: şarjör boş ve yedek mühimmat yok. */
   'weapon:empty': { weapon: ItemId };
+  /** Mermi pencere camlarını kırdı (`ids`: `settlements/windows.ts` `paneId`; konum: atış noktası). */
+  'glass:broken': { ids: number[]; x: number; y: number; z: number };
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici; bu bölüme yalnızca E ekler) ──
   /** Bir eşkıya oyuncuyu fark edip saldırıya geçti (çatışma başına bir kez). */

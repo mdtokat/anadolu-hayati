@@ -5,6 +5,7 @@ import {
   spreadDirection,
   traceProjectile,
   zeroElevation,
+  type PaneQuery,
   type SolidQuery,
   type Vec3Like,
 } from './ballistics';
@@ -33,6 +34,8 @@ export interface ShotContext {
   range?: number;
   /** 11.5: mermiyi durduran katılar (oyuncu yapıları, binalar; `combat/shotSolids.ts`). Yoksa yalnız arazi durdurur. */
   solids?: SolidQuery;
+  /** Kırılabilir pencere camları (`combat/shotSolids.ts` `shotPanes`): mermi geçer, cam kırılır. */
+  panes?: PaneQuery;
   /**
    * 11.5: saçılma için [0, 1) rastgele üreteci. Verilmezse atış saçılmasızdır (deterministik; yön tam `dir`).
    * Eşkıyalar kendi isabetsizliklerini `spreadScale` ile verebilir.
@@ -62,6 +65,8 @@ export interface ShotResult {
   time?: number;
   /** 11.5: yolun köşe noktaları (iz çizimi). */
   path?: Vec3Like[];
+  /** Merminin kırdığı camlar (kimlikler). */
+  panes?: number[];
 }
 
 /** `origin`'den `dir` yönünde (normalize edilir) `weapon` ile tek atış (saçmada tek tane). */
@@ -88,7 +93,13 @@ export function fireShot(
       gravity,
       maxDistance: range,
     },
-    { heightAt: ctx.heightAt, targets: ctx.targets, ignore: ctx.ignore, solids: ctx.solids },
+    {
+      heightAt: ctx.heightAt,
+      targets: ctx.targets,
+      ignore: ctx.ignore,
+      solids: ctx.solids,
+      panes: ctx.panes,
+    },
   );
   return {
     hit: flight.hit,
@@ -98,6 +109,7 @@ export function fireShot(
     solid: flight.solid,
     time: flight.time,
     path: flight.path,
+    panes: flight.panes,
   };
 }
 
