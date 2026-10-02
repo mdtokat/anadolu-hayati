@@ -2,8 +2,8 @@ import type { GatherSystem } from '../interaction/gather';
 import type { CreatureView } from '../creatures/kinds';
 import type { FireTender } from '../placement/tend';
 import type { PropRef } from '../world/propKinds';
-import type { BuildingSearch } from '../settlements/search';
-import type { Building } from '../settlements/layout';
+import type { BuildingSearch, SearchTarget } from '../settlements/search';
+import type { PrayerContext, PrayerTracker } from '../survival/prayer';
 import type { CarcassButcher } from './carcass';
 import type { CookingSystem } from './cooking';
 
@@ -14,6 +14,8 @@ export interface InteractionSystems {
   fireTender: FireTender;
   /** Yapı arama (Faz 10; yerleşimsiz dünyada yok). */
   search?: BuildingSearch;
+  /** Camide vakit namazı (yerleşimsiz dünyada yok). */
+  prayer?: PrayerTracker;
 }
 
 export interface InteractionInput {
@@ -23,13 +25,15 @@ export interface InteractionInput {
   /** Bakılan toplanabilir nesne ve leş (yoksa null). */
   prop: PropRef | null;
   carcass: CreatureView | null;
-  /** Kapısında durulan aranabilir yapı (yoksa null/tanımsız). */
-  building?: Building | null;
+  /** Aranabilir hedef: kapısında durulan yapı ya da bakılan sandık/dolap (yoksa null/tanımsız). */
+  building?: SearchTarget | null;
+  /** Cami ve vakit durumu (namaz); yoksa namaz ilerlemez. */
+  prayer?: PrayerContext;
   alive: boolean;
 }
 
 /** `E`'yi alabilecek eylemler (öncelik sırasıyla). */
-export type InteractionTaker = 'gather' | 'butcher' | 'cook' | 'tend' | 'search';
+export type InteractionTaker = 'gather' | 'butcher' | 'cook' | 'tend' | 'search' | 'pray';
 
 /**
  * Bu adımda `E`'yi kimin aldığı: `taker`, `E` basılıyken öncelik sırasındaki ilk uygun eylem (yoksa null).
@@ -42,7 +46,7 @@ export interface InteractionResult {
 
 /**
  * `E` tuşunun öncelik sırası (docs/faz-5-paralel-plan.md §5, 5.9): toplama > leş kesme > pişirme > ateşe yakıt >
- * yapı arama (Faz 10) > su içme. Her sistem yalnızca kendinden öncekilerin `E`'yi almadığı durumda ilerler; çiğ et varken pişirme
+ * yapı arama (Faz 10) > camide namaz > su içme. Her sistem yalnızca kendinden öncekilerin `E`'yi almadığı durumda ilerler; çiğ et varken pişirme
  * yakıttan önceliklidir (et bitince sıradaki `E` yakıt atar). Sırayı tek yerde tutar (Game ve testler kullanır).
  */
 export function updateInteractions(
@@ -67,6 +71,13 @@ export function updateInteractions(
   systems.search?.update(dt, free && !cooking && !tending, input.building ?? null, alive);
   const searching = systems.search?.offer?.status === 'ready';
 
+  systems.prayer?.update(
+    dt,
+    free && !cooking && !tending && !searching,
+    input.prayer ?? { inMosque: false, alive, window: null },
+  );
+  const praying = systems.prayer?.offer?.status === 'ready';
+
   const taker: InteractionTaker | null = !held
     ? null
     : gathering
@@ -79,6 +90,8 @@ export function updateInteractions(
             ? 'tend'
             : searching
               ? 'search'
-              : null;
+              : praying
+                ? 'pray'
+                : null;
   return { taker, drinkAllowed: held && taker === null };
 }

@@ -180,6 +180,8 @@ export function layoutSettlement(
   occupied: FootprintRegistry = new FootprintRegistry(),
   /** Başka il/ilçe merkezlerinin çekirdekleri (dünya daireleri): buralara bu yerleşimin yapısı konmaz. */
   foreignCores: ReadonlyArray<{ x: number; z: number; r: number }> = [],
+  /** Yerleşmiş camilerin konumları (tüm yerleşimler ortak; camiler arası en az uzaklık için). Bu yerleşiminkiler eklenir. */
+  mosqueSites: Array<{ x: number; z: number }> = [],
 ): LayoutResult {
   const L = SETTLEMENT_LAYOUT;
   const reject = (reason: string): null => {
@@ -289,6 +291,15 @@ export function layoutSettlement(
 
   /** Son çare (merkezin tek camisi): komşu çekirdeğe de konabilir. */
   let allowForeignCore = false;
+  /**
+   * Cami (u, v)'de başka bir camiye (bu ya da komşu yerleşimlerin) `mosqueSpacing`'ten yakın mı? İl/ilçe merkezinin ilk
+   * camisi bu kurala takılmaz (her kentin en az bir camisi olur).
+   */
+  const mosqueCrowded = (u: number, v: number): boolean => {
+    if (!village && !placed.some((b) => isMosque(b.kind))) return false;
+    const p = toWorld(u, v);
+    return mosqueSites.some((m) => Math.hypot(m.x - p.x, m.z - p.z) < L.mosqueSpacing);
+  };
   const placed: Building[] = [];
   const placedUV: Array<{ u: number; v: number }> = [];
   const usedLots = new Set<Lot>();
@@ -331,11 +342,13 @@ export function layoutSettlement(
     for (const k of [fl, fr, bl, br, mid, back]) if (k.e < L.minElevationM) return reject('sea');
     // Camiler kıbleye döndüğünden kapı yokuş yukarı da bakabilir: yamaca gömülmez, taş bir set (teras) üstünde
     // durur (zemin katı en yüksek köşede). Diğer yapılar ön kenarın zeminindedir, arkası yamaca gömülür.
-    const terrace = isMosque(kind);
-    let floor = terrace ? Math.max(fl.h, fr.h, bl.h, br.h, mid.h, back.h) : Math.max(fl.h, fr.h);
+    // Girilebilir yapılar (konut, dükkân, cami, han) da gömülmez: içeride arazi döşemenin üstüne çıkmasın diye zemin
+    // katı ayak izinin en yüksek zemininin biraz üstündedir (`floorLift`); altı taş temel, kapı önü merdivendir.
+    const terrace = shape.enterable;
+    let floor = terrace ? interiorTop(hw, hd, corner) + L.floorLift : Math.max(fl.h, fr.h);
     let base = Math.min(fl.h, fr.h, bl.h, br.h, mid.h, back.h);
-    const buried = Math.max(bl.h, br.h, mid.h, back.h) - floor > MAX_BURY[kind];
-    const plinth = floor - base > (terrace ? L.maxTerrace : L.maxPlinth);
+    const buried = !terrace && Math.max(bl.h, br.h, mid.h, back.h) - floor > MAX_BURY[kind];
+    const plinth = floor - base > (isMosque(kind) ? L.maxTerrace : L.maxPlinth);
     // Dik arazide (bury/plinth sınırı aşılıyorsa) ve arazi düzlenebiliyorsa yapı bir terasa oturur: zemin kat ve temel
     // medyan seviyede, merdiven ve taş temel gerekmez.
     let padLevel: number | null = null;
@@ -392,6 +405,7 @@ export function layoutSettlement(
     ignore: number | null = null,
   ): Building | null => {
     if (placed.length >= Math.min(L.maxBuildings[rank], MAX_PER_SETTLEMENT)) return reject('cap');
+    if (isMosque(kind) && mosqueCrowded(u, v)) return reject('mosque_spacing');
     const s = site(kind, u, v, yaw, ignore);
     if (!s) return null;
     const ruinRoll = random.next();
@@ -406,16 +420,19 @@ export function layoutSettlement(
     placedUV.push({ u, v });
     if (s.pad !== null) {
       const shape = BUILDING_SHAPES[kind];
+      // Girilebilir yapıda teras arazi kafesinin bir hücresi kadar geniştir: odanın içindeki zemin (aradeğerleme) şevden
+      // etkilenmesin.
+      const margin = shape.enterable ? L.interiorPadMargin : L.padMargin;
       terrain.level?.(
-        {
-          x: s.x,
-          z: s.z,
-          hx: shape.width / 2 + L.padMargin,
-          hz: shape.depth / 2 + L.padMargin,
-          yaw,
-        },
+        { x: s.x, z: s.z, hx: shape.width / 2 + margin, hz: shape.depth / 2 + margin, yaw },
         s.pad,
       );
+    }
+    if (s.pad === null && BUILDING_SHAPES[kind].enterable) {
+      // İç mekân: sonraki teraslar bu yapının ayak izindeki zemini yükseltmesin.
+      const shape = BUILDING_SHAPES[kind];
+      const m = L.interiorPadMargin - L.padMargin;
+      terrain.lock?.({ x: s.x, z: s.z, hx: shape.width / 2 + m, hz: shape.depth / 2 + m, yaw });
     }
     const id = settlement.id * 1024 + placed.length;
     occupied.add(id, s.body);
@@ -437,6 +454,7 @@ export function layoutSettlement(
       stairRun: s.stair ? s.stair.hz * 2 : 0,
     };
     placed.push(building);
+    if (isMosque(kind)) mosqueSites.push({ x: s.x, z: s.z });
     return building;
   };
 
@@ -544,16 +562,29 @@ export function layoutSettlement(
     return null;
   };
 
-  const addFountain = (mosque: Building): void => {
-    // Avlu çeşmesi (abdest/şadırvan): caminin önünde sol köşede, aynı yöne bakar.
+  /**
+   * Cami avlusunun şadırvanı: kapının önünde (merdivenin ötesinde) eksen üstünde; sığmazsa kapının sağına/soluna.
+   * Avlu caminin aralık payına girer: caminin kendi ayak iziyle çakışma sayılmaz (merdivenden uzak tutulur).
+   */
+  const addSadirvan = (mosque: Building): void => {
     const shape = BUILDING_SHAPES[mosque.kind];
-    const lx = -shape.width / 2 + 1.6;
-    const lz = shape.depth / 2 + 1.6;
+    const r = BUILDING_SHAPES.sadirvan.width / 2 + BUILDING_OVERHANG.sadirvan.x;
+    // Caminin ön kenarı (revak/sundurma taşması dahil) ve merdivenin ucu.
+    const front = shape.depth / 2 + BUILDING_OVERHANG[mosque.kind].z;
+    const stairEnd = shape.depth / 2 + mosque.stairRun;
+    const side = stairWidth(mosque.kind) / 2 + 0.6 + r;
+    const spots: Array<[number, number]> = [
+      [shape.door.x, Math.max(front, stairEnd) + 0.9 + r],
+      [shape.door.x - side, front + r + 0.6],
+      [shape.door.x + side, front + r + 0.6],
+      [shape.door.x, Math.max(front, stairEnd) + 2.4 + r],
+    ];
     const yc = Math.cos(mosque.yaw);
     const ys = Math.sin(mosque.yaw);
-    const t = worldToFrame(mosque.x + lx * yc + lz * ys, mosque.z - lx * ys + lz * yc);
-    // Avlu caminin aralık payına girer: caminin kendi ayak iziyle (merdiveni dahil) çakışma sayılmaz.
-    add('fountain', t.u, t.v, mosque.yaw, null, mosque.id);
+    for (const [lx, lz] of spots) {
+      const t = worldToFrame(mosque.x + lx * yc + lz * ys, mosque.z - lx * ys + lz * yc);
+      if (add('sadirvan', t.u, t.v, mosque.yaw, null, mosque.id)) return;
+    }
   };
 
   // 1. Elle seçilmiş simge yapılar (gerçek konumlarına en yakın).
@@ -566,17 +597,20 @@ export function layoutSettlement(
       (lm.kind === 'mosque_grand' ? placeNear('mosque', t.u, t.v, lm.name) : null);
     if (b) {
       curated.add(lm.kind);
-      if (isMosque(lm.kind)) addFountain(b);
+      if (isMosque(lm.kind)) addSadirvan(b);
     }
   }
 
   // 2. Türetilen kamu/dinî yapılar.
+  // Gerçek cami sayısının küçük bir kesri (oyun ölçeğinde her yapı yüzlerce gerçek binayı temsil eder; camiler
+  // birbirinden `mosqueSpacing` uzakta kalır).
+  const M = L.mosques;
   const mosqueTarget =
     rank === 'il'
-      ? clamp(Math.round(settlement.mosques / 5), 2, 5)
+      ? clamp(Math.round(settlement.mosques / M.perIl), 1, M.maxIl)
       : rank === 'ilce'
-        ? clamp(Math.round(settlement.mosques / 4), 1, 3)
-        : random.next() < 0.8
+        ? clamp(Math.round(settlement.mosques / M.perIlce), 1, M.maxIlce)
+        : random.next() < M.villageChance
           ? 1
           : 0;
   let mosques = placed.filter((b) => isMosque(b.kind)).length;
@@ -584,7 +618,7 @@ export function layoutSettlement(
     const b = placeNear('mosque_grand', 0, 0, null) ?? placeNear('mosque', 0, 0, null, radius);
     if (b) {
       mosques++;
-      addFountain(b);
+      addSadirvan(b);
     }
   }
   // Mahalle camileri: ayak izine yayılsın (her biri öncekilerden en uzak isteğe bağlı parsele).
@@ -597,7 +631,7 @@ export function layoutSettlement(
       (mosques === 0 ? placeNear(kind, 0, 0, null, radius) : null);
     if (!b) continue;
     mosques++;
-    addFountain(b);
+    addSadirvan(b);
   }
   // Her yerleşimde (köyler hariç olabilir) en az bir cami: dik/dar kasabada küçük ahşap camiye düşülür; il/ilçe
   // merkezi komşu merkezin çekirdeğine sıkışmışsa (Kozlu–Zonguldak) son çare olarak oraya da konabilir.
@@ -611,7 +645,7 @@ export function layoutSettlement(
       b = tryMosque();
       allowForeignCore = false;
     }
-    if (b) addFountain(b);
+    if (b) addSadirvan(b);
   }
   if (!village) {
     placeNear('government', 0, 0, null);
@@ -755,6 +789,29 @@ export function layoutSettlement(
 
   return { buildings: placed, streets, frame, radius };
 }
+
+/**
+ * Girilebilir yapının ayak izindeki en yüksek zemin: kenarlar ve iç, arazi kafesinden (2 m) sık örneklenir (kat
+ * döşemesi bunun üstündedir; arazi odanın içine taşmasın).
+ */
+function interiorTop(
+  hw: number,
+  hd: number,
+  corner: (lx: number, lz: number) => { h: number },
+): number {
+  const nx = Math.max(2, Math.ceil((2 * hw) / INTERIOR_SAMPLE));
+  const nz = Math.max(2, Math.ceil((2 * hd) / INTERIOR_SAMPLE));
+  let top = -Infinity;
+  for (let i = 0; i <= nx; i++) {
+    for (let j = 0; j <= nz; j++) {
+      top = Math.max(top, corner(-hw + (2 * hw * i) / nx, -hd + (2 * hd * j) / nz).h);
+    }
+  }
+  return top;
+}
+
+/** İç zemin örnek aralığı (oyun m; arazi kafesinden sık). */
+const INTERIOR_SAMPLE = 1.5;
 
 /** Yerleşmiş camilere en uzak, isteğe bağlı (wanted) boş parselin çerçeve konumu. */
 function farthestFrom(

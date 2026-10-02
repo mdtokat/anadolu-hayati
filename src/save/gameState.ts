@@ -42,7 +42,9 @@ export interface SaveTargets {
   creatures: Pick<CreatureSystem, 'toSave' | 'loadSave'>;
   hotbar: Pick<Hotbar, 'toSave' | 'loadSave'>;
   /** Yapı arama durumu (Faz 10); yerleşimsiz dünyada (test arenası) yoktur. */
-  search?: Pick<BuildingSearch, 'toSave' | 'loadSave'>;
+  search?: Pick<BuildingSearch, 'toSave' | 'containersToSave' | 'loadSave'>;
+  /** Camide kılınan son vakit (v6); yoksa kayda −1 yazılır. */
+  prayer?: SaveSection<number>;
   // ── Faz 11 (v5): her akış kendi bölümünü bağlar; bağlanmamışsa kayda boş değer yazılır, yüklemede atlanır. ──
   /** C: tarlalar. */
   farm?: SaveSection<FarmSave>;
@@ -67,7 +69,11 @@ export function captureSave(targets: SaveTargets, now: Date = new Date()): SaveG
     world: targets.gather.toSave(),
     creatures: targets.creatures.toSave(),
     hotbar: targets.hotbar.toSave(),
-    settlements: { searched: targets.search?.toSave() ?? [] },
+    settlements: {
+      searched: targets.search?.toSave() ?? [],
+      containers: targets.search?.containersToSave() ?? [],
+      lastPrayer: targets.prayer?.toSave() ?? -1,
+    },
     ...faz11Sections(targets),
   };
 }
@@ -103,7 +109,8 @@ export function applySave(raw: unknown, targets: SaveTargets): SaveGame {
   targets.gather.loadSave(save.world);
   targets.creatures.loadSave(save.creatures);
   targets.hotbar.loadSave(save.hotbar);
-  targets.search?.loadSave(save.settlements.searched);
+  targets.search?.loadSave(save.settlements.searched, save.settlements.containers);
+  targets.prayer?.loadSave(save.settlements.lastPrayer);
   targets.farm?.loadSave(save.farm);
   targets.weapons?.loadSave(save.weapons);
   targets.bandits?.loadSave(save.bandits);

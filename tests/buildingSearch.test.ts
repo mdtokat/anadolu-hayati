@@ -5,10 +5,21 @@ import type { GameEvents } from '../src/core/events';
 import { COOK_RECIPES, cookRecipeFor } from '../src/combat/cooking';
 import { Inventory } from '../src/items/Inventory';
 import { ITEMS } from '../src/items/itemDefs';
-import { BUILDING_SHAPES, BUILDING_KINDS, isMosque } from '../src/settlements/kinds';
+import {
+  BUILDING_SHAPES,
+  BUILDING_KINDS,
+  containerFront,
+  isMosque,
+} from '../src/settlements/kinds';
 import type { Building } from '../src/settlements/layout';
-import { BUILDING_LOOT, rollBuildingLoot } from '../src/settlements/loot';
-import { BuildingSearch, searchPrompt, searchTarget } from '../src/settlements/search';
+import { BUILDING_LOOT, rollBuildingLoot, rollContainerLoot } from '../src/settlements/loot';
+import {
+  BuildingSearch,
+  containerId,
+  searchPrompt,
+  searchTarget,
+  type SearchTarget,
+} from '../src/settlements/search';
 
 const building = (over: Partial<Building> = {}): Building => ({
   id: 77 * 1024 + 3,
@@ -71,20 +82,22 @@ describe('BuildingSearch', () => {
     events.on('building:searched', ({ id }) => searched.push(id));
     return { events, inventory, search, searched };
   };
-  // Ganimeti boş olmayan bir ev bul.
-  let rich = building();
-  for (let i = 0; i < 100 && rollBuildingLoot(rich).length === 0; i++) rich = building({ id: i });
+  // Ganimeti boş olmayan bir serender (kapıdan aranır) bul.
+  let rich = building({ kind: 'serender' });
+  for (let i = 0; i < 100 && rollBuildingLoot(rich).length === 0; i++)
+    rich = building({ id: i, kind: 'serender' });
+  const door = (b: Building): SearchTarget => ({ type: 'door', id: b.id, building: b });
 
   it('E basılı süre dolunca ganimet eklenir, yapı bir kez aranır ve kayda girer', () => {
     const { inventory, search, searched } = setup();
     const loot = rollBuildingLoot(rich);
     expect(loot.length).toBeGreaterThan(0);
-    for (let t = 0; t < SEARCH.seconds - 0.1; t += 1 / 60) search.update(1 / 60, true, rich);
+    for (let t = 0; t < SEARCH.seconds - 0.1; t += 1 / 60) search.update(1 / 60, true, door(rich));
     expect(searched).toEqual([]);
-    for (let t = 0; t < 0.3; t += 1 / 60) search.update(1 / 60, true, rich);
+    for (let t = 0; t < 0.3; t += 1 / 60) search.update(1 / 60, true, door(rich));
     expect(searched).toEqual([rich.id]);
     for (const s of loot) expect(inventory.count(s.id)).toBe(s.count);
-    search.update(1 / 60, true, rich);
+    search.update(1 / 60, true, door(rich));
     expect(search.offer?.status).toBe('searched');
     expect(searchPrompt(search.offer!)).toContain('arandı');
     expect(search.toSave()).toEqual([rich.id]);
@@ -95,28 +108,108 @@ describe('BuildingSearch', () => {
 
   it('tuş bırakılınca ilerleme sıfırlanır; sığmazsa hiçbir şey eklenmez (atomik)', () => {
     const { inventory, search, searched } = setup();
-    for (let t = 0; t < 1; t += 1 / 60) search.update(1 / 60, true, rich);
-    search.update(1 / 60, false, rich);
+    for (let t = 0; t < 1; t += 1 / 60) search.update(1 / 60, true, door(rich));
+    search.update(1 / 60, false, door(rich));
     expect(search.progress).toBe(0);
     // Envanteri ağır taşla doldur
     while (inventory.add('stone', 10) === 0);
     const before = inventory.toJSON();
-    search.update(1 / 60, true, rich);
+    search.update(1 / 60, true, door(rich));
     expect(search.offer?.status).toBe('full');
-    for (let t = 0; t < SEARCH.seconds + 1; t += 1 / 60) search.update(1 / 60, true, rich);
+    for (let t = 0; t < SEARCH.seconds + 1; t += 1 / 60) search.update(1 / 60, true, door(rich));
     expect(searched).toEqual([]);
     expect(inventory.toJSON()).toEqual(before);
   });
 
-  it('hedef: kapıya yakın, yapıya bakan, aranabilir yapı', () => {
-    const b = building();
-    const door = BUILDING_SHAPES.house.door; // yerel +z, yaw 0 → dünya +z
-    const pose = { x: 0, y: 0, z: door.z + 0.8, yaw: 0 };
+  it('kapı hedefi: kapıya yakın, yapıya bakan, kapıdan aranan yapı', () => {
+    const b = building({ kind: 'serender' });
+    const d = BUILDING_SHAPES.serender.door; // yerel +z, yaw 0 → dünya +z
+    const pose = { x: 0, y: 0, z: d.z + 0.8, yaw: 0 };
     // yaw 0 ileri = −z (yapıya doğru)
-    expect(searchTarget([b], pose)?.id).toBe(b.id);
+    expect(searchTarget([b], pose)).toMatchObject({ type: 'door', id: b.id });
     expect(searchTarget([b], { ...pose, yaw: Math.PI })).toBeNull(); // arkası dönük
-    expect(searchTarget([b], { ...pose, z: door.z + 5 })).toBeNull(); // uzak
+    expect(searchTarget([b], { ...pose, z: d.z + 5 })).toBeNull(); // uzak
     expect(searchTarget([building({ kind: 'mosque' })], pose)).toBeNull(); // cami aranmaz
+    // Konutlar artık kapıdan değil, içerideki kaplarından aranır.
+    const house = building();
+    const hd = BUILDING_SHAPES.house.door;
+    expect(searchTarget([house], { x: 0, y: 0, z: hd.z + 0.8, yaw: 0 })).toBeNull();
+  });
+
+  it('kap hedefi: içeride sandığa/dolaba bakan oyuncu; kimlik yapı · 8 + sıra', () => {
+    const house = building();
+    const shape = BUILDING_SHAPES.house;
+    expect(shape.containers.length).toBeGreaterThan(0);
+    shape.containers.forEach((c, index) => {
+      const f = containerFront(c);
+      // Kabın önünde 0,9 m, kaba bakan oyuncu (ileri = (−sin yaw, −cos yaw) = −f).
+      const pose = {
+        x: c.x + f.x * 0.9,
+        y: 0,
+        z: c.z + f.z * 0.9,
+        yaw: Math.atan2(f.x, f.z),
+      };
+      const t = searchTarget([house], pose);
+      expect(t, `kap ${index}`).toMatchObject({ type: 'container', index });
+      expect(t?.id).toBe(containerId(house, index));
+      // Arkasını dönen ya da başka kattaki oyuncu bulamaz.
+      expect(searchTarget([house], { ...pose, yaw: pose.yaw + Math.PI })).toBeNull();
+      expect(searchTarget([house], { ...pose, y: 3 })).toBeNull();
+    });
+  });
+
+  it('kaplar ayrı ayrı aranır ve kayda girer; eski kayıtta kapıdan aranmış yapının kapları boştur', () => {
+    const { inventory, search, searched } = setup();
+    let house = building();
+    for (let i = 0; i < 200; i++) {
+      house = building({ id: 5000 + i });
+      if (rollContainerLoot(house, 0).length > 0) break;
+    }
+    const c = BUILDING_SHAPES.house.containers[0]!;
+    const target: SearchTarget = {
+      type: 'container',
+      id: containerId(house, 0),
+      building: house,
+      index: 0,
+      container: c,
+    };
+    for (let t = 0; t < SEARCH.containerSeconds + 0.1; t += 1 / 60)
+      search.update(1 / 60, true, target);
+    expect(searched).toEqual([house.id]);
+    for (const s of rollContainerLoot(house, 0)) expect(inventory.count(s.id)).toBeGreaterThan(0);
+    expect(search.containersToSave()).toEqual([containerId(house, 0)]);
+    expect(search.toSave()).toEqual([]);
+    search.update(1 / 60, true, target);
+    expect(searchPrompt(search.offer!)).toBe('Sandık: arandı, içi boş');
+    // İkinci kap ayrı.
+    const second: SearchTarget = { ...target, id: containerId(house, 1), index: 1 };
+    expect(search.isTargetSearched(second)).toBe(false);
+    // Eski (v5) kayıt: yapı kapıdan aranmış → kapları da boş.
+    const legacy = setup().search;
+    legacy.loadSave([house.id]);
+    expect(legacy.isTargetSearched(target)).toBe(true);
+  });
+
+  it('kap ganimeti deterministik, tablodan; yiyecek dolaba gider; tüm kaplar birlikte ≥ kapı ganimeti kadar', () => {
+    let total = 0;
+    let door = 0;
+    for (let i = 0; i < 300; i++) {
+      const b = building({ id: 9000 + i, kind: 'konak' });
+      const shape = BUILDING_SHAPES.konak;
+      const allowed = new Set(BUILDING_LOOT.konak!.map((e) => e.item));
+      shape.containers.forEach((c, index) => {
+        const loot = rollContainerLoot(b, index);
+        expect(rollContainerLoot(b, index)).toEqual(loot);
+        for (const s of loot) {
+          expect(allowed.has(s.id)).toBe(true);
+          if (ITEMS[s.id].category === 'food') expect(c.kind).toBe('cupboard');
+        }
+        total += loot.length;
+      });
+      door += rollBuildingLoot(b).length;
+    }
+    expect(total).toBeGreaterThan(door);
+    expect(rollContainerLoot(building(), 99)).toEqual([]);
   });
 });
 

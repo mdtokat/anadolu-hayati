@@ -7,6 +7,7 @@ import {
   IcosahedronGeometry,
   Matrix4,
   OctahedronGeometry,
+  Quaternion,
   Vector3,
 } from 'three';
 import { SCATTER } from '../config';
@@ -25,6 +26,13 @@ export type PropLod = 'near' | 'far';
 export interface Part {
   geometry: BufferGeometry;
   color: number;
+  /** Dikey gölgeleme aralığı (y0 → `shadeLow`, y1 → `shadeHigh`); yoksa düz renk. */
+  shade?: readonly [number, number];
+}
+
+/** Parçaya dikey gölgeleme ekler (taç/gövde: alt koyu, tepe aydınlık). */
+function shaded(part: Part, y0: number, y1: number): Part {
+  return { ...part, shade: [y0, y1] };
 }
 
 const COLORS = SCATTER.colors;
@@ -81,11 +89,18 @@ export function merge(parts: Part[], random: Random): BufferGeometry {
     const flat = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry;
     const position = flat.getAttribute('position');
     color.setHex(part.color);
+    const range = part.shade;
     for (let i = 0; i < position.count; i += 3) {
       const shade = 1 + (random.next() * 2 - 1) * COLORS.faceShade;
       for (let k = 0; k < 3; k++) {
-        positions.push(position.getX(i + k), position.getY(i + k), position.getZ(i + k));
-        colors.push(color.r * shade, color.g * shade, color.b * shade);
+        const y = position.getY(i + k);
+        positions.push(position.getX(i + k), y, position.getZ(i + k));
+        let f = shade;
+        if (range) {
+          const t = Math.min(Math.max((y - range[0]) / (range[1] - range[0] || 1), 0), 1);
+          f *= COLORS.shadeLow + (COLORS.shadeHigh - COLORS.shadeLow) * t;
+        }
+        colors.push(color.r * f, color.g * f, color.b * f);
       }
     }
     if (flat !== part.geometry) flat.dispose();
@@ -102,72 +117,169 @@ export function merge(parts: Part[], random: Random): BufferGeometry {
 
 type Builder = (height: number, lod: PropLod, seed: number) => Part[];
 
+/** İnce dal: gövdeden (x0, y0, z0) taca (x1, y1, z1) uzanan açık silindir. */
+function branch(
+  r: number,
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+): Part {
+  const dir = new Vector3(to[0] - from[0], to[1] - from[1], to[2] - from[2]);
+  const length = dir.length();
+  const geometry = new CylinderGeometry(r * 0.6, r, length, 4, 1, true);
+  geometry.translate(0, length / 2, 0);
+  geometry.applyMatrix4(
+    new Matrix4().makeRotationFromQuaternion(
+      new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir.normalize()),
+    ),
+  );
+  return { geometry: place(geometry, from[0], from[1], from[2]), color: COLORS.trunk };
+}
+
 /**
- * Yapraklı ağaç / kestane: gövde + 3 (yakın: 1 ayrıntılı + 2 kaba) ya da sekizyüzlü tek taç (uzak).
- * Çok sayıda uzak örnek çizildiğinden uzak kademe üçgen bütçesinin belirleyicisidir.
+ * Yapraklı ağaç / kestane: gövde (kök genişlemeli) + iki dal + 5 öbekli taç (yakın: 1 ayrıntılı + 4 kaba) ya da
+ * sekizyüzlü tek taç (uzak). Taç dikey gölgelidir (alt koyu, tepe güneşli). Çok sayıda uzak örnek çizildiğinden uzak
+ * kademe üçgen bütçesinin belirleyicisidir.
  */
 function broadleaf(crown: number): Builder {
   return (h, lod, seed) => {
     if (lod === 'far') {
       return [
-        trunk(h * 0.035, h * 0.02, h * 0.45, 3),
-        blob(1, 'octa', [h * 0.3, h * 0.38, h * 0.3], [0, h * 0.64, 0], crown, 0.2, seed),
+        shaded(trunk(h * 0.035, h * 0.02, h * 0.45, 3), 0, h * 0.45),
+        shaded(
+          blob(1, 'octa', [h * 0.3, h * 0.38, h * 0.3], [0, h * 0.64, 0], crown, 0.2, seed),
+          h * 0.3,
+          h * 1.0,
+        ),
       ];
     }
+    const lo = h * 0.36;
+    const hi = h * 1.02;
     return [
-      trunk(h * 0.032, h * 0.018, h * 0.5, 7),
-      blob(1, 1, [h * 0.3, h * 0.26, h * 0.3], [0, h * 0.6, 0], crown, 0.22, seed),
-      blob(
-        1,
-        0,
-        [h * 0.24, h * 0.22, h * 0.24],
-        [h * 0.12, h * 0.8, h * 0.05],
-        crown,
-        0.22,
-        seed + 1,
+      shaded(trunk(h * 0.032, h * 0.018, h * 0.5, 7), 0, h * 0.5),
+      shaded(trunk(h * 0.062, h * 0.032, h * 0.07, 7), 0, h * 0.5), // kök genişlemesi
+      branch(h * 0.014, [0, h * 0.38, 0], [h * 0.17, h * 0.6, h * 0.06]),
+      branch(h * 0.012, [0, h * 0.44, 0], [-h * 0.15, h * 0.66, -h * 0.08]),
+      shaded(blob(1, 1, [h * 0.3, h * 0.26, h * 0.3], [0, h * 0.6, 0], crown, 0.22, seed), lo, hi),
+      shaded(
+        blob(
+          1,
+          0,
+          [h * 0.24, h * 0.22, h * 0.24],
+          [h * 0.12, h * 0.8, h * 0.05],
+          crown,
+          0.22,
+          seed + 1,
+        ),
+        lo,
+        hi,
       ),
-      blob(
-        1,
-        0,
-        [h * 0.22, h * 0.2, h * 0.22],
-        [-h * 0.1, h * 0.84, -h * 0.08],
-        crown,
-        0.22,
-        seed + 2,
+      shaded(
+        blob(
+          1,
+          0,
+          [h * 0.22, h * 0.2, h * 0.22],
+          [-h * 0.1, h * 0.84, -h * 0.08],
+          crown,
+          0.22,
+          seed + 2,
+        ),
+        lo,
+        hi,
+      ),
+      shaded(
+        blob(
+          1,
+          0,
+          [h * 0.2, h * 0.17, h * 0.2],
+          [h * 0.06, h * 0.52, -h * 0.2],
+          crown,
+          0.25,
+          seed + 3,
+        ),
+        lo,
+        hi,
+      ),
+      shaded(
+        blob(
+          1,
+          0,
+          [h * 0.19, h * 0.16, h * 0.19],
+          [-h * 0.16, h * 0.55, h * 0.14],
+          crown,
+          0.25,
+          seed + 4,
+        ),
+        lo,
+        hi,
       ),
     ];
   };
 }
 
-/** İğne yapraklı ağaç: gövde + üst üste koniler (yakın 4, uzak 2). */
-const conifer: Builder = (h, lod) => {
+/**
+ * İğne yapraklı ağaç: gövde + üst üste, hafif kaçık ve iki tonlu koniler (yakın 6, uzak 2); dikey gölgeli (alt dallar
+ * koyu, tepe aydınlık).
+ */
+const conifer: Builder = (h, lod, seed) => {
   if (lod === 'far') {
     return [
-      cone(h * 0.17, h * 0.55, 6, h * 0.12, COLORS.conifer),
-      cone(h * 0.11, h * 0.42, 6, h * 0.58, COLORS.conifer),
+      shaded(cone(h * 0.17, h * 0.55, 6, h * 0.12, COLORS.conifer), h * 0.1, h),
+      shaded(cone(h * 0.11, h * 0.42, 6, h * 0.58, COLORS.conifer), h * 0.1, h),
     ];
   }
-  return [
-    trunk(h * 0.028, h * 0.016, h * 0.4, 7),
-    cone(h * 0.19, h * 0.3, 8, h * 0.2, COLORS.conifer),
-    cone(h * 0.15, h * 0.28, 8, h * 0.4, COLORS.conifer),
-    cone(h * 0.11, h * 0.26, 8, h * 0.6, COLORS.conifer),
-    cone(h * 0.07, h * 0.24, 8, h * 0.76, COLORS.conifer),
-  ];
+  const random = createRandom(seed);
+  const parts: Part[] = [shaded(trunk(h * 0.03, h * 0.016, h * 0.42, 7), 0, h * 0.5)];
+  const layers = 6;
+  for (let i = 0; i < layers; i++) {
+    const t = i / (layers - 1);
+    const radius = h * (0.2 - t * 0.14);
+    const height = h * (0.26 - t * 0.05);
+    const y0 = h * (0.16 + t * 0.62);
+    const layer = cone(radius, height, 9, y0, i % 2 === 0 ? COLORS.conifer : COLORS.coniferAlt);
+    // Katlar hafif kaçık ve dönük: düzgün yığın gibi durmasın.
+    layer.geometry.applyMatrix4(
+      new Matrix4()
+        .makeRotationY(random.next() * Math.PI)
+        .setPosition((random.next() - 0.5) * h * 0.02, 0, (random.next() - 0.5) * h * 0.02),
+    );
+    parts.push(shaded(layer, h * 0.12, h));
+  }
+  return parts;
 };
 
 function bush(color: number, detail: 0 | 1): Builder {
-  return (h, lod, seed) => [
-    blob(
-      1,
-      lod === 'far' ? 0 : detail,
-      [h * 0.7, h * 0.5, h * 0.7],
-      [0, h * 0.42, 0],
-      color,
-      0.25,
-      seed,
-    ),
-  ];
+  return (h, lod, seed) => {
+    const main = shaded(
+      blob(
+        1,
+        lod === 'far' ? 0 : detail,
+        [h * 0.7, h * 0.5, h * 0.7],
+        [0, h * 0.42, 0],
+        color,
+        0.25,
+        seed,
+      ),
+      0,
+      h,
+    );
+    if (lod === 'far') return [main];
+    return [
+      main,
+      shaded(
+        blob(
+          1,
+          0,
+          [h * 0.42, h * 0.34, h * 0.42],
+          [h * 0.38, h * 0.3, -h * 0.22],
+          color,
+          0.3,
+          seed + 5,
+        ),
+        0,
+        h,
+      ),
+    ];
+  };
 }
 
 const berryBush: Builder = (h, lod, seed) => {
@@ -186,9 +298,10 @@ const berryBush: Builder = (h, lod, seed) => {
   return parts;
 };
 
-const rock = (color: number, detail: 0 | 1): Builder => {
-  return (h, lod, seed) => [
-    blob(
+/** Kaya: ana blok + yanında küçük taş (yakın) ve kuzey/üst yüzünde yosun (yalnızca büyük kaya). */
+const rock = (color: number, detail: 0 | 1, moss = false): Builder => {
+  return (h, lod, seed) => {
+    const main = blob(
       1,
       lod === 'far' ? 0 : detail,
       [h * 0.7, h * 0.45, h * 0.6],
@@ -196,8 +309,39 @@ const rock = (color: number, detail: 0 | 1): Builder => {
       color,
       0.3,
       seed,
-    ),
-  ];
+    );
+    if (lod === 'far') return [main];
+    const parts: Part[] = [
+      { ...main, shade: [0, h * 0.8] },
+      shaded(
+        blob(
+          1,
+          0,
+          [h * 0.28, h * 0.2, h * 0.26],
+          [h * 0.5, h * 0.12, h * 0.3],
+          color,
+          0.35,
+          seed + 3,
+        ),
+        0,
+        h * 0.8,
+      ),
+    ];
+    if (moss) {
+      parts.push(
+        blob(
+          1,
+          0,
+          [h * 0.5, h * 0.12, h * 0.42],
+          [-h * 0.06, h * 0.68, -h * 0.08],
+          COLORS.moss,
+          0.25,
+          seed + 4,
+        ),
+      );
+    }
+    return parts;
+  };
 };
 
 const mushroom: Builder = (h) => [
@@ -216,18 +360,29 @@ const BUILDERS: Record<PropKind, Builder> = {
   tree_broadleaf: broadleaf(COLORS.broadleaf),
   tree_conifer: conifer,
   bush: bush(COLORS.bush, 1),
-  rock: rock(COLORS.rock, 1),
+  rock: rock(COLORS.rock, 1, true),
   berry_bush: berryBush,
+  // Fındık ocağı: dipten çok gövdeli (yakın), yuvarlak taç.
   hazel: (h, lod, seed) => [
     trunk(h * 0.03, h * 0.02, h * 0.4, 4),
-    blob(
-      1,
-      lod === 'far' ? 0 : 1,
-      [h * 0.35, h * 0.32, h * 0.35],
-      [0, h * 0.62, 0],
-      COLORS.hazel,
-      0.25,
-      seed,
+    ...(lod === 'far'
+      ? []
+      : [
+          branch(h * 0.018, [h * 0.04, 0, 0], [h * 0.14, h * 0.5, h * 0.05]),
+          branch(h * 0.018, [-h * 0.03, 0, h * 0.03], [-h * 0.13, h * 0.48, h * 0.1]),
+        ]),
+    shaded(
+      blob(
+        1,
+        lod === 'far' ? 0 : 1,
+        [h * 0.35, h * 0.32, h * 0.35],
+        [0, h * 0.62, 0],
+        COLORS.hazel,
+        0.25,
+        seed,
+      ),
+      h * 0.3,
+      h,
     ),
   ],
   chestnut: broadleaf(COLORS.chestnut),

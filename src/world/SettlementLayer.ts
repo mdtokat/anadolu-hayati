@@ -109,7 +109,9 @@ export class SettlementLayer {
     }
     for (const [key, count] of [...counts.entries()].sort()) {
       const spec = parseKey(key);
-      const lods: BuildingLod[] = isMosque(spec.kind) ? ['near', 'far'] : ['near'];
+      const lods: BuildingLod[] = ['near'];
+      if (hasInterior(spec.kind)) lods.unshift('interior');
+      if (isMosque(spec.kind)) lods.push('far');
       for (const lod of lods) {
         const geometry = buildBuildingGeometry(spec.kind, lod, spec);
         this.geometries.push(geometry);
@@ -195,6 +197,7 @@ export class SettlementLayer {
     this.nearCount = 0;
     this.farCount = 0;
     const near2 = BUILDING_LOOK.nearRadius ** 2;
+    const interior2 = BUILDING_LOOK.interiorRadius ** 2;
     const far2 = this.drawRadius ** 2;
     const [toneLo, toneHi] = BUILDING_LOOK.toneRange;
     for (const b of this.map.buildings) {
@@ -202,7 +205,8 @@ export class SettlementLayer {
       const dz = b.z - fz;
       const d2 = dx * dx + dz * dz;
       if (d2 > far2) continue;
-      const lod: BuildingLod = d2 <= near2 ? 'near' : 'far';
+      const lod: BuildingLod =
+        d2 <= interior2 && hasInterior(b.kind) ? 'interior' : d2 <= near2 ? 'near' : 'far';
       const far =
         lod === 'far' && !isMosque(b.kind) ? farGenericSpec(b.kind, b.floors, b.ruined) : null;
       const key = far ? (far.roofed ? FAR_ROOFED : FAR_FLAT) : variantKey(b);
@@ -219,8 +223,8 @@ export class SettlementLayer {
       if (far) tier.mesh.setColorAt(tier.count, tintOf(far.tint, tone));
       else tier.mesh.setColorAt(tier.count, colorOf(tone));
       tier.count++;
-      if (lod === 'near') this.nearCount++;
-      else this.farCount++;
+      if (lod === 'far') this.farCount++;
+      else this.nearCount++;
 
       // Taş temel: ayak izinin altında zeminden kata kadar (yamaçta görünen set).
       const shape = BUILDING_SHAPES[b.kind];
@@ -234,7 +238,7 @@ export class SettlementLayer {
         plinths++;
       }
       const stair = this.stairsByBuilding.get(b.id);
-      if (stair && lod === 'near') {
+      if (stair && lod !== 'far') {
         tmpPos.set(stair.x, stair.y0, stair.z);
         tmpScale.set(stair.width, stair.rise, stair.run);
         tmpMatrix.compose(tmpPos, tmpQuat, tmpScale);
@@ -276,6 +280,11 @@ export class SettlementLayer {
 }
 
 const sharedColor = new Color();
+
+/** Türün ayrı iç mekân kademesi var mı (girilebilir yapılar: oda, cami, han)? */
+function hasInterior(kind: BuildingKind): boolean {
+  return BUILDING_SHAPES[kind].interior !== null;
+}
 /** Uzak ortak mesh anahtarları. */
 const FAR_ROOFED = 'far-roofed';
 const FAR_FLAT = 'far-flat';

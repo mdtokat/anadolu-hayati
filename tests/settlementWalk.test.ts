@@ -3,7 +3,8 @@ import { TELEPORTS } from '../src/config';
 import type { MoveIntent } from '../src/core/inputMapping';
 import type { RegionData } from '../src/data/region';
 import { initPhysics } from '../src/physics/PhysicsWorld';
-import { BUILDING_SHAPES } from '../src/settlements/kinds';
+import { BUILDING_SHAPES, containerFront } from '../src/settlements/kinds';
+import { searchTarget } from '../src/settlements/search';
 import { SPAN_KIND } from '../src/settlements/roadProfile';
 import { buildingLocalToWorld } from '../src/settlements/SettlementMap';
 import { loadRealRegion } from './helpers/realRegion';
@@ -85,6 +86,63 @@ describe('yerleşimlerde fizik (Faz 10)', () => {
     expect(lowest).toBeGreaterThan(-1.5);
     dispose();
   }, 180_000);
+
+  it('oyuncu evin kapısından içeri girer, içeride sandığı/dolabı arayabilir', () => {
+    const { world, player, step, dispose } = setupWorld(region, true);
+    const map = world.settlementMap!;
+    const shape = BUILDING_SHAPES.house;
+    // Kapı önü düz (merdivensiz) ve önü açık, yıkık olmayan bir ev.
+    const house = map.buildings.find((b) => {
+      if (b.kind !== 'house' || b.ruined || b.stairRun > 0) return false;
+      const front = buildingLocalToWorld(b, shape.door.x, shape.depth / 2 + 2);
+      return (
+        Math.abs(world.terrain.heightAt(front.x, front.z) - b.y) < 0.3 &&
+        map.buildingAt(front.x, front.z, 0.6) === null
+      );
+    })!;
+    expect(house).toBeDefined();
+    const start = buildingLocalToWorld(house, shape.door.x, shape.depth / 2 + 2.5);
+    world.prepare(start.x, start.z);
+    player.teleport({ x: start.x, y: world.terrain.heightAt(start.x, start.z) + 0.1, z: start.z });
+    const inside = buildingLocalToWorld(house, shape.door.x, 0);
+    let entered = false;
+    for (let i = 0; i < 60 * 10 && !entered; i++) {
+      const p = player.position;
+      step(walk, yawToward(inside.x - p.x, inside.z - p.z));
+      const at = map.interiorAt(p.x, p.y, p.z);
+      entered = at?.building.id === house.id && at.sacred === false;
+    }
+    expect(entered).toBe(true);
+    // İçeride ilk kabın önüne yürüyüp ona bakınca arama hedefi o kaptır.
+    const c = shape.containers[0]!;
+    const f = containerFront(c);
+    const spot = buildingLocalToWorld(house, c.x + f.x * 1.1, c.z + f.z * 1.1);
+    for (let i = 0; i < 60 * 8; i++) {
+      const p = player.position;
+      if (Math.hypot(spot.x - p.x, spot.z - p.z) < 0.25) break;
+      step(walk, yawToward(spot.x - p.x, spot.z - p.z));
+    }
+    const p = player.position;
+    const box = buildingLocalToWorld(house, c.x, c.z);
+    const target = searchTarget([house], {
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      yaw: yawToward(box.x - p.x, box.z - p.z),
+    });
+    expect(target).toMatchObject({ type: 'container', index: 0 });
+    dispose();
+  }, 120_000);
+
+  it('şadırvan camide abdest suyu verir (tatlı su)', () => {
+    const { world, dispose } = setupWorld(region, true);
+    const map = world.settlementMap!;
+    const sadirvan = map.buildings.find((b) => b.kind === 'sadirvan')!;
+    expect(sadirvan).toBeDefined();
+    const tap = buildingLocalToWorld(sadirvan, 0, 2);
+    expect(world.freshWaterNear(tap.x, tap.z)).not.toBeNull();
+    dispose();
+  }, 120_000);
 
   it('konutun duvarından geçilmez', () => {
     const { world, player, step, dispose } = setupWorld(region, true);

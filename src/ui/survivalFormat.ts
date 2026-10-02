@@ -53,7 +53,7 @@ export function bodyTempLabel(bodyTempC: number): string {
 export function shelterLabel(shelter: ShelterKind | null): string {
   if (shelter === 'hut') return 'Kulübede';
   if (shelter === 'mosque') return 'Camide';
-  if (shelter === 'building') return 'Han içinde';
+  if (shelter === 'building') return 'Bina içinde';
   return 'Barınakta';
 }
 
