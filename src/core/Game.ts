@@ -130,6 +130,7 @@ import { heldLabel, hotbarSignature, hotbarViews } from '../ui/hotbarView';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
+import { ControlsPanel } from '../ui/ControlsPanel';
 import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
@@ -392,6 +393,7 @@ export class Game {
   private readonly pauseMenu: GameMenu;
   private readonly settingsPanel: SettingsPanel;
   private readonly creditsPanel: CreditsPanel;
+  private readonly controlsPanel: ControlsPanel;
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
   private readonly storagePanel: StoragePanel;
@@ -503,10 +505,12 @@ export class Game {
     this.settingsPanel = new SettingsPanel(container, this.settings);
     this.ambient = new AmbientAudio(this.settings);
     this.creditsPanel = new CreditsPanel(container);
+    this.controlsPanel = new ControlsPanel(container);
     this.pauseMenu = new GameMenu(container, this.events, {
       store: this.saves,
       openSettings: () => this.settingsPanel.show(),
       openCredits: () => this.creditsPanel.show(),
+      openControls: () => this.controlsPanel.show(),
       isSuppressed: () => this.overlayOpen,
       host: {
         resume: () => this.input.requestLock(),
@@ -968,6 +972,7 @@ export class Game {
     this.settingsPanel.dispose();
     this.ambient.dispose();
     this.creditsPanel.dispose();
+    this.controlsPanel.dispose();
     this.inventoryPanel.dispose();
     this.storagePanel.dispose();
     this.deathScreen.dispose();
