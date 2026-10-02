@@ -218,11 +218,45 @@ function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
 function buriedBySlope(b: Building, terrain: LayoutTerrain): boolean {
   if (isMosque(b.kind) || b.kind === 'government') return false;
   const shape = BUILDING_SHAPES[b.kind];
+  if (shape.interior) {
+    // Girilebilir yapı: komşu terasın şevi odaya fazla taşıyorsa atılır (azı `raiseFloor` ile döşemeyi yükseltir).
+    return interiorTop(b, terrain) - b.y > SETTLEMENT_LAYOUT.interiorTolerance;
+  }
   const back = buildingLocalToWorld(b, 0, -shape.depth / 2);
   return (
     terrain.heightAt(back.x, back.z) - b.y > MAX_BURY[b.kind] + SETTLEMENT_LAYOUT.buryTolerance
   );
 }
+
+/** Girilebilir yapının odasındaki en yüksek arazi (0,25 m aralıkla örneklenir; oda yoksa −∞). */
+function interiorTop(b: Building, terrain: LayoutTerrain): number {
+  const a = BUILDING_SHAPES[b.kind].interior;
+  if (!a) return -Infinity;
+  const step = 0.25;
+  const nx = Math.ceil((2 * a.halfWidth) / step);
+  const nz = Math.ceil((a.front - a.back) / step);
+  let top = -Infinity;
+  for (let i = 0; i <= nx; i++) {
+    for (let j = 0; j <= nz; j++) {
+      const p = buildingLocalToWorld(
+        b,
+        -a.halfWidth + (2 * a.halfWidth * i) / nx,
+        a.back + ((a.front - a.back) * j) / nz,
+      );
+      top = Math.max(top, terrain.heightAt(p.x, p.z));
+    }
+  }
+  return top;
+}
+
+/** Odasında arazi döşemeye değen yapının döşemesini arazinin biraz üstüne yükseltir (taş temel aşağıda kalır). */
+function raiseFloor(b: Building, terrain: LayoutTerrain): void {
+  const top = interiorTop(b, terrain) + FLOOR_CLEARANCE;
+  if (top > b.y) b.y = top;
+}
+
+/** Döşeme ile odadaki en yüksek arazi arasında kalan en az pay (oyun m; döşeme kalınlığı). */
+const FLOOR_CLEARANCE = 0.05;
 
 /** Yapının ayak izi altındaki en alçak zemin (taş temelin ineceği yer); en çok `maxTerrace` aşağıda. */
 function settledBase(b: Building, terrain: LayoutTerrain): number {
@@ -262,6 +296,9 @@ export function worldToBuildingLocal(b: Building, x: number, z: number): { x: nu
   const sin = Math.sin(b.yaw);
   return { x: dx * cos - dz * sin, z: dx * sin + dz * cos };
 }
+
+/** Şadırvan musluklarının merkeze uzaklığı (oyun m; havuz kenarı). */
+const SADIRVAN_TAP_RADIUS = 1.4;
 
 /** Yerleşimin içinden sorgulanacak en büyük yapı yarı köşegeni (oyun m; kale). */
 const MAX_HALF_DIAGONAL = Math.max(
@@ -380,6 +417,7 @@ export class SettlementMap {
     // Düzen sırası: ilçe merkezleri, il merkezleri, köyler (aynı rütbede veri sırası). Büyütülmüş il ayak izi komşu
     // ilçeyi örtebilir (Zonguldak–Kozlu): küçük merkezin meydanı ve camisi önce yer bulur. Kimlikler yerleşim
     // kimliğinden türediğinden sıra kimlikleri değiştirmez.
+    const mosqueSites: Array<{ x: number; z: number }> = [];
     const order = { ilce: 0, il: 1, koy: 2 } as const;
     const ordered = [...data.settlements].sort((a, b) => order[a.rank] - order[b.rank]);
     for (const s of ordered) {
@@ -392,6 +430,7 @@ export class SettlementMap {
         undefined,
         this.footprints,
         cores.filter((c) => c.id !== s.id),
+        mosqueSites,
       );
       this.settlements.push({ data: s, buildings: layout.buildings, radius: layout.radius });
       for (const st of layout.streets) {
@@ -405,6 +444,7 @@ export class SettlementMap {
     for (const view of this.settlements) {
       view.buildings = view.buildings.filter((b) => !buriedBySlope(b, terrain));
       for (const b of view.buildings) {
+        raiseFloor(b, terrain);
         b.base = settledBase(b, terrain);
         this.buildings.push(b);
         this.byId.set(b.id, b);
@@ -512,10 +552,21 @@ export class SettlementMap {
     reach: number,
   ): { x: number; z: number; distance: number } | null {
     let best: { x: number; z: number; distance: number } | null = null;
-    for (const b of this.buildingsNear(x, z, reach + 3)) {
-      if (b.kind !== 'fountain') continue;
-      const spout = buildingLocalToWorld(b, 0, BUILDING_SHAPES.fountain.depth / 2);
-      const distance = Math.hypot(spout.x - x, spout.z - z);
+    for (const b of this.buildingsNear(x, z, reach + 4)) {
+      let spout: { x: number; z: number };
+      let distance: number;
+      if (b.kind === 'fountain') {
+        spout = buildingLocalToWorld(b, 0, BUILDING_SHAPES.fountain.depth / 2);
+        distance = Math.hypot(spout.x - x, spout.z - z);
+      } else if (b.kind === 'sadirvan') {
+        // Şadırvanın musluklar havuzun çevresindedir: havuz kenarına uzaklık.
+        const d = Math.hypot(b.x - x, b.z - z);
+        distance = Math.max(0, d - SADIRVAN_TAP_RADIUS);
+        const k = d > 1e-6 ? SADIRVAN_TAP_RADIUS / d : 0;
+        spout = { x: b.x + (x - b.x) * k, z: b.z + (z - b.z) * k };
+      } else {
+        continue;
+      }
       if (distance <= reach && (best === null || distance < best.distance))
         best = { ...spout, distance };
     }

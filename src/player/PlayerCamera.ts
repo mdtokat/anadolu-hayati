@@ -28,6 +28,8 @@ export class PlayerCamera {
   private aimBlend = 0;
   /** Bakışa yalnızca görüntüde eklenen kayma (dürbün salınımı; radyan). */
   private viewOffset = { yaw: 0, pitch: 0 };
+  /** Oyuncu bir yapının içindeyse oda tavanının yüksekliği (ayaktan, oyun m); dışarıdaysa null. */
+  private indoorCeiling: number | null = null;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
@@ -66,6 +68,14 @@ export class PlayerCamera {
     this.aimFirstPerson = firstPerson;
     const b = blend ?? (firstPerson ? 1 : 0);
     this.aimBlend = Number.isFinite(b) ? Math.min(Math.max(b, 0), 1) : 0;
+  }
+
+  /**
+   * Oyuncu girilebilir bir yapının içinde mi (`ceiling`: döşemeden tavana yükseklik; null: dışarıda)? İçeride üçüncü
+   * şahıs kamera yakına gelir, arazi yüzeyine itilmez (yamaca gömülü odada) ve tavanın altında kalır.
+   */
+  setIndoor(ceiling: number | null): void {
+    this.indoorCeiling = ceiling !== null && Number.isFinite(ceiling) ? ceiling : null;
   }
 
   /** Faz 11.5: dürbün salınımı gibi yalnızca görüntüye eklenen bakış kayması (radyan). */
@@ -129,19 +139,29 @@ export class PlayerCamera {
     // Tünelde (ayak arazi yüzeyinin belirgin altında) kamera yakına gelir ve arazi yüzeyine itilmez: dağın üstüne
     // fırlamasın.
     const underground = feet.y < this.terrain.heightAt(feet.x, feet.z) - CAMERA.undergroundDepth;
-    const offset = thirdPersonOffset(
-      this.look,
-      (underground ? CAMERA.undergroundDistance : CAMERA.thirdPersonDistance) * (1 - blend),
-    );
+    const indoor = this.indoorCeiling;
+    const distance =
+      indoor !== null
+        ? CAMERA.indoorDistance
+        : underground
+          ? CAMERA.undergroundDistance
+          : CAMERA.thirdPersonDistance;
+    const offset = thirdPersonOffset(this.look, distance * (1 - blend));
     const x = pivot.x + offset.x;
     const z = pivot.z + offset.z;
     // Yukarı bakarken kamera oyuncunun altına iner; yerin içine girmesin.
-    const y = underground
-      ? Math.max(pivot.y + offset.y, feet.y + 0.4)
-      : Math.max(
-          pivot.y + offset.y,
-          this.terrain.heightAt(x, z) + CAMERA.thirdPersonGroundClearance,
-        );
+    const y =
+      indoor !== null
+        ? Math.min(
+            Math.max(pivot.y + offset.y, feet.y + 0.4),
+            feet.y + Math.max(indoor - CAMERA.indoorCeilingClearance, 0.6),
+          )
+        : underground
+          ? Math.max(pivot.y + offset.y, feet.y + 0.4)
+          : Math.max(
+              pivot.y + offset.y,
+              this.terrain.heightAt(x, z) + CAMERA.thirdPersonGroundClearance,
+            );
     this.camera.position.set(x, y, z);
     if (blend > 0) {
       // Kamera odağa yaklaştıkça lookAt kararsızlaşır: bakış doğrudan açılardan kurulur.

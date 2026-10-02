@@ -158,17 +158,26 @@ describe('migrateSave: sürüm göçü', () => {
     expect(order).toEqual([2]);
   });
 
-  it('gerçek zincir: v1 (Faz 7), v2 (Faz 9), v3 (Faz 10) ve v4 (Faz 11) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(5);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3, 4]);
+  it('gerçek zincir: v1 (Faz 7), v2 (Faz 9), v3 (Faz 10), v4 (Faz 11) ve v5 (iç mekân, namaz) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
+    expect(SAVE_FORMAT_VERSION).toBe(6);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('v3 → v4: aranmış yapı listesi boş eklenir; v4 listesi doğrulanır ve sıralanır', () => {
     const v3 = { ...JSON.parse(JSON.stringify(sample())), version: 3 } as Record<string, unknown>;
     delete v3.settlements;
-    expect(parseSave(v3).settlements).toEqual({ searched: [] });
-    const v4 = { ...JSON.parse(JSON.stringify(sample())), settlements: { searched: [9, 3, 3] } };
+    expect(parseSave(v3).settlements).toEqual({ searched: [], containers: [], lastPrayer: -1 });
+    const v4 = {
+      ...JSON.parse(JSON.stringify(sample())),
+      version: 4,
+      settlements: { searched: [9, 3, 3] },
+    };
     expect(parseSave(v4).settlements.searched).toEqual([3, 9]);
+    const v6 = {
+      ...JSON.parse(JSON.stringify(sample())),
+      settlements: { searched: [], containers: [8, 2, 2], lastPrayer: 7 },
+    };
+    expect(parseSave(v6).settlements).toEqual({ searched: [], containers: [2, 8], lastPrayer: 7 });
     expect(codeOf(() => parseSave({ ...sample(), settlements: { searched: [-1] } }))).toBe(
       'invalid',
     );

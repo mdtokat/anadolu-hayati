@@ -44,35 +44,42 @@ function codeOf(fn: () => unknown): string | null {
 function v4(): Raw {
   const save = clone(sampleSave()) as unknown as Raw;
   for (const key of ['farm', 'weapons', 'bandits', 'drone']) delete save[key];
+  save.settlements = { searched: (save.settlements as { searched: number[] }).searched };
   save.version = 4;
   return save;
 }
 
 describe('kayıt v4 → v5 göçü (Faz 11)', () => {
   it('sürüm 5; zincirin son adımı v4 → v5', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(5);
+    expect(SAVE_FORMAT_VERSION).toBe(6);
     expect(typeof MIGRATIONS[4]).toBe('function');
   });
 
   it('v4 kayıt yüklenir: tarla/silah/eşkıya/drone boş eklenir, geri kalanı aynen kalır', () => {
     const raw = v4();
     const parsed = parseSave(raw);
-    expect(parsed.version).toBe(5);
+    expect(parsed.version).toBe(SAVE_FORMAT_VERSION);
     expect({
       farm: parsed.farm,
       weapons: parsed.weapons,
       bandits: parsed.bandits,
       drone: parsed.drone,
     }).toEqual(emptyFaz11Save());
-    for (const key of ['player', 'survival', 'inventory', 'structures', 'hotbar', 'settlements']) {
+    for (const key of ['player', 'survival', 'inventory', 'structures', 'hotbar']) {
       expect(parsed[key as keyof typeof parsed]).toEqual(raw[key]);
     }
+    // v5 → v6: aranmış yapılar korunur, kap listesi boş ve namaz kılınmamış eklenir.
+    expect(parsed.settlements).toEqual({
+      ...(raw.settlements as object),
+      containers: [],
+      lastPrayer: -1,
+    });
     expect(raw.version).toBe(4); // göç girdiyi değiştirmez
   });
 
   it('v1 (Faz 6) kayıt tüm zincirden geçip boş v5 alanlarıyla yüklenir', () => {
     const parsed = parseSave(clone(V1));
-    expect(parsed.version).toBe(5);
+    expect(parsed.version).toBe(SAVE_FORMAT_VERSION);
     expect(parsed.farm.plots).toEqual([]);
     expect(parsed.drone.state).toBe('stowed');
   });

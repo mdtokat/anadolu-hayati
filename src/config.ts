@@ -52,6 +52,9 @@ export const CAMERA = {
   /** Ayak arazi yüzeyinin bu kadar (oyun m) altındaysa oyuncu tüneldedir: üçüncü şahıs kamera yakına gelir. */
   undergroundDepth: 1.5,
   undergroundDistance: 2.4,
+  /** Girilebilir bir yapının (konut, cami, han) içindeyken üçüncü şahıs kamera uzaklığı ve tavan payı (oyun m). */
+  indoorDistance: 1.3,
+  indoorCeilingClearance: 0.25,
 } as const;
 
 /** Render ayarları. */
@@ -551,7 +554,16 @@ export const SCATTER = {
     mushroomStem: 0xe9e0c9,
     mushroomCap: 0xb3512e,
     stick: 0x6a4e34,
+    /** Çam katlarının ikinci tonu (katlar dönüşümlü), kaya üstü yosun. */
+    coniferAlt: 0x2f5531,
+    moss: 0x5a6a38,
     faceShade: 0.07,
+    /**
+     * Dikey gölgeleme (taç ve gövde): nesnenin altı `shadeLow`, tepesi `shadeHigh` çarpanıyla boyanır (kendi gölgesi ve
+     * güneş alan tepe; üçgen maliyeti yok).
+     */
+    shadeLow: 0.68,
+    shadeHigh: 1.12,
   },
   /**
    * Arazi örtüsü sınıfı → tür yoğunlukları (nesne / 100 m² oyun alanı; rakım yamuğu ile çarpılır).
@@ -1732,12 +1744,31 @@ export const SETTLEMENT_LAYOUT = {
    */
   maxPadRange: 9,
   padMargin: 0.8,
+  /** Girilebilir yapıların terasının (ve kilidinin) ayak izinden taşan payı (oyun m; arazi kafesi 2 m'den geniş). */
+  interiorPadMargin: 2.3,
   /** Komşu terasların şevi yüzünden arka kenarı `MAX_BURY`'yi bu kadar (oyun m) aşan yapı atılır. */
   buryTolerance: 2,
   /** Terasın çevresine bağlanan şevin en büyük genişliği (oyun m). */
   padBlend: 7,
   /** Camiler taş set (teras) üstüne oturur: setin en büyük yüksekliği (oyun m). */
   maxTerrace: 6,
+  /**
+   * Girilebilir yapıların (konut, dükkân, cami, han) zemin katı ayak izinin en yüksek zemininden bu kadar (oyun m)
+   * yüksektir: arazi döşemenin içinden çıkmaz (örnekler arası tümsek payı).
+   */
+  floorLift: 0.15,
+  /**
+   * Cami sayısı: il merkezinde gerçek cami sayısının `perIl`'de biri (1…`maxIl`), ilçede `perIlce`'de biri
+   * (1…`maxIlce`), köyde `villageChance` olasılıkla bir. Camiler arası (tüm yerleşimler) en az `mosqueSpacing`
+   * (oyun m) olur; yalnızca il/ilçe merkezinin ilk camisi bu kurala takılmaz.
+   */
+  mosques: { perIl: 10, maxIl: 3, perIlce: 12, maxIlce: 2, villageChance: 0.45 },
+  mosqueSpacing: 70,
+  /**
+   * Düzenden sonra (komşu teras şevleri) girilebilir yapının odasında arazi döşemenin üstüne çıkıyorsa döşeme o kadar
+   * yükseltilir; fark bundan (oyun m) büyükse yapı atılır.
+   */
+  interiorTolerance: 0.6,
   /** Yamaç eğimi: parselde ±`slopeProbe` (oyun m) arası fark bundan büyükse kapı aşağı (vadiye) bakar. */
   slopeProbe: 3,
   slopeFacingMin: 0.8,
@@ -2081,7 +2112,27 @@ export const BUILDING_LOOK = {
     sign: 0x2f4f6f,
     tank: 0xa7a9ab,
     clockFace: 0xe9e4d6,
+    // İç mekân (girilebilir yapılar): pencerenin içten görünen aydınlık camı, sıva, döşeme, kilim/halı, çini.
+    windowInner: 0xa9c0cf,
+    plasterInner: 0xe6dcc6,
+    plank: 0x8a6440,
+    plankDark: 0x5e432b,
+    kilim: 0x8e2f27,
+    kilimAccent: 0xc79a3c,
+    cushion: 0x9c3b2c,
+    carpet: 0x8b1f24,
+    carpetAccent: 0x2f5f74,
+    tile: 0x2c8c88,
+    tileDark: 0x1d5f69,
+    ceiling: 0xd9cfba,
+    water: 0x4d8496,
+    sill: 0xbcb4a1,
   },
+  /**
+   * Bu uzaklığa kadar girilebilir yapıların iç mekânı (eşya, sıva, döşeme, içten pencereler) ve pencere kayıtları da
+   * çizilir (en yakın kademe; `refreshDistance` kadar gecikebilir, içeride her zaman görünür).
+   */
+  interiorRadius: 70,
   /** Bu uzaklığa kadar ayrıntılı (yakın) geometri, ötesinde kaba (uzak) geometri çizilir. */
   nearRadius: 260,
   /** Yapıların çizim yarıçapı. */
@@ -2098,6 +2149,15 @@ export const BUILDING_LOOK = {
   colliderRadius: 140,
 } as const;
 
+/**
+ * Camide vakit namazı: harimde `E` basılı `seconds` saniye tutulunca sağlık `healthGain` artar (100'ü aşmaz); her
+ * vakitte bir kez (`survival/prayer.ts`). Güneş doğuşu–öğle arası vakit değildir.
+ */
+export const PRAYER = {
+  seconds: 6,
+  healthGain: 15,
+} as const;
+
 /** Yapı arama (Faz 10): kapıda `E` basılı tutulur; her yapı bir kez aranır (kayda girer). */
 export const SEARCH = {
   /** Arama süresi (sn). */
@@ -2109,6 +2169,19 @@ export const SEARCH = {
   viewConeDeg: 70,
   /** Ganimet tohumu (aynı yapı her oyunda aynı ganimeti verir). */
   seed: 0x10071,
+  /**
+   * Bina içi kaplar (sandık, dolap): arama süresi (sn), kabın ön yüzüne en çok yatay uzaklık ve kat zeminine dikey fark
+   * (oyun m), bakış konisi (derece). Yapının ganimet tablosu her ek kap için `containerChanceScale` kadar cömert
+   * zarlanır (en çok `containerChanceMax` kat; satır olasılığı ≤ 0,95) ve kaplara dağıtılır; tuz kapı ganimetinden
+   * ayrı bir zar dizisi verir.
+   */
+  containerSeconds: 1.6,
+  containerReach: 1.7,
+  containerVerticalReach: 1.6,
+  containerConeDeg: 55,
+  containerChanceScale: 0.35,
+  containerChanceMax: 1.8,
+  containerSeedSalt: 0x5a7d,
   /** Kapısı aranacak yapıların merkezinin sorgulandığı yarıçap (oyun m; en büyük yapı payıyla). */
   queryRadius: 24,
   /** Yıkık yapıda her ganimet olasılığı bu oranla çarpılır (çatı çökmüş, kiler ıslanmış). */

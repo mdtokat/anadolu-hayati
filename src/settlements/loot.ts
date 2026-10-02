@@ -2,7 +2,8 @@ import { AMMO, SEARCH } from '../config';
 import type { ItemStack } from '../items/Inventory';
 import type { ItemId } from '../items/itemDefs';
 import { createRandom, seedFrom } from '../utils/random';
-import type { BuildingKind } from './kinds';
+import { BUILDING_SHAPES, type BuildingKind } from './kinds';
+import { ITEMS } from '../items/itemDefs';
 
 /** Ganimet satırı: `chance` olasılıkla `min`–`max` adet. */
 export interface LootEntry {
@@ -182,6 +183,48 @@ export function rollBuildingLoot(
     const roll = random.next();
     const count = random.int(row.min, row.max);
     if (roll < row.chance * scale) out.push({ id: row.item, count });
+  }
+  return out;
+}
+
+/**
+ * Girilebilir yapının `index`. kabının ganimeti (deterministik). Yapının tablosu kap sayısının oranında daha cömert
+ * zarlanır (`SEARCH.containerChanceScale`: her kap ayrı aranır) ve çıkan eşyalar kaplara dağıtılır: yiyecekler dolaba,
+ * diğerleri sandığa (yapıda o tür kap yoksa öbürüne); aynı türden kaplar arasında sırayla. Kaplar birlikte aransa da ayrı
+ * ayrı aransa da aynı eşyaları verir.
+ */
+export function rollContainerLoot(
+  building: { id: number; kind: BuildingKind; ruined: boolean },
+  index: number,
+  seed: number = SEARCH.seed,
+): ItemStack[] {
+  const containers = BUILDING_SHAPES[building.kind].containers;
+  const table = BUILDING_LOOT[building.kind];
+  if (!table || index < 0 || index >= containers.length) return [];
+  const random = createRandom(seedFrom(seed ^ SEARCH.containerSeedSalt, building.id));
+  const scale =
+    (building.ruined ? SEARCH.ruinedChanceScale : 1) *
+    Math.min(1 + (containers.length - 1) * SEARCH.containerChanceScale, SEARCH.containerChanceMax);
+  const cupboards: number[] = [];
+  const chests: number[] = [];
+  containers.forEach((c, i) => (c.kind === 'cupboard' ? cupboards : chests).push(i));
+  let food = 0;
+  let other = 0;
+  const out: ItemStack[] = [];
+  for (const row of table) {
+    const roll = random.next();
+    const count = random.int(row.min, row.max);
+    if (roll >= Math.min(row.chance * scale, 0.95)) continue;
+    const edible = ITEMS[row.item].category === 'food';
+    const pool = edible
+      ? cupboards.length > 0
+        ? cupboards
+        : chests
+      : chests.length > 0
+        ? chests
+        : cupboards;
+    const k = edible ? food++ : other++;
+    if (pool[k % pool.length] === index) out.push({ id: row.item, count });
   }
   return out;
 }

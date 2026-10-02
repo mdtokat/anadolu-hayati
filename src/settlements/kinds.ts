@@ -33,6 +33,8 @@ export const BUILDING_KINDS = [
   // sanayi
   'mine_tower',
   'factory',
+  // cami avlusu (sona eklendi: önceki türlerin sırası değişmesin)
+  'sadirvan',
 ] as const;
 export type BuildingKind = (typeof BUILDING_KINDS)[number];
 
@@ -59,6 +61,7 @@ export const BUILDING_NAMES: Record<BuildingKind, string> = {
   monument: 'Anıt',
   mine_tower: 'Maden kuyusu',
   factory: 'Fabrika',
+  sadirvan: 'Şadırvan',
 };
 
 /** Yerel eksenlerde eksene hizalı kutu: merkez (cx, cy, cz), yarı boyutlar (hx, hy, hz). */
@@ -87,6 +90,38 @@ export interface BuildingShape {
   searchable: boolean;
   /** Kapı (arama noktası) yerel konumu: ön yüzün ortası, biraz dışarıda. */
   door: { x: number; z: number };
+  /** İçerideki aranabilir sandık/dolaplar (yerel; girilebilir konutlarda). Boşsa yok. */
+  containers: readonly InteriorContainer[];
+  /** Girilebilir yapının iç (zemin kat) tavan yüksekliği (oyun m; iç mekân yoksa 0). */
+  roomHeight: number;
+}
+
+/** Bina içindeki aranabilir eşya kabı türü. */
+export type ContainerKind = 'chest' | 'cupboard';
+
+/** Kap ölçüleri (oyun m): genişlik (ön yüz boyunca), derinlik, yükseklik. */
+export const CONTAINER_DIMS: Readonly<Record<ContainerKind, { w: number; d: number; h: number }>> =
+  {
+    chest: { w: 1, d: 0.56, h: 0.62 },
+    cupboard: { w: 1.1, d: 0.55, h: 1.9 },
+  };
+
+export const CONTAINER_NAMES: Readonly<Record<ContainerKind, string>> = {
+  chest: 'Sandık',
+  cupboard: 'Dolap',
+};
+
+/** İç mekândaki kap: merkez (yerel x, z) ve ön yüzünün baktığı yön (yerel açı; 0 = +z, π/2 = +x). */
+export interface InteriorContainer {
+  kind: ContainerKind;
+  x: number;
+  z: number;
+  facing: number;
+}
+
+/** Kabın ön yüz normali (yerel). */
+export function containerFront(c: InteriorContainer): { x: number; z: number } {
+  return { x: Math.sin(c.facing), z: Math.cos(c.facing) };
 }
 
 /** Duvar kalınlığı (girilebilir yapılar). */
@@ -110,19 +145,159 @@ export function hollowWalls(
   depth: number,
   height: number,
   door: number,
+  doorX = 0,
 ): LocalBox[] {
   const hw = width / 2;
   const hd = depth / 2;
   const hy = height / 2;
   const t = WALL / 2;
-  const side = (hw - door / 2) / 2; // kapının iki yanındaki duvar parçasının yarı genişliği
+  // Kapının iki yanındaki duvar parçalarının yarı genişliği (kapı `doorX`'te ortalanır).
+  const left = (doorX - door / 2 + hw) / 2;
+  const right = (hw - (doorX + door / 2)) / 2;
   return [
     box(0, hy, -hd + t, hw, hy, t), // arka
     box(-hw + t, hy, 0, t, hy, hd), // sol
     box(hw - t, hy, 0, t, hy, hd), // sağ
-    box(-hw + side, hy, hd - t, side, hy, t), // ön sol
-    box(hw - side, hy, hd - t, side, hy, t), // ön sağ
+    box(-hw + left, hy, hd - t, left, hy, t), // ön sol
+    box(hw - right, hy, hd - t, right, hy, t), // ön sağ
   ];
+}
+
+/** Duvar kalınlığı (görsel geometri de aynı kalınlıkla çizer). */
+export const WALL_THICKNESS = WALL;
+
+type Side = 'back' | 'left' | 'right';
+
+/**
+ * Girilebilir konut/dükkân odaları (zemin kat): duvar yüksekliği `room`, kapı genişliği ve yerel x'i, üst katların
+ * katı gövdesinin tepesi (`top`; tek katlıda 0) ve iç duvarlara dayalı kaplar (`[tür, duvar, duvar boyunca konum]`).
+ * Görsel geometri (`world/buildingGeometry.ts`) aynı tabloyu okur.
+ */
+export const ROOMS: Partial<
+  Record<
+    BuildingKind,
+    {
+      room: number;
+      door: number;
+      doorX: number;
+      top: number;
+      containers: ReadonlyArray<readonly [ContainerKind, Side, number]>;
+    }
+  >
+> = {
+  house: {
+    room: 3.2,
+    door: 1.3,
+    doorX: 0,
+    top: 0,
+    containers: [
+      ['chest', 'back', -1.9],
+      ['cupboard', 'right', -1.2],
+    ],
+  },
+  konak: {
+    room: 2.8,
+    door: 1.4,
+    doorX: 0,
+    top: 5.4,
+    containers: [
+      ['chest', 'back', -2.6],
+      ['cupboard', 'back', 2.4],
+      ['chest', 'left', 1.2],
+    ],
+  },
+  apartment: {
+    room: 2.9,
+    door: 1.4,
+    doorX: 0,
+    top: 11.6,
+    containers: [
+      ['cupboard', 'left', -1.5],
+      ['chest', 'right', -2],
+      ['cupboard', 'back', 3],
+    ],
+  },
+  lojman: {
+    room: 2.9,
+    door: 1.3,
+    doorX: -2.5,
+    top: 4.8,
+    containers: [
+      ['chest', 'back', -3.2],
+      ['cupboard', 'back', 1.4],
+      ['chest', 'right', 0.6],
+    ],
+  },
+  kahvehane: {
+    room: 3.2,
+    door: 1.3,
+    doorX: 0,
+    top: 0,
+    containers: [
+      ['cupboard', 'back', 2.4],
+      ['chest', 'left', -1.2],
+    ],
+  },
+  shop_row: {
+    room: 3.6,
+    door: 1.5,
+    doorX: -1.625,
+    top: 0,
+    containers: [
+      ['cupboard', 'back', -4.5],
+      ['cupboard', 'back', 1],
+      ['chest', 'right', 0],
+    ],
+  },
+  government: {
+    room: 3,
+    door: 1.6,
+    doorX: 0,
+    top: 6.2,
+    containers: [
+      ['cupboard', 'back', -5.5],
+      ['cupboard', 'back', 5.5],
+      ['chest', 'left', 0],
+      ['chest', 'right', 1],
+    ],
+  },
+  hamam: {
+    room: 3.4,
+    door: 1.3,
+    doorX: 0,
+    top: 0,
+    containers: [
+      ['chest', 'left', -1.5],
+      ['cupboard', 'back', 3.6],
+    ],
+  },
+};
+
+/** Kap, iç dikdörtgende `side` duvarına dayalı, duvar boyunca `t` konumunda. */
+function against(
+  kind: ContainerKind,
+  side: Side,
+  t: number,
+  inner: { halfWidth: number; back: number },
+): InteriorContainer {
+  const gap = CONTAINER_DIMS[kind].d / 2 + 0.06;
+  if (side === 'back') return { kind, x: t, z: inner.back + gap, facing: 0 };
+  if (side === 'left') return { kind, x: -inner.halfWidth + gap, z: t, facing: Math.PI / 2 };
+  return { kind, x: inner.halfWidth - gap, z: t, facing: -Math.PI / 2 };
+}
+
+/** Kabın katı kutusu (yerel; dik açılı yönlerde). */
+export function containerBox(c: InteriorContainer): LocalBox {
+  const dims = CONTAINER_DIMS[c.kind];
+  const sideways = Math.abs(Math.sin(c.facing)) > 0.5;
+  return box(
+    c.x,
+    dims.h / 2,
+    c.z,
+    (sideways ? dims.d : dims.w) / 2,
+    dims.h / 2,
+    (sideways ? dims.w : dims.d) / 2,
+  );
 }
 
 /** Ölçüler — `world/buildingGeometry.ts` görselleri bunlarla çizer. */
@@ -148,6 +323,7 @@ export const SHAPE_DIMS = {
   monument: { w: 4, d: 4, h: 7 },
   mine_tower: { w: 10, d: 8, h: 22 },
   factory: { w: 28, d: 16, h: 10, chimney: 30 },
+  sadirvan: { w: 5.2, d: 5.2, h: 5.4 },
 } as const;
 
 /**
@@ -160,7 +336,74 @@ export function mosqueOffset(kind: BuildingKind): number {
   return 0;
 }
 
+/** Girilebilir oda (`ROOMS`): kapı boşluklu duvarlar, döşeme, üst katların katı gövdesi ve iç duvarlara dayalı kaplar. */
+function roomShape(kind: BuildingKind, w: number, d: number, height: number): BuildingShape {
+  const room = ROOMS[kind];
+  if (!room) throw new Error(`oda tanımı yok: ${kind}`);
+  const inner = { halfWidth: w / 2 - WALL, back: -d / 2 + WALL, front: d / 2 - WALL };
+  const containers = room.containers.map(([k, side, t]) => against(k, side, t, inner));
+  const solids: LocalBox[] = [
+    ...hollowWalls(w, d, room.room, room.door, room.doorX),
+    // Döşeme: üst yüzü kat zemininde (taş temel/arazi biraz alçakta kalsa da içeride düz yürünür).
+    box(0, -0.1, 0, w / 2, 0.1, d / 2),
+    ...containers.map(containerBox),
+  ];
+  // Üst katlar (girilmez): oda tavanından gövdenin tepesine katı blok.
+  if (room.top > room.room) {
+    const hy = (room.top - room.room) / 2;
+    solids.push(box(0, room.room + hy, 0, w / 2, hy, d / 2));
+  }
+  return {
+    width: w,
+    depth: d,
+    height,
+    solids,
+    enterable: true,
+    interior: inner,
+    searchable: false,
+    door: { x: room.doorX, z: d / 2 + 0.6 },
+    containers,
+    roomHeight: room.room,
+  };
+}
+
+type BaseShape = Omit<BuildingShape, 'containers' | 'roomHeight'>;
+
 function shapeOf(kind: BuildingKind): BuildingShape {
+  const d = SHAPE_DIMS;
+  if (kind === 'apartment') {
+    const s = d.apartment;
+    return roomShape(kind, s.w, s.d, s.floors * s.floorH + 1);
+  }
+  if (ROOMS[kind]) {
+    const s = d[kind] as { w: number; d: number; h: number };
+    return roomShape(kind, s.w, s.d, s.h);
+  }
+  const base = baseShapeOf(kind);
+  if (kind === 'han') {
+    // Avluya bakan kanat yüzlerine dayalı kaplar (avlu yerel z: −court/2 … court/2).
+    const c = d.han.court / 2;
+    const containers: InteriorContainer[] = [
+      { kind: 'chest', x: -3, z: -c + 0.36, facing: 0 },
+      { kind: 'cupboard', x: 3, z: -c + 0.34, facing: 0 },
+      { kind: 'chest', x: -c + 0.36, z: 1.5, facing: Math.PI / 2 },
+    ];
+    return {
+      ...base,
+      searchable: false,
+      solids: [...base.solids, ...containers.map(containerBox)],
+      containers,
+      roomHeight: d.han.h,
+    };
+  }
+  return {
+    ...base,
+    containers: [],
+    roomHeight: base.interior ? Math.min(base.height, (d[kind] as { h?: number }).h ?? 4) : 0,
+  };
+}
+
+function baseShapeOf(kind: BuildingKind): BaseShape {
   const d = SHAPE_DIMS;
   const front = (depth: number) => ({ x: 0, z: depth / 2 + 0.6 });
   switch (kind) {
@@ -170,33 +413,9 @@ function shapeOf(kind: BuildingKind): BuildingShape {
     case 'kahvehane':
     case 'shop_row':
     case 'government':
-    case 'hamam': {
-      const s = d[kind];
-      return {
-        width: s.w,
-        depth: s.d,
-        height: s.h,
-        solids: block(s.w, s.d, s.h * 0.75),
-        enterable: false,
-        interior: null,
-        searchable: true,
-        door: front(s.d),
-      };
-    }
-    case 'apartment': {
-      const s = d.apartment;
-      const h = s.floors * s.floorH;
-      return {
-        width: s.w,
-        depth: s.d,
-        height: h + 1,
-        solids: block(s.w, s.d, h),
-        enterable: false,
-        interior: null,
-        searchable: true,
-        door: front(s.d),
-      };
-    }
+    case 'hamam':
+    case 'apartment':
+      throw new Error(`oda türü roomShape ile kurulur: ${kind}`);
     case 'serender': {
       const s = d.serender;
       // Dört direk üstünde ambar: gövde 1,4 m yüksekte başlar; direkler ince, collider tek gövde + direk kutusu.
@@ -389,6 +608,20 @@ function shapeOf(kind: BuildingKind): BuildingShape {
         door: front(s.d),
       };
     }
+    case 'sadirvan': {
+      const s = d.sadirvan;
+      // Sekizgen havuz (katı) ve sekiz direkli saçak (direkler çarpışmaz); dört yandan abdest alınır.
+      return {
+        width: s.w,
+        depth: s.d,
+        height: s.h,
+        solids: [box(0, 0.45, 0, 1.25, 0.45, 1.25)],
+        enterable: false,
+        interior: null,
+        searchable: false,
+        door: { x: 0, z: s.d / 2 + 0.4 },
+      };
+    }
   }
 }
 
@@ -429,6 +662,7 @@ export const MAX_BURY: Readonly<Record<BuildingKind, number>> = {
   monument: 1,
   mine_tower: 2,
   factory: 1.6,
+  sadirvan: 1,
 };
 
 /**
@@ -445,8 +679,8 @@ export const BUILDING_OVERHANG: Readonly<Record<BuildingKind, { x: number; z: nu
   shop_row: { x: 0.35, z: 0.3 },
   kahvehane: { x: 0.45, z: 1.7 },
   government: { x: 0.5, z: 2.6 },
-  mosque_grand: { x: 0.35, z: 0.15 },
-  mosque: { x: 0.15, z: 0.1 },
+  mosque_grand: { x: 0.4, z: 0.15 },
+  mosque: { x: 0.17, z: 0.1 },
   mosque_wooden: { x: 0.05, z: 0.7 },
   tomb: { x: 0.2, z: 0.2 },
   cemetery: { x: 0.2, z: 0.2 },
@@ -458,6 +692,7 @@ export const BUILDING_OVERHANG: Readonly<Record<BuildingKind, { x: number; z: nu
   monument: { x: 0, z: 0 },
   mine_tower: { x: 0.2, z: 0 },
   factory: { x: 5.25, z: 0.15 },
+  sadirvan: { x: 0.3, z: 0.3 },
 };
 
 /** Hükümet konağının bayrak direği (yerel konum, yükseklik) ve bayrak ölçüleri (2:3). */

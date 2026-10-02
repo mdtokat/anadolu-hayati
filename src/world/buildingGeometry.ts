@@ -6,11 +6,23 @@ import {
   CylinderGeometry,
   Float32BufferAttribute,
   Matrix4,
+  Path,
+  Shape,
+  ShapeGeometry,
   SphereGeometry,
   TorusGeometry,
 } from 'three';
 import { BUILDING_LOOK } from '../config';
-import { GOVERNMENT_FLAG, SHAPE_DIMS, mosqueOffset, type BuildingKind } from '../settlements/kinds';
+import {
+  BUILDING_SHAPES,
+  CONTAINER_DIMS,
+  GOVERNMENT_FLAG,
+  ROOMS,
+  SHAPE_DIMS,
+  WALL_THICKNESS,
+  mosqueOffset,
+  type BuildingKind,
+} from '../settlements/kinds';
 import { createRandom, type Random } from '../utils/random';
 
 /**
@@ -28,10 +40,23 @@ const D = SHAPE_DIMS;
 interface Part {
   geometry: BufferGeometry;
   color: number;
+  /** Yalnızca içeriden görünen parça (sıva, döşeme, eşya): `interior` kademesinde çizilir. */
+  inner?: boolean;
+  /** Yalnızca iç mekân çizilmezken (`near`) gerekli parça (kapı boşluğunun karanlığı). */
+  outer?: boolean;
 }
 
-/** Geometri varyantı: tür + (yıkık | apartman kat sayısı) + kademe. */
-export type BuildingLod = 'near' | 'far';
+/**
+ * Geometri varyantı: tür + (yıkık | apartman kat sayısı) + kademe. `interior` (oyuncuya en yakın yapılar) iç mekânı da
+ * çizer (eşya, sıva, döşeme, içten pencereler); `near` yalnızca dış cepheyi ayrıntılı; `far` kaba siluet.
+ */
+export type BuildingLod = 'interior' | 'near' | 'far';
+
+/** Parçaları iç mekân parçası olarak işaretler. */
+function indoor(parts: Part[]): Part[] {
+  for (const p of parts) p.inner = true;
+  return parts;
+}
 
 function at(geometry: BufferGeometry, x: number, y: number, z: number): BufferGeometry {
   return geometry.applyMatrix4(new Matrix4().makeTranslation(x, y, z));
@@ -178,7 +203,11 @@ function alem(x: number, y0: number, z: number, size = 0.5): Part[] {
   ];
 }
 
-/** Yüzeydeki pencereler: `face` ön (+z) / arka / sol (−x) / sağ (+x); satır başına `cols` pencere. */
+/**
+ * Yüzeydeki pencereler: `face` ön (+z) / arka / sol (−x) / sağ (+x); satır başına `cols` pencere. Açık pencerelerde
+ * kayıt (orta kayıt + yatay kuşak) ve altta taş denizlik vardır. `avoid`: alt satırda bu yerel konumlara (kapılar)
+ * 0,9 m'den yakın pencere atlanır.
+ */
 function windows(
   face: 'front' | 'back' | 'left' | 'right',
   span: number,
@@ -189,6 +218,7 @@ function windows(
   random: Random,
   boardedChance = 0.25,
   skipCenterBottom = false,
+  avoid: readonly number[] = [],
 ): Part[] {
   const parts: Part[] = [];
   const [ww, wh] = size;
@@ -197,19 +227,411 @@ function windows(
     for (let c = 0; c < cols; c++) {
       if (skipCenterBottom && r === 0 && cols % 2 === 1 && c === (cols - 1) / 2) continue;
       const along = -span / 2 + (span / cols) * (c + 0.5);
+      if (r === 0 && avoid.some((a) => Math.abs(a - along) < ww / 2 + 0.9)) continue;
       const y = rows[r] as number;
-      const color = random.next() < boardedChance ? C.boarded : C.window;
-      if (face === 'front') parts.push(box(ww, wh, t, along, y, offset, color));
-      else if (face === 'back') parts.push(box(ww, wh, t, along, y, -offset, color));
-      else if (face === 'left') parts.push(box(t, wh, ww, -offset, y, along, color));
-      else parts.push(box(t, wh, ww, offset, y, along, color));
+      const boarded = random.next() < boardedChance;
+      const local: Part[] = [box(ww, wh, t, 0, y, 0, boarded ? C.boarded : C.window)];
+      if (!boarded) {
+        // orta kayıt: yalnız yakın ayrıntı kademesinde (`interior`)
+        local.push(...indoor([box(0.06, wh, 0.04, 0, y, 0.03, C.timber)]));
+      }
+      local.push(box(ww + 0.2, 0.07, 0.1, 0, y - 0.07, 0.02, C.sill)); // denizlik
+      parts.push(...orient(local, face, along, offset));
     }
   }
   return parts;
 }
 
+/** Yerel (+z'ye bakan) parçaları bir cepheye taşır: ön/arka/sol/sağ yüzde `along` konumu, yüzün `offset` uzaklığı. */
+function orient(
+  parts: Part[],
+  face: 'front' | 'back' | 'left' | 'right',
+  along: number,
+  offset: number,
+): Part[] {
+  const m = new Matrix4();
+  if (face === 'front') m.makeTranslation(along, 0, offset);
+  else if (face === 'back') m.makeRotationY(Math.PI).setPosition(along, 0, -offset);
+  else if (face === 'left') m.makeRotationY(-Math.PI / 2).setPosition(-offset, 0, along);
+  else m.makeRotationY(Math.PI / 2).setPosition(offset, 0, -along);
+  for (const p of parts) p.geometry.applyMatrix4(m);
+  return parts;
+}
+
+/**
+ * İçten görünen pencereler (girilebilir yapılar): iç sıvanın önünde aydınlık cam ve ahşap kasa. Yüz ve konumlar
+ * `windows` ile aynı kuraldır (`offset` iç yüzün uzaklığı; parça içe bakar).
+ */
+function innerWindows(
+  face: 'front' | 'back' | 'left' | 'right',
+  span: number,
+  offset: number,
+  rows: readonly number[],
+  cols: number,
+  size: readonly [number, number],
+  avoid: readonly number[] = [],
+): Part[] {
+  const parts: Part[] = [];
+  const [ww, wh] = size;
+  // İç yüz dış yüzün tersine bakar: ön yüzün içi "arka" yönlü parçadır.
+  const inward = { front: 'back', back: 'front', left: 'right', right: 'left' } as const;
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < cols; c++) {
+      const along = -span / 2 + (span / cols) * (c + 0.5);
+      if (r === 0 && avoid.some((a) => Math.abs(a - along) < ww / 2 + 0.9)) continue;
+      const y = rows[r] as number;
+      const local: Part[] = [
+        box(ww, wh, 0.04, 0, y, 0, C.windowInner),
+        box(ww + 0.14, 0.07, 0.07, 0, y - 0.07, 0.02, C.timber),
+        box(ww + 0.14, 0.07, 0.07, 0, y + wh, 0.02, C.timber),
+        box(0.07, wh, 0.07, -ww / 2 - 0.035, y, 0.02, C.timber),
+        box(0.07, wh, 0.07, ww / 2 + 0.035, y, 0.02, C.timber),
+        box(0.05, wh, 0.05, 0, y, 0.03, C.timber),
+      ];
+      parts.push(...orient(local, inward[face], along, -offset));
+    }
+  }
+  return indoor(parts);
+}
+
 function door(w: number, h: number, z: number, x = 0): Part {
   return box(w, h, 0.1, x, 0, z, C.door);
+}
+
+/** Kapı kasası (dış yüzde): iki pervaz ve üst söve. */
+function doorFrame(w: number, h: number, z: number, x = 0, color: number = C.timber): Part[] {
+  return [
+    box(0.14, h + 0.14, 0.1, x - w / 2 - 0.07, 0, z, color),
+    box(0.14, h + 0.14, 0.1, x + w / 2 + 0.07, 0, z, color),
+    box(w + 0.42, 0.16, 0.14, x, h, z, color),
+  ];
+}
+
+/** Dışa taşan kuşak (kat silmesi): dört cephede ince bant (içi boş yapılarda gövdeyi kesmesin). */
+function band(w: number, d: number, y: number, h: number, color: number, out = 0.04): Part[] {
+  const t = 0.08;
+  return [
+    box(w + out * 2, h, t, 0, y, d / 2 + out - t / 2, color),
+    box(w + out * 2, h, t, 0, y, -d / 2 - out + t / 2, color),
+    box(t, h, d, -w / 2 - out + t / 2, y, 0, color),
+    box(t, h, d, w / 2 + out - t / 2, y, 0, color),
+  ];
+}
+
+/** Köşe taşları (dış köşelerde kesme taş dişleri). */
+function quoins(w: number, d: number, h: number, color: number): Part[] {
+  const parts: Part[] = [];
+  const n = Math.max(2, Math.floor(h / 0.7));
+  for (const [sx, sz] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ] as const) {
+    for (let i = 0; i < n; i++) {
+      const long = i % 2 === 0;
+      const hx = long ? 0.31 : 0.18;
+      const hz = long ? 0.18 : 0.31;
+      parts.push(
+        box(
+          hx * 2,
+          0.3,
+          hz * 2,
+          sx * (w / 2 - hx + 0.02),
+          i * (h / n) + 0.1,
+          sz * (d / 2 - hz + 0.02),
+          color,
+        ),
+      );
+    }
+  }
+  return parts;
+}
+
+/** Oda duvarlarının döşeme altına inen payı (oyun m). */
+const SKIRT = 0.5;
+
+interface RoomOptions {
+  w: number;
+  d: number;
+  /** Duvar yüksekliği (tavan). */
+  h: number;
+  door: number;
+  doorX: number;
+  doorH: number;
+  wall: number;
+  inner?: number;
+  floor?: number;
+  /** Tavan levhası (false: üstteki gövde/çatı tavan olur). */
+  ceiling?: boolean;
+  ceilingColor?: number;
+  /** Tavan kirişleri (ahşap evler). */
+  beams?: number;
+  /** Açık kapı kanadı (içe açılmış). */
+  leaf?: boolean;
+}
+
+/**
+ * Girilebilir oda kabuğu: kapı boşluklu dört duvar (dış renk), iç sıva, süpürgelik, ahşap/taş döşeme, eşik, kapı
+ * kasası, içe açılmış kanat ve tavan. Ölçüler `ROOMS`/`WALL_THICKNESS` ile collider'larla aynıdır.
+ */
+function roomShell(o: RoomOptions): Part[] {
+  const { w, d, h, door: dw, doorX, doorH, wall } = o;
+  const t = WALL_THICKNESS;
+  const inner = o.inner ?? C.plasterInner;
+  const floor = o.floor ?? C.plank;
+  const fz = d / 2 - t / 2;
+  const left = doorX - dw / 2 + w / 2;
+  const right = w / 2 - (doorX + dw / 2);
+  const iw = w - 2 * t;
+  const id = d - 2 * t;
+  const L = 0.02;
+  // Dış duvarlar döşemenin altına `SKIRT` iner: yamaçta duvar dibi ile zemin arasında boşluk görünmesin.
+  const parts: Part[] = [
+    box(w, h + SKIRT, t, 0, -SKIRT, -d / 2 + t / 2, wall),
+    box(t, h + SKIRT, id, -w / 2 + t / 2, -SKIRT, 0, wall),
+    box(t, h + SKIRT, id, w / 2 - t / 2, -SKIRT, 0, wall),
+    box(left, h + SKIRT, t, -w / 2 + left / 2, -SKIRT, fz, wall),
+    box(right, h + SKIRT, t, w / 2 - right / 2, -SKIRT, fz, wall),
+    box(dw, h - doorH, t, doorX, doorH, fz, wall),
+    box(dw, 0.08, t + 0.1, doorX, -0.04, fz + 0.05, C.darkStone), // eşik
+    ...doorFrame(dw, doorH, d / 2 + 0.03, doorX),
+    // Uzaktan (iç mekân çizilmezken) kapı boşluğu karanlık görünür.
+    { ...box(dw, doorH, 0.03, doorX, 0, fz - 0.05, C.window), outer: true },
+  ];
+  const inside: Part[] = [
+    // iç sıva
+    box(iw, h, L, 0, 0, -d / 2 + t + L / 2, inner),
+    box(L, h, id, -w / 2 + t + L / 2, 0, 0, inner),
+    box(L, h, id, w / 2 - t - L / 2, 0, 0, inner),
+    box(left - t, h, L, -w / 2 + t + (left - t) / 2, 0, d / 2 - t - L / 2, inner),
+    box(right - t, h, L, w / 2 - t - (right - t) / 2, 0, d / 2 - t - L / 2, inner),
+    box(dw, h - doorH, L, doorX, doorH, d / 2 - t - L / 2, inner),
+    // süpürgelik
+    box(iw, 0.14, 0.04, 0, 0, -d / 2 + t + 0.03, C.plankDark),
+    box(0.04, 0.14, id, -w / 2 + t + 0.03, 0, 0, C.plankDark),
+    box(0.04, 0.14, id, w / 2 - t - 0.03, 0, 0, C.plankDark),
+    // döşeme
+    box(iw, 0.07, id, 0, -0.04, 0, floor),
+  ];
+  parts.push(...indoor(inside));
+  // Döşeme tahtası çizgileri (koyu derz).
+  if (floor === C.plank) {
+    for (let x = -iw / 2 + 0.45; x < iw / 2; x += 0.45) {
+      parts.push(...indoor([box(0.025, 0.01, id, x, 0.03, 0, C.plankDark)]));
+    }
+  }
+  if (o.leaf !== false) {
+    // İçe açılmış kanat: menteşe kapının sol kenarında, kanat iç duvara dik durur.
+    const lw = dw * 0.92;
+    parts.push(
+      ...indoor([
+        box(0.06, doorH - 0.04, lw, doorX - dw / 2 + 0.06, 0.02, d / 2 - t - lw / 2, C.door),
+        box(0.03, 0.08, 0.14, doorX - dw / 2 + 0.11, doorH * 0.48, d / 2 - t - lw + 0.12, C.gold),
+      ]),
+    );
+  }
+  if (o.ceiling !== false) {
+    parts.push(...indoor([box(iw, 0.08, id, 0, h - 0.08, 0, o.ceilingColor ?? C.ceiling)]));
+    const beams = o.beams ?? 0;
+    for (let i = 0; i < beams; i++) {
+      const x = -iw / 2 + (iw / (beams + 1)) * (i + 1);
+      parts.push(...indoor([box(0.16, 0.18, id, x, h - 0.26, 0, C.timber)]));
+    }
+  }
+  return parts;
+}
+
+/** Yıkık oda: kapı boşluklu ama kırık duvarlar, çatısız; döşeme ve yıkıntı (kaplar ayrıca eklenir). */
+function ruinedRoom(
+  w: number,
+  d: number,
+  h: number,
+  dw: number,
+  doorX: number,
+  wall: number,
+  random: Random,
+): Part[] {
+  const t = WALL_THICKNESS;
+  const low = h * (0.35 + random.next() * 0.3);
+  const left = doorX - dw / 2 + w / 2;
+  const right = w / 2 - (doorX + dw / 2);
+  const fz = d / 2 - t / 2;
+  return [
+    box(w, h, t, 0, 0, -d / 2 + t / 2, wall),
+    box(t, h * 0.85, d - 2 * t, -w / 2 + t / 2, 0, 0, wall),
+    box(t, low, d - 2 * t, w / 2 - t / 2, 0, 0, wall),
+    box(left, h * 0.7, t, -w / 2 + left / 2, 0, fz, wall),
+    box(right, low, t, w / 2 - right / 2, 0, fz, wall),
+    box(w - 2 * t, 0.07, d - 2 * t, 0, -0.04, 0, C.plankDark),
+    ...rubble(w * 0.12, d * 0.08, Math.min(w, d) * 0.4, random),
+  ];
+}
+
+/** Yerel parçaları (x, z)'ye `facing` dönüşüyle (0 = ön yüz +z) taşır. */
+function placeParts(parts: Part[], x: number, z: number, facing: number, y = 0): Part[] {
+  const m = new Matrix4().makeRotationY(facing).setPosition(x, y, z);
+  for (const p of parts) p.geometry.applyMatrix4(m);
+  return parts;
+}
+
+/** Sandık (CONTAINER_DIMS.chest): ahşap gövde, kapak, demir kuşaklar, kilit. */
+function chestParts(): Part[] {
+  const { w, d, h } = CONTAINER_DIMS.chest;
+  const body = h * 0.72;
+  return indoor([
+    box(w, body, d, 0, 0, 0, C.wood),
+    box(w + 0.04, h - body, d + 0.04, 0, body, 0, C.timber),
+    box(0.06, h + 0.01, d + 0.06, -w * 0.3, 0, 0, C.steel),
+    box(0.06, h + 0.01, d + 0.06, w * 0.3, 0, 0, C.steel),
+    box(0.14, 0.16, 0.04, 0, body - 0.1, d / 2 + 0.02, C.gold),
+  ]);
+}
+
+/** Dolap (CONTAINER_DIMS.cupboard): çift kapaklı ahşap dolap, kaide ve korniş. */
+function cupboardParts(): Part[] {
+  const { w, d, h } = CONTAINER_DIMS.cupboard;
+  return indoor([
+    box(w - 0.04, 0.12, d - 0.04, 0, 0, 0, C.timber),
+    box(w, h - 0.2, d, 0, 0.12, 0, C.woodLight),
+    box(w + 0.08, 0.08, d + 0.06, 0, h - 0.08, 0, C.timber),
+    box(w / 2 - 0.08, h - 0.5, 0.03, -w / 4, 0.28, d / 2 + 0.015, C.wood),
+    box(w / 2 - 0.08, h - 0.5, 0.03, w / 4, 0.28, d / 2 + 0.015, C.wood),
+    box(0.035, 0.14, 0.04, -0.06, h * 0.52, d / 2 + 0.04, C.gold),
+    box(0.035, 0.14, 0.04, 0.06, h * 0.52, d / 2 + 0.04, C.gold),
+  ]);
+}
+
+/** Yapının iç kapları (`BUILDING_SHAPES.containers`) görsel olarak. */
+function containerParts(kind: BuildingKind): Part[] {
+  const parts: Part[] = [];
+  for (const c of BUILDING_SHAPES[kind].containers) {
+    parts.push(
+      ...placeParts(c.kind === 'chest' ? chestParts() : cupboardParts(), c.x, c.z, c.facing),
+    );
+  }
+  return indoor(parts);
+}
+
+/** Kilim/halı: kenar bordürlü ince döşeme (y: zemin). */
+function rug(x: number, z: number, w: number, d: number, color: number, accent: number): Part[] {
+  return indoor([
+    box(w, 0.02, d, x, 0.03, z, accent),
+    box(w - 0.24, 0.022, d - 0.24, x, 0.031, z, color),
+    box(w * 0.5, 0.024, d * 0.18, x, 0.032, z, accent),
+  ]);
+}
+
+/** Sedir: duvar boyunca alçak divan, minder ve yaslanma yastıkları (yerel: arkası −z). */
+function sedir(len: number): Part[] {
+  const parts: Part[] = [
+    box(len, 0.36, 0.72, 0, 0, 0, C.wood),
+    box(len - 0.04, 0.12, 0.68, 0, 0.36, 0, C.cushion),
+  ];
+  const n = Math.max(1, Math.round(len / 0.8));
+  for (let i = 0; i < n; i++) {
+    const x = -len / 2 + (len / n) * (i + 0.5);
+    parts.push(box(len / n - 0.08, 0.42, 0.16, x, 0.46, -0.26, C.kilim));
+  }
+  return indoor(parts);
+}
+
+/** Alçak sini sofrası / masa (yuvarlak üst). */
+function table(x: number, z: number, r: number, h: number, color: number = C.wood): Part[] {
+  return indoor([
+    cylinder(r, 0.05, x, h - 0.05, z, color, 10),
+    cylinder(0.08, h - 0.05, x, 0, z, C.timber, 6),
+  ]);
+}
+
+/** Tabure. */
+function stool(x: number, z: number): Part[] {
+  return indoor([
+    box(0.36, 0.06, 0.36, x, 0.4, z, C.woodLight),
+    box(0.3, 0.4, 0.3, x, 0, z, C.timber),
+  ]);
+}
+
+/** Ocak (şömine): taş gövde, koyu ağız, davlumbaz (yerel: arkası −z, duvara dayalı). */
+function hearth(): Part[] {
+  return indoor([
+    box(1.3, 1.2, 0.5, 0, 0, 0, C.stone),
+    box(0.75, 0.7, 0.04, 0, 0.12, 0.25, C.window),
+    box(1.0, 1.2, 0.4, 0, 1.2, -0.05, C.plaster),
+    box(1.45, 0.1, 0.62, 0, 1.15, 0.02, C.darkStone),
+  ]);
+}
+
+/** Uzun tezgâh/masa (yerel: uzun kenar x). */
+function counter(len: number, depth: number, h: number, color: number = C.wood): Part[] {
+  return indoor([
+    box(len, h - 0.06, depth, 0, 0, 0, color),
+    box(len + 0.06, 0.06, depth + 0.06, 0, h - 0.06, 0, C.timber),
+  ]);
+}
+
+/** Raf dolabı (dükkân; arkası −z): dikmeler ve dört raf, üstünde mallar. */
+function shelf(len: number, random: Random): Part[] {
+  const parts: Part[] = [
+    box(0.06, 2, 0.4, -len / 2, 0, 0, C.timber),
+    box(0.06, 2, 0.4, len / 2, 0, 0, C.timber),
+  ];
+  const goods = [C.kilim, C.tank, C.woodLight, C.sign, C.kilimAccent];
+  for (let k = 0; k < 4; k++) {
+    const y = 0.25 + k * 0.5;
+    parts.push(box(len, 0.04, 0.4, 0, y, 0, C.woodLight));
+    for (let i = 0; i < 4; i++) {
+      if (random.next() < 0.35) continue;
+      const gw = 0.15 + random.next() * 0.2;
+      parts.push(
+        box(
+          gw,
+          0.18 + random.next() * 0.12,
+          0.25,
+          -len / 2 + 0.25 + i * (len / 4),
+          y + 0.04,
+          0,
+          goods[(i + k) % goods.length] as number,
+        ),
+      );
+    }
+  }
+  return indoor(parts);
+}
+
+/** Ters sarım (içten görünen yüzler: kubbe içi, kasnak içi). */
+function inward(geometry: BufferGeometry): BufferGeometry {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (g !== geometry) geometry.dispose();
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i += 3) {
+    const x = pos.getX(i + 1);
+    const y = pos.getY(i + 1);
+    const z = pos.getZ(i + 1);
+    pos.setXYZ(i + 1, pos.getX(i + 2), pos.getY(i + 2), pos.getZ(i + 2));
+    pos.setXYZ(i + 2, x, y, z);
+  }
+  g.deleteAttribute('normal');
+  g.deleteAttribute('uv');
+  return g;
+}
+
+/** Ortasında yuvarlak delik olan yatay levha (cami tavanı: kubbe içten görünsün); `down` alttan görünür. */
+function holedSlab(w: number, d: number, r: number, y: number, color: number, down: boolean): Part {
+  const shape = new Shape();
+  shape.moveTo(-w / 2, -d / 2);
+  shape.lineTo(w / 2, -d / 2);
+  shape.lineTo(w / 2, d / 2);
+  shape.lineTo(-w / 2, d / 2);
+  shape.lineTo(-w / 2, -d / 2);
+  const hole = new Path();
+  hole.absarc(0, 0, r, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  const g = new ShapeGeometry(shape, 16);
+  g.applyMatrix4(new Matrix4().makeRotationX(down ? Math.PI / 2 : -Math.PI / 2));
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  return { geometry: at(g, 0, y, 0), color };
 }
 
 /** Yıkıntı yığını (yıkık yapıların içinde/yanında). */
@@ -232,65 +654,100 @@ function rubble(x: number, z: number, size: number, random: Random): Part[] {
   return parts;
 }
 
-/** Yıkık duvar: dört duvar, biri yarım, çatısız; içi yıkıntılı. */
-function ruinedWalls(w: number, d: number, h: number, wall: number, random: Random): Part[] {
-  const t = 0.3;
-  const low = h * (0.35 + random.next() * 0.3);
-  return [
-    box(w, h, t, 0, 0, -d / 2 + t / 2, wall),
-    box(t, h * 0.85, d, -w / 2 + t / 2, 0, 0, wall),
-    box(t, low, d, w / 2 - t / 2, 0, 0, wall),
-    box(w * 0.4, h * 0.7, t, -w * 0.3, 0, d / 2 - t / 2, wall),
-    box(w * 0.25, low, t, w * 0.375, 0, d / 2 - t / 2, wall),
-    ...rubble(0, 0, Math.min(w, d) * 0.5, random),
-  ];
+// -- konutlar -------------------------------------------------------------------
+
+/** Oda tablosu (`ROOMS`) kaydı: tanımlı olmalı. */
+function room(kind: BuildingKind): NonNullable<(typeof ROOMS)[BuildingKind]> {
+  const r = ROOMS[kind];
+  if (!r) throw new Error(`oda tanımı yok: ${kind}`);
+  return r;
 }
 
-// -- konutlar -------------------------------------------------------------------
+/** İç dikdörtgen (duvar içi) yarı genişlik ve derinlik. */
+function innerHalf(w: number, d: number): { hw: number; hd: number } {
+  return { hw: w / 2 - WALL_THICKNESS, hd: d / 2 - WALL_THICKNESS };
+}
 
 function houseParts(random: Random, ruined: boolean): Part[] {
   const { w, d, h } = D.house;
-  const wallH = h * 0.62;
-  if (ruined) return ruinedWalls(w, d, wallH, C.whitewash, random);
+  const r = room('house');
+  const wallH = r.room;
+  if (ruined) {
+    return [
+      ...ruinedRoom(w, d, wallH, r.door, r.doorX, C.whitewash, random),
+      ...containerParts('house'),
+    ];
+  }
+  const { hw, hd } = innerHalf(w, d);
+  const rows = [1.05];
+  const size = [0.85, 1.15] as const;
   return [
-    box(w, wallH, d, 0, 0, 0, C.whitewash),
-    // ahşap kuşak (kat silmesi)
-    box(w + 0.06, 0.18, d + 0.06, 0, wallH * 0.48, 0, C.timber),
+    ...roomShell({
+      w,
+      d,
+      h: wallH,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.1,
+      wall: C.whitewash,
+      beams: 3,
+    }),
+    // taş subasman ve ahşap kuşak (dış cephe)
+    ...band(w, d, 0, 0.45, C.stone, 0.03),
+    ...band(w, d, wallH - 0.32, 0.16, C.timber, 0.04),
     hipRoof(w, d, h - wallH, wallH, C.roofTile),
-    door(1, 2, d / 2 + 0.02),
-    ...windows('front', w, d / 2 + 0.02, [0.9, wallH * 0.6], 3, [0.8, 0.9], random, 0.3, true),
-    ...windows('left', d, w / 2 + 0.02, [0.9, wallH * 0.6], 2, [0.8, 0.9], random),
-    ...windows('right', d, w / 2 + 0.02, [0.9, wallH * 0.6], 2, [0.8, 0.9], random),
-    ...windows('back', w, d / 2 + 0.02, [wallH * 0.6], 3, [0.8, 0.9], random),
+    ...windows('front', w, d / 2 + 0.02, rows, 3, size, random, 0.3, true),
+    ...windows('left', d, w / 2 + 0.02, rows, 2, size, random),
+    ...windows('right', d, w / 2 + 0.02, rows, 2, size, random),
+    ...windows('back', w, d / 2 + 0.02, rows, 3, size, random),
+    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, rows, 3, size, [r.doorX]),
+    ...innerWindows('left', d, w / 2 - WALL_THICKNESS - 0.03, rows, 2, size),
     // baca
-    box(0.5, 1.2, 0.5, w * 0.25, wallH + 0.6, -d * 0.15, C.plaster),
+    box(0.55, 1.4, 0.55, 0.5, wallH + 0.5, -hd + 0.3, C.plaster),
+    box(0.7, 0.12, 0.7, 0.5, wallH + 1.9, -hd + 0.3, C.darkStone),
+    // iç: ocak, sedir, kilim, sini
+    ...placeParts(hearth(), 0.5, -hd + 0.25, 0),
+    ...placeParts(sedir(2.4), -hw + 0.36, -0.2, Math.PI / 2),
+    ...rug(0, 0.3, 2.4, 1.8, C.kilim, C.kilimAccent),
+    ...table(0.1, 0.4, 0.45, 0.32),
+    ...containerParts('house'),
   ];
 }
 
 function konakParts(random: Random, ruined: boolean): Part[] {
   const { w, d, h } = D.konak;
-  const ground = 2.8;
+  const r = room('konak');
+  const ground = r.room;
   const upper = 2.6;
   const over = 0.7; // çıkma
   if (ruined) {
     return [
-      box(w, ground, d, 0, 0, 0, C.stone),
-      ...ruinedWalls(w + over, d + over, upper * 0.9, C.konakWall, random).map((p) => ({
-        ...p,
-        geometry: at(p.geometry, 0, ground, 0),
-      })),
+      ...ruinedRoom(w, d, ground, r.door, r.doorX, C.stone, random),
+      ...containerParts('konak'),
     ];
   }
+  const { hw, hd } = innerHalf(w, d);
   const parts: Part[] = [
-    // taş zemin kat
-    box(w, ground, d, 0, 0, 0, C.stone),
-    // çıkmalı ahşap üst kat (bağdadi: badanalı sıva + ahşap dikmeler)
+    // taş zemin kat (oda) ve çıkmalı ahşap üst kat (bağdadi: badanalı sıva + ahşap dikmeler)
+    ...roomShell({
+      w,
+      d,
+      h: ground,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.2,
+      wall: C.stone,
+      ceiling: true,
+      ceilingColor: C.woodLight,
+      beams: 4,
+    }),
+    ...quoins(w, d, ground, C.cutStone),
     box(w + over, upper, d + over, 0, ground, 0, C.konakWall),
-    // çıkma altı payandaları
-    box(w + over, 0.2, d + over, 0, ground - 0.1, 0, C.timber),
+    // çıkma altı payandaları (dış kenarda kuşak) ve eğik destekler
+    ...band(w + over - 0.1, d + over - 0.1, ground - 0.1, 0.2, C.timber, 0.05),
     hipRoof(w + over, d + over, h - ground - upper, ground + upper, C.roofTile, 0.75),
-    door(1.4, 2.2, d / 2 + 0.02),
-    ...windows('front', w, d / 2 + 0.02, [1], 2, [0.6, 0.7], random, 0.4),
+    ...windows('front', w, d / 2 + 0.02, [1], 2, [0.6, 0.8], random, 0.4, false, [r.doorX]),
+    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, [1], 2, [0.6, 0.8], [r.doorX]),
     // üst kat: sık, dikdörtgen pencereler (kafesli görünüm: koyu)
     ...windows(
       'front',
@@ -305,21 +762,47 @@ function konakParts(random: Random, ruined: boolean): Part[] {
     ...windows('left', d + over, (w + over) / 2 + 0.02, [ground + 0.7], 3, [0.7, 1.2], random),
     ...windows('right', d + over, (w + over) / 2 + 0.02, [ground + 0.7], 3, [0.7, 1.2], random),
     ...windows('back', w + over, (d + over) / 2 + 0.02, [ground + 0.7], 4, [0.7, 1.2], random),
+    // iç: ocak, sedir, kilim, sini
+    ...placeParts(hearth(), 0, -hd + 0.25, 0),
+    ...placeParts(sedir(3.4), hw - 0.36, 0.3, -Math.PI / 2),
+    ...rug(0, 0.6, 3.2, 2.4, C.kilim, C.kilimAccent),
+    ...table(0.2, 0.6, 0.5, 0.32),
+    ...containerParts('konak'),
   ];
-  // Ahşap dikmeler (ön ve yan cephe).
+  // Payandalar (çıkmanın altında eğik ahşap).
+  for (const x of [-w / 2 + 0.6, -w / 6, w / 6, w / 2 - 0.6]) {
+    const brace = new BoxGeometry(0.12, 0.85, 0.12);
+    brace.applyMatrix4(new Matrix4().makeRotationX(-0.6));
+    parts.push({ geometry: at(brace, x, ground - 0.42, d / 2 + 0.2), color: C.timber });
+  }
+  // Ahşap dikmeler (ön cephe) ve üst kuşak.
   for (let i = 0; i <= 4; i++) {
     const x = -(w + over) / 2 + ((w + over) / 4) * i;
     parts.push(box(0.12, upper, 0.06, x, ground, (d + over) / 2 + 0.03, C.timber));
   }
-  parts.push(box(w + over + 0.05, 0.12, d + over + 0.05, 0, ground + upper - 0.12, 0, C.timber));
+  parts.push(...band(w + over, d + over, ground + upper - 0.12, 0.12, C.timber, 0.03));
   return parts;
 }
 
 function apartmentParts(random: Random, floors: number): Part[] {
   const { w, d, floorH } = D.apartment;
+  const r = room('apartment');
   const h = floors * floorH;
+  const { hw, hd } = innerHalf(w, d);
   const parts: Part[] = [
-    box(w, h, d, 0, 0, 0, C.concrete),
+    ...roomShell({
+      w,
+      d,
+      h: r.room,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.2,
+      wall: C.concrete,
+      floor: C.sill,
+      ceilingColor: C.marble,
+    }),
+    // üst katlar (girilmez) ve kat silmeleri
+    box(w, h - r.room, d, 0, r.room, 0, C.concrete),
     // çatı korkuluğu ve su deposu/güneş paneli (Türkiye'de yaygın)
     box(w, 0.5, 0.2, 0, h, d / 2 - 0.1, C.concreteDark),
     box(w, 0.5, 0.2, 0, h, -d / 2 + 0.1, C.concreteDark),
@@ -327,40 +810,84 @@ function apartmentParts(random: Random, floors: number): Part[] {
     box(0.2, 0.5, d, w / 2 - 0.1, h, 0, C.concreteDark),
     cylinder(0.35, 1.4, w * 0.25, h, -d * 0.2, C.tank, 6),
     box(1.6, 0.08, 1.1, w * 0.25 - 1, h + 0.5, -d * 0.2, C.window),
-    door(1.4, 2.2, d / 2 + 0.02),
-    box(2.2, 0.15, 1.2, 0, 2.4, d / 2 + 0.6, C.concreteDark), // giriş saçağı
+    box(2.4, 0.15, 1.2, 0, 2.4, d / 2 + 0.6, C.concreteDark), // giriş saçağı
+    // giriş holü: posta kutuları, bank, paspas
+    ...indoor([box(0.12, 0.6, 1.3, hw - 0.08, 1.2, 1.2, C.steel)]),
+    ...counter(1.6, 0.4, 0.45, C.woodLight).map((p) => ({
+      ...p,
+      geometry: p.geometry.applyMatrix4(new Matrix4().makeTranslation(-1.5, 0, -hd + 0.3)),
+    })),
+    ...rug(r.doorX, hd - 0.9, 1.2, 0.8, C.plankDark, C.darkStone),
+    ...containerParts('apartment'),
   ];
+  for (let f = 1; f < floors; f++) {
+    parts.push(...band(w, d, f * floorH - 0.08, 0.16, C.concreteDark, 0.03));
+  }
   const rows: number[] = [];
   for (let f = 0; f < floors; f++) rows.push(f * floorH + 0.9);
-  parts.push(...windows('front', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random, 0.2, false));
+  parts.push(
+    ...windows('front', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random, 0.2, false, [r.doorX]),
+  );
   parts.push(...windows('back', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random));
   parts.push(...windows('left', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
   parts.push(...windows('right', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
+  parts.push(...innerWindows('back', w, d / 2 - WALL_THICKNESS - 0.03, [0.9], 4, [1.1, 1.2]));
+  parts.push(
+    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, [0.9], 4, [1.1, 1.2], [r.doorX]),
+  );
   // Balkonlar (ön cephe, birinci kattan itibaren).
   for (let f = 1; f < floors; f++) {
     const y = f * floorH;
-    parts.push(box(w * 0.36, 0.15, 1, -w * 0.28, y, d / 2 + 0.5, C.concreteDark));
-    parts.push(box(w * 0.36, 0.8, 0.08, -w * 0.28, y + 0.15, d / 2 + 1, C.concreteDark));
-    parts.push(box(w * 0.36, 0.15, 1, w * 0.28, y, d / 2 + 0.5, C.concreteDark));
-    parts.push(box(w * 0.36, 0.8, 0.08, w * 0.28, y + 0.15, d / 2 + 1, C.concreteDark));
+    for (const sx of [-1, 1]) {
+      parts.push(box(w * 0.36, 0.15, 1, sx * w * 0.28, y, d / 2 + 0.5, C.concreteDark));
+      parts.push(box(w * 0.36, 0.8, 0.08, sx * w * 0.28, y + 0.15, d / 2 + 0.96, C.concreteDark));
+      parts.push(box(w * 0.36 - 0.1, 0.05, 0.05, sx * w * 0.28, y + 0.98, d / 2 + 0.96, C.steel));
+    }
   }
   return parts;
 }
 
 function lojmanParts(random: Random, ruined: boolean): Part[] {
   const { w, d, h } = D.lojman;
-  const wallH = 4.8;
-  if (ruined) return ruinedWalls(w, d, wallH, C.plaster, random);
+  const r = room('lojman');
+  const wallH = r.top;
+  if (ruined) {
+    return [
+      ...ruinedRoom(w, d, r.room + 0.8, r.door, r.doorX, C.plaster, random),
+      ...containerParts('lojman'),
+    ];
+  }
+  const { hw, hd } = innerHalf(w, d);
+  const other = -r.doorX; // ikinci (kapalı) kapı
   return [
-    box(w, wallH, d, 0, 0, 0, C.plaster),
-    box(w + 0.05, 0.25, d + 0.05, 0, 0, 0, C.darkStone),
+    ...roomShell({ w, d, h: r.room, door: r.door, doorX: r.doorX, doorH: 2.1, wall: C.plaster }),
+    box(w, wallH - r.room, d, 0, r.room, 0, C.plaster),
+    ...band(w, d, 0, 0.3, C.darkStone, 0.03),
+    ...band(w, d, r.room - 0.06, 0.14, C.brick, 0.03),
     gableRoof(w, d, h - wallH, wallH, C.roofTile),
-    door(1, 2, d / 2 + 0.02, -w * 0.25),
-    door(1, 2, d / 2 + 0.02, w * 0.25),
-    ...windows('front', w, d / 2 + 0.02, [0.9, 3.2], 6, [0.8, 1], random, 0.3),
-    ...windows('back', w, d / 2 + 0.02, [0.9, 3.2], 6, [0.8, 1], random),
+    door(1, 2, d / 2 + 0.02, other),
+    ...doorFrame(1, 2, d / 2 + 0.03, other),
+    ...windows('front', w, d / 2 + 0.02, [0.9, 3.4], 6, [0.8, 1], random, 0.3, false, [
+      r.doorX,
+      other,
+    ]),
+    ...windows('back', w, d / 2 + 0.02, [0.9, 3.4], 6, [0.8, 1], random),
+    ...innerWindows('back', w, d / 2 - WALL_THICKNESS - 0.03, [0.9], 6, [0.8, 1]),
     box(0.5, 1.3, 0.5, -w * 0.3, wallH + 0.5, 0, C.brick),
     box(0.5, 1.3, 0.5, w * 0.3, wallH + 0.5, 0, C.brick),
+    // iç: soba, ranza (kerevet), masa
+    ...indoor([
+      cylinder(0.3, 0.9, 1.2, 0, -hd + 0.6, C.steel, 8),
+      cylinder(0.07, r.room - 0.9, 1.2, 0.9, -hd + 0.6, C.steel, 5),
+    ]),
+    ...placeParts(sedir(2.6), -hw + 0.36, 0.8, Math.PI / 2),
+    ...counter(1.4, 0.7, 0.75).map((p) => ({
+      ...p,
+      geometry: p.geometry.applyMatrix4(new Matrix4().makeTranslation(1.6, 0, 1.2)),
+    })),
+    ...stool(1.2, 2.0),
+    ...stool(2.1, 2.0),
+    ...containerParts('lojman'),
   ];
 }
 
@@ -393,36 +920,107 @@ function serenderParts(random: Random, ruined: boolean): Part[] {
 
 function shopRowParts(random: Random, ruined: boolean): Part[] {
   const { w, d, h } = D.shop_row;
-  if (ruined) return ruinedWalls(w, d, h * 0.8, C.plaster, random);
+  const r = room('shop_row');
+  if (ruined) {
+    return [
+      ...ruinedRoom(w, d, h * 0.8, r.door, r.doorX, C.plaster, random),
+      ...containerParts('shop_row'),
+    ];
+  }
+  const { hd } = innerHalf(w, d);
   const parts: Part[] = [
-    box(w, h, d, 0, 0, 0, C.plaster),
+    ...roomShell({
+      w,
+      d,
+      h,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.4,
+      wall: C.plaster,
+      floor: C.sill,
+      leaf: false,
+    }),
     box(w + 0.3, 0.25, d + 0.3, 0, h, 0, C.concreteDark),
     box(w, 0.6, 0.1, 0, h - 0.9, d / 2 + 0.05, C.sign), // tabela bandı (solmuş)
+    ...band(w, d, 0, 0.35, C.darkStone, 0.03),
   ];
-  // Dört dükkân: inik kepenkler (bir kısmı yarım açık, içi karanlık).
+  // Dört dükkân: inik kepenkler (bir kısmı yarım açık, içi karanlık); kapı olan dükkânın kepengi tepede sarılı.
   for (let i = 0; i < 4; i++) {
     const x = -w / 2 + (w / 4) * (i + 0.5);
+    if (Math.abs(x - r.doorX) < 0.01) {
+      parts.push(box(w / 4 - 0.5, 0.45, 0.3, x, 2.45, d / 2 + 0.12, C.shutter));
+      parts.push(box(0.08, 2.45, 0.1, x - (w / 4 - 0.5) / 2, 0, d / 2 + 0.06, C.steel));
+      parts.push(box(0.08, 2.45, 0.1, x + (w / 4 - 0.5) / 2, 0, d / 2 + 0.06, C.steel));
+      continue;
+    }
     const open = random.next() < 0.3;
     parts.push(
       box(w / 4 - 0.5, open ? 1.2 : 2.5, 0.08, x, open ? 1.3 : 0, d / 2 + 0.05, C.shutter),
     );
     if (open) parts.push(box(w / 4 - 0.5, 1.3, 0.06, x, 0, d / 2 + 0.03, C.window));
+    // Kepenk çizgileri
+    for (let k = 1; k < 6; k++) {
+      const y = (open ? 1.3 : 0) + k * ((open ? 1.2 : 2.5) / 6);
+      parts.push(box(w / 4 - 0.5, 0.025, 0.02, x, y, d / 2 + 0.1, C.concreteDark));
+    }
   }
+  // İç: raflar, tezgâh, terazi
+  parts.push(...placeParts(shelf(2.6, random), -1.8, -hd + 0.22, 0));
+  parts.push(...placeParts(shelf(2.2, random), 3.6, -hd + 0.22, 0));
+  parts.push(
+    ...placeParts(counter(2.2, 0.6, 0.95), r.doorX + 2.6, -0.3, 0),
+    ...indoor([box(0.3, 0.2, 0.25, r.doorX + 2.2, 0.95, -0.3, C.steel)]),
+  );
+  parts.push(...containerParts('shop_row'));
   return parts;
 }
 
 function kahvehaneParts(random: Random, ruined: boolean): Part[] {
   const { w, d, h } = D.kahvehane;
-  const wallH = 3.2;
-  if (ruined) return ruinedWalls(w, d, wallH, C.whitewash, random);
+  const r = room('kahvehane');
+  const wallH = r.room;
+  if (ruined) {
+    return [
+      ...ruinedRoom(w, d, wallH, r.door, r.doorX, C.whitewash, random),
+      ...containerParts('kahvehane'),
+    ];
+  }
+  const { hd } = innerHalf(w, d);
+  const big = [1.8, 1.4] as const;
   return [
-    box(w, wallH, d, 0, 0, 0, C.whitewash),
+    ...roomShell({
+      w,
+      d,
+      h: wallH,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.1,
+      wall: C.whitewash,
+      beams: 3,
+    }),
+    ...band(w, d, 0, 0.4, C.stone, 0.03),
     hipRoof(w, d, h - wallH, wallH, C.roofTile),
-    door(1.2, 2.1, d / 2 + 0.02),
-    ...windows('front', w, d / 2 + 0.02, [0.8], 2, [1.8, 1.4], random, 0.15),
+    ...windows('front', w, d / 2 + 0.02, [0.8], 2, big, random, 0.15),
+    ...innerWindows('front', w, d / 2 - WALL_THICKNESS - 0.03, [0.8], 2, big),
+    ...windows('left', d, w / 2 + 0.02, [1], 2, [0.8, 1.1], random),
     // tente (yırtık, solmuş) ve önde taş sedir
     box(w, 0.08, 1.6, 0, 2.5, d / 2 + 0.8, C.awning),
     box(w * 0.7, 0.45, 0.5, 0, 0, d / 2 + 1.4, C.stone),
+    // iç: ocak tezgâhı ve semaver, masalar ve tabureler
+    ...placeParts(counter(2.6, 0.6, 0.95), -0.6, -hd + 0.35, 0),
+    ...indoor([
+      cylinder(0.18, 0.5, -1.2, 0.95, -hd + 0.35, C.gold, 8),
+      cylinder(0.1, 0.2, -0.4, 0.95, -hd + 0.35, C.brick, 6),
+    ]),
+    ...table(-1.6, 1.1, 0.42, 0.72),
+    ...stool(-2.3, 1.1),
+    ...stool(-0.9, 1.1),
+    ...table(1.5, 0.6, 0.42, 0.72),
+    ...stool(1.5, 1.35),
+    ...stool(2.25, 0.6),
+    ...table(0.3, -0.6, 0.42, 0.72),
+    ...stool(-0.4, -0.6),
+    ...containerParts('kahvehane'),
   ];
 }
 
@@ -436,19 +1034,35 @@ function pediment(depth: number): Part {
 
 function governmentParts(random: Random): Part[] {
   const { w, d, h } = D.government;
-  const wallH = 6.2;
-  return [
-    box(w, wallH, d, 0, 0, 0, C.cutStone),
-    box(w + 0.2, 0.3, d + 0.2, 0, 3, 0, C.darkStone),
+  const r = room('government');
+  const wallH = r.top;
+  const { hd } = innerHalf(w, d);
+  const parts: Part[] = [
+    ...roomShell({
+      w,
+      d,
+      h: r.room,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.6,
+      wall: C.cutStone,
+      floor: C.marble,
+    }),
+    ...quoins(w, d, wallH, C.darkStone),
+    box(w, wallH - r.room, d, 0, r.room, 0, C.cutStone),
+    ...band(w, d, r.room - 0.05, 0.3, C.darkStone, 0.1),
+    ...band(w, d, wallH - 0.3, 0.3, C.darkStone, 0.1),
     hipRoof(w, d, h - wallH, wallH, C.roofTileDark, 0.5),
-    // giriş: üçgen alınlıklı revak
-    box(4.5, 3.6, 1.6, 0, 0, d / 2 + 0.8, C.cutStone),
+    // giriş: dört sütunlu revak, üstünde levha ve üçgen alınlık
+    box(4.6, 0.25, 1.6, 0, 3.35, d / 2 + 0.8, C.cutStone),
     pediment(d),
-    door(1.6, 2.6, d / 2 + 1.62),
-    ...windows('front', w, d / 2 + 0.02, [1, 4], 7, [0.9, 1.6], random, 0.15),
+    ...windows('front', w, d / 2 + 0.02, [1, 4], 7, [0.9, 1.6], random, 0.15, false, [r.doorX]),
     ...windows('back', w, d / 2 + 0.02, [1, 4], 7, [0.9, 1.6], random),
     ...windows('left', d, w / 2 + 0.02, [1, 4], 3, [0.9, 1.6], random),
     ...windows('right', d, w / 2 + 0.02, [1, 4], 3, [0.9, 1.6], random),
+    ...innerWindows('back', w, d / 2 - WALL_THICKNESS - 0.03, [1], 7, [0.9, 1.6]),
+    ...innerWindows('left', d, w / 2 - WALL_THICKNESS - 0.03, [1], 3, [0.9, 1.6]),
+    ...innerWindows('right', d, w / 2 - WALL_THICKNESS - 0.03, [1], 3, [0.9, 1.6]),
     // bayrak direği (bayrak ayrı çizilir: SettlementLayer)
     cylinder(
       0.08,
@@ -459,7 +1073,19 @@ function governmentParts(random: Random): Part[] {
       C.steel,
       5,
     ),
+    // iç: kırmızı yolluk, makam masası ve sandalyeler, dosya dolapları (kaplar)
+    ...rug(0, 0, 2, hd * 1.6, C.carpet, C.kilimAccent),
+    ...placeParts(counter(2.4, 1, 0.78, C.timber), 0, -hd + 1.6, 0),
+    ...stool(0, -hd + 0.75),
+    ...stool(-0.8, -hd + 2.6),
+    ...stool(0.8, -hd + 2.6),
+    ...containerParts('government'),
   ];
+  for (const x of [-2.1, -0.9, 0.9, 2.1]) {
+    parts.push(cylinder(0.18, 3.35, x, 0, d / 2 + 1.4, C.marble, 8));
+    parts.push(box(0.46, 0.14, 0.46, x, 3.2, d / 2 + 1.4, C.cutStone));
+  }
+  return parts;
 }
 
 // -- dinî ve kültürel -----------------------------------------------------------
@@ -476,78 +1102,191 @@ function minaret(
   const r = height > 20 ? 0.75 : 0.6;
   const baseH = height * 0.12;
   const parts: Part[] = [box(r * 2.4, baseH, r * 2.4, x, 0, z, body)];
+  parts.push(box(r * 2.5, 0.2, r * 2.5, x, baseH - 0.2, z, C.darkStone));
   const shaftTop = height * 0.82;
-  parts.push(cylinder(r, shaftTop - baseH, x, baseH, z, body, 8));
+  parts.push(cylinder(r, shaftTop - baseH, x, baseH, z, body, 12));
+  // Pabuç (kaideden gövdeye geçiş)
+  parts.push(cylinder(r, 0.8, x, baseH, z, body, 12, r * 1.15));
   for (let i = 0; i < balconies; i++) {
     const y = shaftTop - 0.6 - i * (height * 0.2);
-    parts.push(cylinder(r * 1.6, 0.35, x, y, z, body, 10, r * 1.6));
-    parts.push(cylinder(r * 1.6, 0.6, x, y + 0.35, z, C.darkStone, 10, r * 1.6));
+    parts.push(cylinder(r * 1.6, 0.35, x, y, z, body, 12, r * 1.6));
+    parts.push(cylinder(r * 1.05, 0.5, x, y - 0.5, z, body, 12, r * 1.6)); // şerefe altı (mukarnas yerine)
+    parts.push(cylinder(r * 1.6, 0.6, x, y + 0.35, z, C.darkStone, 12, r * 1.6));
   }
-  parts.push(cylinder(r * 0.85, height * 0.04, x, shaftTop, z, body, 8));
-  parts.push(cone(r * 1.05, height * 0.14, x, shaftTop + height * 0.04, z, cap, 8));
+  parts.push(cylinder(r * 0.85, height * 0.04, x, shaftTop, z, body, 12));
+  parts.push(cone(r * 1.05, height * 0.14, x, shaftTop + height * 0.04, z, cap, 12));
   parts.push(...alem(x, height, z, 0.7));
   return parts;
+}
+
+/** Mihrap (kıble duvarında; yerel: arkası −z): çini çerçeve, niş, mukarnas başlık. */
+function mihrab(height: number): Part[] {
+  return indoor([
+    box(2, height, 0.2, 0, 0, 0, C.tile),
+    box(1.3, height - 0.6, 0.06, 0, 0.3, 0.1, C.tileDark),
+    box(0.9, height - 1.2, 0.04, 0, 0.3, 0.14, C.marble),
+    cone(0.6, 0.7, 0, height - 0.95, 0.15, C.gold, 4),
+    box(2.2, 0.2, 0.3, 0, height, 0.02, C.gold),
+  ]);
+}
+
+/** Minber (mihrabın sağında; yerel: merdiven +z'den çıkar, tepe −z'de köşk). */
+function minber(height: number): Part[] {
+  const parts: Part[] = [];
+  const steps = 7;
+  const run = 3;
+  for (let i = 0; i < steps; i++) {
+    const h = ((i + 1) / steps) * height * 0.55;
+    parts.push(box(0.9, h, run / steps, 0, 0, run / 2 - (i + 0.5) * (run / steps), C.marble));
+  }
+  // yan korkuluk ve köşk
+  parts.push(box(0.08, height * 0.55 + 0.9, run, -0.48, 0, 0, C.cutStone));
+  parts.push(box(0.08, height * 0.55 + 0.9, run, 0.48, 0, 0, C.cutStone));
+  for (const sx of [-0.4, 0.4]) {
+    for (const sz of [-run / 2 + 0.1, -run / 2 + 0.8]) {
+      parts.push(box(0.1, 1.6, 0.1, sx, height * 0.55, sz, C.marble));
+    }
+  }
+  parts.push(cone(0.7, 1.4, 0, height * 0.55 + 1.6, -run / 2 + 0.45, C.lead, 4));
+  // giriş kapısı (taçkapı)
+  parts.push(box(1.1, 2.4, 0.15, 0, 0, run / 2 + 0.05, C.marble));
+  parts.push(box(0.6, 1.8, 0.04, 0, 0, run / 2 + 0.14, C.tileDark));
+  return indoor(parts);
+}
+
+/** Avize: halka ve tavandan inen askı. */
+function chandelier(y: number, r: number, top: number): Part[] {
+  const ring = new TorusGeometry(r, 0.05, 4, 16);
+  ring.applyMatrix4(new Matrix4().makeRotationX(Math.PI / 2));
+  return indoor([
+    { geometry: at(ring, 0, y, 0), color: C.gold },
+    cylinder(0.025, top - y, 0, y, 0, C.steel, 4),
+    cylinder(r * 0.4, 0.3, 0, y - 0.15, 0, C.gold, 8, r * 0.15),
+  ]);
+}
+
+/** Halı: harimi kaplayan kırmızı halı ve saf çizgileri (kıbleye dik). */
+function prayerCarpet(iw: number, id: number): Part[] {
+  const parts: Part[] = [box(iw, 0.03, id, 0, 0.02, 0, C.carpet)];
+  for (let z = -id / 2 + 1.2; z < id / 2 - 0.4; z += 1.1) {
+    parts.push(box(iw, 0.005, 0.06, 0, 0.051, z, C.carpetAccent));
+  }
+  return indoor(parts);
 }
 
 function mosqueParts(kind: 'mosque_grand' | 'mosque'): Part[] {
   const s = D[kind];
   const grand = kind === 'mosque_grand';
+  const t = WALL_THICKNESS;
+  const iw = s.w - 2 * t;
+  const id = s.d - 2 * t;
+  const doorW = 2.4;
+  const ring = s.dome * 0.92;
   const parts: Part[] = [
-    // harim: kesme taş beden
-    box(s.w, s.h, s.d, 0, 0, 0, C.cutStone),
-    box(s.w + 0.2, 0.3, s.d + 0.2, 0, s.h - 0.3, 0, C.darkStone),
-    // kasnak + ana kubbe (kurşun)
-    cylinder(s.dome * 0.92, 1, 0, s.h, 0, C.cutStone, 12),
-    dome(s.dome, 0, s.h + 1, 0, C.lead, 14),
+    // harim: kesme taş beden (kapı boşluklu), iç sıva, mermer döşeme
+    ...roomShell({
+      w: s.w,
+      d: s.d,
+      h: s.h,
+      door: doorW,
+      doorX: 0,
+      doorH: 3,
+      wall: C.cutStone,
+      inner: C.plasterInner,
+      floor: C.marble,
+      ceiling: false,
+      leaf: false,
+    }),
+    ...band(s.w, s.d, s.h - 0.3, 0.3, C.darkStone, 0.1),
+    ...band(s.w, s.d, 0, 0.5, C.darkStone, 0.03),
+    // çatı: dışta kurşun levha, içte sıvalı tavan; ortada kubbeye açılan delik
+    holedSlab(s.w, s.d, ring, s.h, C.lead, false),
+    { ...holedSlab(iw, id, ring, s.h - 0.02, C.ceiling, true), inner: true },
+    // kasnak (dışı taş, içi sıva) + ana kubbe (dışı kurşun, içi lacivert): iç yüzeyler tavan deliğinden biraz geniştir
+    // (çokgen delik ile silindir arasında gökyüzü görünmesin).
+    {
+      geometry: at(new CylinderGeometry(ring + 0.2, ring + 0.2, 1, 24, 1, true), 0, s.h + 0.5, 0),
+      color: C.cutStone,
+    },
+    {
+      geometry: inward(
+        at(new CylinderGeometry(ring + 0.12, ring + 0.12, 1, 24, 1, true), 0, s.h + 0.5, 0),
+      ),
+      color: C.ceiling,
+      inner: true,
+    },
+    dome(s.dome, 0, s.h + 1, 0, C.lead, 16),
+    {
+      geometry: inward(dome(ring + 0.12, 0, s.h + 1, 0, 0, 24).geometry),
+      color: C.tileDark,
+      inner: true,
+    },
     ...alem(0, s.h + 1 + s.dome, 0, 0.9),
     // son cemaat yeri: revak + küçük kubbeler
     box(s.w, 0.5, s.portico, 0, s.h * 0.55, s.d / 2 + s.portico / 2, C.cutStone),
-    door(2.4, 3, s.d / 2 + 0.02),
+    // taçkapı: kapının çevresinde çıkıntılı çerçeve ve çini pano
+    box(0.6, s.h * 0.55 - 0.1, 0.25, -doorW / 2 - 0.3, 0, s.d / 2 + 0.12, C.marble),
+    box(doorW + 0.6, 0.8, 0.08, 0, 3.15, s.d / 2 + 0.05, C.tile),
+    // iç: mihrap (kıble duvarı = arka), minber (sağda), vaaz kürsüsü (solda), halı, avize
+    ...placeParts(mihrab(Math.min(4.2, s.h * 0.6)), 0, -s.d / 2 + t + 0.1, 0),
+    ...placeParts(minber(Math.min(5, s.h * 0.7)), 2.4, -s.d / 2 + t + 1.6, 0),
+    ...placeParts(counter(1.2, 1.2, 1.1, C.wood), -2.8, -s.d / 2 + t + 2.4, 0),
+    ...prayerCarpet(iw - 0.1, id - 0.1),
+    ...chandelier(s.h - 1.6, Math.min(3, s.w * 0.22), s.h + 1 + s.dome * 0.9),
+    ...innerWindows('left', s.d, s.w / 2 - t - 0.03, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6]),
+    ...innerWindows('right', s.d, s.w / 2 - t - 0.03, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6]),
+    ...innerWindows('back', s.w, s.d / 2 - t - 0.03, [s.h * 0.62], grand ? 4 : 3, [0.9, 1.6]),
   ];
+  // Taçkapı yan ayağı (sağ): solun simetriği.
+  parts.push(box(0.6, s.h * 0.55 - 0.1, 0.25, doorW / 2 + 0.3, 0, s.d / 2 + 0.12, C.marble));
   const domes = grand ? 5 : 3;
   for (let i = 0; i < domes; i++) {
     const x = -s.w / 2 + (s.w / domes) * (i + 0.5);
-    parts.push(dome(s.portico * 0.42, x, s.h * 0.55 + 0.5, s.d / 2 + s.portico / 2, C.lead, 8));
-    // revak sütunları
-    parts.push(
-      cylinder(
-        0.2,
-        s.h * 0.55,
-        x - s.w / domes / 2 + 0.2,
-        0,
-        s.d / 2 + s.portico - 0.3,
-        C.marble,
-        6,
-      ),
-    );
+    parts.push(dome(s.portico * 0.42, x, s.h * 0.55 + 0.5, s.d / 2 + s.portico / 2, C.lead, 10));
+    // revak sütunları (başlıklı)
+    const cx = x - s.w / domes / 2 + 0.2;
+    parts.push(cylinder(0.2, s.h * 0.55, cx, 0, s.d / 2 + s.portico - 0.3, C.marble, 8));
+    parts.push(box(0.5, 0.2, 0.5, cx, s.h * 0.55 - 0.2, s.d / 2 + s.portico - 0.3, C.cutStone));
   }
-  parts.push(cylinder(0.2, s.h * 0.55, s.w / 2 - 0.2, 0, s.d / 2 + s.portico - 0.3, C.marble, 6));
+  parts.push(cylinder(0.2, s.h * 0.55, s.w / 2 - 0.2, 0, s.d / 2 + s.portico - 0.3, C.marble, 8));
+  parts.push(
+    box(0.5, 0.2, 0.5, s.w / 2 - 0.2, s.h * 0.55 - 0.2, s.d / 2 + s.portico - 0.3, C.cutStone),
+  );
   if (grand) {
-    // yarım kubbeler ve köşe kubbecikleri
+    // köşe kubbecikleri ve ağırlık kuleleri
     for (const [sx, sz] of [
       [-1, -1],
       [1, -1],
       [-1, 1],
       [1, 1],
     ] as const) {
-      parts.push(dome(2, sx * (s.w / 2 - 2.2), s.h, sz * (s.d / 2 - 2.2), C.lead, 8));
+      parts.push(dome(2, sx * (s.w / 2 - 2.2), s.h, sz * (s.d / 2 - 2.2), C.lead, 10));
       parts.push(
-        cylinder(0.35, 2.4, sx * (s.w / 2 - 0.4), s.h, sz * (s.d / 2 - 0.4), C.cutStone, 6),
+        cylinder(0.35, 2.4, sx * (s.w / 2 - 0.4), s.h, sz * (s.d / 2 - 0.4), C.cutStone, 8),
       );
-      parts.push(cone(0.45, 1.2, sx * (s.w / 2 - 0.4), s.h + 2.4, sz * (s.d / 2 - 0.4), C.lead, 6));
+      parts.push(cone(0.45, 1.2, sx * (s.w / 2 - 0.4), s.h + 2.4, sz * (s.d / 2 - 0.4), C.lead, 8));
     }
   }
   // Pencereler: iki sıra (alt dikdörtgen, üst kemerli — koyu).
   const flat = createRandom(17);
-  parts.push(
-    ...windows('left', s.d, s.w / 2 + 0.02, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6], flat, 0),
-  );
-  parts.push(
-    ...windows('right', s.d, s.w / 2 + 0.02, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6], flat, 0),
-  );
-  parts.push(
-    ...windows('back', s.w, s.d / 2 + 0.02, [1.4, s.h * 0.62], grand ? 4 : 3, [0.9, 1.6], flat, 0),
-  );
+  const n = grand ? 4 : 3;
+  parts.push(...windows('left', s.d, s.w / 2 + 0.02, [1.4, s.h * 0.62], n, [0.9, 1.6], flat, 0));
+  parts.push(...windows('right', s.d, s.w / 2 + 0.02, [1.4, s.h * 0.62], n, [0.9, 1.6], flat, 0));
+  parts.push(...windows('back', s.w, s.d / 2 + 0.02, [s.h * 0.62], n, [0.9, 1.6], flat, 0));
+  // Kemer alınlıkları (pencere üstünde yarım daire yerine sivri koni).
+  for (const face of ['left', 'right'] as const) {
+    for (let c = 0; c < n; c++) {
+      const along = -s.d / 2 + (s.d / n) * (c + 0.5);
+      parts.push(
+        ...orient(
+          [cone(0.5, 0.45, 0, 1.4 + 1.6 + 0.06, 0.02, C.darkStone, 3)],
+          face,
+          along,
+          s.w / 2 + 0.02,
+        ),
+      );
+    }
+  }
   // Minare(ler): sağ ön köşe; büyük camide iki minare, iki şerefe.
   parts.push(
     ...minaret(s.w / 2 + 1.2, s.d / 2 - 1.2, s.minaret, grand ? 2 : 1, C.cutStone, C.lead),
@@ -559,28 +1298,58 @@ function mosqueParts(kind: 'mosque_grand' | 'mosque'): Part[] {
 
 function woodenMosqueParts(): Part[] {
   const s = D.mosque_wooden;
+  const t = WALL_THICKNESS;
+  const iw = s.w - 2 * t;
+  const id = s.d - 2 * t;
   const parts: Part[] = [
-    box(s.w, 0.6, s.d, 0, 0, 0, C.stone),
-    box(s.w, s.h - 0.6, s.d, 0, 0.6, 0, C.whitewash),
+    ...roomShell({
+      w: s.w,
+      d: s.d,
+      h: s.h,
+      door: 1.8,
+      doorX: 0,
+      doorH: 2.2,
+      wall: C.whitewash,
+      floor: C.plank,
+      ceiling: true,
+      ceilingColor: C.woodLight,
+      beams: 4,
+      leaf: false,
+    }),
+    ...band(s.w, s.d, 0, 0.6, C.stone, 0.04),
     // ahşap kaplama kuşağı
-    box(s.w + 0.05, 1.2, s.d + 0.05, 0, s.h - 1.4, 0, C.woodLight),
+    ...band(s.w, s.d, s.h - 1.4, 1.2, C.woodLight, 0.05),
     hipRoof(s.w, s.d, 2.4, s.h, C.roofTileDark, 0.7),
-    door(1.6, 2.2, s.d / 2 + 0.02),
     box(s.w, 0.15, 1.6, 0, 2.6, s.d / 2 + 0.8, C.wood), // sundurma
     box(0.15, 2.6, 0.15, -s.w / 2 + 0.3, 0, s.d / 2 + 1.5, C.wood),
     box(0.15, 2.6, 0.15, s.w / 2 - 0.3, 0, s.d / 2 + 1.5, C.wood),
+    // iç: ahşap mihrap ve minber, halı, kalem işi tavan şeridi
+    ...placeParts(mihrab(2.8), 0, -s.d / 2 + t + 0.1, 0),
+    ...placeParts(minber(3.2), 1.9, -s.d / 2 + t + 1.6, 0),
+    ...prayerCarpet(iw - 0.1, id - 0.1),
+    ...indoor(band(iw - 0.04, id - 0.04, s.h - 0.5, 0.25, C.tile, 0)),
   ];
   const r = createRandom(23);
   parts.push(...windows('left', s.d, s.w / 2 + 0.02, [1.4], 3, [0.8, 1.2], r, 0));
   parts.push(...windows('right', s.d, s.w / 2 + 0.02, [1.4], 3, [0.8, 1.2], r, 0));
+  parts.push(...innerWindows('left', s.d, s.w / 2 - t - 0.03, [1.4], 3, [0.8, 1.2]));
+  parts.push(...innerWindows('right', s.d, s.w / 2 - t - 0.03, [1.4], 3, [0.8, 1.2]));
   // Ahşap minare: ince gövde, ahşap şerefe, külah.
   const x = s.w / 2 + 0.7;
   const z = s.d / 2 - 0.7;
   parts.push(box(1, 1.2, 1, x, 0, z, C.stone));
   parts.push(box(0.7, s.minaret * 0.7, 0.7, x, 1.2, z, C.whitewash));
   parts.push(box(1.2, 0.5, 1.2, x, 1.2 + s.minaret * 0.7 - 0.5, z, C.wood));
-  parts.push(cone(0.6, s.minaret * 0.22, x, 1.2 + s.minaret * 0.7, z, C.lead, 8));
-  parts.push(...alem(x, 1.2 + s.minaret * 0.92, z, 0.45));
+  for (const [ox, oz] of [
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [-0.5, 0.5],
+    [0.5, 0.5],
+  ] as const) {
+    parts.push(box(0.08, 0.6, 0.08, x + ox, 1.2 + s.minaret * 0.7, z + oz, C.wood));
+  }
+  parts.push(cone(0.6, s.minaret * 0.22, x, 1.2 + s.minaret * 0.7 + 0.6, z, C.lead, 8));
+  parts.push(...alem(x, 1.2 + s.minaret * 0.92 + 0.6, z, 0.45));
   return parts;
 }
 
@@ -647,6 +1416,35 @@ function fountainParts(): Part[] {
   ];
 }
 
+/** Şadırvan: sekizgen mermer havuz, ortada musluklu sütun, oturma taşları, sekiz sütunlu kurşun saçak, alem. */
+function sadirvanParts(): Part[] {
+  const parts: Part[] = [
+    cylinder(2.55, 0.22, 0, 0, 0, C.cutStone, 8),
+    cylinder(1.55, 0.7, 0, 0.22, 0, C.marble, 8),
+    cylinder(1.4, 0.04, 0, 0.86, 0, C.water, 8),
+    cylinder(0.42, 1.5, 0, 0.22, 0, C.marble, 8, 0.32),
+    cone(0.5, 0.5, 0, 1.72, 0, C.lead, 8),
+    // eave ring and roof
+    cylinder(2.7, 0.22, 0, 3, 0, C.woodLight, 8),
+    cone(2.72, 1.5, 0, 3.22, 0, C.lead, 8),
+    cylinder(0.35, 0.4, 0, 4.4, 0, C.lead, 8),
+    ...alem(0, 4.8, 0, 0.45),
+  ];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    // sütun ve başlık
+    parts.push(cylinder(0.11, 2.78, ca * 2.3, 0.22, sa * 2.3, C.marble, 6));
+    parts.push(box(0.3, 0.12, 0.3, ca * 2.3, 2.88, sa * 2.3, C.cutStone));
+    // musluk ve oturma taşı (abdest)
+    const ta = (i / 8) * Math.PI * 2;
+    parts.push(cylinder(0.035, 0.18, Math.cos(ta) * 1.58, 0.72, Math.sin(ta) * 1.58, C.gold, 4));
+    parts.push(box(0.36, 0.32, 0.36, Math.cos(ta) * 1.95, 0.22, Math.sin(ta) * 1.95, C.stone));
+  }
+  return parts;
+}
+
 // -- tarihî ----------------------------------------------------------------------
 
 function hanParts(random: Random): Part[] {
@@ -687,23 +1485,56 @@ function hanParts(random: Random): Part[] {
     }
   }
   parts.push(...windows('back', s.w, hw + 0.02, [4.4], 6, [0.4, 0.9], random, 0));
-  // Avluda şadırvan/mescit kaidesi
+  // Avluda şadırvan/mescit kaidesi, taş döşeme ve kaplar (sandık, dolap)
   parts.push(box(2, 0.6, 2, 0, 0, 0, C.cutStone));
+  parts.push(box(s.court, 0.05, s.court, 0, -0.02, 0, C.darkStone));
+  parts.push(...containerParts('han'));
   return parts;
 }
 
 function hamamParts(): Part[] {
   const { w, d, h } = D.hamam;
+  const r = room('hamam');
   const wallH = h * 0.62;
-  return [
-    box(w, wallH, d, 0, 0, 0, C.stone),
-    dome(3, -w * 0.18, wallH, -d * 0.1, C.lead, 10),
-    dome(2.2, w * 0.28, wallH, -d * 0.18, C.lead, 8),
-    dome(1.8, w * 0.28, wallH, d * 0.25, C.lead, 8),
-    dome(1.5, -w * 0.3, wallH, d * 0.3, C.lead, 8),
-    door(1.2, 2.2, d / 2 + 0.02),
+  const { hw, hd } = innerHalf(w, d);
+  const parts: Part[] = [
+    ...roomShell({
+      w,
+      d,
+      h: wallH,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.2,
+      wall: C.stone,
+      floor: C.marble,
+      ceilingColor: C.plasterInner,
+    }),
+    ...quoins(w, d, wallH, C.cutStone),
+    dome(3, -w * 0.18, wallH, -d * 0.1, C.lead, 12),
+    dome(2.2, w * 0.28, wallH, -d * 0.18, C.lead, 10),
+    dome(1.8, w * 0.28, wallH, d * 0.25, C.lead, 10),
+    dome(1.5, -w * 0.3, wallH, d * 0.3, C.lead, 10),
     box(0.8, 3.4, 0.8, w / 2 - 0.6, wallH, -d / 2 + 0.6, C.brick), // külhan bacası
+    // iç: göbek taşı, kurnalar, tavanda fil gözleri (ışık delikleri)
+    ...indoor([
+      cylinder(1.5, 0.45, -0.8, 0, -0.6, C.marble, 8),
+      ...[-2.4, 0.4, 2.6].flatMap((x) => [
+        box(0.6, 0.45, 0.4, x, 0.4, -hd + 0.2, C.marble),
+        cylinder(0.04, 0.2, x, 1.1, -hd + 0.08, C.gold, 4),
+      ]),
+    ]),
+    ...placeParts(sedir(2.6), hw - 0.36, 1.6, -Math.PI / 2),
+    ...containerParts('hamam'),
   ];
+  for (const [x, z] of [
+    [-1.5, -0.5],
+    [-0.2, -1.2],
+    [0.6, 0.6],
+    [-1.6, 1.2],
+  ] as const) {
+    parts.push(...indoor([box(0.18, 0.02, 0.18, x, wallH - 0.1, z, C.windowInner)]));
+  }
+  return parts;
 }
 
 function clockTowerParts(): Part[] {
@@ -885,6 +1716,8 @@ function nearParts(kind: BuildingKind, ruined: boolean, floors: number, random: 
       return mineTowerParts();
     case 'factory':
       return factoryParts(random);
+    case 'sadirvan':
+      return sadirvanParts();
   }
 }
 
@@ -1008,8 +1841,14 @@ export function buildBuildingGeometry(
   const ruined = options.ruined ?? false;
   const floors = options.floors ?? D.apartment.floors;
   const random = createRandom(0xb1d + kind.length * 131 + floors * 7 + (ruined ? 3 : 0));
-  const parts =
-    lod === 'near' ? nearParts(kind, ruined, floors, random) : farParts(kind, ruined, floors);
+  let parts =
+    lod === 'far' ? farParts(kind, ruined, floors) : nearParts(kind, ruined, floors, random);
+  if (lod !== 'far') {
+    // `near`: iç mekân parçaları atılır; `interior`: kapı boşluğu karartması atılır (içi görünür).
+    const keep = (p: Part) => (lod === 'interior' ? !p.outer : !p.inner);
+    for (const p of parts) if (!keep(p)) p.geometry.dispose();
+    parts = parts.filter(keep);
+  }
   // Camide harim ayak izi merkezinden geridedir (önde revak): kinds.ts ile aynı kayma.
   const oz = mosqueOffset(kind);
   if (oz !== 0)

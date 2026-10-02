@@ -91,15 +91,31 @@ function campfireParts(): Part[] {
     geometry: place(new CylinderGeometry(0.5, 0.5, 0.05, 10), 0, 0.03, 0),
     color: C.ash,
   });
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.4;
+  // Çadır (piramit) biçiminde dizilmiş beş odun: uçları ortada buluşur.
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.4;
     parts.push(
       beam(
-        [Math.cos(a) * 0.45, 0.06, Math.sin(a) * 0.45],
-        [-Math.cos(a) * 0.3, 0.3, -Math.sin(a) * 0.3],
-        0.07,
+        [Math.cos(a) * 0.46, 0.05, Math.sin(a) * 0.46],
+        [Math.cos(a) * 0.05, 0.42, Math.sin(a) * 0.05],
+        i % 2 ? 0.055 : 0.065,
         C.log,
-        6,
+        5,
+      ),
+    );
+  }
+  // Közler: kül tablasında koyu ve kızıl parçalar.
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 1.1;
+    parts.push(
+      blob(
+        0.07,
+        'octa',
+        [1, 0.5, 1],
+        [Math.cos(a) * 0.2, 0.06, Math.sin(a) * 0.2],
+        i === 1 ? C.flameOuter : C.ash,
+        0.2,
+        SEED + 20 + i,
       ),
     );
   }
@@ -144,6 +160,21 @@ function leanToParts(): Part[] {
     geometry: place(roof, 0, (frontTop + backTop) / 2 + 0.05, (front + back) / 2),
     color: C.roof,
   });
+  // Çatı üstünde dal örtüsü (eğim boyunca iki sırık) ve ön kiriş.
+  for (const x of [-halfWidth * 0.5, halfWidth * 0.5]) {
+    parts.push(
+      beam([x, frontTop + 0.1, front + 0.1], [x, backTop + 0.1, back - 0.1], 0.04, C.pole, 4),
+    );
+  }
+  parts.push(
+    beam(
+      [-halfWidth - 0.1, frontTop - 0.05, front],
+      [halfWidth + 0.1, frontTop - 0.05, front],
+      0.05,
+      C.pole,
+      4,
+    ),
+  );
   // Arka duvar (zemine gömülü kısmıyla) ve yaprak yatak.
   parts.push({
     geometry: place(new BoxGeometry(halfWidth * 2, 1.9, 0.09), 0, -0.25, back - 0.02),
@@ -212,6 +243,13 @@ function workbenchParts(): Part[] {
   parts.push(blob(0.16, 0, [1.3, 0.7, 1], [w * 0.45, h + 0.08, 0], C.stone, 0.25, SEED + 40));
   parts.push(beam([-w * 0.8, h + 0.05, -0.12], [-w * 0.1, h + 0.05, -0.15], 0.04, C.log, 5));
   parts.push(beam([-w * 0.8, h + 0.05, 0.02], [-w * 0.15, h + 0.05, 0.06], 0.04, C.log, 5));
+  // Testere (demir ağız + tahta sap) ve tokmak.
+  parts.push(slab(-w * 0.1, w * 0.3, h, h + 0.015, d - 0.32, d - 0.16, C.iron));
+  parts.push(slab(w * 0.3, w * 0.42, h, h + 0.05, d - 0.3, d - 0.18, C.darkPlank));
+  parts.push(
+    beam([w * 0.05, h + 0.04, -d + 0.2], [w * 0.35, h + 0.04, -d + 0.2], 0.025, C.pole, 4),
+  );
+  parts.push(slab(w * 0.35, w * 0.5, h, h + 0.12, -d + 0.13, -d + 0.27, C.darkPlank));
   return parts;
 }
 
@@ -258,6 +296,20 @@ function hutParts(): Part[] {
       color: C.hutRoof,
     });
   }
+  // Mahya kirişi ve kapı kasası.
+  parts.push(
+    slab(
+      -eave - 0.05,
+      eave + 0.05,
+      HUT.ridgeHeight - 0.02,
+      HUT.ridgeHeight + 0.14,
+      -0.09,
+      0.09,
+      C.darkPlank,
+    ),
+  );
+  parts.push(slab(-door - 0.1, -door, 0, doorHeight + 0.1, outer, outer + 0.05, C.darkPlank));
+  parts.push(slab(door, door + 0.1, 0, doorHeight + 0.1, outer, outer + 0.05, C.darkPlank));
   // Alınlar: yan duvarların üstünde üçgen (çatıyla duvar arası kapansın).
   for (const x of [-outer + t / 2, outer - t / 2]) {
     const gable = new CylinderGeometry(0.0001, outer * Math.SQRT2, rise, 4, 1);

@@ -25,7 +25,10 @@ const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly Cont
   [
     'Hayatta kalma',
     [
-      [['E'], 'Topla, leş kes, pişir, yakıt at, ev ara, su iç (basılı tut)'],
+      [
+        ['E'],
+        'Topla, leş kes, pişir, yakıt at, sandık/dolap ara, camide namaz kıl, su iç (basılı tut)',
+      ],
       [['E'], 'Sandık aç, kapı ve çit kapısı aç/kapat, rafa et as/al, insanlarla konuş (bas)'],
       [['Sol tık'], 'Saldır · hayalet varken kur'],
       [['F'], 'Hızlı yemek'],

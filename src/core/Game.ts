@@ -33,6 +33,7 @@ import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CookingSystem } from '../combat/cooking';
 import { BuildingSearch, searchPrompt, searchTarget, searchedToast } from '../settlements/search';
+import { PrayerTracker, prayerPrompt, prayerWindow } from '../survival/prayer';
 import { PeopleSystem, personInView, type Person, type PeopleWorld } from '../people/PeopleSystem';
 import { GREETINGS, ROLES } from '../people/roles';
 import { directionsAnswer, executeTrade, tradeText } from '../people/dialog';
@@ -186,6 +187,7 @@ import { DroneHud } from '../ui/DroneHud';
 import { batteryPercent } from '../ui/droneFormat';
 import { rayTerrain } from '../combat/ranged';
 import { BUILDING_NAMES, BUILDING_SHAPES } from '../settlements/kinds';
+import type { BuildingInterior } from '../settlements/SettlementMap';
 import { CREATURE_NAMES } from '../combat/promptText';
 import { CampColliders } from '../world/CampColliders';
 import { darknessOf } from '../creatures/perception';
@@ -330,6 +332,11 @@ export class Game {
   );
   /** Terk edilmiş yapıları arama (Faz 10). */
   readonly search = new BuildingSearch(this.events, this.inventory);
+  /** Camide vakit namazı: sağlık kazancı, vakit başına bir kez (kayıtta `settlements.lastPrayer`). */
+  readonly prayer = new PrayerTracker(
+    (amount) => this.survival.consume({ health: amount }),
+    (window, health) => this.events.emit('player:prayed', { prayer: window.name, health }),
+  );
   // ── Faz 11 ortak (11.0) ──
   /** Menzilli atışın vurabileceği hedefler: canlılar ve oyuncu (11.0); eşkıyalar (E) ve drone (F) eklenir. */
   readonly targets = new TargetRegistry();
@@ -346,6 +353,8 @@ export class Game {
   private shotSolidQuery: SolidQuery | null = null;
   /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
   private inSanctuary = false;
+  /** Oyuncunun içinde bulunduğu girilebilir yapı (yoksa null; her adım güncellenir). */
+  private interior: BuildingInterior | null = null;
   /** Namaz vakitleri (bölgenin enlemi ve yılın günü sabit) ve son bildirilen saat. */
   private readonly prayerTimes = prayerTimes(CLOCK.latitudeDeg, CLOCK.dayOfYear);
   private lastPrayerHour: number | null = null;
@@ -518,7 +527,7 @@ export class Game {
     });
     this.inventoryPanel = new InventoryPanel(container, this.inventory, {
       onEat: (slot) => this.eatFromSlot(slot),
-      onCraft: (recipe) => this.craftRecipe(recipe),
+      onCraft: (recipe, count) => this.craftRecipe(recipe, count),
       onDrink: () => this.drinkContainer(),
       onDrop: (slot, count) => this.dropFromSlot(slot, count),
       onClose: () => this.closeInventory(),
@@ -624,6 +633,9 @@ export class Game {
       this.events.on('item:filled', () => this.hud.notify('Su kabı doldu', INTERACT.toastMs)),
       this.events.on('person:greeted', ({ name, text }) =>
         this.hud.notify(`${name}: “${text}”`, INTERACT.toastMs),
+      ),
+      this.events.on('player:prayed', ({ prayer, health }) =>
+        this.hud.notify(`${prayer} namazı kılındı · Sağlık +${health}`, INTERACT.toastMs),
       ),
       this.events.on('building:searched', ({ items }) =>
         this.hud.notify(
@@ -915,6 +927,7 @@ export class Game {
       creatures: this.creatures,
       hotbar: this.hotbar,
       search: this.search,
+      prayer: this.prayer,
       // Faz 11 (v5): C `farm`, E `bandits`, F `drone` bölümlerini kendi setup'larında bağlar (`saveSections`).
       weapons: this.weapons,
       ...this.saveSections,
@@ -1035,7 +1048,7 @@ export class Game {
         butcher: this.butcher,
         cooking: this.cooking,
         fireTender: this.fireTender,
-        ...(settlements ? { search: this.search } : {}),
+        ...(settlements ? { search: this.search, prayer: this.prayer } : {}),
       },
       {
         held,
@@ -1044,6 +1057,12 @@ export class Game {
         carcass: (this.carcassTarget = this.carcassInReach(feet)),
         building,
         alive: this.survival.alive,
+        // Cami: önceki adımda hesaplanan iç mekân (harim) ve oyun saatinin vakti.
+        prayer: {
+          inMosque: this.interior?.sacred ?? false,
+          alive: this.survival.alive,
+          window: prayerWindow(this.prayerTimes, this.survival.clock.hour, this.survival.clock.day),
+        },
       },
     );
 
@@ -1133,6 +1152,12 @@ export class Game {
     // Faz 10: caminin/hanın içi kapalı barınaktır; cami ayrıca kutsal ve güvenlidir (canlılar algılamaz).
     const interior = settlements?.interiorAt(feet.x, feet.y, feet.z) ?? null;
     this.inSanctuary = interior?.sacred ?? false;
+    this.interior = interior;
+    this.playerCamera.setIndoor(
+      interior
+        ? BUILDING_SHAPES[interior.building.kind].roomHeight - (feet.y - interior.building.y)
+        : null,
+    );
     if (interior && this.exposure.shelter !== 'hut') {
       this.exposure = {
         ...this.exposure,
@@ -1560,17 +1585,22 @@ export class Game {
     this.inventoryPanel.refresh();
   }
 
-  private craftRecipe(id: RecipeId): void {
-    const result = craft(this.inventory, RECIPES[id], this.stationsHere());
-    if (result.ok) {
-      this.events.emit('item:crafted', {
-        recipe: id,
-        item: result.output.id,
-        count: result.output.count,
-      });
-    } else {
-      this.inventoryPanel.refresh();
+  /** Tarifi `count` kez art arda üretir; yapılamayan ilk denemede durur (toplu üretim tek olay yayınlar). */
+  private craftRecipe(id: RecipeId, count = 1): void {
+    const context = this.stationsHere();
+    let made = 0;
+    let output: ItemId | null = null;
+    for (let i = 0; i < Math.max(1, Math.floor(count)); i++) {
+      const result = craft(this.inventory, RECIPES[id], context);
+      if (!result.ok) break;
+      made += result.output.count;
+      output = result.output.id;
     }
+    if (output === null) {
+      this.inventoryPanel.refresh();
+      return;
+    }
+    this.events.emit('item:crafted', { recipe: id, item: output, count: made });
   }
 
   /** Ölüm ekranındaki "Yeniden Doğ": göstergeler dolar, oyuncu rastgele güvenli noktaya taşınır. */
@@ -1823,6 +1853,12 @@ export class Game {
       this.hud.setProgress(this.search.progress > 0 ? this.search.progress : null);
       return;
     }
+    const prayer = alive ? this.prayer.offer : null;
+    if (prayer?.status === 'ready') {
+      this.hud.setPrompt(prayerPrompt(prayer, this.prayerLabel(this.survival.clock.hour)));
+      this.hud.setProgress(this.prayer.progress > 0 ? this.prayer.progress : null);
+      return;
+    }
     const person = alive ? this.personTarget : null;
     if (person) {
       this.hud.setProgress(null);
@@ -1870,6 +1906,7 @@ export class Game {
         (cook ? cookPrompt(false, cook.status, cook.recipe) : null) ??
         (tend ? tendPrompt(tend) : null) ??
         (search ? searchPrompt(search) : null) ??
+        (prayer ? prayerPrompt(prayer, this.prayerLabel(this.survival.clock.hour)) : null) ??
         (alive && this.carcassTarget && !isButcherable(this.carcassTarget.kind)
           ? unbutcherablePrompt(this.carcassTarget.kind)
           : null) ??

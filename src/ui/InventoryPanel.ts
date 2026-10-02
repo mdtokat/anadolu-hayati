@@ -12,17 +12,26 @@ import type { VitalsState } from '../survival/vitals';
 import { CATEGORY_ACCENT, itemIcon, uiIcon, type UiIcon } from './icons';
 import {
   CATEGORY_LABELS,
+  clampCraftCount,
+  filterRecipeRows,
+  maxCraftable,
+  RECIPE_FILTER_LABELS,
+  RECIPE_FILTERS,
+  recipeFilterCounts,
   recipeRows,
   slotUsageText,
   slotView,
+  type RecipeFilter,
   type RecipeRow,
 } from './inventoryView';
+import { RECIPES } from '../items/recipes';
 import { closeButton, el, loadMeter, slotButton } from './widgets';
 
 export interface InventoryPanelCallbacks {
   /** Seçili slottaki yiyeceği ye. */
   onEat(slot: number): void;
-  onCraft(recipe: RecipeId): void;
+  /** Tarifi `count` kez art arda üret (yapılamayınca durur). */
+  onCraft(recipe: RecipeId, count: number): void;
   /** Seçili slottaki dolu su kabından iç. */
   onDrink(slot: number): void;
   /** Seçili slottan `count` adet at (eşya yok olur; envanteri boşaltmak için). */
@@ -51,6 +60,10 @@ export class InventoryPanel {
   /** "Hepsini At" ilk tıklandı, onay bekliyor (yanlışlıkla bir yığın kaybolmasın). */
   private confirmDropAll = false;
   private open = false;
+  /** Üretim listesi süzgeci (panel kapanıp açılınca korunur). */
+  private filter: RecipeFilter = 'all';
+  /** Tarif başına girilen üretim adedi (yeniden çizimde korunur). */
+  private readonly counts = new Map<RecipeId, number>();
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const closers: readonly string[] = [...INPUT.bindings.toggleInventory, 'Escape'];
@@ -115,7 +128,13 @@ export class InventoryPanel {
       this.buildSlots(vitals),
       this.buildRecipes(this.callbacks.getStations?.() ?? NO_STATIONS),
     );
+    // Yeniden çizim (her üretimden sonra) liste kaydırmasını başa atmasın: konumları koru.
+    const listScroll = this.panel.querySelector('.inv-recipe-list')?.scrollTop ?? 0;
+    const panelScroll = this.panel.scrollTop;
     this.panel.replaceChildren(header, stats, body);
+    const list = this.panel.querySelector('.inv-recipe-list');
+    if (list) list.scrollTop = listScroll;
+    this.panel.scrollTop = panelScroll;
   }
 
   /** Üst satırdaki küçük göstergeler (sağlık, tokluk, su, enerji). */
@@ -261,9 +280,11 @@ export class InventoryPanel {
 
   private buildRecipes(context: CraftContext): HTMLElement {
     const section = el('section', 'inv-section inv-recipes');
-    const rows = recipeRows(this.inventory, context);
+    const all = recipeRows(this.inventory, context);
+    const rows = filterRecipeRows(all, this.filter);
     const ready = rows.filter((row) => row.craftable).length;
     section.append(sectionTitle('Üretim', `${ready}/${rows.length} hazır`));
+    section.append(this.buildFilterTabs(all));
     const near = [...context.stations].map((station) => ITEMS[station].name);
     const stations = el('div', 'inv-stations');
     stations.dataset.near = String(near.length > 0);
@@ -279,12 +300,43 @@ export class InventoryPanel {
     );
     section.append(stations);
     const list = el('div', 'inv-recipe-list');
-    for (const row of rows) list.append(this.buildRecipe(row));
+    for (const row of rows) list.append(this.buildRecipe(row, context));
+    if (rows.length === 0) list.append(el('div', 'inv-hint', 'Bu grupta tarif yok.'));
     section.append(list);
     return section;
   }
 
-  private buildRecipe(row: RecipeRow): HTMLElement {
+  /** Süzgeç sekmeleri (Tümü, Silah, Alet, Yapı, Gıda, Malzeme; yanında tarif sayısı). */
+  private buildFilterTabs(rows: readonly RecipeRow[]): HTMLElement {
+    const counts = recipeFilterCounts(rows);
+    const ready = recipeFilterCounts(rows.filter((row) => row.craftable));
+    const tabs = el('div', 'inv-filter-tabs');
+    tabs.setAttribute('role', 'tablist');
+    for (const filter of RECIPE_FILTERS) {
+      if (filter !== 'all' && counts[filter] === 0) continue;
+      const tab = el('button', 'inv-filter-tab');
+      tab.type = 'button';
+      tab.setAttribute('role', 'tab');
+      tab.dataset.active = String(this.filter === filter);
+      tab.setAttribute('aria-selected', String(this.filter === filter));
+      tab.title = `${RECIPE_FILTER_LABELS[filter]}: ${ready[filter]}/${counts[filter]} hazır`;
+      tab.append(
+        el('span', '', RECIPE_FILTER_LABELS[filter]),
+        el('span', 'inv-filter-count', String(counts[filter])),
+      );
+      tab.addEventListener('click', () => {
+        if (this.filter === filter) return;
+        this.filter = filter;
+        this.refresh();
+        const list = this.panel.querySelector('.inv-recipe-list');
+        if (list) list.scrollTop = 0; // yeni grup baştan görünür
+      });
+      tabs.append(tab);
+    }
+    return tabs;
+  }
+
+  private buildRecipe(row: RecipeRow, context: CraftContext): HTMLElement {
     const card = el('div', 'inv-recipe');
     card.dataset.craftable = String(row.craftable);
     card.style.setProperty('--accent', CATEGORY_ACCENT[ITEMS[row.outputId].category]);
@@ -319,11 +371,46 @@ export class InventoryPanel {
     main.append(head, inputs);
     if (row.reason) main.append(el('div', 'inv-reason', row.reason));
 
+    const max = row.craftable ? maxCraftable(this.inventory, RECIPES[row.id], context) : 0;
+    const controls = el('div', 'inv-craft-controls');
+    const amount = el('input', 'inv-craft-count');
+    amount.type = 'number';
+    amount.min = '1';
+    amount.max = String(Math.max(max, 1));
+    amount.step = '1';
+    amount.inputMode = 'numeric';
+    amount.title = max > 0 ? `Üretim adedi (en çok ${max})` : 'Üretim adedi';
+    amount.setAttribute('aria-label', `${row.name} üretim adedi`);
+    amount.value = String(clampCraftCount(this.counts.get(row.id) ?? 1, max));
+    amount.disabled = !row.craftable;
+    // Klavye olayları oyuna (kısayol rakamları, I/Tab kapatma) gitmesin; Enter üretir.
+    amount.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      if (event.key === 'Enter') craft.click();
+    });
+    amount.addEventListener('change', () => {
+      const value = clampCraftCount(Number(amount.value), max);
+      amount.value = String(value);
+      this.counts.set(row.id, value);
+    });
+    const maxButton = el('button', 'inv-craft-max', 'En çok');
+    maxButton.type = 'button';
+    maxButton.title = max > 0 ? `${max} adet` : 'Üretilemez';
+    maxButton.disabled = max <= 1;
+    maxButton.addEventListener('click', () => {
+      amount.value = String(max);
+      this.counts.set(row.id, max);
+    });
+
     const craft = el('button', 'inv-craft', 'Üret');
     craft.type = 'button';
     craft.disabled = !row.craftable;
-    craft.addEventListener('click', () => this.callbacks.onCraft(row.id));
-    card.append(output, main, craft);
+    craft.addEventListener('click', () => {
+      const count = clampCraftCount(Number(amount.value), max);
+      this.callbacks.onCraft(row.id, count);
+    });
+    controls.append(amount, maxButton, craft);
+    card.append(output, main, controls);
     return card;
   }
 

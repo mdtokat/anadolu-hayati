@@ -22,8 +22,10 @@ import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkK
  * - v4 (Faz 10): yerleşimler (`settlements.searched`: aranmış yapı kimlikleri); yeni eşya kimlikleri (Türk kileri).
  * - v5 (Faz 11): tarla (`farm`), silah şarjörleri (`weapons`), eşkıya kampları ve çalınan eşyalar (`bandits`), drone
  *   (`drone`); yeni eşya/yapı kimlikleri. Alanlar v5 içinde sabittir (docs/faz-11-paralel-plan.md §2.4, §3.5).
+ * - v6: bina içi kaplar (`settlements.containers`: aranmış sandık/dolap kimlikleri) ve camide kılınan son vakit
+ *   (`settlements.lastPrayer`: mutlak vakit sırası, yoksa −1).
  */
-export const SAVE_FORMAT_VERSION = 5;
+export const SAVE_FORMAT_VERSION = 6;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -147,7 +149,17 @@ export function emptyFaz11Save(): Pick<SaveGame, 'farm' | 'weapons' | 'bandits' 
 
 /** Yerleşimlerde kalıcı olan durum (Faz 10). */
 export interface SettlementsSave {
+  /** Kapıdan aranmış yapılar (v4; eski kayıtlarda bu yapıların kapları da aranmış sayılır). */
   searched: number[];
+  /** Aranmış bina içi kaplar (`containerId`; v6). */
+  containers: number[];
+  /** Camide namaz kılınan son vaktin mutlak sırası (`survival/prayer.ts`; −1: hiç). */
+  lastPrayer: number;
+}
+
+/** Boş yerleşim durumu (yeni oyun). */
+export function emptySettlementsSave(): SettlementsSave {
+  return { searched: [], containers: [], lastPrayer: -1 };
 }
 
 /** Yuva listesinde gösterilen kısa özet. */
@@ -268,6 +280,12 @@ function migrateV4toV5(raw: RawSave): RawSave {
   return { ...raw, ...emptyFaz11Save() };
 }
 
+/** v5 → v6: aranmış kap listesi boş ve "hiç namaz kılınmadı" eklenir; kapıdan aranmış yapılar korunur. */
+function migrateV5toV6(raw: RawSave): RawSave {
+  const settlements = isRecord(raw.settlements) ? raw.settlements : { searched: [] };
+  return { ...raw, settlements: { ...settlements, containers: [], lastPrayer: -1 } };
+}
+
 /**
  * Sürüm `n` kaydını `n + 1`'e çeviren adımlar; bir adım girdisini değiştirmemeli, yeni nesne döndürmelidir.
  * Adım yalnızca yapıyı çevirir (taşınamayan kayıtta `SaveError` fırlatabilir); değerleri doğrulamak
@@ -278,6 +296,7 @@ export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   2: migrateV2toV3,
   3: migrateV3toV4,
   4: migrateV4toV5,
+  5: migrateV5toV6,
 };
 
 /**
@@ -475,11 +494,18 @@ function itemStacks(value: unknown, name: string): ItemStack[] {
 
 function parseSettlementsSave(value: unknown): SettlementsSave {
   if (!isRecord(value)) throw invalid('settlements bir nesne olmalı');
-  const list = value.searched;
-  if (!Array.isArray(list) || !list.every((v) => Number.isInteger(v) && v >= 0)) {
-    throw invalid('settlements.searched negatif olmayan tam sayı listesi olmalı');
+  const ids = (key: 'searched' | 'containers'): number[] => {
+    const list = value[key];
+    if (!Array.isArray(list) || !list.every((v) => Number.isInteger(v) && v >= 0)) {
+      throw invalid(`settlements.${key} negatif olmayan tam sayı listesi olmalı`);
+    }
+    return [...new Set(list as number[])].sort((a, b) => a - b);
+  };
+  const lastPrayer = value.lastPrayer;
+  if (typeof lastPrayer !== 'number' || !Number.isInteger(lastPrayer) || lastPrayer < -1) {
+    throw invalid('settlements.lastPrayer −1 ya da negatif olmayan tam sayı olmalı');
   }
-  return { searched: [...new Set(list as number[])].sort((a, b) => a - b) };
+  return { searched: ids('searched'), containers: ids('containers'), lastPrayer };
 }
 
 /** Yuva listesinde gösterilecek özet (gün 1'den başlar). */
