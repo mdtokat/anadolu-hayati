@@ -99,10 +99,18 @@ export class StructureLayer {
     return { structures: this.nodes.size, lit: this.litCount, lights: this.assigned };
   }
 
-  /** Her render karesinde: yapı kümesi değiştiyse mesh'leri eşitler; ışıkları en yakın ateşlere dağıtır. */
-  update(timeSeconds: number, focusX: number, focusZ: number): void {
+  /**
+   * Her render karesinde: yapı kümesi değiştiyse mesh'leri eşitler; ışıkları en yakın ateşlere dağıtır. `extraFires`
+   * (Faz 11: eşkıya kampı ateşleri; kimlikleri yapı kimlikleriyle çakışmasın diye negatif) aynı ışık havuzuna katılır.
+   */
+  update(
+    timeSeconds: number,
+    focusX: number,
+    focusZ: number,
+    extraFires: ReadonlyArray<{ id: number; x: number; y: number; z: number }> = [],
+  ): void {
     this.sync();
-    this.assignLights(timeSeconds, focusX, focusZ);
+    this.assignLights(timeSeconds, focusX, focusZ, extraFires);
   }
 
   /** Hayaleti gösterir (geçerli: yeşil, geçersiz: kırmızı) ya da gizler. */
@@ -185,11 +193,14 @@ export class StructureLayer {
   }
 
   /** Yanık ateşleri odağa yakınlığa göre sıralar; en yakın `lightPool` tanesine ışık verir, kalanları söndürür. */
-  private assignLights(time: number, focusX: number, focusZ: number): void {
+  private assignLights(
+    time: number,
+    focusX: number,
+    focusZ: number,
+    extraFires: ReadonlyArray<{ id: number; x: number; y: number; z: number }>,
+  ): void {
     const range = FIRE.lightRange ** 2;
-    const lit = this.structures
-      .all()
-      .filter(isLit)
+    const lit = [...this.structures.all().filter(isLit), ...extraFires]
       .map((s) => ({ s, d: (s.x - focusX) ** 2 + (s.z - focusZ) ** 2 }))
       .filter((e) => e.d <= range)
       .sort((a, b) => a.d - b.d || a.s.id - b.s.id)

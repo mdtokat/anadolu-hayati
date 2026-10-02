@@ -102,6 +102,28 @@ export interface GameEvents {
   'weapon:empty': { weapon: ItemId };
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici; bu bölüme yalnızca E ekler) ──
+  /** Bir eşkıya oyuncuyu fark edip saldırıya geçti (çatışma başına bir kez). */
+  'bandit:noticed': { id: number; name: string };
+  /** Bir eşkıya hasar aldı (`killed`: bu vuruşla öldü). */
+  'bandit:damaged': { id: number; amount: number; killed: boolean };
+  /** Ağır yaralı eşkıya teslim oldu ("Aman ağam, canımı bağışla"). */
+  'bandit:surrendered': { id: number; name: string };
+  /** Teslim olan eşkıya bağışlandı: silahını bıraktı (`weapon`), kaçıyor. */
+  'bandit:spared': { id: number; weapon: ItemId };
+  /** Ölü eşkıyanın üstü arandı (`items` envantere eklendi). */
+  'bandit:searched': { id: number; items: ItemStack[] };
+  /** Bir kampın bütün eşkıyaları öldü ya da kaçtı. */
+  'camp:cleared': { camp: number };
+  /** Kamp sandığından eşya alındı (`left`: sığmayıp sandıkta kalan yığın sayısı). */
+  'camp:looted': { camp: number; items: ItemStack[]; left: number };
+  /** Yankesici oyuncunun yanına sokuldu (bir kez: "Biri çok yaklaştı"). */
+  'pickpocket:near': { id: number };
+  /** Yankesici bir eşya çaldı ve kaçıyor. */
+  'pickpocket:stole': { id: number; item: ItemId; count: number };
+  /** Yankesici yakalandı ya da vuruldu: eşya geri geldi (`lost`: envantere sığmayıp kaybolan adet). */
+  'pickpocket:recovered': { id: number; item: ItemId; count: number; lost: number };
+  /** Yankesici kaçtı: eşya en yakın kampın sandığına düştü (kamp yoksa null). */
+  'pickpocket:escaped': { id: number; item: ItemId; count: number; camp: number | null };
 
   // ── Faz 11: F (11.8 drone; bu bölüme yalnızca F ekler) ──
 }

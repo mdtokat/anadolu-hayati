@@ -1,7 +1,9 @@
 import { PointLight, WebGLRenderer } from 'three';
 import {
+  BANDITS,
   COMBAT,
   COMBAT_HUD,
+  PEOPLE,
   AMBIENT,
   CLOCK,
   DISMANTLE,
@@ -157,7 +159,22 @@ import { GameLoop } from './GameLoop';
 import { Input } from './Input';
 import { DEV_TELEPORT_KEY, teleportSlotForKey } from './inputMapping';
 import { createRandom, seedFrom } from '../utils/random';
-import { TargetRegistry, creatureTargetProvider, playerTargetProvider } from '../combat/targets';
+import {
+  CREATURE_TARGET_PREFIX,
+  TargetRegistry,
+  creatureTargetProvider,
+  playerTargetProvider,
+} from '../combat/targets';
+import { BanditSystem, fitsAll } from '../bandits/BanditSystem';
+import { campSiteQuery, placeCamps } from '../bandits/camps';
+import { SURRENDER_TEXT, WARNING_QUESTION, banditWarning, campAnswer } from '../bandits/dialog';
+import { banditInView, inView } from '../bandits/interact';
+import { PickpocketSystem, type PickpocketWorld } from '../bandits/pickpocket';
+import { BanditLayer } from '../world/BanditLayer';
+import { CampColliders } from '../world/CampColliders';
+import { darknessOf } from '../creatures/perception';
+import type { ItemStack } from '../items/Inventory';
+import type { PersonRole } from '../people/roles';
 import { WEAPON_IDS, WeaponState } from '../items/weaponState';
 import { resolveContextAction } from './inputMapping';
 // ── Faz 11: D (11.5 silahlar) ──
@@ -678,6 +695,8 @@ export class Game {
         this.inventory.add(id, id === 'copper_pot' ? 1 : 2);
       }
     }
+    // U (Faz 11, E): önüne bir eşkıya çıkar; Shift+U en yakın kampın yanına ışınla.
+    if (event.code === 'KeyU') this.devBandit(event.shiftKey);
     if (event.code === 'KeyN' && this.world instanceof RegionWorld && this.world.peopleWorld) {
       const p = this.player.position;
       const yaw = this.playerCamera.yaw;
@@ -1123,8 +1142,9 @@ export class Game {
       hour: clock.hour,
       sunAltitudeDeg: clock.sun.altitudeDeg,
       isNight: clock.isNight,
-      fires: this.structureSystem.structures.all().filter(isLit),
-      structures: this.structureSystem.structures.all(),
+      // Faz 11 (E): yanık eşkıya kampı ateşlerinden de yırtıcılar çekinir; kamp çevresinde canlı doğmaz.
+      fires: [...this.structureSystem.structures.all().filter(isLit), ...this.campFires()],
+      structures: [...this.structureSystem.structures.all(), ...this.campFires()],
       terrain: this.world.creatureTerrain ?? null,
     };
   }
@@ -1147,7 +1167,12 @@ export class Game {
 
   /** Envanter ya da sandık paneli açık mı (oyun duraklı ama duraklatma menüsü çıkmaz)? */
   private get overlayOpen(): boolean {
-    return this.inventoryOpen || this.storageOpenId !== null || this.talkingTo !== null;
+    return (
+      this.inventoryOpen ||
+      this.storageOpenId !== null ||
+      this.talkingTo !== null ||
+      this.banditDialogId !== null
+    );
   }
 
   /** Panel kapanınca fare kilidini ister; kilit verilmezse duraklatma menüsü devreye girer. */
@@ -1213,6 +1238,8 @@ export class Game {
           label: 'Bu topraklara ne oldu?',
           select: () => role.lore[loreIndex++ % role.lore.length] as string,
         },
+        // Faz 11 (E): yolcular eşkıya ve yankesici uyarısı yapar.
+        ...this.banditWarningOption(person.role, feet),
       ];
       for (const offer of role.trades) {
         const gift = offer.give.length === 0;
@@ -1257,9 +1284,10 @@ export class Game {
 
   /** Konuşma panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
   private closeDialog(resume = true): void {
-    if (this.talkingTo === null) return;
-    this.talkingTo.talking = false;
+    if (this.talkingTo === null && this.banditDialogId === null) return;
+    if (this.talkingTo) this.talkingTo.talking = false;
     this.talkingTo = null;
+    this.banditDialogId = null; // Faz 11 (E): teslim olan eşkıyayla konuşma
     this.dialogPanel.hide();
     if (resume) this.resumeAfterOverlay();
   }
@@ -1490,7 +1518,7 @@ export class Game {
     this.world.setSun?.(this.survival.clock.sun);
     this.playerCamera.update(feet);
     this.playerModel.update(feet, this.playerCamera.yaw);
-    this.structureLayer.update(now / 1000, feet.x, feet.z);
+    this.structureLayer.update(now / 1000, feet.x, feet.z, this.campFires());
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
     this.updateTorch(now / 1000, feet);
     this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
@@ -2047,24 +2075,427 @@ export class Game {
   }
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici) ──
-  private setupBandits(): void {}
-  private updateBandits(_dt: number): void {
-    if (!this.banditsEnabled) return;
+  /** Eşkıya kampları (yerleşim verisi olan gerçek dünyada; yoksa null). */
+  private bandits: BanditSystem | null = null;
+  /** Şehirlerde yankesiciler. */
+  private readonly pickpockets = new PickpocketSystem(this.events);
+  private pickpocketWorld: PickpocketWorld | null = null;
+  private banditLayer: BanditLayer | null = null;
+  private campColliders: CampColliders | null = null;
+  /** Teslim olan eşkıyayla konuşma paneli açıkken onun kimliği. */
+  private banditDialogId: number | null = null;
+  /** Bakılan eşkıya etkileşimi (teslim, üst arama, kamp sandığı) ve basılı tutma ilerlemesi (sn). */
+  private banditTarget: {
+    kind: 'surrender' | 'corpse' | 'chest';
+    id: number;
+    name: string;
+    progress: number;
+    status: 'ready' | 'full' | 'empty';
+  } | null = null;
+  /** Kamp ateşlerinin zemin yüksekliği (kamp kimliğine göre; bir kez hesaplanır). */
+  private readonly campFireY = new Map<number, number>();
+
+  private setupBandits(): void {
+    const world = this.world;
+    const map = world.settlementMap ?? null;
+    const terrain = world.creatureTerrain;
+    if (!(world instanceof RegionWorld) || !map || !terrain) return;
+    const heightAt = (x: number, z: number): number => world.terrain.heightAt(x, z);
+    const t0 = performance.now();
+    const camps = placeCamps(campSiteQuery(terrain, map));
+    if (import.meta.env.DEV) {
+      console.info(`Eşkıya kampları: ${camps.length} (${(performance.now() - t0).toFixed(0)} ms)`);
+    }
+    const bandits = new BanditSystem(this.events, camps, {
+      heightAt,
+      slopeDegAt: (x, z) => terrain.slopeDegAt(x, z),
+      isSea: (x, z) => terrain.isSea(x, z),
+    });
+    this.bandits = bandits;
+    // Kamp alanında ağaç/çalı/kaya çizilmez (çadırlar ağaçların içinde kalmasın).
+    const clearance = BANDITS.campRadius + 2;
+    world.addPropBlocker((x, z, r) =>
+      camps.some(
+        (c) => Math.abs(c.x - x) < clearance + r && Math.hypot(c.x - x, c.z - z) < clearance + r,
+      ),
+    );
+    const people = world.peopleWorld;
+    this.pickpocketWorld = people
+      ? {
+          heightAt,
+          walkable: (x, z) =>
+            people.elevationAt(x, z) > 1 &&
+            people.slopeDegAt(x, z) <= PEOPLE.maxSlopeDeg &&
+            !people.blocked(x, z),
+          townRankAt: (x, z) => people.settlementRankAt(x, z),
+        }
+      : null;
+    this.banditLayer = new BanditLayer(heightAt);
+    world.scene.add(this.banditLayer.group);
+    this.campColliders = new CampColliders(this.physics, heightAt);
+    this.saveSections.bandits = {
+      toSave: () => ({ ...bandits.toSave(), stolen: this.pickpockets.toSave() }),
+      loadSave: (save) => {
+        bandits.loadSave(save);
+        this.pickpockets.loadSave(save.stolen);
+        this.banditTarget = null;
+      },
+    };
+    const toast = (text: string): void => this.hud.notify(text, INTERACT.toastMs);
+    const names = (items: readonly ItemStack[]): string =>
+      items.map((s) => `${s.count} ${ITEMS[s.id].name}`).join(', ');
+    this.offs.push(
+      this.targets.register(bandits),
+      this.targets.register(this.pickpockets),
+      this.events.on('noise:made', ({ x, z, radius }) => bandits.hearNoise(x, z, radius)),
+      this.events.on('bandit:noticed', ({ name }) => {
+        const now = performance.now();
+        if (now - this.lastDangerToast < COMBAT_HUD.dangerToastCooldownMs) return;
+        this.lastDangerToast = now;
+        toast(`Tehlike: Eşkıya! (${name})`);
+      }),
+      this.events.on('bandit:damaged', ({ killed }) =>
+        this.hud.showHitMarker(hitMarkerKind(killed)),
+      ),
+      this.events.on('bandit:surrendered', ({ name }) =>
+        toast(`${name}: “Aman ağam, canımı bağışla!” (E: konuş)`),
+      ),
+      this.events.on('bandit:searched', ({ items }) =>
+        toast(
+          items.length > 0 ? `Eşkıyanın üstünden: ${names(items)}` : 'Üstünden bir şey çıkmadı',
+        ),
+      ),
+      this.events.on('camp:cleared', () =>
+        this.hud.showBanner('Eşkıya kampı temizlendi', PROVINCE_NOTICE.bannerMs),
+      ),
+      this.events.on('camp:looted', ({ items, left }) =>
+        toast(
+          items.length === 0
+            ? 'Kamp sandığından bir şey alamadın (envanter dolu)'
+            : `Kamp sandığından: ${names(items)}${left > 0 ? ' · kalanı sığmadı' : ''}`,
+        ),
+      ),
+      this.events.on('pickpocket:near', () => toast('Biri çok yaklaştı… cebine dikkat!')),
+      this.events.on('pickpocket:stole', ({ item, count }) => {
+        toast(`Yankesici! ${count} ${ITEMS[item].name} çalındı — peşine düş!`);
+        this.inventoryPanel.refresh();
+      }),
+      this.events.on('pickpocket:recovered', ({ item, count, lost }) => {
+        toast(
+          `Yankesiciden geri aldın: ${count} ${ITEMS[item].name}${lost > 0 ? ` (${lost} tanesi sığmadı)` : ''}`,
+        );
+        this.inventoryPanel.refresh();
+      }),
+      this.events.on('pickpocket:escaped', ({ item, camp }) =>
+        toast(
+          `Yankesici kaçtı: ${ITEMS[item].name}${camp === null ? ' gitti' : ' bir eşkıya kampına götürüldü'}`,
+        ),
+      ),
+      () => {
+        this.banditLayer?.dispose();
+        this.campColliders?.dispose();
+      },
+    );
   }
-  private drawBandits(_time: number, _feet: { x: number; y: number; z: number }): void {}
+
+  private updateBandits(dt: number): void {
+    const bandits = this.bandits;
+    if (!bandits) return;
+    if (bandits.enabled !== this.banditsEnabled) {
+      bandits.setEnabled(this.banditsEnabled);
+      this.pickpockets.setEnabled(this.banditsEnabled);
+    }
+    const feet = this.player.position;
+    const clock = this.survival.clock;
+    const v = this.player.currentVelocity;
+    const speed = Math.hypot(v.x, v.z);
+    const alive = this.survival.alive;
+    bandits.update(dt, {
+      player: {
+        x: feet.x,
+        y: feet.y,
+        z: feet.z,
+        activity: speed > PLAYER.walkSpeed + 0.5 ? 'run' : speed > 0.3 ? 'walk' : 'rest',
+        alive,
+        sanctuary: this.inSanctuary,
+      },
+      hour: clock.hour,
+      darkness: darknessOf(clock.sun.altitudeDeg),
+      now: (clock.day * 24 + clock.hour) * 3600,
+      targets: this.targets,
+      prey: (x, z, r) =>
+        this.creatures
+          .near(x, z, r)
+          .filter((c) => c.kind === 'roe_deer' && !c.dead)
+          .map((c) => ({ id: `${CREATURE_TARGET_PREFIX}${c.id}`, x: c.x, z: c.z })),
+    });
+    if (this.pickpocketWorld) {
+      const ctx = {
+        player: { x: feet.x, z: feet.z, alive, sanctuary: this.inSanctuary },
+        inventory: this.inventory,
+        held: this.hotbar.selectedItem,
+        deposit: (items: readonly ItemStack[], x: number, z: number) =>
+          bandits.depositToNearestChest(items, x, z),
+      };
+      this.pickpockets.bind(ctx);
+      this.pickpockets.update(dt, ctx, this.pickpocketWorld);
+    }
+  }
+
+  private drawBandits(time: number, feet: { x: number; y: number; z: number }): void {
+    const bandits = this.bandits;
+    const layer = this.banditLayer;
+    if (!bandits || !layer) return;
+    const on = this.banditsEnabled;
+    layer.syncPeople(on ? bandits.views() : [], on ? this.pickpockets.list() : []);
+    const near = (radius: number) =>
+      on ? bandits.camps.filter((c) => Math.hypot(c.x - feet.x, c.z - feet.z) <= radius) : [];
+    layer.syncCamps(
+      near(BANDITS.drawRadius).map((camp) => ({
+        camp,
+        layout: bandits.layoutOf(camp.id)!,
+        lit: !bandits.isCleared(camp.id),
+      })),
+      time,
+    );
+    this.campColliders?.sync(
+      near(BANDITS.colliderRadius).map((camp) => ({
+        id: camp.id,
+        layout: bandits.layoutOf(camp.id)!,
+      })),
+    );
+  }
+
+  /** Yanık (temizlenmemiş) kamp ateşleri: ışık havuzu ve canlıların ateşten çekinmesi için (kimlik negatif). */
+  private campFires(): Array<{ id: number; x: number; y: number; z: number }> {
+    const bandits = this.bandits;
+    if (!bandits || !this.banditsEnabled) return [];
+    const feet = this.player.position;
+    const out: Array<{ id: number; x: number; y: number; z: number }> = [];
+    for (const camp of bandits.camps) {
+      if (bandits.isCleared(camp.id)) continue;
+      if (Math.hypot(camp.x - feet.x, camp.z - feet.z) > BANDITS.drawRadius) continue;
+      let y = this.campFireY.get(camp.id);
+      if (y === undefined) {
+        y = this.world.terrain.heightAt(camp.x, camp.z);
+        this.campFireY.set(camp.id, y);
+      }
+      out.push({ id: -(camp.id + 1), x: camp.x, y, z: camp.z });
+    }
+    return out;
+  }
+
   /**
    * `E` sırasının sonu (kapıdan sonra, sudan önce). `free`: önceki hiçbir eylem `E`'yi almadı; `pressed` basış anı,
    * `held` basılı tutma. `E`'yi aldıysa true (su içme engellenir).
    */
-  private interactBandits(_free: boolean, _pressed: boolean, _held: boolean, _dt: number): boolean {
+  private interactBandits(free: boolean, pressed: boolean, held: boolean, dt: number): boolean {
+    const bandits = this.bandits;
+    const previous = this.banditTarget;
+    this.banditTarget = null;
+    if (!free || !bandits || !this.banditsEnabled || !this.survival.alive) return false;
+    const feet = this.player.position;
+    const pose = { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw };
+    const keep = (kind: 'surrender' | 'corpse' | 'chest', id: number): number =>
+      previous && previous.kind === kind && previous.id === id && held ? previous.progress + dt : 0;
+
+    const found = banditInView(bandits.views(), pose);
+    if (found?.kind === 'surrender') {
+      this.banditTarget = {
+        kind: 'surrender',
+        id: found.view.id,
+        name: found.view.name,
+        progress: 0,
+        status: 'ready',
+      };
+      if (pressed) this.openBanditDialog(found.view.id, found.view.name);
+      return true;
+    }
+    if (found?.kind === 'corpse') {
+      const loot = bandits.lootOf(found.view.id);
+      const status = fitsAll(this.inventory, loot) ? 'ready' : 'full';
+      const progress = status === 'ready' ? keep('corpse', found.view.id) : 0;
+      this.banditTarget = {
+        kind: 'corpse',
+        id: found.view.id,
+        name: found.view.name,
+        progress,
+        status,
+      };
+      if (progress >= BANDITS.searchSeconds) {
+        bandits.search(found.view.id, this.inventory);
+        this.inventoryPanel.refresh();
+        this.banditTarget = null;
+      }
+      return held;
+    }
+    const camp = bandits.nearestCamp(feet.x, feet.z);
+    const layout = camp ? bandits.layoutOf(camp.id) : null;
+    if (
+      camp &&
+      layout &&
+      inView(pose, layout.chest.x, layout.chest.z, BANDITS.chestReach) !== null
+    ) {
+      const empty = bandits.chestOf(camp.id).length === 0;
+      const progress = empty ? 0 : keep('chest', camp.id);
+      this.banditTarget = {
+        kind: 'chest',
+        id: camp.id,
+        name: '',
+        progress,
+        status: empty ? 'empty' : 'ready',
+      };
+      if (progress >= BANDITS.chestSeconds) {
+        bandits.takeFromChest(camp.id, this.inventory);
+        this.inventoryPanel.refresh();
+        this.banditTarget = null;
+      }
+      return held;
+    }
     return false;
   }
+
   /** Eşkıya etkileşimi ipucu ve basılı tutma ilerlemesi (yoksa null). */
   private promptBandits(): { text: string; progress: number | null } | null {
-    return null;
+    const t = this.banditTarget;
+    if (!t) return null;
+    if (t.kind === 'surrender')
+      return { text: `E: ${t.name} ile konuş (teslim oldu)`, progress: null };
+    if (t.kind === 'corpse') {
+      if (t.status === 'full')
+        return { text: 'Envanter dolu: eşkıyanın üstündekiler sığmıyor', progress: null };
+      return {
+        text: 'E (basılı tut): Eşkıyanın üstünü ara',
+        progress: t.progress > 0 ? t.progress / BANDITS.searchSeconds : null,
+      };
+    }
+    if (t.status === 'empty') return { text: 'Kamp sandığı boş', progress: null };
+    return {
+      text: 'E (basılı tut): Kamp sandığını boşalt',
+      progress: t.progress > 0 ? t.progress / BANDITS.chestSeconds : null,
+    };
   }
-  /** Canlıya isabet etmeyen yakın dövüş salınışı (`weapon`: kullanılan silah; bekleme/enerji işlendi). */
-  private meleeBandits(_weapon: string): void {}
+
+  /** Canlıya isabet etmeyen yakın dövüş salınışı: bakılan eşkıya/yankesiciye vurur (`COMBAT.weapons` hasarı). */
+  private meleeBandits(weapon: string): void {
+    const stats = COMBAT.weapons[weapon as keyof typeof COMBAT.weapons];
+    if (!stats || !this.bandits || !this.banditsEnabled) return;
+    const aim = this.meleeAim();
+    const fx = -Math.sin(aim.yaw);
+    const fz = -Math.cos(aim.yaw);
+    let best: { id: string; bearing: number } | null = null;
+    for (const t of this.targets.targetsNear(aim.x, aim.z, stats.reach + 2)) {
+      if (t.kind !== 'bandit') continue;
+      const dx = t.x - aim.x;
+      const dz = t.z - aim.z;
+      const d = Math.hypot(dx, dz);
+      if (d - t.radius > stats.reach || Math.abs(t.y - aim.y) > COMBAT.aim.maxVerticalGap) continue;
+      const bearing =
+        d < 1e-6
+          ? 0
+          : (Math.acos(Math.min(Math.max((dx * fx + dz * fz) / d, -1), 1)) * 180) / Math.PI;
+      if (bearing > COMBAT.aim.coneDeg) continue;
+      if (!best || bearing < best.bearing) best = { id: t.id, bearing };
+    }
+    if (best) {
+      this.targets.applyHit(best.id, stats.damage, {
+        x: aim.x,
+        y: aim.y,
+        z: aim.z,
+        by: 'player',
+        weapon,
+      });
+    }
+  }
+
+  /** Teslim olan eşkıyayla konuşma: bağışla (silahını bırakır, kaçar), kampı sor, sus. Oyun panel açıkken donar. */
+  private openBanditDialog(id: number, name: string): void {
+    const bandits = this.bandits;
+    if (!bandits || this.overlayOpen || !this.survival.alive || this.loop.paused) return;
+    this.banditDialogId = id;
+    this.placement.cancel();
+    const feet = { x: this.player.position.x, z: this.player.position.z };
+    const options = (): DialogOption[] => [
+      {
+        label: SURRENDER_TEXT.spare,
+        closes: true,
+        select: () => {
+          const weapon = bandits.spare(id);
+          if (weapon) {
+            const lost = this.inventory.add(weapon, 1);
+            if (lost > 0) bandits.depositToNearestChest([{ id: weapon, count: 1 }], feet.x, feet.z);
+            this.hud.notify(
+              lost > 0
+                ? `${name} silahını bıraktı; taşıyamadığın için en yakın kamp sandığına kondu`
+                : `${name} silahını bıraktı: ${ITEMS[weapon].name}`,
+              INTERACT.toastMs,
+            );
+            this.inventoryPanel.refresh();
+          }
+          return SURRENDER_TEXT.spared;
+        },
+      },
+      {
+        label: SURRENDER_TEXT.campQuestion,
+        select: () =>
+          campAnswer(
+            feet,
+            bandits.nearestCamp(feet.x, feet.z, (c) => !bandits.isCleared(c.id)),
+          ),
+      },
+      {
+        label: SURRENDER_TEXT.silent,
+        kind: 'farewell',
+        closes: true,
+        select: () => SURRENDER_TEXT.silentReply,
+      },
+    ];
+    this.dialogPanel.show({
+      title: name,
+      subtitle: SURRENDER_TEXT.subtitle,
+      opening: SURRENDER_TEXT.plea,
+      options,
+    });
+    this.input.exitLock();
+  }
+
+  /** Yolcuların eşkıya uyarısı (konuşma seçeneği); eşkıyalar kapalıysa yok. */
+  private banditWarningOption(role: PersonRole, feet: { x: number; z: number }): DialogOption[] {
+    const bandits = this.bandits;
+    if (!bandits || !this.banditsEnabled || role === 'dervis') return [];
+    return [
+      {
+        label: WARNING_QUESTION,
+        select: () =>
+          banditWarning(
+            ROLES[role].address,
+            feet,
+            bandits.nearestCamp(feet.x, feet.z, (c) => !bandits.isCleared(c.id)),
+          ),
+      },
+    ];
+  }
+
+  /** Dev (`U`): önüne rastgele silahlı bir eşkıya çıkarır; Shift+U en yakın kampın yol tarafına ışınlar. */
+  private devBandit(teleport: boolean): void {
+    const bandits = this.bandits;
+    if (!bandits) return;
+    const feet = this.player.position;
+    if (teleport) {
+      const camp = bandits.nearestCamp(feet.x, feet.z);
+      if (!camp) return;
+      const x = camp.x - Math.sin(camp.yaw) * 45;
+      const z = camp.z - Math.cos(camp.yaw) * 45;
+      this.world.prepare(x, z);
+      this.player.teleport({ x, y: this.world.terrain.heightAt(x, z) + 0.2, z });
+      console.info(`Kampa ışınlanma: ${camp.id}`);
+      return;
+    }
+    const weapons = ['pala', 'club', 'pistol', 'shotgun', 'rifle'] as const;
+    const weapon = weapons[Math.floor(Math.random() * weapons.length)] ?? 'pala';
+    const yaw = this.playerCamera.yaw;
+    bandits.spawnAt(feet.x - Math.sin(yaw) * 15, feet.z - Math.cos(yaw) * 15, weapon);
+  }
 
   // ── Faz 11: F (11.8 drone) ──
   private setupDrone(): void {}
