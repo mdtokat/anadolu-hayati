@@ -431,6 +431,35 @@ export const MAX_BURY: Readonly<Record<BuildingKind, number>> = {
   factory: 1.6,
 };
 
+/**
+ * Görsel taşma payı (oyun m; yerel x ve z yönünde, iki yana simetrik): saçak, revak, kule, baca gibi ayak izinin
+ * (`width` × `depth`) dışına taşan geometri. Yerleşim düzeni yapıları bu payla aralar (saçaklar birbirine girmesin),
+ * nesne eleme ağaçları bu paya göre gizler. Geometri değişirse güncellenmeli (`tests/buildingGeometry` denetler).
+ */
+export const BUILDING_OVERHANG: Readonly<Record<BuildingKind, { x: number; z: number }>> = {
+  house: { x: 0.45, z: 0.45 },
+  konak: { x: 1.1, z: 1.1 },
+  apartment: { x: 0.1, z: 1.2 },
+  lojman: { x: 0.45, z: 0.45 },
+  serender: { x: 0.4, z: 0.4 },
+  shop_row: { x: 0.35, z: 0.3 },
+  kahvehane: { x: 0.45, z: 1.7 },
+  government: { x: 0.5, z: 2.6 },
+  mosque_grand: { x: 0.35, z: 0.15 },
+  mosque: { x: 0.15, z: 0.1 },
+  mosque_wooden: { x: 0.05, z: 0.7 },
+  tomb: { x: 0.2, z: 0.2 },
+  cemetery: { x: 0.2, z: 0.2 },
+  fountain: { x: 0.25, z: 0.25 },
+  han: { x: 0.35, z: 0.35 },
+  hamam: { x: 0.35, z: 0.35 },
+  clock_tower: { x: 0.55, z: 0.55 },
+  castle: { x: 2.5, z: 2.5 },
+  monument: { x: 0, z: 0 },
+  mine_tower: { x: 0.2, z: 0 },
+  factory: { x: 5.25, z: 0.15 },
+};
+
 /** Hükümet konağının bayrak direği (yerel konum, yükseklik) ve bayrak ölçüleri (2:3). */
 export const GOVERNMENT_FLAG = {
   poleX: SHAPE_DIMS.government.w / 2 - 1.5,

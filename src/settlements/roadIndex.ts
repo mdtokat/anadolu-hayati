@@ -25,33 +25,37 @@ interface Segment {
  * Yerleşim düzeni (parsel eleme, sokak yönü), nesne eleme (yolda ağaç olmasın) ve insanların yürüyüşü kullanır.
  */
 export class RoadIndex {
-  private readonly cells = new Map<string, Segment[]>();
-  readonly segmentCount: number;
+  private readonly cells = new Map<number, Segment[]>();
+  private count = 0;
 
   constructor(
     roads: readonly RoadData[],
     private readonly cellSize: number = ROADS.indexCellSize,
   ) {
-    let count = 0;
-    for (const road of roads) {
-      const xz = road.xz;
-      for (let i = 0; i + 3 < xz.length; i += 2) {
-        const seg: Segment = {
-          ax: xz[i] as number,
-          az: xz[i + 1] as number,
-          bx: xz[i + 2] as number,
-          bz: xz[i + 3] as number,
-          cls: road.cls,
-        };
-        this.insert(seg);
-        count++;
-      }
-    }
-    this.segmentCount = count;
+    for (const road of roads) this.add(road);
   }
 
-  private key(cx: number, cz: number): string {
-    return `${cx},${cz}`;
+  get segmentCount(): number {
+    return this.count;
+  }
+
+  /** Yolu dizine ekler (yerleşim düzeni, önceki yerleşimlerin sokaklarını sonrakilere bildirmek için kullanır). */
+  add(road: RoadData): void {
+    const xz = road.xz;
+    for (let i = 0; i + 3 < xz.length; i += 2) {
+      this.insert({
+        ax: xz[i] as number,
+        az: xz[i + 1] as number,
+        bx: xz[i + 2] as number,
+        bz: xz[i + 3] as number,
+        cls: road.cls,
+      });
+      this.count++;
+    }
+  }
+
+  private key(cx: number, cz: number): number {
+    return (cx + 32768) * 65536 + (cz + 32768);
   }
 
   private insert(seg: Segment): void {
@@ -79,32 +83,67 @@ export class RoadIndex {
     const c1x = Math.floor((x + radius) / this.cellSize);
     const c0z = Math.floor((z - radius) / this.cellSize);
     const c1z = Math.floor((z + radius) / this.cellSize);
-    let best: RoadHit | null = null;
+    const r2 = radius * radius;
+    let best: Segment | null = null;
+    let bestEdge = Infinity;
+    let bestDistance = 0;
     for (let cx = c0x; cx <= c1x; cx++) {
       for (let cz = c0z; cz <= c1z; cz++) {
         const list = this.cells.get(this.key(cx, cz));
         if (!list) continue;
         for (const s of list) {
-          const dx = s.bx - s.ax;
-          const dz = s.bz - s.az;
-          const len2 = dx * dx + dz * dz;
-          const t =
-            len2 > 0 ? Math.max(0, Math.min(1, ((x - s.ax) * dx + (z - s.az) * dz) / len2)) : 0;
-          const distance = Math.hypot(x - (s.ax + t * dx), z - (s.az + t * dz));
-          if (distance > radius) continue;
-          const edgeDistance = distance - (ROADS.width[s.cls] as number) / 2;
-          if (best === null || edgeDistance < best.edgeDistance) {
-            best = { distance, edgeDistance, cls: s.cls, angle: Math.atan2(dz, dx) };
+          const d2 = distance2(s, x, z);
+          if (d2 > r2) continue;
+          const distance = Math.sqrt(d2);
+          const edge = distance - (ROADS.width[s.cls] as number) / 2;
+          if (edge < bestEdge) {
+            best = s;
+            bestEdge = edge;
+            bestDistance = distance;
           }
         }
       }
     }
-    return best;
+    if (!best) return null;
+    return {
+      distance: bestDistance,
+      edgeDistance: bestEdge,
+      cls: best.cls,
+      angle: Math.atan2(best.bz - best.az, best.bx - best.ax),
+    };
   }
 
-  /** (x, z) bir yolun üstünde mi (kenara `margin` pay dahil)? */
+  /** (x, z) bir yolun üstünde mi (kenara `margin` pay dahil)? İlk değen parçada döner. */
   onRoad(x: number, z: number, margin = 0): boolean {
-    const hit = this.nearest(x, z, (ROADS.width[0] as number) / 2 + margin + 0.01);
-    return hit !== null && hit.edgeDistance <= margin;
+    const radius = MAX_HALF + margin;
+    const c0x = Math.floor((x - radius) / this.cellSize);
+    const c1x = Math.floor((x + radius) / this.cellSize);
+    const c0z = Math.floor((z - radius) / this.cellSize);
+    const c1z = Math.floor((z + radius) / this.cellSize);
+    for (let cx = c0x; cx <= c1x; cx++) {
+      for (let cz = c0z; cz <= c1z; cz++) {
+        const list = this.cells.get(this.key(cx, cz));
+        if (!list) continue;
+        for (const s of list) {
+          const reach = (ROADS.width[s.cls] as number) / 2 + margin;
+          if (distance2(s, x, z) <= reach * reach) return true;
+        }
+      }
+    }
+    return false;
   }
+}
+
+/** En geniş yolun yarı genişliği (oyun m). */
+const MAX_HALF = Math.max(...ROADS.width) / 2;
+
+/** Noktanın parçaya en kısa uzaklığının karesi. */
+function distance2(s: Segment, x: number, z: number): number {
+  const dx = s.bx - s.ax;
+  const dz = s.bz - s.az;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - s.ax) * dx + (z - s.az) * dz) / len2)) : 0;
+  const px = x - (s.ax + t * dx);
+  const pz = z - (s.az + t * dz);
+  return px * px + pz * pz;
 }

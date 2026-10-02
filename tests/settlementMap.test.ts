@@ -1,15 +1,21 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FRESH_WATER, SETTLEMENT_LAYOUT } from '../src/config';
 import type { RegionData } from '../src/data/region';
-import { BUILDING_SHAPES, MAX_BURY, isMosque } from '../src/settlements/kinds';
-import { worldToBuildingLocal, SettlementMap } from '../src/settlements/SettlementMap';
-import type { LayoutTerrain } from '../src/settlements/layout';
+import { BUILDING_OVERHANG, BUILDING_SHAPES, MAX_BURY, isMosque } from '../src/settlements/kinds';
+import { boxCorners, quadsOverlap, type OrientedBox } from '../src/settlements/footprints';
+import {
+  buildingLocalToWorld,
+  worldToBuildingLocal,
+  SettlementMap,
+} from '../src/settlements/SettlementMap';
+import type { Building, LayoutTerrain } from '../src/settlements/layout';
+import type { NearestWater } from '../src/settlements/roadRouting';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { FreshWaterIndex } from '../src/world/waterIndex';
 import { loadRealWorld } from './helpers/realRegion';
 
 let world: RegionData;
-let terrain: LayoutTerrain;
+let terrain: LayoutTerrain & { nearestWater?: NearestWater };
 let map: SettlementMap;
 let buildMs = 0;
 
@@ -23,6 +29,7 @@ beforeAll(async () => {
     heightAt: (x, z) => source.heightAt(x, z),
     elevationAt: (x, z) => source.elevationAt(x, z),
     isWater: (x, z, c) => water?.nearest(x, z, c) != null,
+    nearestWater: (x, z, r) => water?.nearest(x, z, r) ?? null,
   };
   const t0 = performance.now();
   map = new SettlementMap(world.settlements!, terrain);
@@ -53,7 +60,8 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     }
     for (const s of map.settlements) {
       expect(s.buildings.length).toBeLessThanOrEqual(SETTLEMENT_LAYOUT.maxBuildings[s.data.rank]);
-      if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(25);
+      // Zonguldak dik kıyı kasabasıdır ve büyütülmüş ayak izi Kozlu'yla örtüşür: üst üste binme yasaklanınca ~23 yapı.
+      if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(20);
     }
     // ~1500 yapı, yalnızca kara alanının küçük bir kesiminde.
     expect(map.buildings.length).toBeGreaterThan(800);
@@ -113,11 +121,75 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     }
   });
 
+  it('görsel ayak izleri (saçak, merdiven dahil) yerleşimler arasında da çakışmaz; yapılar akarsuya değmez', () => {
+    const boxOf = (b: Building, extra = 0): OrientedBox => ({
+      x: b.x,
+      z: b.z,
+      hx: BUILDING_SHAPES[b.kind].width / 2 + BUILDING_OVERHANG[b.kind].x + extra,
+      hz: BUILDING_SHAPES[b.kind].depth / 2 + BUILDING_OVERHANG[b.kind].z + extra,
+      yaw: b.yaw,
+    });
+    let pairs = 0;
+    for (const a of map.buildings) {
+      const ca = boxCorners(boxOf(a));
+      for (const b of map.buildingsNear(a.x, a.z, 70)) {
+        if (b.id <= a.id || a.kind === 'fountain' || b.kind === 'fountain') continue;
+        pairs++;
+        expect(quadsOverlap(ca, boxCorners(boxOf(b))), `${a.id}/${b.id}`).toBe(false);
+      }
+      // Ayak izi köşeleri ve merkezi akarsu/göl dışında (nehir yarı genişliği + pay).
+      const shape = BUILDING_SHAPES[a.kind];
+      for (const [lx, lz] of [
+        [0, 0],
+        [-0.5, -0.5],
+        [0.5, -0.5],
+        [0.5, 0.5],
+        [-0.5, 0.5],
+      ] as const) {
+        const p = buildingLocalToWorld(a, lx * shape.width, lz * shape.depth);
+        expect(terrain.isWater(p.x, p.z, FRESH_WATER.lineWidth.river / 2)).toBe(false);
+      }
+    }
+    expect(pairs).toBeGreaterThan(1000);
+    // Merdivenler başka yapıya girmez ve ayrılan yeri aşmaz.
+    for (const stair of map.stairs) {
+      const owner = map.building(stair.building)!;
+      expect(stair.run).toBeLessThanOrEqual(owner.stairRun + 1e-6);
+      const shape = BUILDING_SHAPES[owner.kind];
+      const box: OrientedBox = {
+        ...buildingLocalToWorld(owner, shape.door.x, shape.depth / 2 + stair.run / 2),
+        hx: stair.width / 2,
+        hz: stair.run / 2,
+        yaw: owner.yaw,
+      };
+      for (const b of map.buildingsNear(stair.x, stair.z, 50)) {
+        if (b.id === owner.id) continue;
+        expect(
+          quadsOverlap(boxCorners(box), boxCorners(boxOf(b))),
+          `merdiven ${owner.id}→${b.id}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('yollar ve sokaklar yapıların ayak izinden geçmez', () => {
+    for (const b of map.buildings) {
+      const shape = BUILDING_SHAPES[b.kind];
+      for (let u = -0.4; u <= 0.41; u += 0.2) {
+        for (let v = -0.4; v <= 0.41; v += 0.2) {
+          const p = buildingLocalToWorld(b, u * shape.width, v * shape.depth);
+          expect(map.roads.onRoad(p.x, p.z), `${b.kind} ${b.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
   it('deterministik ve hızlı (açılışta < 2 sn)', () => {
     const again = new SettlementMap(world.settlements!, terrain);
     expect(again.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`)).toEqual(
       map.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`),
     );
+    if (process.env.SETTLEMENT_REPORT) console.log(`düzen ${buildMs.toFixed(0)} ms`);
     expect(buildMs).toBeLessThan(2000);
     const ids = new Set(map.buildings.map((b) => b.id));
     expect(ids.size).toBe(map.buildings.length);
@@ -127,6 +199,13 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     const zonguldak = map.settlements.find((s) => s.data.name === 'Zonguldak')!;
     const b = zonguldak.buildings.find((v) => v.kind === 'apartment' || v.kind === 'house')!;
     expect(map.blocksProp(b.x, b.z)).toBe(true);
+    // Ağaç tacı (yarıçap) saçağa değiyorsa ağaç gizlenir; küçük taş aynı yerde kalır.
+    const side = BUILDING_SHAPES[b.kind].width / 2 + BUILDING_OVERHANG[b.kind].x + 3;
+    const p = buildingLocalToWorld(b, side, 0);
+    if (!map.roads.onRoad(p.x, p.z, 6) && map.footprints.contains(p.x, p.z, 0.3) === false) {
+      expect(map.blocksProp(p.x, p.z, 5)).toBe(true);
+      expect(map.blocksProp(p.x, p.z, 0.3)).toBe(false);
+    }
     expect(map.buildingAt(b.x, b.z)?.id).toBe(b.id);
     expect(map.roadLines.length).toBeGreaterThan(world.settlements!.roads.length * 0.5);
     // Yerleşim sorgusu

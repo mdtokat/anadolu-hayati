@@ -283,7 +283,7 @@ Elle doğrulanacak (bkz. [docs/faz-8-elle-dogrulama.md](docs/faz-8-elle-dogrulam
 
 Görevler:
 - [x] **10.0** Veri hattı: `tools/fetch_settlements.py` (Overture yollar, idari birimler, yerler, bina noktaları; HTTP Range), `tools/build_settlements.py` + `tools/settlements.yaml` (rütbe, üslup, elle seçilmiş simge yapılar) → `settlements.json` (887 KB, world.json'da bayt + sha256) _(Python testleri: `tools/tests/test_settlements.py`)_
-- [x] **10.1** Yükleyici (`parseSettlements`, isteğe bağlı), yol şeritleri (`RoadMesh`, 1 km gruplar; kent içinde il yolları kesilip sokak ızgarası çizilir), yapı/yol üstündeki ağaç-kayaların gizlenmesi (nesne kimlikleri değişmez)
+- [x] **10.1** Yükleyici (`parseSettlements`, isteğe bağlı), yol şeritleri (`RoadMesh`, 1 km gruplar; 10.11'de arazi kaplamasına taşındı; kent içinde il yolları kesilip sokak ızgarası çizilir), yapı/yol üstündeki ağaç-kayaların gizlenmesi (nesne kimlikleri değişmez)
 - [x] **10.2** Yerleşim düzeni (`settlements/layout.ts`, saf, seed'li): ayak izi büyütmesi, parsel ızgarası, yamaca gömülü konutlar (kapı vadiye), kıbleye dönük camiler taş set üstünde, simge yapılar gerçek konumlarına yakın, üsluba göre konut karışımı (kasaba, maden, sanayi, Osmanlı, köy)
 - [x] **10.3** Yapılar: 21 arketip (`settlements/kinds.ts`, `world/buildingGeometry.ts`), örnekli çizim + uzak kademe (`SettlementLayer`), taş temel ve kapı merdivenleri, hükümet konağında Türk bayrağı, Rapier collider'ları (`SettlementColliders`)
 - [x] **10.4** Terk edilmişlik: yıkık (çatısız, yıkıntılı) varyantlar, kararmış/tahtalanmış pencereler, inik kepenkler, solgun tonlar
@@ -293,9 +293,10 @@ Görevler:
 - [x] **10.8** Kültür: helal/haram (yalnızca karaca eti; yaban domuzu kesilmez; kurt/ayıdan deri ve kemik), "Bismillah" kesim ipucu, namaz vakitleri (Diyanet açıları) ve vakit bildirimi, Miladî + Hicrî tarih, pusulada kıble, Selçuklu yıldızı bordürü, yerleşim/kişi ipuçları
 - [x] **10.9** Ölçüm ve belgeler: [docs/faz-10-yerlesim-olcumler.md](docs/faz-10-yerlesim-olcumler.md), `CLAUDE.md`, README, elle doğrulama kılavuzu bölüm 12
 - [x] **10.10** Faz 10 sonrası ek talimat (kullanıcı): **modüler inşa** (taban, duvar, kapılı/pencereli duvar, kapı, çatı ayrı üretilir, sahada ızgaraya monte edilir; çok katlı; açılıp kapanan kapı; kapalı oda = kulübe etkisi), **test modu** (Ayarlar'dan aç/kapa: uçma, sınırsız malzeme; geçici) ve **şehir merkezi başlangıcı** (yeni oyun ve yeniden doğma 5 il + 30 ilçe merkezinden rastgele; pilot il kısıtı bu seçimde kalktı). Ayrıntı `CLAUDE.md` "Faz 10 sonrası"; elle doğrulama kılavuzu bölüm 13
+- [x] **10.11** Grafik düzenlemesi (kullanıcı talimatı: "sular, yollar, dağlar, ağaçlar, taşlar, yapılar üst üste, iç içe karmakarışık"): yollar, akarsular, kıyı bantları ve il sınırları arazi shader'ında uzaklık alanı dokusundan boyanır (`world/terrainOverlay.ts`; havada kalan/gömülen şerit mesh'leri kalktı, kıyı boyunca il sınırı yok); yol verisi yumuşatılır ve akarsuya paralel kesimler sudan ayrılır (`settlements/roadRouting.ts`); yapılar görsel ayak izi (saçak, merdiven) ile tüm yerleşimler arasında çakışmaz, akarsuya/yola oturmaz, sokaklar yapıların içinden geçmez (`settlements/footprints.ts`); ağaçlar taç yarıçapına göre yapı/yoldan elenir; kaya/kent renkleri asfaltla karışmayacak biçimde ayrıldı. Ayrıntı `CLAUDE.md` "Grafik düzenlemesi"; elle doğrulama kılavuzu bölüm 14
 
 Kabul kriterleri:
-- [x] 5 il ve 30 ilçe merkezi gerçek konumlarında, gerçek bina yoğunluğuna göre kuruluyor; köyler seyrek; harita evle dolmuyor (1 410 yapı) _(testli: `tests/settlementMap`)_
+- [x] 5 il ve 30 ilçe merkezi gerçek konumlarında, gerçek bina yoğunluğuna göre kuruluyor; köyler seyrek; harita evle dolmuyor (1 410 yapı; 10.11 sonrası çakışmasız ~1 510) _(testli: `tests/settlementMap`)_
 - [x] Her il/ilçe merkezinde cami var (ayak izi denizde kalan Amasra/Kurucaşile hariç); camiler kıbleye dönük; oyuncu merdivenden harime girebiliyor _(testli: `tests/settlementMap`, `tests/settlementWalk`)_
 - [x] Yollar şehirleri ve ilçeleri bağlıyor; yolda ağaç yok _(testli)_
 - [x] Arama/ganimet atomik ve kalıcı; kayıt v4 ve v3 göçü _(testli: `tests/buildingSearch`, `tests/saveGame`)_

@@ -8,7 +8,7 @@ import {
   RGBAFormat,
   UnsignedByteType,
 } from 'three';
-import { TERRAIN_LOOK, VERTICAL_SCALE } from '../config';
+import { BORDERS, TERRAIN_LOOK, TERRAIN_OVERLAY, VERTICAL_SCALE } from '../config';
 import { buildCoverWeights } from './landCoverWeights';
 
 /** GLSL: dünya konumu ve normalden rakım/eğime bağlı arazi rengi. */
@@ -42,6 +42,33 @@ uniform vec3 uCoverUrban;
 uniform vec3 uCoverSnow;
 uniform vec3 uCoverWetland;
 uniform float uRockCoverDamp;
+uniform sampler2D uOverlay;   // kaplama uzaklık alanı: R asfalt, G köy yolu, B su/kıyı, A il sınırı
+uniform vec4 uOverlayGrid;    // (−orijin.x / hücre, −orijin.z / hücre, hücre boyu, 0)
+uniform vec2 uOverlaySize;
+uniform float uOverlayScale;  // bayt = 128 + uzaklık · scale
+uniform float uTime;
+uniform float uBorderOn;
+uniform vec3 uAsphalt;
+uniform vec3 uAsphaltWorn;
+uniform vec3 uEdgeLine;
+uniform vec2 uEdgeLineParams;  // (içeri uzaklık, görünürlük)
+uniform vec3 uShoulder;
+uniform float uShoulderWidth;
+uniform vec3 uDirt;
+uniform vec3 uDirtDark;
+uniform vec3 uWater;
+uniform vec3 uWaterDeep;
+uniform float uWaterRoughness;
+uniform float uWaterFlow;
+uniform vec3 uBank;
+uniform vec2 uBankParams;      // (genişlik, görünürlük)
+uniform vec3 uParapet;
+uniform float uParapetWidth;
+uniform vec3 uBorder;
+uniform vec2 uBorderParams;    // (yarı genişlik, görünürlük)
+
+// Su payı (pürüzlülüğü düşürmek için): kaplama renginde yazılır, roughness'ta okunur.
+float terrainWet = 0.0;
 
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -101,6 +128,65 @@ vec3 terrainAlbedo(vec3 world, vec3 normal, float viewDistance) {
 
   return color * variation;
 }
+
+// Uzaklık alanından kenarı yumuşatılmış kaplama: d kenar uzaklığı (içeride negatif), w piksel genişliği.
+float coverage(float d, float w) {
+  return 1.0 - smoothstep(-w, w, d);
+}
+
+/**
+ * Kaplama: kıyı bandı → akarsu → yol bankedi → köy yolu → asfalt (köprü korkuluğu) → il sınırı. Uzaklıklar
+ * doğrusal süzgeçle aradeğerlendiğinden kenarlar her uzaklıkta keskin; fwidth ile kenar yumuşatılır (titreme yok).
+ */
+vec3 applyOverlay(vec3 color, vec3 world, float viewDistance) {
+  vec2 uv = (world.xz / uOverlayGrid.z + uOverlayGrid.xy + 0.5) / uOverlaySize;
+  vec4 d = (texture2D(uOverlay, uv) * 255.0 - 128.0) / uOverlayScale;
+  vec4 w = max(fwidth(d), vec4(0.04)) * 0.75;
+  float fade = 1.0 - smoothstep(uNoiseFade * 0.5, uNoiseFade, viewDistance);
+  float n = valueNoise(world.xz * 0.21);
+  float n2 = valueNoise(world.xz * 1.3 + 17.0);
+
+  // Kıyı: su kenarından dışarıya ıslak toprak/çakıl.
+  float bank = (1.0 - smoothstep(0.0, uBankParams.x, d.b)) * uBankParams.y * step(-0.5, d.b);
+  color = mix(color, uBank * (0.85 + 0.3 * n2), bank);
+
+  // Akarsu: ortaya doğru koyulaşır, akış yönünden bağımsız yavaş dalga deseni.
+  float water = coverage(d.b, w.b);
+  float depth = clamp(-d.b / 1.2, 0.0, 1.0);
+  float ripple = valueNoise(world.xz * 0.9 + vec2(uTime * uWaterFlow, uTime * uWaterFlow * 0.6));
+  vec3 waterColor = mix(uWater, uWaterDeep, depth) * (0.9 + 0.2 * ripple * fade);
+  color = mix(color, waterColor, water);
+  terrainWet = water;
+
+  // Yol bankedi (çakıl) asfaltın ve köy yolunun kenarında.
+  float roadEdge = min(d.r, d.g);
+  float shoulder = coverage(roadEdge - uShoulderWidth, w.r) * (1.0 - coverage(roadEdge, w.r));
+  color = mix(color, uShoulder * (0.85 + 0.3 * n2), shoulder * 0.8 * (1.0 - water));
+
+  // Köy yolu: lekeli toprak (yolun ortasındaki uzaklık hücre içinde kırıldığından ortaya desen konmaz).
+  float dirt = coverage(d.g, w.g);
+  vec3 dirtColor = mix(uDirt, uDirtDark, smoothstep(0.35, 0.8, n) * 0.6) * (0.9 + 0.2 * n2 * fade);
+  color = mix(color, dirtColor, dirt);
+
+  // Asfalt: lekeli, aşınmış yamalar, soluk kenar çizgisi.
+  float paved = coverage(d.r, w.r);
+  vec3 asphalt = mix(uAsphalt, uAsphaltWorn, smoothstep(0.5, 0.85, n) * 0.8) * (0.92 + 0.16 * n2 * fade);
+  float edge = coverage(d.r + uEdgeLineParams.x, w.r) * (1.0 - coverage(d.r + uEdgeLineParams.x + 0.18, w.r));
+  asphalt = mix(asphalt, uEdgeLine, edge * uEdgeLineParams.y * fade);
+  color = mix(color, asphalt, paved);
+
+  // Köprü: yol suyun üstündeyse kenarda taş korkuluk; yol suyu örter (ıslaklık kalkar).
+  float road = max(paved, dirt);
+  float overWater = coverage(d.b - 0.8, 0.4);
+  float parapet = road * (1.0 - coverage(roadEdge + uParapetWidth, min(w.r, w.g))) * overWater;
+  color = mix(color, uParapet, parapet);
+  terrainWet *= 1.0 - road;
+
+  // İl sınırı: yarı saydam şerit (kıyılar elenmiştir).
+  float border = coverage(d.a - uBorderParams.x, w.a) * uBorderParams.y * uBorderOn;
+  color = mix(color, uBorder, border);
+  return color;
+}
 `;
 
 function toVec3(hex: number): Color {
@@ -122,6 +208,28 @@ export interface TerrainCover {
   origin?: { x: number; z: number };
 }
 
+/** Arazi kaplaması (`terrainOverlay.ts`): arazi ızgarasıyla aynı kafeste RGBA uzaklık alanı. */
+export interface TerrainOverlay {
+  data: Uint8Array;
+  width: number;
+  height: number;
+  cell: number;
+  origin: { x: number; z: number };
+}
+
+/** Materyalin çalışma zamanında değişen uniform'ları (zaman, il sınırı görünürlüğü). */
+export interface TerrainUniforms {
+  uTime: { value: number };
+  uBorderOn: { value: number };
+}
+
+const UNIFORMS = new WeakMap<MeshStandardMaterial, TerrainUniforms>();
+
+/** `createTerrainMaterial` ile kurulan materyalin değişken uniform'ları (başka materyal için null). */
+export function terrainUniforms(material: MeshStandardMaterial): TerrainUniforms | null {
+  return UNIFORMS.get(material) ?? null;
+}
+
 /** Ağırlık verisinden lineer filtreli, mipmap'li RGBA doku (veri dokusu: renk uzayı yok). */
 function weightTexture(data: Uint8Array, width: number, height: number): DataTexture {
   const texture = new DataTexture(data, width, height, RGBAFormat, UnsignedByteType);
@@ -138,7 +246,10 @@ function weightTexture(data: Uint8Array, width: number, height: number): DataTex
  * Doku dosyası kullanmaz (ağırlık dokuları çalışma zamanında üretilir; materyal dispose olunca serbest kalır).
  * Çift yüzlü: chunk etekleri de görünür.
  */
-export function createTerrainMaterial(cover: TerrainCover | null = null): MeshStandardMaterial {
+export function createTerrainMaterial(
+  cover: TerrainCover | null = null,
+  overlay: TerrainOverlay | null = null,
+): MeshStandardMaterial {
   const material = new MeshStandardMaterial({ side: DoubleSide, roughness: 1, metalness: 0 });
   const look = TERRAIN_LOOK;
 
@@ -154,10 +265,26 @@ export function createTerrainMaterial(cover: TerrainCover | null = null): MeshSt
   const coverGrid = cover?.origin
     ? [-cover.origin.x / cell, -cover.origin.z / cell, cell, 0]
     : [(width - 1) / 2, (height - 1) / 2, cell, 0];
+  // Kaplama yoksa 1×1 "uzak" doku: hiçbir şey boyanmaz.
+  const overlayTexture = weightTexture(
+    overlay?.data ?? new Uint8Array([255, 255, 255, 255]),
+    overlay?.width ?? 1,
+    overlay?.height ?? 1,
+  );
+  const overlayGrid = overlay
+    ? [-overlay.origin.x / overlay.cell, -overlay.origin.z / overlay.cell, overlay.cell, 0]
+    : [0, 0, 1, 0];
+  const live: TerrainUniforms = {
+    uTime: { value: 0 },
+    uBorderOn: { value: BORDERS.visibleByDefault ? 1 : 0 },
+  };
+  UNIFORMS.set(material, live);
   material.addEventListener('dispose', () => {
     coverA.dispose();
     coverB.dispose();
+    overlayTexture.dispose();
   });
+  const o = TERRAIN_OVERLAY;
 
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
@@ -191,6 +318,29 @@ export function createTerrainMaterial(cover: TerrainCover | null = null): MeshSt
       uCoverSnow: { value: toVec3(look.cover.snow) },
       uCoverWetland: { value: toVec3(look.cover.wetland) },
       uRockCoverDamp: { value: look.rockCoverDamp },
+      uOverlay: { value: overlayTexture },
+      uOverlayGrid: { value: overlayGrid },
+      uOverlaySize: { value: [overlay?.width ?? 1, overlay?.height ?? 1] },
+      uOverlayScale: { value: o.scale },
+      uAsphalt: { value: toVec3(o.asphalt) },
+      uAsphaltWorn: { value: toVec3(o.asphaltWorn) },
+      uEdgeLine: { value: toVec3(o.edgeLine) },
+      uEdgeLineParams: { value: [o.edgeLineInset, o.edgeLineStrength] },
+      uShoulder: { value: toVec3(o.shoulder) },
+      uShoulderWidth: { value: o.shoulderWidth },
+      uDirt: { value: toVec3(o.dirt) },
+      uDirtDark: { value: toVec3(o.dirtDark) },
+      uWater: { value: toVec3(o.water) },
+      uWaterDeep: { value: toVec3(o.waterDeep) },
+      uWaterRoughness: { value: o.waterRoughness },
+      uWaterFlow: { value: o.waterFlowSpeed },
+      uBank: { value: toVec3(o.bank) },
+      uBankParams: { value: [o.bankWidth, o.bankStrength] },
+      uParapet: { value: toVec3(o.parapet) },
+      uParapetWidth: { value: o.parapetWidth },
+      uBorder: { value: toVec3(o.border) },
+      uBorderParams: { value: [o.borderHalfWidth, o.borderStrength] },
+      ...live,
     });
 
     shader.vertexShader = shader.vertexShader
@@ -210,10 +360,19 @@ export function createTerrainMaterial(cover: TerrainCover | null = null): MeshSt
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        diffuseColor.rgb = terrainAlbedo(vTerrainWorld, vTerrainNormal, length(vViewPosition));`,
+        diffuseColor.rgb = applyOverlay(
+          terrainAlbedo(vTerrainWorld, vTerrainNormal, length(vViewPosition)),
+          vTerrainWorld,
+          length(vViewPosition)
+        );`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, uWaterRoughness, terrainWet);`,
       );
   };
   // Aynı materyal örneği için program önbellek anahtarı sabit.
-  material.customProgramCacheKey = () => 'anadolu-terrain-v2';
+  material.customProgramCacheKey = () => 'anadolu-terrain-v3';
   return material;
 }

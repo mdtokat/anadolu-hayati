@@ -29,12 +29,12 @@ import {
 import type { Random } from '../utils/random';
 import type { AmbientSample, GameWorld, LocationInfo, WorldQuality } from './GameWorld';
 import { latLonToGame } from './geo';
-import { ProvinceBorders } from './ProvinceBorders';
 import { provinceAt } from './provinces';
 import { RegionHeightSource } from './RegionHeightSource';
 import type { PlaceCenter } from './placeNotice';
 import { findSafeSpawn } from './spawn';
-import { createTerrainMaterial } from './TerrainMaterial';
+import { createTerrainMaterial, terrainUniforms, type TerrainUniforms } from './TerrainMaterial';
+import { buildTerrainOverlay, landBorderSegments } from './terrainOverlay';
 import { LandCoverMap } from './LandCoverMap';
 import { PropLayer, type PropLayerStats } from './PropLayer';
 import type { PropId, PropRef } from './propKinds';
@@ -43,7 +43,6 @@ import { FreshWaterMesh } from './FreshWaterMesh';
 import { FreshWaterIndex, type WaterHit } from './waterIndex';
 import { SettlementMap } from '../settlements/SettlementMap';
 import type { PeopleWorld } from '../people/PeopleSystem';
-import { RoadMesh } from './RoadMesh';
 import { SettlementLayer } from './SettlementLayer';
 import { SettlementColliders } from './SettlementColliders';
 
@@ -67,14 +66,13 @@ export class RegionWorld implements GameWorld {
   private readonly colliders: ChunkColliders;
   private readonly walls: RAPIER.Collider[];
   private readonly water: Water;
-  private readonly borders: ProvinceBorders;
+  private readonly terrainUniforms: TerrainUniforms | null;
   private readonly freshWater: FreshWaterIndex | null;
   private readonly freshWaterMesh: FreshWaterMesh | null;
   private readonly props: PropLayer | null;
   private readonly cover: LandCoverMap | null;
   /** Yerleşimler (Faz 10): veri yoksa null. */
   readonly settlementMap: SettlementMap | null;
-  private readonly roadMesh: RoadMesh | null;
   private readonly settlementLayer: SettlementLayer | null;
   private readonly settlementColliders: SettlementColliders | null;
   /** Diğer insanların arazi/yerleşim sorguları (Faz 10); yerleşim verisi yoksa null. */
@@ -86,15 +84,41 @@ export class RegionWorld implements GameWorld {
   ) {
     this.source = RegionHeightSource.fromRegion(region);
     this.terrain = this.source;
+
+    this.freshWater = region.features
+      ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
+      : null;
+
+    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; ~1 sn). Arazi kaplamasından önce:
+    // yollar (sudan ayrılmış hâlleriyle) araziye boyanır.
+    const freshWater = this.freshWater;
+    this.settlementMap = region.settlements
+      ? new SettlementMap(region.settlements, {
+          heightAt: (x, z) => this.source.heightAt(x, z),
+          elevationAt: (x, z) => this.source.elevationAt(x, z),
+          isWater: (x, z, clearance) => freshWater?.nearest(x, z, clearance) != null,
+          nearestWater: freshWater ? (x, z, r) => freshWater.nearest(x, z, r) : undefined,
+        })
+      : null;
+    const settlements = this.settlementMap;
+
+    // Arazi: örtü renkleri + kaplama (yollar, akarsular, kıyı bantları, il sınırları shader'da boyanır).
+    const grid = {
+      width: this.source.width,
+      height: this.source.height,
+      cell: this.source.cell,
+      origin: this.source.origin,
+    };
+    const overlay = buildTerrainOverlay(grid, {
+      roads: settlements?.roadLines ?? [],
+      water: region.features?.water ?? null,
+      borders: landBorderSegments(region.provinces),
+    });
     this.material = createTerrainMaterial(
-      region.landcover && {
-        classes: region.landcover,
-        width: this.source.width,
-        height: this.source.height,
-        cell: this.source.cell,
-        origin: this.source.origin,
-      },
+      region.landcover && { classes: region.landcover, ...grid },
+      { data: overlay.data, ...grid },
     );
+    this.terrainUniforms = terrainUniforms(this.material);
     this.environment = new Environment(this.scene, {
       near: REGION_SCENE.fogNear,
       far: REGION_SCENE.fogFar,
@@ -106,31 +130,13 @@ export class RegionWorld implements GameWorld {
     this.walls = createBoundsWalls(physics, this.source.bounds);
     this.water = new Water(this.source.bounds);
     this.scene.add(this.water.mesh);
-    this.borders = new ProvinceBorders(region.provinces, (x, z) => this.source.heightAt(x, z));
-    this.scene.add(this.borders.object);
 
-    this.freshWater = region.features
-      ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
-      : null;
+    // Göl/gölet/baraj yüzeyleri (akarsular araziye boyanır).
     this.freshWaterMesh = region.features
       ? new FreshWaterMesh(region.features.water, (x, z) => this.source.heightAt(x, z))
       : null;
     if (this.freshWaterMesh) this.scene.add(this.freshWaterMesh.object);
 
-    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; ~0,5 sn).
-    const freshWater = this.freshWater;
-    this.settlementMap = region.settlements
-      ? new SettlementMap(region.settlements, {
-          heightAt: (x, z) => this.source.heightAt(x, z),
-          elevationAt: (x, z) => this.source.elevationAt(x, z),
-          isWater: (x, z, clearance) => freshWater?.nearest(x, z, clearance) != null,
-        })
-      : null;
-    const settlements = this.settlementMap;
-    this.roadMesh = settlements
-      ? new RoadMesh(settlements.roadLines, (x, z) => this.source.heightAt(x, z))
-      : null;
-    if (this.roadMesh) this.scene.add(this.roadMesh.object);
     this.settlementLayer = settlements ? new SettlementLayer(settlements) : null;
     if (this.settlementLayer) this.scene.add(this.settlementLayer.group);
     this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
@@ -154,7 +160,7 @@ export class RegionWorld implements GameWorld {
           this.source,
           cover,
           this.freshWater,
-          settlements ? (x, z) => settlements.blocksProp(x, z) : null,
+          settlements ? (x, z, r) => settlements.blocksProp(x, z, r) : null,
         )
       : null;
     if (this.props) this.scene.add(this.props.group);
@@ -231,9 +237,9 @@ export class RegionWorld implements GameWorld {
     this.settlementColliders?.update(focusX, focusZ);
     this.chunks.update(focusX, focusZ);
     this.props?.update(focusX, focusZ);
-    this.roadMesh?.update(focusX, focusZ);
     this.settlementLayer?.update(focusX, focusZ);
     this.water.update(timeSeconds);
+    if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
     this.environment.follow(focusX, focusZ);
   }
 
@@ -284,7 +290,6 @@ export class RegionWorld implements GameWorld {
     this.colliders.ensureAround(x, z);
     this.settlementColliders?.update(x, z, true);
     this.props?.prepare(x, z);
-    this.roadMesh?.update(x, z);
     this.settlementLayer?.update(x, z);
   }
 
@@ -303,8 +308,10 @@ export class RegionWorld implements GameWorld {
     return this.props?.stats ?? null;
   }
 
+  /** İl sınırı şeridini (arazi kaplaması) açar/kapatır. */
   toggleBorders(): void {
-    this.borders.toggle();
+    const on = this.terrainUniforms?.uBorderOn;
+    if (on) on.value = on.value > 0 ? 0 : 1;
   }
 
   /**
@@ -356,8 +363,6 @@ export class RegionWorld implements GameWorld {
   dispose(): void {
     this.settlementColliders?.dispose();
     this.settlementLayer?.dispose();
-    this.roadMesh?.dispose();
-    this.borders.dispose();
     this.props?.dispose();
     this.freshWaterMesh?.dispose();
     this.water.dispose();

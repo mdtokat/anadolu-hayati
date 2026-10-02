@@ -1,8 +1,9 @@
-import { SETTLEMENT_LAYOUT, SETTLEMENT_STYLES } from '../config';
+import { ROADS, SETTLEMENT_LAYOUT, SETTLEMENT_STYLES } from '../config';
 import type { LandmarkData, SettlementData, SettlementRank } from '../data/settlements';
 import { createRandom, seedFrom } from '../utils/random';
 import { LATTICE_CELL, latticeCol, latticeRow, latticeX, latticeZ } from '../world/lattice';
-import { BUILDING_SHAPES, MAX_BURY, isMosque, type BuildingKind } from './kinds';
+import { FootprintRegistry, type OrientedBox } from './footprints';
+import { BUILDING_OVERHANG, BUILDING_SHAPES, MAX_BURY, isMosque, type BuildingKind } from './kinds';
 import { qiblaAzimuthDeg, yawFacingBackTo } from './qibla';
 import type { RoadIndex } from './roadIndex';
 
@@ -18,8 +19,19 @@ import type { RoadIndex } from './roadIndex';
  * Yamaç: dikey ölçek yataydan 3,3 kat dik olduğundan kasabalar dik yamaçlardadır. Konutun kapısı aşağıya
  * (vadiye/denize) bakar, zemin katı ön kenarın zeminindedir, arka kenarı yamaca gömülür (`MAX_BURY`), altta kalan
  * yanlar taş temelle doldurulur (`maxPlinth`) — Karadeniz kasabalarının gerçek görünümü. Camiler kıbleye döner.
- * Deniz/kıyı, tatlı su, yol ve çakışma elenir.
+ * Deniz/kıyı, tatlı su, yol ve çakışma elenir: çakışma, görsel taşma payı (`BUILDING_OVERHANG`: saçak, revak) ve
+ * kapı önü merdiveni dahil, komşu yerleşimlerin yapılarıyla da (ortak `FootprintRegistry`) denetlenir; sokaklar
+ * yapıların ve akarsuların üstünden geçmez.
  */
+
+/** Kapı önü merdiveni: eğim (yükselti / uzunluk) ve en kısa yükselti (altı basamaksız geçilir). */
+export const STAIR_SLOPE = 0.7;
+export const STAIR_MIN_RISE = 0.3;
+
+/** Merdiven genişliği (oyun m): girilebilir yapıda geniş, diğerlerinde dar. */
+export function stairWidth(kind: BuildingKind): number {
+  return BUILDING_SHAPES[kind].enterable ? 2.6 : 1.6;
+}
 
 /** Düzenin okuduğu arazi sorguları (`RegionHeightSource` + tatlı su dizini karşılar). */
 export interface LayoutTerrain {
@@ -53,6 +65,8 @@ export interface Building {
   floors: number;
   /** Simge yapının adı (yoksa null). */
   name: string | null;
+  /** Kapı önü merdiveni için ayrılan en uzun yer (oyun m; merdiven yoksa 0): merdiven bunu aşmaz. */
+  stairRun: number;
 }
 
 export interface LayoutResult {
@@ -73,6 +87,8 @@ const RUINABLE = new Set<BuildingKind>([
   'serender',
 ]);
 const MAX_PER_SETTLEMENT = 1023;
+/** En geniş yol sınıfının yarı genişliği (oyun m). */
+const MAX_ROAD_HALF = Math.max(...ROADS.width) / 2;
 /** Camilerin (mihrap duvarı) döneceği yön: bölge için tek kıble açısı. */
 const QIBLA_YAW = yawFacingBackTo(
   qiblaAzimuthDeg(SETTLEMENT_LAYOUT.qiblaFrom.lat, SETTLEMENT_LAYOUT.qiblaFrom.lon),
@@ -90,14 +106,6 @@ interface Lot {
   n: number;
   /** Parsel dolu olsun mu (yoğunluk zarı)? */
   wanted: boolean;
-}
-
-/** Çerçevede eksene hizalı dikdörtgen (yerleşim içi çakışma denetimi). */
-interface Rect {
-  u0: number;
-  u1: number;
-  v0: number;
-  v1: number;
 }
 
 function pickWeighted<K extends string>(
@@ -154,6 +162,10 @@ export function layoutSettlement(
   seed: number = SETTLEMENT_LAYOUT.seed,
   /** Ayar/test: parsel eleme nedenlerinin sayımı (verilirse doldurulur). */
   diagnostics?: Record<string, number>,
+  /** Daha önce yerleşmiş yapıların (komşu yerleşimler) ayak izleri; bu yerleşiminkiler de buna eklenir. */
+  occupied: FootprintRegistry = new FootprintRegistry(),
+  /** Başka il/ilçe merkezlerinin çekirdekleri (dünya daireleri): buralara bu yerleşimin yapısı konmaz. */
+  foreignCores: ReadonlyArray<{ x: number; z: number; r: number }> = [],
 ): LayoutResult {
   const L = SETTLEMENT_LAYOUT;
   const reject = (reason: string): null => {
@@ -244,44 +256,54 @@ export function layoutSettlement(
     diagnostics.wanted = lots.filter((l) => l.wanted).length;
   }
 
-  const placed: Building[] = [];
-  const placedUV: Array<{ u: number; v: number }> = [];
-  const rects: Rect[] = [];
-  const usedLots = new Set<Lot>();
-
-  /** (u, v)'de `yaw` dönük yapının çerçevedeki eksene hizalı kapsayıcı dikdörtgeni (+ boşluk payı). */
-  const rectOf = (kind: BuildingKind, u: number, v: number, yaw: number): Rect => {
-    const shape = BUILDING_SHAPES[kind];
-    const phi = yaw - frame;
-    const c = Math.abs(Math.cos(phi));
-    const s = Math.abs(Math.sin(phi));
-    const hw = (c * shape.width + s * shape.depth) / 2 + L.gap / 2;
-    const hd = (s * shape.width + c * shape.depth) / 2 + L.gap / 2;
-    return { u0: u - hw, u1: u + hw, v0: v - hd, v1: v + hd };
+  /**
+   * (x, z) başka bir merkezin çekirdeğinde mi? Çekirdekler örtüşebilir (Zonguldak–Kozlu): nokta ancak o merkeze bu
+   * yerleşimin merkezinden daha yakınsa onundur (Voronoi bölüşümü).
+   */
+  const nearCores = foreignCores.filter(
+    (core) => Math.hypot(core.x - cx, core.z - cz) < core.r + radius + pitch,
+  );
+  const inForeignCore = (x: number, z: number): boolean => {
+    if (nearCores.length === 0) return false;
+    const own = Math.hypot(x - cx, z - cz);
+    for (const core of nearCores) {
+      const d = Math.hypot(x - core.x, z - core.z);
+      if (d < core.r && d < own) return true;
+    }
+    return false;
   };
 
-  /** Yapı (u, v)'ye `yaw` ile sığar mı? Sığarsa zemin bilgisiyle döner. */
+  /** Son çare (merkezin tek camisi): komşu çekirdeğe de konabilir. */
+  let allowForeignCore = false;
+  const placed: Building[] = [];
+  const placedUV: Array<{ u: number; v: number }> = [];
+  const usedLots = new Set<Lot>();
+
+  /** Yapı (u, v)'ye `yaw` ile sığar mı? Sığarsa zemin ve ayak izi (gövde + merdiven) bilgisiyle döner. */
   const site = (
     kind: BuildingKind,
     u: number,
     v: number,
     yaw: number,
-    ignore: Rect | null = null,
+    ignore: number | null = null,
   ) => {
-    const rect = rectOf(kind, u, v, yaw);
-    for (const other of rects) {
-      if (other === ignore) continue;
-      if (rect.u0 < other.u1 && rect.u1 > other.u0 && rect.v0 < other.v1 && rect.v1 > other.v0) {
-        return reject('overlap');
-      }
-    }
     const shape = BUILDING_SHAPES[kind];
+    const pad = BUILDING_OVERHANG[kind];
     const p = toWorld(u, v);
+    const ex = shape.width / 2 + pad.x;
+    const ez = shape.depth / 2 + pad.z;
+    // Gövde: ayak izi + taşma payı + aralık payı (iki komşu arasında toplam `gap`).
+    const body: OrientedBox = { x: p.x, z: p.z, hx: ex + L.gap / 2, hz: ez + L.gap / 2, yaw };
+    if (occupied.overlaps(body, ignore)) return reject('overlap');
+    if (!allowForeignCore && inForeignCore(p.x, p.z)) return reject('foreign');
     const yc = Math.cos(yaw);
     const ys = Math.sin(yaw);
+    const local = (lx: number, lz: number) => ({
+      x: p.x + lx * yc + lz * ys,
+      z: p.z - lx * ys + lz * yc,
+    });
     const corner = (lx: number, lz: number) => {
-      const x = p.x + lx * yc + lz * ys;
-      const z = p.z - lx * ys + lz * yc;
+      const { x, z } = local(lx, lz);
       return { x, z, h: terrain.heightAt(x, z), e: terrain.elevationAt(x, z) };
     };
     const hw = shape.width / 2;
@@ -300,15 +322,39 @@ export function layoutSettlement(
     const base = Math.min(fl.h, fr.h, bl.h, br.h, mid.h, back.h);
     if (Math.max(bl.h, br.h, mid.h, back.h) - floor > MAX_BURY[kind]) return reject('bury');
     if (floor - base > (terrace ? L.maxTerrace : L.maxPlinth)) return reject('plinth');
-    const halfDiag = Math.hypot(shape.width, shape.depth) / 2;
-    if (terrain.isWater(p.x, p.z, halfDiag * 0.8)) return reject('water');
-    if (roads) {
-      const hit = roads.nearest(p.x, p.z, halfDiag + 6);
-      if (hit && hit.edgeDistance < Math.min(shape.width, shape.depth) / 2 + L.roadMargin) {
-        return reject('road');
+    // Ayak izi (taşma payıyla) üzerinde örnekler: hiçbiri akarsuya/göle ya da yola değmesin.
+    // Önce merkezden tek sorgu: yakında su/yol yoksa örneklere gerek yok (düzen süresi).
+    const reach = Math.hypot(ex, ez);
+    const waterNear = terrain.isWater(p.x, p.z, reach + L.waterClearance);
+    const roadNear =
+      roads !== null && roads.nearest(p.x, p.z, reach + L.roadMargin + MAX_ROAD_HALF) !== null;
+    if (waterNear || roadNear) {
+      const nx = Math.max(1, Math.ceil((2 * ex) / L.sampleStep));
+      const nz = Math.max(1, Math.ceil((2 * ez) / L.sampleStep));
+      for (let i = 0; i <= nx; i++) {
+        for (let j = 0; j <= nz; j++) {
+          const q = local(-ex + (2 * ex * i) / nx, -ez + (2 * ez * j) / nz);
+          if (waterNear && terrain.isWater(q.x, q.z, L.waterClearance)) return reject('water');
+          if (roadNear && roads?.onRoad(q.x, q.z, L.roadMargin)) return reject('road');
+        }
       }
     }
-    return { rect, x: p.x, z: p.z, y: floor, base };
+    // Kapı önü merdiveni (kat zemini kapı önündeki araziden yüksekse): uzunluğu tahminidir (uç zemini daha alçak
+    // olabilir; `SettlementMap` gerçek merdiveni kurar), payla ayrılır.
+    let stair: OrientedBox | null = null;
+    if (shape.enterable || shape.searchable) {
+      const door = local(shape.door.x, hd);
+      const rise = floor - terrain.heightAt(door.x, door.z);
+      if (rise >= STAIR_MIN_RISE) {
+        const run = Math.max(1, rise / STAIR_SLOPE) * L.stairRunPad + 0.5;
+        const c = local(shape.door.x, hd + run / 2);
+        stair = { x: c.x, z: c.z, hx: stairWidth(kind) / 2 + 0.3, hz: run / 2, yaw };
+        if (occupied.overlaps(stair, ignore)) return reject('stair');
+        const end = local(shape.door.x, hd + run);
+        if (terrain.isWater(end.x, end.z, L.waterClearance)) return reject('water');
+      }
+    }
+    return { body, stair, x: p.x, z: p.z, y: floor, base };
   };
 
   const add = (
@@ -317,7 +363,7 @@ export function layoutSettlement(
     v: number,
     yaw: number,
     name: string | null,
-    ignore: Rect | null = null,
+    ignore: number | null = null,
   ): Building | null => {
     if (placed.length >= Math.min(L.maxBuildings[rank], MAX_PER_SETTLEMENT)) return reject('cap');
     const s = site(kind, u, v, yaw, ignore);
@@ -331,10 +377,12 @@ export function layoutSettlement(
       kind === 'apartment'
         ? clamp(Math.round(3 + floorsRoll * 2 + (n >= L.denseThreshold * 2 ? 1 : 0)), 3, 6)
         : 1;
-    rects.push(s.rect);
     placedUV.push({ u, v });
+    const id = settlement.id * 1024 + placed.length;
+    occupied.add(id, s.body);
+    if (s.stair) occupied.add(id, s.stair);
     const building: Building = {
-      id: settlement.id * 1024 + placed.length,
+      id,
       settlement: settlement.id,
       kind,
       x: s.x,
@@ -347,6 +395,7 @@ export function layoutSettlement(
       tone,
       floors,
       name,
+      stairRun: s.stair ? s.stair.hz * 2 : 0,
     };
     placed.push(building);
     return building;
@@ -381,12 +430,40 @@ export function layoutSettlement(
     );
   };
 
+  /**
+   * Parselde denenecek konumlar: parselin kendisi, yol parselin yakınından geçiyorsa yoldan uzağa kaydırılmış iki
+   * konum (köy evleri yolun kenarına dizilir; yolun üstüne binmesin diye parsel yoldan çekilir).
+   */
+  const positionsFor = (lot: Lot): Array<{ u: number; v: number }> => {
+    const out = [{ u: lot.u, v: lot.v }];
+    const hit = roads?.nearest(lot.x, lot.z, pitch) ?? null;
+    if (!roads || !hit) return out;
+    // Yola dik yön (dünya): yol yönü (cos a, sin a) → dik (−sin a, cos a); yoldan uzaklaşan işaret seçilir.
+    let px = -Math.sin(hit.angle);
+    let pz = Math.cos(hit.angle);
+    const probe = roads.nearest(lot.x + px * 0.5, lot.z + pz * 0.5, pitch);
+    if (probe && probe.distance < hit.distance) {
+      px = -px;
+      pz = -pz;
+    }
+    for (const amount of L.roadNudge) {
+      const dx = px * amount * pitch;
+      const dz = pz * amount * pitch;
+      // Dünya kaydırması → çerçeve (worldToFrame'in doğrusal kısmı).
+      out.push({ u: lot.u + dx * cos - dz * sin, v: lot.v + dx * sin + dz * cos });
+    }
+    return out;
+  };
+
   const tryLot = (kind: BuildingKind, lot: Lot, name: string | null): Building | null => {
-    for (const yaw of yawsFor(kind, lot)) {
-      const b = add(kind, lot.u, lot.v, yaw, name);
-      if (b) {
-        usedLots.add(lot);
-        return b;
+    const yaws = yawsFor(kind, lot);
+    for (const pos of positionsFor(lot)) {
+      for (const yaw of yaws) {
+        const b = add(kind, pos.u, pos.v, yaw, name);
+        if (b) {
+          usedLots.add(lot);
+          return b;
+        }
       }
     }
     return null;
@@ -434,8 +511,8 @@ export function layoutSettlement(
     const yc = Math.cos(mosque.yaw);
     const ys = Math.sin(mosque.yaw);
     const t = worldToFrame(mosque.x + lx * yc + lz * ys, mosque.z - lx * ys + lz * yc);
-    // Caminin kapsayıcı dikdörtgeni (kıbleye döndüğünden çerçeveye eğik) avluyu da kapsar: onunla çakışma sayılmaz.
-    add('fountain', t.u, t.v, mosque.yaw, null, rects[placed.indexOf(mosque)] ?? null);
+    // Avlu caminin aralık payına girer: caminin kendi ayak iziyle (merdiveni dahil) çakışma sayılmaz.
+    add('fountain', t.u, t.v, mosque.yaw, null, mosque.id);
   };
 
   // 1. Elle seçilmiş simge yapılar (gerçek konumlarına en yakın).
@@ -481,11 +558,18 @@ export function layoutSettlement(
     mosques++;
     addFountain(b);
   }
-  // Her yerleşimde (köyler hariç olabilir) en az bir cami: dik/dar kasabada küçük ahşap camiye düşülür.
+  // Her yerleşimde (köyler hariç olabilir) en az bir cami: dik/dar kasabada küçük ahşap camiye düşülür; il/ilçe
+  // merkezi komşu merkezin çekirdeğine sıkışmışsa (Kozlu–Zonguldak) son çare olarak oraya da konabilir.
   if (mosques === 0 && (!village || mosqueTarget > 0)) {
-    const b =
+    const tryMosque = () =>
       placeNear(village ? 'mosque_wooden' : 'mosque', 0, 0, null, radius) ??
       (village ? null : placeNear('mosque_wooden', 0, 0, null, radius));
+    let b = tryMosque();
+    if (!b && !village && nearCores.length > 0) {
+      allowForeignCore = true;
+      b = tryMosque();
+      allowForeignCore = false;
+    }
     if (b) addFountain(b);
   }
   if (!village) {
@@ -548,12 +632,20 @@ export function layoutSettlement(
       }),
       { u0: Infinity, u1: -Infinity, v0: Infinity, v1: -Infinity },
     );
+    const streetHalf = L.streetWidth / 2;
     const okAt = (u: number, v: number): boolean => {
       if (Math.hypot(u, v) > radius) return false;
       const p = toWorld(u, v);
-      return densityAt(p.x, p.z) > 0 && terrain.elevationAt(p.x, p.z) >= L.minElevationM;
+      return (
+        densityAt(p.x, p.z) > 0 &&
+        terrain.elevationAt(p.x, p.z) >= L.minElevationM &&
+        // Sokak yapının (merdiveni dahil) ya da akarsuyun üstünden geçmez: orada kesilir.
+        !occupied.contains(p.x, p.z, streetHalf + 0.3) &&
+        !inForeignCore(p.x, p.z) &&
+        !terrain.isWater(p.x, p.z, streetHalf + L.waterClearance)
+      );
     };
-    const step = pitch / 2;
+    const step = pitch / 8;
     for (let k = -steps; k <= steps; k++) {
       if (!isStreet(k)) continue;
       const fixed = k * pitch;
@@ -564,8 +656,12 @@ export function layoutSettlement(
         const fixedHi = along === 'u' ? buildingsBox.v1 : buildingsBox.u1;
         if (!(fixed >= fixedLo - pitch && fixed <= fixedHi + pitch)) continue;
         let run: number[] = [];
+        // Sokak sırası düz bir çizgidir: yalnızca kesintisiz parçanın iki ucu tutulur (dizin ve çizim hafif kalsın).
         const flush = () => {
-          if (run.length >= 4) streets.push(Float32Array.from(run));
+          if (run.length >= 4) {
+            const n = run.length;
+            streets.push(Float32Array.of(run[0]!, run[1]!, run[n - 2]!, run[n - 1]!));
+          }
           run = [];
         };
         for (let t = Math.floor(lo / step) * step - pitch; t <= hi + pitch; t += step) {

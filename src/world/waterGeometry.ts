@@ -1,5 +1,5 @@
 import { ShapeUtils, Vector2 } from 'three';
-import type { WaterLine, WaterPolygon } from '../data/region';
+import type { WaterPolygon } from '../data/region';
 
 /** Doldurulmuş üçgen ağı: dünya konumları (x, y, z) ve üçgen indeksleri. */
 export interface MeshData {
@@ -8,97 +8,6 @@ export interface MeshData {
 }
 
 export type HeightFn = (x: number, z: number) => number;
-
-/** Köşe normalinin dönüş açısına göre uzama sınırı (dar dönüşlerde şerit sivrilmesin). */
-const MAX_MITER_SCALE = 2;
-/** Bundan kısa (oyun m) ardışık çizgi parçaları atlanır (sıfıra bölünme ve dejenere üçgen olmasın). */
-const MIN_SEGMENT = 1e-3;
-
-/** Ardışık tekrar eden noktaları ayıklar. */
-function dedupe(xz: Float64Array): Array<[number, number]> {
-  const points: Array<[number, number]> = [];
-  for (let i = 0; i < xz.length; i += 2) {
-    const x = xz[i] as number;
-    const z = xz[i + 1] as number;
-    const last = points[points.length - 1];
-    if (last && Math.hypot(x - last[0], z - last[1]) < MIN_SEGMENT) continue;
-    points.push([x, z]);
-  }
-  return points;
-}
-
-/**
- * Akarsu çizgilerini zemine oturan şeritlere çevirir. Şerit genişliği tür başına `widthOf`'tan gelir.
- * Her kesitin iki köşesi de (orta, sol, sağ) zemin yüksekliklerinin en büyüğü + `lift` yüksekliğindedir:
- * yamaç kesitinde şerit yarım gömülü kalmaz.
- */
-export function buildRiverRibbons(
-  lines: readonly WaterLine[],
-  heightAt: HeightFn,
-  widthOf: (line: WaterLine) => number,
-  lift: number,
-): MeshData {
-  const positions: number[] = [];
-  const indices: number[] = [];
-
-  for (const line of lines) {
-    const points = dedupe(line.xz);
-    if (points.length < 2) continue;
-    const half = widthOf(line) / 2;
-    const base = positions.length / 3;
-
-    for (let i = 0; i < points.length; i++) {
-      const [x, z] = points[i] as [number, number];
-      // Parça yönleri: önceki ve sonraki; köşe normali ikisinin (birim) normallerinin ortalaması.
-      const prev = points[i - 1];
-      const next = points[i + 1];
-      let nx = 0;
-      let nz = 0;
-      let count = 0;
-      if (prev) {
-        const dx = x - prev[0];
-        const dz = z - prev[1];
-        const len = Math.hypot(dx, dz);
-        nx += -dz / len;
-        nz += dx / len;
-        count++;
-      }
-      if (next) {
-        const dx = next[0] - x;
-        const dz = next[1] - z;
-        const len = Math.hypot(dx, dz);
-        nx += -dz / len;
-        nz += dx / len;
-        count++;
-      }
-      nx /= count;
-      nz /= count;
-      const nLen = Math.hypot(nx, nz);
-      // Ortalama normal kısaldıkça (keskin dönüş) genişlik 1/nLen kadar açılır, sınırlı.
-      const scale = nLen < 1e-6 ? 0 : Math.min(1 / nLen, MAX_MITER_SCALE) / nLen;
-      nx *= scale * half;
-      nz *= scale * half;
-
-      const lx = x + nx;
-      const lz = z + nz;
-      const rx = x - nx;
-      const rz = z - nz;
-      const y = Math.max(heightAt(x, z), heightAt(lx, lz), heightAt(rx, rz)) + lift;
-      positions.push(lx, y, lz, rx, y, rz);
-    }
-
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = base + i * 2; // sol, sağ
-      const b = a + 1;
-      const c = a + 2;
-      const d = a + 3;
-      // Normal +Y olacak sarım: (sol_i, sol_i+1, sağ_i) ve (sağ_i, sol_i+1, sağ_i+1)
-      indices.push(a, c, b, b, c, d);
-    }
-  }
-
-  return { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
-}
 
 /** Sıralanmış dizinin ortancası (boşsa 0). */
 function median(values: number[]): number {
