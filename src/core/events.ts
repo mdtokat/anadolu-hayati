@@ -1,5 +1,6 @@
 import type { CreatureId, CreatureKind, CreatureState } from '../creatures/kinds';
 import type { ItemStack } from '../items/Inventory';
+import type { BuildingKind } from '../settlements/kinds';
 import type { ItemId } from '../items/itemDefs';
 import type { StructureId, StructureKind } from '../placement/structures';
 import type { RecipeId } from '../items/recipes';
@@ -69,4 +70,10 @@ export interface GameEvents {
   'item:cooked': { from: ItemId; item: ItemId; count: number };
   /** Tatlı su kenarında bir boş su kabı doldurulunca (`item`: dolu kap). */
   'item:filled': { item: ItemId };
+  /** Faz 10: terk edilmiş bir yapı arandı (`items` boşsa çoktan yağmalanmış). */
+  'building:searched': { id: number; kind: BuildingKind; items: ItemStack[] };
+  /** Faz 10: bir kişi oyuncuya selam verdi. */
+  'person:greeted': { id: number; name: string; text: string };
+  /** Faz 10: kişiyle takas yapıldı (`give` boşsa hediye). */
+  'person:traded': { id: number; give: ItemStack[]; get: ItemStack[] };
 }

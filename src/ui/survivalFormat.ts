@@ -1,3 +1,4 @@
+import type { ShelterKind } from '../survival/vitals';
 import { SURVIVAL, SURVIVAL_HUD } from '../config';
 import type { DeathCause, VitalsState } from '../survival/vitals';
 
@@ -48,14 +49,22 @@ export function bodyTempLabel(bodyTempC: number): string {
 /**
  * Ateş ısısı ve barınak için kısa durum yazısı ("Ateş başında · Barınakta"; kulübede "Kulübede"); etki yoksa boş.
  */
+/** Barınak türünün HUD adı. */
+export function shelterLabel(shelter: ShelterKind | null): string {
+  if (shelter === 'hut') return 'Kulübede';
+  if (shelter === 'mosque') return 'Camide';
+  if (shelter === 'building') return 'Han içinde';
+  return 'Barınakta';
+}
+
 export function exposureLabel(
   warmthC: number,
   sheltered: boolean,
-  shelter: 'lean_to' | 'hut' | null = null,
+  shelter: ShelterKind | null = null,
 ): string {
   const parts: string[] = [];
   if (warmthC > 0) parts.push('Ateş başında');
-  if (sheltered) parts.push(shelter === 'hut' ? 'Kulübede' : 'Barınakta');
+  if (sheltered) parts.push(shelterLabel(shelter));
   return parts.join(' · ');
 }
 

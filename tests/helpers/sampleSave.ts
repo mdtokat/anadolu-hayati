@@ -45,5 +45,6 @@ export function sampleSave(): SaveGame {
     },
     creatures: { killed: [{ cell: SAMPLE_IDS.cell, remainingSeconds: 411.5 }] },
     hotbar: { slots: ['stone_axe', null, 'campfire', null, null, null, null, null], selected: 0 },
+    settlements: { searched: [5 * 1024 + 2, 7 * 1024] },
   };
 }

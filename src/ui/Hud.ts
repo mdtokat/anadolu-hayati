@@ -1,6 +1,6 @@
 import './ui.css';
 import { COMBAT_HUD, HUD_STYLE, INTERACT } from '../config';
-import type { VitalsState } from '../survival/vitals';
+import type { ShelterKind, VitalsState } from '../survival/vitals';
 import { defenseLabel, type HitMarkerKind } from './combatFormat';
 import type { HotbarSlotView } from './hotbarView';
 import {
@@ -20,6 +20,7 @@ import {
   formatTemperature,
   gaugeFraction,
   gaugeLevel,
+  shelterLabel,
   warnings,
 } from './survivalFormat';
 
@@ -52,7 +53,7 @@ export interface SurvivalHudInfo {
   warmthC: number;
   sheltered: boolean;
   /** Barınak türü (Faz 9: kulübe ayrı yazılır). */
-  shelter?: 'lean_to' | 'hut' | null;
+  shelter?: ShelterKind | null;
   /** Giysilerin hasar azaltma oranı (0–1); yoksa 0. */
   defense?: number;
   /** Güneş ufkun üstünde mi (saat simgesi güneş/ay)? Verilmezse gündüz sayılır. */
@@ -243,7 +244,7 @@ export class Hud {
     if (info.sheltered) {
       chips.push({
         icon: 'shelter',
-        text: info.shelter === 'hut' ? 'Kulübede' : 'Barınakta',
+        text: shelterLabel(info.shelter ?? null),
         state: 'shelter',
       });
     }

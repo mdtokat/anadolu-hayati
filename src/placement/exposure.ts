@@ -3,18 +3,19 @@ import { isLit, type Structure, type StructureSet } from './structures';
 
 const { fireWarmth } = SHELTER_EFFECTS;
 
-/** Korunma sağlayan yapılar (Faz 9: ahşap kulübe sundurmadan iyi korur). */
-export type ShelterKind = 'lean_to' | 'hut';
+/** Oyuncunun kurduğu barınaklar (Faz 9: ahşap kulübe sundurmadan iyi korur). */
+export type StructureShelter = 'lean_to' | 'hut';
+export type { ShelterKind } from '../survival/vitals';
 
 /** Yapı türünden barınak türü; barınak değilse null. */
-function shelterKindOf(structure: Readonly<Structure>): ShelterKind | null {
+function shelterKindOf(structure: Readonly<Structure>): StructureShelter | null {
   if (structure.kind === 'lean_to') return 'lean_to';
   if (structure.kind === 'wooden_hut') return 'hut';
   return null;
 }
 
 /** Barınak türünün etkileri (`SHELTER_EFFECTS.shelter` sundurma, `.hut` kulübe). */
-export function shelterEffects(kind: ShelterKind) {
+export function shelterEffects(kind: StructureShelter) {
   return kind === 'hut' ? SHELTER_EFFECTS.hut : SHELTER_EFFECTS.shelter;
 }
 
@@ -24,8 +25,8 @@ export interface Exposure {
   warmthC: number;
   /** Bir barınağın (sundurma, kulübe) altında mı? */
   sheltered: boolean;
-  /** Altında bulunulan en iyi barınak (kulübe › sundurma); yoksa null. */
-  shelter: ShelterKind | null;
+  /** Altında bulunulan en iyi barınak (kulübe › sundurma; Faz 10: cami/han içi); yoksa null. */
+  shelter: import('../survival/vitals').ShelterKind | null;
 }
 
 export const NO_EXPOSURE: Readonly<Exposure> = { warmthC: 0, sheltered: false, shelter: null };
@@ -72,7 +73,7 @@ const SEARCH_RADIUS = Math.max(
 /** Oyuncunun ayak konumundaki ısı ve barınak etkisi (saf; `structures` değişmez). */
 export function exposureAt(structures: StructureSet, x: number, y: number, z: number): Exposure {
   let warmth = 0;
-  let shelter: ShelterKind | null = null;
+  let shelter: StructureShelter | null = null;
   for (const s of structures.near(x, z, SEARCH_RADIUS)) {
     if (isLit(s)) {
       if (Math.abs(y - s.y) <= SHELTER_EFFECTS.shelter.verticalReach) {

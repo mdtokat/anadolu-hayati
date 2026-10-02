@@ -16,8 +16,9 @@ import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkK
  * - v1 (Faz 6): bölge `zonguldak-bartin-karabuk`, kimlikler 13 × 10 chunk ızgarasına bağlı (`cy · 13 + cx`).
  * - v2 (Faz 7): dünya `WORLD.id`, nesne kimlikleri ve canlı hücre anahtarları mutlak (`world/chunkKeys.ts`).
  * - v3 (Faz 9): kısayol çubuğu (`hotbar`); yapılarda yeni türler (tezgâh, sandık, kulübe) ve sandık içeriği.
+ * - v4 (Faz 10): yerleşimler (`settlements.searched`: aranmış yapı kimlikleri); yeni eşya kimlikleri (Türk kileri).
  */
-export const SAVE_FORMAT_VERSION = 3;
+export const SAVE_FORMAT_VERSION = 4;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -73,6 +74,13 @@ export interface SaveGame {
   creatures: CreaturesSave;
   /** Kısayol çubuğu: slot bağlantıları ve seçili slot (Faz 9). */
   hotbar: HotbarSave;
+  /** Yerleşimler (Faz 10): aranmış yapılar (`yerleşim · 1024 + sıra`). */
+  settlements: SettlementsSave;
+}
+
+/** Yerleşimlerde kalıcı olan durum (Faz 10). */
+export interface SettlementsSave {
+  searched: number[];
 }
 
 /** Yuva listesinde gösterilen kısa özet. */
@@ -183,6 +191,11 @@ function migrateV2toV3(raw: RawSave): RawSave {
   return { ...raw, hotbar: emptyHotbarSave() };
 }
 
+/** v3 → v4 (Faz 10): yerleşim durumu eklendi; eski kayıtta hiçbir yapı aranmamıştır. */
+function migrateV3toV4(raw: RawSave): RawSave {
+  return { ...raw, settlements: { searched: [] } };
+}
+
 /**
  * Sürüm `n` kaydını `n + 1`'e çeviren adımlar; bir adım girdisini değiştirmemeli, yeni nesne döndürmelidir.
  * Adım yalnızca yapıyı çevirir (taşınamayan kayıtta `SaveError` fırlatabilir); değerleri doğrulamak
@@ -191,6 +204,7 @@ function migrateV2toV3(raw: RawSave): RawSave {
 export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   1: migrateV1toV2,
   2: migrateV2toV3,
+  3: migrateV3toV4,
 };
 
 /**
@@ -264,6 +278,7 @@ export function parseSave(raw: unknown): SaveGame {
   } catch (error) {
     throw invalid(`kısayol: ${messageOf(error)}`, error);
   }
+  const settlements = parseSettlementsSave(save.settlements);
 
   return {
     version: SAVE_FORMAT_VERSION,
@@ -276,7 +291,17 @@ export function parseSave(raw: unknown): SaveGame {
     world,
     creatures,
     hotbar,
+    settlements,
   };
+}
+
+function parseSettlementsSave(value: unknown): SettlementsSave {
+  if (!isRecord(value)) throw invalid('settlements bir nesne olmalı');
+  const list = value.searched;
+  if (!Array.isArray(list) || !list.every((v) => Number.isInteger(v) && v >= 0)) {
+    throw invalid('settlements.searched negatif olmayan tam sayı listesi olmalı');
+  }
+  return { searched: [...new Set(list as number[])].sort((a, b) => a - b) };
 }
 
 /** Yuva listesinde gösterilecek özet (gün 1'den başlar). */

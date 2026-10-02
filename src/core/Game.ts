@@ -14,6 +14,7 @@ import {
   PLACE_NOTICE,
   QUALITY_PRESETS,
   SAVE,
+  SEARCH,
   STORAGE,
   PLAYER,
   SURVIVAL,
@@ -26,9 +27,17 @@ import { CarcassButcher, pickCarcass } from '../combat/carcass';
 import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CookingSystem } from '../combat/cooking';
+import { BuildingSearch, searchPrompt, searchTarget, searchedToast } from '../settlements/search';
 import type { MeleeAim } from '../combat/melee';
 import { updateInteractions } from '../combat/interactChain';
-import { butcherPrompt, butcheredToast, cookedToast, cookPrompt } from '../combat/promptText';
+import {
+  butcherPrompt,
+  butcheredToast,
+  cookedToast,
+  cookPrompt,
+  unbutcherablePrompt,
+} from '../combat/promptText';
+import { isButcherable } from '../combat/loot';
 import { CreatureSystem } from '../creatures/CreatureSystem';
 import type {
   CreatureContext,
@@ -200,6 +209,12 @@ export class Game {
     this.inventory,
     this.structureSystem.structures,
   );
+  /** Terk edilmiş yapıları arama (Faz 10). */
+  readonly search = new BuildingSearch(this.events, this.inventory);
+  /** Oyuncu bir caminin içinde mi (kutsal, güvenli alan; Faz 10)? */
+  private inSanctuary = false;
+  /** Bu adımda bakılan leş (ipucu için). */
+  private carcassTarget: CreatureView | null = null;
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -441,6 +456,12 @@ export class Game {
         this.hud.notify(cookedToast(count, item), INTERACT.toastMs),
       ),
       this.events.on('item:filled', () => this.hud.notify('Su kabı doldu', INTERACT.toastMs)),
+      this.events.on('building:searched', ({ items }) =>
+        this.hud.notify(
+          searchedToast(items, (id) => ITEMS[id].name),
+          INTERACT.toastMs,
+        ),
+      ),
       this.events.on('time:nightStarted', () =>
         this.hud.notify('Gece bastı: hava soğuyor, yırtıcılar avda', INTERACT.dayNightToastMs),
       ),
@@ -653,6 +674,7 @@ export class Game {
       gather: this.gather,
       creatures: this.creatures,
       hotbar: this.hotbar,
+      search: this.search,
     };
   }
 
@@ -734,7 +756,17 @@ export class Game {
             },
             (prop) => this.gather.inspect(prop) !== null,
           );
-    // E öncelik sırası: toplama > leş kesme > pişirme > ateşe yakıt > su içme (combat/interactChain.ts).
+    // Faz 10: kapısında durulan aranabilir yapı.
+    const settlements = this.world.settlementMap ?? null;
+    const building = settlements
+      ? searchTarget(settlements.buildingsNear(feet.x, feet.z, SEARCH.queryRadius), {
+          x: feet.x,
+          y: feet.y,
+          z: feet.z,
+          yaw: this.playerCamera.yaw,
+        })
+      : null;
+    // E öncelik sırası: toplama > leş kesme > pişirme > ateşe yakıt > yapı arama > su içme (combat/interactChain.ts).
     const interaction = updateInteractions(
       step,
       {
@@ -742,12 +774,14 @@ export class Game {
         butcher: this.butcher,
         cooking: this.cooking,
         fireTender: this.fireTender,
+        ...(settlements ? { search: this.search } : {}),
       },
       {
         held,
         feet,
         prop: focus?.prop ?? null,
-        carcass: this.carcassInReach(feet),
+        carcass: (this.carcassTarget = this.carcassInReach(feet)),
+        building,
         alive: this.survival.alive,
       },
     );
@@ -782,6 +816,16 @@ export class Game {
     const water = this.world.freshWaterNear?.(feet.x, feet.z) ?? null;
     this.waterInReach = water !== null;
     this.exposure = exposureAt(structures, feet.x, feet.y, feet.z);
+    // Faz 10: caminin/hanın içi kapalı barınaktır; cami ayrıca kutsal ve güvenlidir (canlılar algılamaz).
+    const interior = settlements?.interiorAt(feet.x, feet.y, feet.z) ?? null;
+    this.inSanctuary = interior?.sacred ?? false;
+    if (interior && this.exposure.shelter !== 'hut') {
+      this.exposure = {
+        ...this.exposure,
+        sheltered: true,
+        shelter: interior.sacred ? 'mosque' : 'building',
+      };
+    }
     this.survival.update(step, {
       activity: activityFromIntent(intent),
       elevationM: Math.max(0, feet.y * VERTICAL_SCALE),
@@ -823,6 +867,7 @@ export class Game {
         alive: this.survival.alive,
         yaw: this.playerCamera.yaw,
         weakness: playerWeakness(this.survival.state),
+        sanctuary: this.inSanctuary,
       },
       hour: clock.hour,
       sunAltitudeDeg: clock.sun.altitudeDeg,
@@ -1266,6 +1311,12 @@ export class Game {
       this.hud.setProgress(this.fireTender.progress > 0 ? this.fireTender.progress : null);
       return;
     }
+    const search = alive ? this.search.offer : null;
+    if (search?.status === 'ready') {
+      this.hud.setPrompt(searchPrompt(search));
+      this.hud.setProgress(this.search.progress > 0 ? this.search.progress : null);
+      return;
+    }
     const storage = alive ? this.storageTarget : null;
     if (storage) {
       this.hud.setProgress(null);
@@ -1280,6 +1331,10 @@ export class Game {
         (butcher ? butcherPrompt(butcher) : null) ??
         (cook ? cookPrompt(false, cook.status, cook.recipe) : null) ??
         (tend ? tendPrompt(tend) : null) ??
+        (search ? searchPrompt(search) : null) ??
+        (alive && this.carcassTarget && !isButcherable(this.carcassTarget.kind)
+          ? unbutcherablePrompt(this.carcassTarget.kind)
+          : null) ??
         this.structurePrompt(alive) ??
         this.attackHint(alive),
     );

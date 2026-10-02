@@ -16,7 +16,12 @@ export const CREATURE_NAMES: Readonly<Record<CreatureKind, string>> = {
 export function butcherPrompt(offer: ButcherOffer): string {
   if (offer.status === 'full') return 'Envanter dolu';
   const tool = offer.tool === 'bone_knife' ? ' (bıçakla)' : offer.withAxe ? ' (baltayla)' : '';
-  return `E (basılı tut): ${CREATURE_NAMES[offer.kind]} leşini kes${tool}`;
+  return `E (basılı tut): Bismillah — ${CREATURE_NAMES[offer.kind]} leşini kes${tool}`;
+}
+
+/** Kesilemeyen leşe bakınca (Faz 10, helal/haram): yaban domuzu necistir. */
+export function unbutcherablePrompt(kind: CreatureKind): string {
+  return `${CREATURE_NAMES[kind]}: necistir, leşi kesilmez`;
 }
 
 /**

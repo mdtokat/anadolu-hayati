@@ -1632,3 +1632,56 @@ export const BUILDING_LOOK = {
   /** Collider'lar yalnızca oyuncuya bu yarıçaptaki yapılara kurulur. */
   colliderRadius: 140,
 } as const;
+
+/** Yapı arama (Faz 10): kapıda `E` basılı tutulur; her yapı bir kez aranır (kayda girer). */
+export const SEARCH = {
+  /** Arama süresi (sn). */
+  seconds: 3,
+  /** Kapı noktasına en çok bu yatay uzaklık (oyun m) ve dikey fark. */
+  reach: 2.6,
+  verticalReach: 3,
+  /** Oyuncunun bakışı ile yapı merkezi arasındaki en büyük yatay açı (derece). */
+  viewConeDeg: 70,
+  /** Ganimet tohumu (aynı yapı her oyunda aynı ganimeti verir). */
+  seed: 0x10071,
+  /** Kapısı aranacak yapıların merkezinin sorgulandığı yarıçap (oyun m; en büyük yapı payıyla). */
+  queryRadius: 24,
+  /** Yıkık yapıda her ganimet olasılığı bu oranla çarpılır (çatı çökmüş, kiler ıslanmış). */
+  ruinedChanceScale: 0.5,
+} as const;
+
+/**
+ * Diğer insanlar (Faz 10): çok nadir, barışçıl yolcular. Kasabalar terk edilmiştir; kalanlar yollarda ve
+ * köylerde dolaşır, selam verir, yol tarif eder, takas yapar. Saldırılamazlar; canlılar da onları hedef almaz.
+ */
+export const PEOPLE = {
+  /** Aynı anda en çok kişi. */
+  maxActive: 2,
+  /** Doğma denemesi aralığı (gerçek sn) ve olasılığı: yol/yerleşim yakınında ve başka yerde. */
+  spawnCheckSeconds: 60,
+  spawnChanceNearRoads: 0.05,
+  spawnChanceWild: 0.012,
+  /** Yol/yerleşim "yakın" sayılma uzaklığı (oyun m). */
+  nearRoadDistance: 40,
+  /** Oyuncuya doğma uzaklığı (oyun m). */
+  spawnMinDistance: 60,
+  spawnMaxDistance: 110,
+  /** Bu uzaklığı aşan ya da ömrü dolan kişi kaybolur (oyun m, gerçek sn). */
+  despawnDistance: 320,
+  lifetimeSeconds: 900,
+  /** Yürüyüş hızı (oyun m/sn) ve oyuncuyu fark etme/selamlama uzaklıkları. */
+  walkSpeed: 1.3,
+  noticeDistance: 22,
+  greetDistance: 3.2,
+  /** Oyuncu bu kadar uzaklaşınca kişi yoluna devam eder. */
+  partDistance: 14,
+  /** Konuşma için erişim (oyun m) ve bakış konisi (derece). */
+  talkReach: 3.5,
+  talkConeDeg: 50,
+  /** Gezinme hedefi aralığı (oyun m). */
+  wanderRadius: 40,
+  /** Doğma noktasının en dik yamacı (derece). */
+  maxSlopeDeg: 35,
+  /** Tohum. */
+  seed: 0x9e0b1e,
+} as const;

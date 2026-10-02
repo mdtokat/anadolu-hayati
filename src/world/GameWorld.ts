@@ -1,4 +1,5 @@
 import type { Scene } from 'three';
+import type { SettlementMap } from '../settlements/SettlementMap';
 import type { CreatureTerrain } from '../creatures/kinds';
 import type { LandCoverClass } from '../data/landcover';
 import type { Vec3 } from '../player/movement';
@@ -73,6 +74,8 @@ export interface GameWorld {
   ambientAt?(x: number, z: number): AmbientSample;
   /** Grafik kalitesini çalışma zamanında uygular (destekleyen dünyalarda): arazi LOD çarpanı, nesne çizim yarıçapı. */
   setQuality?(quality: WorldQuality): void;
+  /** Yerleşimler: kasabalar, yapılar, yollar (Faz 10); destekleyen dünyalarda (veri varsa). */
+  readonly settlementMap?: SettlementMap | null;
   /** İl sınırı çizgilerini aç/kapa (destekleyen dünyalarda). */
   toggleBorders?(): void;
   dispose(): void;
