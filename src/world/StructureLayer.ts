@@ -8,6 +8,7 @@ import {
 } from 'three';
 import { STRUCTURE_LOOK } from '../config';
 import type { Ghost } from '../placement/PlacementController';
+import { isPieceKind, pieceVariantKey } from '../placement/pieces';
 import {
   STRUCTURE_KINDS,
   isLit,
@@ -19,6 +20,7 @@ import {
 import {
   buildFlameGeometry,
   buildOpenDoorGeometry,
+  buildPieceVariantGeometry,
   buildStructureGeometry,
 } from './structureGeometry';
 
@@ -54,6 +56,8 @@ export class StructureLayer {
   private readonly flameGeometry = buildFlameGeometry();
   /** Açık kapı kanadı (kapalı olan `geometries.door`). */
   private readonly openDoorGeometry = buildOpenDoorGeometry();
+  /** Faz 11 (11.1): modüler parça varyantları (`tür|varyant`; üst kat tabanı, merdiven boşluklu taban), tembel kurulur. */
+  private readonly variantGeometries = new Map<string, BufferGeometry>();
   private readonly bodyMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 1 });
   private readonly flameMaterial = new MeshBasicMaterial({ vertexColors: true });
   private readonly ghostMaterials = {
@@ -122,6 +126,11 @@ export class StructureLayer {
         mesh.position.set(ghost.x, ghost.y, ghost.z);
         mesh.rotation.y = ghost.yaw;
         mesh.material = ghost.valid ? this.ghostMaterials.valid : this.ghostMaterials.invalid;
+        // 11.1 (A): üst kat tabanının hayaleti eteksiz, merdiven üstündeki boşluklu görünür.
+        mesh.geometry = this.geometryFor(
+          kind,
+          isPieceKind(kind) ? pieceVariantKey(this.structures, ghost) : '',
+        );
       }
     }
   }
@@ -131,6 +140,8 @@ export class StructureLayer {
     this.nodes.clear();
     for (const light of this.lights) light.dispose();
     for (const geometry of Object.values(this.geometries)) geometry.dispose();
+    for (const geometry of this.variantGeometries.values()) geometry.dispose();
+    this.variantGeometries.clear();
     this.flameGeometry.dispose();
     this.openDoorGeometry.dispose();
     this.bodyMaterial.dispose();
@@ -148,14 +159,16 @@ export class StructureLayer {
     this.litCount = 0;
     for (const s of this.structures.all()) {
       present.add(s.id);
-      const key = placementKey(s);
+      // 11.1 (A): modüler parça komşularına göre şekil alır; varyant değişince düğüm yeniden kurulur.
+      const variant = isPieceKind(s.kind) ? pieceVariantKey(this.structures, s) : '';
+      const key = variant ? `${placementKey(s)}|${variant}` : placementKey(s);
       let node = this.nodes.get(s.id);
       if (node && node.key !== key) {
         node.root.removeFromParent();
         node = undefined;
       }
       if (!node) {
-        node = this.createNode(key, s.kind, s.x, s.y, s.z, s.yaw, s.open === true);
+        node = this.createNode(key, s.kind, s.x, s.y, s.z, s.yaw, s.open === true, variant);
         this.nodes.set(s.id, node);
       }
       const lit = isLit(s);
@@ -177,11 +190,13 @@ export class StructureLayer {
     z: number,
     yaw: number,
     open: boolean,
+    variant = '',
   ): Node {
     const root = new Group();
     root.position.set(x, y, z);
     root.rotation.y = yaw;
-    const geometry = kind === 'door' && open ? this.openDoorGeometry : this.geometries[kind];
+    const geometry =
+      kind === 'door' && open ? this.openDoorGeometry : this.geometryFor(kind, variant);
     root.add(new Mesh(geometry, this.bodyMaterial));
     let flame: Mesh | null = null;
     if (kind === 'campfire') {
@@ -190,6 +205,18 @@ export class StructureLayer {
     }
     this.group.add(root);
     return { key, root, flame };
+  }
+
+  /** Türün (varyantlı) geometrisi: varsayılan paylaşılan geometri ya da tembel kurulan varyant (11.1). */
+  private geometryFor(kind: StructureKind, variant: string): BufferGeometry {
+    if (variant === '') return this.geometries[kind];
+    const key = `${kind}|${variant}`;
+    let geometry = this.variantGeometries.get(key);
+    if (!geometry) {
+      geometry = buildPieceVariantGeometry(kind, variant);
+      this.variantGeometries.set(key, geometry);
+    }
+    return geometry;
   }
 
   /** Yanık ateşleri odağa yakınlığa göre sıralar; en yakın `lightPool` tanesine ışık verir, kalanları söndürür. */

@@ -1,4 +1,5 @@
-import { PIECES } from '../config';
+import { PIECES, PIECES_II } from '../config';
+import { GABLE_RISE, STOREY, parseFoundationVariant, type FoundationVariant } from './pieces';
 import type { StructureKind } from './structures';
 
 /**
@@ -53,6 +54,11 @@ export interface LocalBox {
   hx: number;
   hy: number;
   hz: number;
+  /**
+   * Faz 11 (A): yerel X ekseni etrafında eğim (radyan; yaw'dan önce uygulanır). Yalnızca `pieceColliderBoxes`'in
+   * rampa/beşik çatı kutularında bulunur; `solidBoxes` her zaman eksen hizalıdır.
+   */
+  pitch?: number;
 }
 
 function box(
@@ -164,7 +170,7 @@ export function solidBoxes(kind: StructureKind, open = false): LocalBox[] {
     case 'door':
     case 'roof':
       return pieceBoxes(kind, open);
-    // ── 11.1 (A) ── yer tutucu: katı değil (A merdiven rampası, direk, korkuluk… kutularını yazar).
+    // ── 11.1 (A) ── eksen hizalı kutular (mermi isabeti vb.); yürünen yüzeyler `pieceColliderBoxes`'te eğiktir.
     case 'stairs':
     case 'entry_step':
     case 'pillar':
@@ -172,7 +178,7 @@ export function solidBoxes(kind: StructureKind, open = false): LocalBox[] {
     case 'half_wall':
     case 'gable_roof':
     case 'gable_wall':
-      return [];
+      return pieces2Boxes(kind);
     // ── 11.2/11.3 (B) ── yer tutucu: katı değil (B istasyon, çit ve çit kapısı kutularını yazar).
     case 'forge':
     case 'stone_oven':
@@ -203,4 +209,236 @@ export function localToWorld(
     x: structure.x + localX * cos + localZ * sin,
     z: structure.z - localX * sin + localZ * cos,
   };
+}
+
+// ── 11.1 (A) ──
+
+/**
+ * Modüler inşa II parça ölçüleri (yerel uzay; `PIECES_II`'den türer). Merdiven yerel −Z yönüne çıkar (alt uç
+ * z = +cell, üst uç z = −cell); giriş basamağı tabanın kenarından (z = 0) dışarı (+Z) iner; korkuluk ve yarım duvar
+ * duvar gibi kenar boyunca (X) uzanır; beşik çatının mahyası X boyuncadır, yüzleri ±Z'ye iner; alın duvarı X boyunca
+ * üçgendir. Hepsinde y = 0 oturduğu plakanın alt yüzü (beşik çatı ve alın duvarında duvar üstü).
+ */
+export const PIECE2_SHAPE = {
+  stairHalf: PIECES_II.stairs.halfWidth,
+  stairRun: PIECES.cell * PIECES_II.stairs.cells,
+  stairRise: STOREY,
+  stepHalf: PIECES_II.entryStep.halfWidth,
+  stepDepth: PIECES_II.entryStep.depth,
+  stepRise: PIECES_II.entryStep.maxRise,
+  pillarHalf: PIECES_II.pillar.size / 2,
+  pillarTop: STOREY,
+  railTop: PIECES.slab + PIECES_II.railing.height,
+  railHalf: PIECES_II.railing.thickness / 2,
+  railSolidHalf: PIECES_II.railing.solidThickness / 2,
+  halfWallTop: PIECES.slab + PIECES_II.halfWall.height,
+  gableRise: GABLE_RISE,
+  gablePitch: (PIECES_II.gableRoof.pitchDeg * Math.PI) / 180,
+  gableEave: PIECES.cell + PIECES_II.gableRoof.overhang,
+  gableThickness: PIECES_II.gableRoof.thickness,
+  rim: PIECES_II.stairwell.rim,
+} as const;
+
+/** Merdiven, giriş basamağı, direk, korkuluk, yarım duvar, beşik çatı, alın duvarının eksen hizalı kutuları. */
+function pieces2Boxes(kind: StructureKind): LocalBox[] {
+  const P = PIECE_SHAPE;
+  const Q = PIECE2_SHAPE;
+  switch (kind) {
+    case 'stairs': {
+      // Eğimin altında kalan basamaklı dolgu (yüzeyi aşmaz): dört dilimden alçak ucu sıfır olan atlanır.
+      const out: LocalBox[] = [];
+      const slices = 4;
+      const length = Q.stairRun / slices;
+      for (let k = 1; k < slices; k++) {
+        const z1 = Q.stairRun / 2 - k * length;
+        out.push(
+          box(
+            -Q.stairHalf,
+            Q.stairHalf,
+            P.slab,
+            P.slab + (Q.stairRise * k) / slices,
+            z1 - length,
+            z1,
+          ),
+        );
+      }
+      return out;
+    }
+    case 'entry_step': {
+      const steps = PIECES_II.entryStep.steps;
+      const run = Q.stepDepth / steps;
+      const rise = Q.stepRise / steps;
+      const bottom = P.slab - Q.stepRise - 0.4;
+      const out: LocalBox[] = [];
+      for (let k = 0; k < steps; k++) {
+        out.push(
+          box(-Q.stepHalf, Q.stepHalf, bottom, P.slab - (k + 0.5) * rise, k * run, (k + 1) * run),
+        );
+      }
+      return out;
+    }
+    case 'pillar':
+      return [box(-Q.pillarHalf, Q.pillarHalf, P.slab, Q.pillarTop, -Q.pillarHalf, Q.pillarHalf)];
+    case 'railing':
+      return [box(-P.half, P.half, P.slab, Q.railTop, -Q.railSolidHalf, Q.railSolidHalf)];
+    case 'half_wall': {
+      const t = P.thickness / 2;
+      return [box(-P.half, P.half, P.wallBottom, Q.halfWallTop, -t, t)];
+    }
+    case 'gable_roof':
+      // Kaba: mahya altında yarım yükseklikte orta kutu ve saçağa kadar ince taban (mermi için).
+      return [
+        box(-P.half, P.half, 0, Q.gableRise / 2, -P.half, P.half),
+        box(-P.half, P.half, 0, 0.1, -PIECES.cell, PIECES.cell),
+      ];
+    case 'gable_wall':
+      return gableWallBands();
+    default:
+      return [];
+  }
+}
+
+/** Alın duvarı üçgeni: üç yatay bant (her bandın genişliği orta yüksekliğindeki üçgen genişliği). */
+function gableWallBands(): LocalBox[] {
+  const t = PIECE_SHAPE.thickness / 2;
+  const bands = 3;
+  const out: LocalBox[] = [];
+  for (let i = 0; i < bands; i++) {
+    const half = PIECES.cell * (1 - (i + 0.5) / bands);
+    const y0 = (GABLE_RISE * i) / bands;
+    out.push(box(-half, half, y0, y0 + GABLE_RISE / bands, -t, t));
+  }
+  return out;
+}
+
+/**
+ * Üst yüzü (a → b) doğru parçası olan eğik ince kutu (yerel YZ düzleminde; X'te yarı genişlik `hx`). Kalınlık yüzeyin
+ * altına doğrudur; `pitch` yerel X etrafında.
+ */
+function slopeBox(
+  hx: number,
+  a: { y: number; z: number },
+  b: { y: number; z: number },
+  thickness: number,
+): LocalBox {
+  const dz = b.z - a.z;
+  const dy = b.y - a.y;
+  const length = Math.hypot(dz, dy);
+  // Kutunun yerel +Z'si (a → b) yönüne: Rx(θ)(0, 0, 1) = (0, −sin θ, cos θ).
+  const pitch = Math.atan2(-dy, dz);
+  // Yukarı normal: Rx(θ)(0, 1, 0) = (0, cos θ, sin θ); ters yöndeyse çevir.
+  let ny = Math.cos(pitch);
+  let nz = Math.sin(pitch);
+  if (ny < 0) {
+    ny = -ny;
+    nz = -nz;
+  }
+  return {
+    cx: 0,
+    cy: (a.y + b.y) / 2 - (ny * thickness) / 2,
+    cz: (a.z + b.z) / 2 - (nz * thickness) / 2,
+    hx,
+    hy: thickness / 2,
+    hz: length / 2,
+    pitch,
+  };
+}
+
+/** Merdivenin rampası: alt uçta plaka üstü, üst uçta bir kat yukarısı (basamak burunlarından geçer). */
+function stairRamp(): LocalBox {
+  const Q = PIECE2_SHAPE;
+  const slab = PIECE_SHAPE.slab;
+  return slopeBox(
+    Q.stairHalf,
+    { y: slab, z: Q.stairRun / 2 },
+    { y: slab + Q.stairRise, z: -Q.stairRun / 2 },
+    0.2,
+  );
+}
+
+/** Giriş basamağının rampası: tabanın üst yüzünden dışarı iner; basamak ortalarından geçer, zemine doğru uzar. */
+function entryRamp(): LocalBox {
+  const Q = PIECE2_SHAPE;
+  const slab = PIECE_SHAPE.slab;
+  const extra = 0.3;
+  const slope = Q.stepRise / Q.stepDepth;
+  return slopeBox(
+    Q.stepHalf,
+    { y: slab, z: 0 },
+    { y: slab - slope * (Q.stepDepth + extra), z: Q.stepDepth + extra },
+    0.25,
+  );
+}
+
+/** Beşik çatının iki eğik yüzü (üst yüzleri çatı yüzeyidir). */
+function gableSlopes(): LocalBox[] {
+  const Q = PIECE2_SHAPE;
+  const drop = Q.gableEave * Math.tan(Q.gablePitch);
+  const ridge = { y: Q.gableRise, z: 0 };
+  return [1, -1].map((side) =>
+    slopeBox(
+      PIECE_SHAPE.half,
+      ridge,
+      { y: Q.gableRise - drop, z: side * Q.gableEave },
+      Q.gableThickness,
+    ),
+  );
+}
+
+/**
+ * Merdiven boşluklu tabanın kenar şeritleri (yatay dikdörtgenler): `open` maskesindeki kenarda şerit yoktur. Kuzey/güney
+ * şeritleri tam boy; batı/doğu şeritleri, kuzey/güney şeridi olan uçlarda onlara kadar.
+ */
+export function wellRims(
+  open: number,
+): Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> {
+  const h = PIECE_SHAPE.half;
+  const r = PIECE2_SHAPE.rim;
+  const north = !(open & 1);
+  const south = !(open & 2);
+  const z0 = north ? -h + r : -h;
+  const z1 = south ? h - r : h;
+  const rims: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+  if (north) rims.push({ minX: -h, maxX: h, minZ: -h, maxZ: -h + r });
+  if (south) rims.push({ minX: -h, maxX: h, minZ: h - r, maxZ: h });
+  if (!(open & 4)) rims.push({ minX: -h, maxX: -h + r, minZ: z0, maxZ: z1 });
+  if (!(open & 8)) rims.push({ minX: h - r, maxX: h, minZ: z0, maxZ: z1 });
+  return rims;
+}
+
+/** Tabanın varyant kutuları: yükseltilmiş (etek yok) ya da merdiven boşluklu (kenar şeridi + korkuluklar). */
+function foundationVariantBoxes(v: FoundationVariant): LocalBox[] {
+  const P = PIECE_SHAPE;
+  const Q = PIECE2_SHAPE;
+  const h = P.half;
+  if (!v.well) {
+    return v.raised ? [box(-h, h, 0, P.slab, -h, h)] : solidBoxes('foundation');
+  }
+  const out = wellRims(v.open).map((b) => box(b.minX, b.maxX, 0, P.slab, b.minZ, b.maxZ));
+  const t = Q.railSolidHalf;
+  // Korkuluk bitleri `edgesOfCell` sırasıyla: kuzey, güney, batı, doğu.
+  if (v.rails & 1) out.push(box(-h, h, P.slab, Q.railTop, -h - t, -h + t));
+  if (v.rails & 2) out.push(box(-h, h, P.slab, Q.railTop, h - t, h + t));
+  if (v.rails & 4) out.push(box(-h - t, -h + t, P.slab, Q.railTop, -h, h));
+  if (v.rails & 8) out.push(box(h - t, h + t, P.slab, Q.railTop, -h, h));
+  return out;
+}
+
+/**
+ * Fizik collider'ı kutuları (yerel uzay): `solidBoxes` gibi, ama yürünen yüzeyler eğiktir (merdiven ve giriş basamağı
+ * rampası, beşik çatı yüzleri) ve taban varyantına (`pieceVariantKey`) göre şekil alır.
+ */
+export function pieceColliderBoxes(kind: StructureKind, variant: string, open = false): LocalBox[] {
+  switch (kind) {
+    case 'foundation':
+      return variant ? foundationVariantBoxes(parseFoundationVariant(variant)) : solidBoxes(kind);
+    case 'stairs':
+      return [stairRamp()];
+    case 'entry_step':
+      return [entryRamp()];
+    case 'gable_roof':
+      return gableSlopes();
+    default:
+      return solidBoxes(kind, open);
+  }
 }

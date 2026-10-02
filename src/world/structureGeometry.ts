@@ -6,8 +6,16 @@ import {
   Matrix4,
   Vector3,
 } from 'three';
-import { PIECES, STRUCTURE_LOOK } from '../config';
-import { CHEST, HUT, PIECE_SHAPE as P, WORKBENCH } from '../placement/structureShapes';
+import { PIECES, PIECES_II, STRUCTURE_LOOK } from '../config';
+import { parseFoundationVariant, type FoundationVariant } from '../placement/pieces';
+import {
+  CHEST,
+  HUT,
+  PIECE2_SHAPE as Q,
+  PIECE_SHAPE as P,
+  WORKBENCH,
+  wellRims,
+} from '../placement/structureShapes';
 import type { StructureKind } from '../placement/structures';
 import { createRandom } from '../utils/random';
 import { blob, merge, place, type Part } from './propGeometry';
@@ -406,13 +414,229 @@ function placeholderParts(width: number, height: number, depth: number, color: n
 }
 
 // ── 11.1 (A) ──
-const stairsParts = (): Part[] => placeholderParts(2, 2.6, 4, C.plank);
-const entryStepParts = (): Part[] => placeholderParts(2, 0.5, 1, C.slab);
-const pillarParts = (): Part[] => placeholderParts(0.3, 2.6, 0.3, C.log);
-const railingParts = (): Part[] => placeholderParts(2, 1, 0.1, C.plank);
-const halfWallParts = (): Part[] => placeholderParts(2, 1.1, 0.18, C.wall);
-const gableRoofParts = (): Part[] => placeholderParts(4, 1.5, 2, C.roofSlab);
-const gableWallParts = (): Part[] => placeholderParts(4, 1.5, 0.18, C.wall);
+
+/** Yerel X ekseni etrafında eğik kutu: üst yüzü (a → b) doğru parçası, X'te [x0, x1], kalınlık yüzeyin altında. */
+function slopePart(
+  x0: number,
+  x1: number,
+  a: readonly [number, number],
+  b: readonly [number, number],
+  thickness: number,
+  color: number,
+): Part {
+  const [ay, az] = a;
+  const [by, bz] = b;
+  const length = Math.hypot(bz - az, by - ay);
+  const pitch = Math.atan2(-(by - ay), bz - az);
+  let ny = Math.cos(pitch);
+  let nz = Math.sin(pitch);
+  if (ny < 0) {
+    ny = -ny;
+    nz = -nz;
+  }
+  const geometry = new BoxGeometry(x1 - x0, thickness, length);
+  rotate(geometry, new Matrix4().makeRotationX(pitch));
+  return {
+    geometry: place(
+      geometry,
+      (x0 + x1) / 2,
+      (ay + by) / 2 - (ny * thickness) / 2,
+      (az + bz) / 2 - (nz * thickness) / 2,
+    ),
+    color,
+  };
+}
+
+/** Merdiven: iki yan kiriş (eğik) ve açık basamaklar; yerel −Z'ye bir kat çıkar (basamak ortası rampadadır). */
+function stairsParts(): Part[] {
+  const steps = PIECES_II.stairs.steps;
+  const run = Q.stairRun / steps;
+  const rise = Q.stairRise / steps;
+  const low = Q.stairRun / 2;
+  const parts: Part[] = [];
+  for (let i = 0; i < steps; i++) {
+    const top = P.slab + (i + 0.5) * rise;
+    const z1 = low - i * run;
+    parts.push(
+      slab(
+        -Q.stairHalf,
+        Q.stairHalf,
+        top - 0.06,
+        top,
+        Math.max(z1 - run - 0.02, -low),
+        z1,
+        C.plank,
+      ),
+    );
+  }
+  // Yan kirişler: basamakları taşıyan eğik kalaslar (alt uçta tabana, üst uçta üst kat tabanına değer); üst ucu,
+  // kalınlığı ayak izinden taşmasın diye biraz kısa.
+  const trim = 0.2;
+  const endY = P.slab + 0.12 + Q.stairRise * (1 - trim / Q.stairRun);
+  for (const x of [-Q.stairHalf - 0.05, Q.stairHalf + 0.05]) {
+    parts.push(
+      slopePart(x - 0.05, x + 0.05, [P.slab + 0.12, low], [endY, -low + trim], 0.32, C.darkPlank),
+    );
+  }
+  return parts;
+}
+
+/** Giriş basamağı: tabanın kenarından dışarı inen taş basamaklar (alt kısmı zemine gömülür). */
+function entryStepParts(): Part[] {
+  const steps = PIECES_II.entryStep.steps;
+  const run = Q.stepDepth / steps;
+  const rise = Q.stepRise / steps;
+  const bottom = P.slab - Q.stepRise - 0.4;
+  // Eşik: tabanın kenarında, üst yüzüyle hizalı koyu kalas.
+  const parts: Part[] = [
+    slab(-Q.stepHalf, Q.stepHalf, P.slab - 0.12, P.slab + 0.01, -0.04, 0.06, C.darkPlank),
+  ];
+  for (let k = 0; k < steps; k++) {
+    const top = P.slab - (k + 0.5) * rise;
+    parts.push(slab(-Q.stepHalf, Q.stepHalf, bottom, top, k * run, (k + 1) * run, C.stone));
+    // Basamak burnu (koyu şerit).
+    parts.push(
+      slab(
+        -Q.stepHalf,
+        Q.stepHalf,
+        top - 0.04,
+        top + 0.005,
+        (k + 1) * run - 0.06,
+        (k + 1) * run,
+        C.skirt,
+      ),
+    );
+  }
+  return parts;
+}
+
+/** Direk: köşede kalın dikme, altında taş kaide, üstünde başlık. */
+function pillarParts(): Part[] {
+  const h = Q.pillarHalf;
+  return [
+    slab(-h - 0.06, h + 0.06, P.slab - 0.02, P.slab + 0.14, -h - 0.06, h + 0.06, C.stone),
+    slab(-h, h, P.slab + 0.14, Q.pillarTop - 0.12, -h, h, C.log),
+    slab(-h - 0.05, h + 0.05, Q.pillarTop - 0.12, Q.pillarTop, -h - 0.05, h + 0.05, C.darkPlank),
+  ];
+}
+
+/** Korkuluk (yerel X boyunca, merkez z = `z0`, X'te [−len, len]): uç dikmeleri, üst/alt tırabzan, parmaklıklar. */
+function railingAlongX(len: number, z0: number): Part[] {
+  const t = Q.railHalf;
+  const top = Q.railTop;
+  const parts: Part[] = [
+    slab(-len, len, top - 0.07, top, z0 - t - 0.01, z0 + t + 0.01, C.darkPlank),
+    slab(-len, len, P.slab + 0.12, P.slab + 0.18, z0 - t, z0 + t, C.plank),
+  ];
+  for (const x of [-len + 0.05, len - 0.05]) {
+    parts.push(slab(x - 0.05, x + 0.05, P.slab, top, z0 - 0.05, z0 + 0.05, C.darkPlank));
+  }
+  const count = Math.round((len * 2) / 0.24);
+  for (let i = 1; i < count; i++) {
+    const x = -len + (i * len * 2) / count;
+    parts.push(
+      slab(x - 0.025, x + 0.025, P.slab + 0.18, top - 0.07, z0 - 0.025, z0 + 0.025, C.plank),
+    );
+  }
+  return parts;
+}
+
+/** Korkuluk: plaka kenarında, kenar boyunca. */
+function railingParts(): Part[] {
+  return railingAlongX(P.half, 0);
+}
+
+/** Yarım duvar: duvarın alt kısmı, üstünde kapak kalası; kenarlarda dikme. */
+function halfWallParts(): Part[] {
+  const t = P.thickness / 2;
+  const top = Q.halfWallTop;
+  const parts: Part[] = [
+    slab(-P.half, P.half, P.wallBottom, top - 0.05, -t, t, C.wall),
+    ...logLines(-P.half, P.half, P.wallBottom, top - 0.05),
+    slab(-P.half, P.half, top - 0.05, top, -t - 0.04, t + 0.04, C.darkPlank),
+  ];
+  for (const x of [-P.half, P.half - 0.1]) {
+    parts.push(slab(x, x + 0.1, P.wallBottom, top - 0.05, -t - 0.03, t + 0.03, C.darkPlank));
+  }
+  return parts;
+}
+
+/** Beşik çatı: mahya X boyunca; ±Z'ye inen iki eğik yüz, üstlerinde kiremit şeritleri ve mahya kapağı. */
+function gableRoofParts(): Part[] {
+  const drop = Q.gableEave * Math.tan(Q.gablePitch);
+  const h = P.half + 0.005; // komşu parçayla ek yeri kapansın
+  const parts: Part[] = [];
+  for (const side of [1, -1]) {
+    parts.push(
+      slopePart(
+        -h,
+        h,
+        [Q.gableRise, 0],
+        [Q.gableRise - drop, side * Q.gableEave],
+        Q.gableThickness,
+        C.roofSlab,
+      ),
+    );
+    // Kiremit şeritleri: yüzeyin hemen üstünde, mahyaya paralel.
+    for (let k = 1; k <= 4; k++) {
+      const z = (side * Q.gableEave * k) / 5;
+      const y = Q.gableRise - Math.abs(z) * Math.tan(Q.gablePitch);
+      parts.push(slab(-h, h, y, y + 0.03, z - 0.03, z + 0.03, C.darkPlank));
+    }
+  }
+  parts.push(slab(-h, h, Q.gableRise - 0.02, Q.gableRise + 0.08, -0.1, 0.1, C.darkPlank));
+  return parts;
+}
+
+/** Alın duvarı: beşik çatının ucunda, duvar üstünden mahyaya üçgen (yerel X boyunca, z = 0'da). */
+function gableWallParts(): Part[] {
+  const t = P.thickness;
+  const base = PIECES.cell;
+  const gable = new CylinderGeometry(0.0001, base * Math.SQRT2, Q.gableRise, 4, 1);
+  rotate(gable, new Matrix4().makeRotationY(Math.PI / 4));
+  gable.scale(1, 1, t / (base * 2));
+  return [
+    { geometry: place(gable, 0, Q.gableRise / 2, 0), color: C.wall },
+    slab(-base, base, 0, 0.08, -t / 2 - 0.03, t / 2 + 0.03, C.darkPlank),
+  ];
+}
+
+/**
+ * Tabanın varyant geometrisi: yükseltilmiş (üst kat/balkon: etek yerine kiriş çerçevesi) ya da merdiven boşluklu
+ * (kenar şeridi + maskedeki kenarlarda korkuluk; `edgesOfCell` sırası kuzey, güney, batı, doğu).
+ */
+function foundationVariantParts(v: FoundationVariant): Part[] {
+  if (!v.raised && !v.well) return foundationParts();
+  const h = P.half;
+  const beam = (minX: number, maxX: number, minZ: number, maxZ: number): Part =>
+    slab(minX, maxX, -0.14, 0.001, minZ, maxZ, C.darkPlank);
+  if (!v.well) {
+    return [
+      slab(-h, h, 0, P.slab, -h, h, C.slab),
+      ...plankLines(P.slab, C.darkPlank, -h, h, 0.5),
+      beam(-h, h, -h, -h + 0.12),
+      beam(-h, h, h - 0.12, h),
+      beam(-h, -h + 0.12, -h, h),
+      beam(h - 0.12, h, -h, h),
+    ];
+  }
+  const parts: Part[] = wellRims(v.open).map((b) =>
+    slab(b.minX, b.maxX, 0, P.slab, b.minZ, b.maxZ, C.slab),
+  );
+  const rails: Array<[number, Matrix4]> = [
+    [1, new Matrix4().makeTranslation(0, 0, -h)],
+    [2, new Matrix4().makeTranslation(0, 0, h)],
+    [4, new Matrix4().makeTranslation(-h, 0, 0).multiply(new Matrix4().makeRotationY(Math.PI / 2))],
+    [8, new Matrix4().makeTranslation(h, 0, 0).multiply(new Matrix4().makeRotationY(Math.PI / 2))],
+  ];
+  for (const [bit, m] of rails) {
+    if (!(v.rails & bit)) continue;
+    for (const part of railingAlongX(h, 0)) {
+      parts.push({ geometry: rotate(part.geometry, m), color: part.color });
+    }
+  }
+  return parts;
+}
 
 // ── 11.2/11.3 (B) ──
 const forgeParts = (): Part[] => placeholderParts(1.4, 1.1, 1, C.stone);
@@ -471,6 +695,15 @@ const PARTS: Readonly<Record<StructureKind, () => Part[]>> = {
 export function buildStructureGeometry(kind: StructureKind): BufferGeometry {
   const random = createRandom(SEED + (kind === 'campfire' ? 1 : kind === 'lean_to' ? 2 : 10));
   return merge(PARTS[kind](), random);
+}
+
+/**
+ * Faz 11 (11.1): modüler parçanın varyant geometrisi (`pieceVariantKey`; boş anahtar varsayılan geometridir). Şimdilik
+ * yalnızca taban şekil alır (yükseltilmiş, merdiven boşluklu).
+ */
+export function buildPieceVariantGeometry(kind: StructureKind, variant: string): BufferGeometry {
+  if (kind !== 'foundation' || variant === '') return buildStructureGeometry(kind);
+  return merge(foundationVariantParts(parseFoundationVariant(variant)), createRandom(SEED + 10));
 }
 
 /** Açık kapı kanadı geometrisi (kapalı olanı `buildStructureGeometry('door')`). */
