@@ -29,6 +29,12 @@ export interface WeaponStateSave {
 
 export class WeaponState {
   private readonly rounds = new Map<WeaponId, number>();
+  private loads = 0;
+
+  /** Kayıt yükleme/temizleme sayacı (11.5): `RangedSystem` geçici durumunu (doldurma, uçuştaki isabet) sıfırlar. */
+  get revision(): number {
+    return this.loads;
+  }
 
   /** Şarjördeki mermi (boşsa 0). */
   loaded(id: WeaponId): number {
@@ -58,6 +64,7 @@ export class WeaponState {
 
   clear(): void {
     this.rounds.clear();
+    this.loads += 1;
   }
 
   toSave(): WeaponStateSave {
@@ -72,6 +79,7 @@ export class WeaponState {
   /** Kayıttan yükler (doğrulanmış kayıt: `parseSave`); bilinmeyen alanlar yok sayılır. */
   loadSave(save: WeaponStateSave): void {
     this.rounds.clear();
+    this.loads += 1;
     for (const id of WEAPON_IDS) {
       const n = save.loaded[id];
       if (n !== undefined) this.set(id, n);

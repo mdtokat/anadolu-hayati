@@ -19,6 +19,13 @@ export class PlayerCamera {
   private cameraMode: CameraMode = 'firstPerson';
   /** Kullanıcı ayarından gelen hassasiyet çarpanı (`INPUT.mouseSensitivity` ile çarpılır). */
   private sensitivityScale = 1;
+  // ── Faz 11.5 (D): nişan ve dürbün ──
+  /** Nişan görüş açısı (derece), hassasiyet çarpanı ve nişanda birinci şahsa geçiş. */
+  private aimFovDeg: number = CAMERA.fov;
+  private aimSensitivity = 1;
+  private aimFirstPerson = false;
+  /** Bakışa yalnızca görüntüde eklenen kayma (dürbün salınımı; radyan). */
+  private viewOffset = { yaw: 0, pitch: 0 };
 
   constructor(
     private readonly events: EventBus<GameEvents>,
@@ -40,6 +47,32 @@ export class PlayerCamera {
     return this.look.pitch;
   }
 
+  /** Görüntü birinci şahıstan mı (seçili mod ya da nişan)? */
+  get viewFirstPerson(): boolean {
+    return this.cameraMode === 'firstPerson' || this.aimFirstPerson;
+  }
+
+  /**
+   * Faz 11.5: nişan durumu. `fovDeg` görüş açısı (nişanda daralır), `sensitivity` fare hassasiyeti çarpanı,
+   * `firstPerson` üçüncü şahısta nişan alınca görüntü göz hizasına geçer (nişangâh bakış çizgisinde kalsın).
+   */
+  setAim(fovDeg: number, sensitivity: number, firstPerson: boolean): void {
+    this.aimFovDeg = Number.isFinite(fovDeg) && fovDeg > 1 ? fovDeg : CAMERA.fov;
+    this.aimSensitivity = Number.isFinite(sensitivity) && sensitivity > 0 ? sensitivity : 1;
+    this.aimFirstPerson = firstPerson;
+  }
+
+  /** Faz 11.5: dürbün salınımı gibi yalnızca görüntüye eklenen bakış kayması (radyan). */
+  setViewOffset(yaw: number, pitch: number): void {
+    this.viewOffset = { yaw, pitch };
+  }
+
+  /** Faz 11.5: silah tepmesi: bakışı `pitch` radyan yukarı iter (sınırlar korunur). */
+  kick(pitch: number, yaw = 0): void {
+    if (pitch === 0 && yaw === 0) return;
+    this.look = normalizeLook({ yaw: this.look.yaw + yaw, pitch: this.look.pitch + pitch });
+  }
+
   /** Fare hassasiyeti çarpanı (1 = varsayılan); geçersiz değerde 1'e döner. */
   setSensitivityScale(scale: number): void {
     this.sensitivityScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
@@ -53,7 +86,12 @@ export class PlayerCamera {
   /** Fare hareketini (piksel) bakışa uygular. */
   applyMouse(dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
-    this.look = applyLook(this.look, dx, dy, INPUT.mouseSensitivity * this.sensitivityScale);
+    this.look = applyLook(
+      this.look,
+      dx,
+      dy,
+      INPUT.mouseSensitivity * this.sensitivityScale * this.aimSensitivity,
+    );
   }
 
   toggleMode(): void {
@@ -64,10 +102,14 @@ export class PlayerCamera {
   /** Kamerayı oyuncunun (ayak tabanı) konumuna göre yerleştirir. */
   update(feet: Vec3): void {
     const { yaw, pitch } = this.look;
+    if (this.camera.fov !== this.aimFovDeg) {
+      this.camera.fov = this.aimFovDeg;
+      this.camera.updateProjectionMatrix();
+    }
 
-    if (this.cameraMode === 'firstPerson') {
+    if (this.viewFirstPerson) {
       this.camera.position.set(feet.x, feet.y + PLAYER.eyeHeight, feet.z);
-      this.camera.rotation.set(pitch, yaw, 0);
+      this.camera.rotation.set(pitch + this.viewOffset.pitch, yaw + this.viewOffset.yaw, 0);
       return;
     }
 

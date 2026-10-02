@@ -111,11 +111,16 @@ export class RangedSystem {
     running: false,
   };
   private readonly pending: PendingHit[] = [];
+  /** Son görülen şarjör kaydı sürümü: kayıt yüklenince geçici durum sıfırlanır. */
+  private weaponsRevision = -1;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
     private readonly inventory: Inventory,
-    private readonly weapons: WeaponState,
+    private readonly weapons: Pick<
+      WeaponState,
+      'loaded' | 'capacity' | 'set' | 'consume' | 'revision'
+    >,
     private readonly survival: Pick<SurvivalSystem, 'alive' | 'state' | 'spendEnergy'>,
     private readonly random: () => number = Math.random,
   ) {}
@@ -207,6 +212,10 @@ export class RangedSystem {
 
   /** Sabit adım (dt sn): nişan, nefes, doldurma, atış arası ve uçuştaki isabetler. */
   update(dt: number, input: RangedInput): void {
+    if (this.weapons.revision !== this.weaponsRevision) {
+      this.weaponsRevision = this.weapons.revision;
+      this.reset();
+    }
     this.time += dt;
     this.input = input;
     this.cooldownLeft = Math.max(this.cooldownLeft - dt, 0);
@@ -377,4 +386,21 @@ export class RangedSystem {
     this.breathOut = false;
     this.steadyActive = false;
   }
+}
+
+/**
+ * Nişan geçişinde kamera (saf): görüş açısı normalden silahın `aimFovDeg`'ine, fare hassasiyeti de görüş açısıyla
+ * orantılı (× `RANGED.aimSensitivity`) iner; geçişin yarısından sonra görüntü göz hizasına alınır.
+ */
+export function aimCamera(
+  weapon: WeaponId | null,
+  aim: number,
+  baseFovDeg: number,
+): { fovDeg: number; sensitivity: number; firstPerson: boolean } {
+  if (!weapon || aim <= 0) return { fovDeg: baseFovDeg, sensitivity: 1, firstPerson: false };
+  const a = Math.min(aim, 1);
+  const target = RANGED.weapons[weapon].aimFovDeg;
+  const fovDeg = baseFovDeg + (target - baseFovDeg) * a;
+  const zoomed = (target / baseFovDeg) * RANGED.aimSensitivity;
+  return { fovDeg, sensitivity: 1 + (zoomed - 1) * a, firstPerson: a >= 0.5 };
 }
