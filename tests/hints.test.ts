@@ -65,6 +65,10 @@ describe('HintTracker', () => {
     const prey = { ...withFire, shelterBuilt: true, preyNearby: true };
     expect(t.update(prey, 180)).toBe('hunt');
     for (let s = 200; s < 1000; s += 20) expect(t.update(prey, s)).toBeNull();
+    // Faz 10: yerleşim ve kişi ipuçları.
+    const town = { ...prey, inSettlement: true };
+    expect(t.update(town, 1000)).toBe('town');
+    expect(t.update({ ...town, personNearby: true }, 1030)).toBe('person');
     expect(t.seenIds).toEqual([...HINT_IDS]);
   });
 

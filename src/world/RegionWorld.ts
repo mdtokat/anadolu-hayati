@@ -34,6 +34,7 @@ import { Water } from './Water';
 import { FreshWaterMesh } from './FreshWaterMesh';
 import { FreshWaterIndex, type WaterHit } from './waterIndex';
 import { SettlementMap } from '../settlements/SettlementMap';
+import type { PeopleWorld } from '../people/PeopleSystem';
 import { RoadMesh } from './RoadMesh';
 import { SettlementLayer } from './SettlementLayer';
 import { SettlementColliders } from './SettlementColliders';
@@ -68,6 +69,8 @@ export class RegionWorld implements GameWorld {
   private readonly roadMesh: RoadMesh | null;
   private readonly settlementLayer: SettlementLayer | null;
   private readonly settlementColliders: SettlementColliders | null;
+  /** Diğer insanların arazi/yerleşim sorguları (Faz 10); yerleşim verisi yoksa null. */
+  readonly peopleWorld: PeopleWorld | null;
 
   constructor(
     readonly region: RegionData,
@@ -123,6 +126,16 @@ export class RegionWorld implements GameWorld {
     this.settlementLayer = settlements ? new SettlementLayer(settlements) : null;
     if (this.settlementLayer) this.scene.add(this.settlementLayer.group);
     this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
+    this.peopleWorld = settlements
+      ? {
+          heightAt: (x, z) => this.source.heightAt(x, z),
+          elevationAt: (x, z) => this.source.elevationAt(x, z),
+          slopeDegAt: (x, z) => this.source.slopeDegAt(x, z),
+          roadNear: (x, z, r) => settlements.roads.nearest(x, z, r),
+          settlementRankAt: (x, z) => settlements.settlementAt(x, z)?.data.rank ?? null,
+          blocked: (x, z) => settlements.buildingAt(x, z, 0.4) !== null,
+        }
+      : null;
 
     // Nesneler (ağaç, kaya, çalı, yenebilir bitki): arazi örtüsü verisi yoksa yerleşim de yoktur.
     // Yapıların ve yolların üstündeki nesneler gizlenir (kimlikler değişmez).
@@ -182,6 +195,24 @@ export class RegionWorld implements GameWorld {
     // Yerleşim çeşmeleri (Faz 10): musluğa erişim mesafesinde içilir, su kabı doldurulur.
     const fountain = this.settlementMap?.fountainNear(x, z, FRESH_WATER.fountainReach) ?? null;
     return fountain ? { kind: 'fountain', ...fountain } : null;
+  }
+
+  /**
+   * (x, z)'ye `radius` içindeki en yakın tatlı su ya da çeşme (yol tarifi için; Faz 10). Yoksa null.
+   */
+  nearestWater(
+    x: number,
+    z: number,
+    radius: number,
+  ): { x: number; z: number; fountain: boolean } | null {
+    const hit = this.freshWater?.nearest(x, z, radius) ?? null;
+    let best = hit ? { x: hit.x, z: hit.z, fountain: false, d: hit.distance } : null;
+    for (const b of this.settlementMap?.buildingsNear(x, z, radius) ?? []) {
+      if (b.kind !== 'fountain') continue;
+      const d = Math.hypot(b.x - x, b.z - z);
+      if (best === null || d < best.d) best = { x: b.x, z: b.z, fountain: true, d };
+    }
+    return best ? { x: best.x, z: best.z, fountain: best.fountain } : null;
   }
 
   respawnPoint(deathIndex: number): Vec3 | null {
