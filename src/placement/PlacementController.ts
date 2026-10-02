@@ -1,7 +1,7 @@
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
-import { isPieceKind, resolvePiece, slotClassOf } from './pieces';
+import { isPieceKind, pieceRotation, resolvePiece } from './pieces';
 import { aimDistanceOf, validatePlacement, type PlaceCheck, type PlaceFailure } from './placeRules';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
@@ -100,12 +100,13 @@ export class PlacementController {
 
   /**
    * Hayaleti döndürür (yalnızca hedeflerken); döndürdüyse true. Eski yapılar 90° adımlarla döner; modüler parçalar
-   * ızgaraya kilitlidir: duvar/kapı iç-dış yüzünü çevirir (kapının menteşe yanı değişir), taban/çatı simetriktir.
+   * ızgaraya kilitlidir: duvar/kapı iç-dış yüzünü çevirir (kapının menteşe yanı değişir), merdiven yönünü tersine,
+   * beşik çatı mahya eksenini çevirir; taban/çatı/direk/giriş basamağı/alın duvarının yönü yuvadan gelir.
    */
   rotate(): boolean {
     if (this.kind === null) return false;
     if (isPieceKind(this.kind)) {
-      if (slotClassOf(this.kind) === 'floor') return false;
+      if (pieceRotation(this.kind) === 'none') return false;
       this.flip = !this.flip;
     } else {
       this.rotation = (this.rotation + Math.PI / 2) % (Math.PI * 2);

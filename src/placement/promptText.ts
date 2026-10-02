@@ -3,7 +3,7 @@ import type { ItemStack } from '../items/Inventory';
 import { ITEMS } from '../items/itemDefs';
 import type { DismantleOffer } from './dismantle';
 import type { ConfirmFailure, Ghost, ToggleResult } from './PlacementController';
-import { isPieceKind, slotClassOf } from './pieces';
+import { isPieceKind, pieceRotation, type PieceRotation } from './pieces';
 import type { StructureKind } from './structures';
 import type { TendOffer } from './tend';
 
@@ -15,6 +15,8 @@ const FAILURE_TEXT: Record<ConfirmFailure, string> = {
   too_close: 'Başka bir yapıya çok yakın',
   no_support: 'Destek yok: taban → duvar → çatı sırasıyla, bitişik kur',
   occupied: 'Burası dolu',
+  on_roof: 'Çatının üstüne bir şey kurulamaz',
+  stairwell: 'Merdivenin önü ve üstü açık kalmalı',
   not_aiming: '',
   no_target: 'Hedef yok',
   no_item: 'Eşya kalmadı',
@@ -39,6 +41,14 @@ export function keyLabel(code: string): string {
 
 const ROTATE_KEY = keyLabel(INPUT.bindings.rotatePlacement[0]);
 
+/** Modüler parçada `R`'nin yaptığı (ipucu metni; yoksa gösterilmez). */
+const ROTATE_TEXT: Record<PieceRotation, string | null> = {
+  none: null,
+  face: 'yüzü çevir',
+  direction: 'yönü çevir',
+  ridge: 'mahyayı çevir',
+};
+
 /**
  * Hayalet ipucu: geçerliyse "Sol tık: … kur · R: döndür · C: iptal", değilse engel nedeni. `cancelKey`: hayaleti
  * kapatan tuş (kısayoldan açıldıysa o slotun tuşu); verilmezse türün doğrudan tuşu.
@@ -46,12 +56,10 @@ const ROTATE_KEY = keyLabel(INPUT.bindings.rotatePlacement[0]);
 export function aimPrompt(ghost: Readonly<Ghost>, cancelKey?: string): string {
   if (!ghost.valid && ghost.reason) return placeFailureText(ghost.reason);
   const cancel = cancelKey ?? KEY_FOR_KIND[ghost.kind];
-  // Modüler parçalar ızgaraya kilitlidir: taban/çatı döndürülmez, duvar/kapı iç-dış yüzü çevrilir.
-  const rotate = isPieceKind(ghost.kind)
-    ? slotClassOf(ghost.kind) === 'floor'
-      ? null
-      : `${ROTATE_KEY}: yüzü çevir`
-    : `${ROTATE_KEY}: döndür`;
+  // Modüler parçalar ızgaraya kilitlidir: taban/çatı döndürülmez, duvar/kapı iç-dış yüzü, merdiven yönü, beşik çatı
+  // mahyası çevrilir.
+  const rotateText = isPieceKind(ghost.kind) ? ROTATE_TEXT[pieceRotation(ghost.kind)] : 'döndür';
+  const rotate = rotateText ? `${ROTATE_KEY}: ${rotateText}` : null;
   return [`Sol tık: ${ITEMS[ghost.kind].name} kur`, rotate, cancel ? `${cancel}: iptal` : null]
     .filter((part) => part !== null)
     .join(' · ');

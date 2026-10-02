@@ -433,36 +433,36 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
   propeller: { id: 'propeller', name: 'Pervane', weightG: 100, stackMax: 8, category: 'material' },
   // Dürbün yalnızca ganimetten çıkar (tarifi yok); keskin nişancı tüfeğinin malzemesidir.
   scope: { id: 'scope', name: 'Dürbün', weightG: 600, stackMax: 1, category: 'material' },
-  // ── Faz 11: A (11.1) modüler inşa II parçaları (yığın 1; A parçaları `PIECE_KINDS`'e alınca art arda kurulur) ──
-  stairs: { id: 'stairs', name: 'Merdiven', weightG: 7000, stackMax: 1, category: 'placeable' },
+  // ── Faz 11: A (11.1) modüler inşa II parçaları: modüler parçalar gibi yığınlanır, eşya sürdükçe art arda kurulur ──
+  stairs: { id: 'stairs', name: 'Merdiven', weightG: 7000, stackMax: 2, category: 'placeable' },
   entry_step: {
     id: 'entry_step',
     name: 'Giriş Basamağı',
     weightG: 3000,
-    stackMax: 1,
+    stackMax: 4,
     category: 'placeable',
   },
-  pillar: { id: 'pillar', name: 'Direk', weightG: 2500, stackMax: 1, category: 'placeable' },
-  railing: { id: 'railing', name: 'Korkuluk', weightG: 1500, stackMax: 1, category: 'placeable' },
+  pillar: { id: 'pillar', name: 'Direk', weightG: 2500, stackMax: 6, category: 'placeable' },
+  railing: { id: 'railing', name: 'Korkuluk', weightG: 1500, stackMax: 8, category: 'placeable' },
   half_wall: {
     id: 'half_wall',
     name: 'Yarım Duvar',
     weightG: 2500,
-    stackMax: 1,
+    stackMax: 6,
     category: 'placeable',
   },
   gable_roof: {
     id: 'gable_roof',
     name: 'Beşik Çatı',
-    weightG: 8000,
-    stackMax: 1,
+    weightG: 7000,
+    stackMax: 4,
     category: 'placeable',
   },
   gable_wall: {
     id: 'gable_wall',
     name: 'Alın Duvarı',
     weightG: 3000,
-    stackMax: 1,
+    stackMax: 4,
     category: 'placeable',
   },
   // ── Faz 11: B (11.2/11.3) tek parça yapılar, çitler ve kurutulmuş et ──

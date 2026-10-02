@@ -51,6 +51,14 @@ describe('ızgara yardımcıları', () => {
       'window_wall',
       'door',
       'roof',
+      // Faz 11 (11.1)
+      'stairs',
+      'entry_step',
+      'pillar',
+      'railing',
+      'half_wall',
+      'gable_roof',
+      'gable_wall',
     ]);
     for (const kind of PIECE_KINDS) expect(isPieceKind(kind)).toBe(true);
     expect(isPieceKind('campfire')).toBe(false);
@@ -240,13 +248,13 @@ describe('çatı ve katlar', () => {
     expect(r.target.z).toBe(-4);
   });
 
-  it('çatı bir üst katın zemini olur: duvar çatının kenarına oturur', () => {
+  it('çatı en üst parçadır (Faz 11.1): duvar çatının kenarına kurulamaz (on_roof)', () => {
     const set = room();
     set.add('roof', 0, FLOOR_Y + STOREY, -2, 0);
-    // Bakış yukarı: ışının yüksekliği ikinci kata denk gelsin.
+    // Bakış yukarı: ışının yüksekliği ikinci kata denk gelsin; tek destek çatı plakası.
     const pose: PiecePose = { x: 0, z: 0, yaw: 0, y: FLOOR_Y + STOREY, pitch: 0 };
     const r = resolvePiece('wall', pose, false, context(set));
-    expect(r.check.ok).toBe(true);
+    expect(r.check).toEqual({ ok: false, reason: 'on_roof' });
     expect(r.target.y).toBeCloseTo(FLOOR_Y + STOREY);
   });
 

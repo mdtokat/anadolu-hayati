@@ -301,7 +301,7 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     output: { id: 'roof', count: 1 },
   },
   // ── Faz 11 (11.0 yer tutucu malzemeler; sahibi akış tarifini kesinleştirir) ──
-  // A (11.1): modüler inşa II parçaları, tezgâh + taş balta.
+  // A (11.1): modüler inşa II parçaları, tezgâh + taş balta (diğer modüler parçalarla aynı malzeme ailesi).
   stairs: {
     id: 'stairs',
     name: 'Merdiven',

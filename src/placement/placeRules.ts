@@ -19,7 +19,11 @@ export type PlaceFailure =
   /** Modüler parça: bitişeceği taban/duvar yok. */
   | 'no_support'
   /** Modüler parça: bu yuva dolu. */
-  | 'occupied';
+  | 'occupied'
+  /** Faz 11 (A): çatı en üst parçadır; üstüne hiçbir şey kurulamaz. */
+  | 'on_roof'
+  /** Faz 11 (A): merdivenin girişi, boşluğu ve çıkışı açık kalmalı (duvar/çatı kurulamaz). */
+  | 'stairwell';
 
 export type PlaceCheck =
   { ok: true; y: number; slopeDeg: number } | { ok: false; reason: PlaceFailure };
@@ -96,7 +100,7 @@ export function slopeDegAt(
 export function validatePlacement(
   kind: StructureKind,
   target: { x: number; z: number },
-  player: { x: number; z: number },
+  player: { x: number; z: number; y?: number },
   ctx: PlaceContext,
 ): PlaceCheck {
   const spec = specOf(kind);
@@ -105,7 +109,8 @@ export function validatePlacement(
   }
 
   // Taban üstünde yalnızca küçük yapılar (ateş, tezgâh, sandık) kurulur; zemin denetimleri tabanda yapılmıştır.
-  const floorTop = floorTopAt(ctx.structures, target.x, target.z);
+  // Faz 11 (A): katlı yapıda oyuncunun bulunduğu kata en yakın taban seçilir.
+  const floorTop = floorTopAt(ctx.structures, target.x, target.z, player.y);
   if (floorTop !== null && (kind === 'wooden_hut' || kind === 'lean_to')) {
     return { ok: false, reason: 'too_close' };
   }
