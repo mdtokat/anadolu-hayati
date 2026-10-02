@@ -2226,95 +2226,196 @@ export const FARMING = {
 } as const;
 
 /**
- * ── Faz 11: D (11.5) ── Menzilli silahlar: mermi hızı (oyun m/sn), yerçekimi çarpanı, saçılma (derece), saçma
- * tanesi, şarjör, doldurma süresi (sn), etkin menzil (oyun m), hasar ve mühimmat eşyası. Dürbün görüş açısı ve nefes
- * tutma ayrıca. 11.0 başlangıç değerleridir; D balistik testleriyle ayarlar.
+ * ── Faz 11: D (11.5) ── Menzilli silahlar (balistik `combat/ballistics.ts`, atış `combat/ranged.ts`, durum
+ * `combat/RangedSystem.ts`). Silah başına: `speed` mermi çıkış hızı (oyun m/sn), `gravity` yerçekimi çarpanı (ok ve
+ * taş ağır düşer), `spreadDeg` kalçadan atışta saçılma koni yarı açısı (derece), `pellets` tane sayısı (saçma),
+ * `magazine` şarjör, `reloadSeconds` doldurma, `cooldownSeconds` iki atış arası (sürgü/tetik), `range` merminin
+ * en çok gideceği yol (oyun m; ötesinde düşer, iz kaybolur), `damage` tane başına hasar (uzaklıkla azalır:
+ * `falloff`), `ammo` mühimmat eşyası, `energyCost` atış başına enerji (yay/sapan germe), `recoilDeg` bakışı yukarı
+ * iten tepme, `aimFovDeg` nişandaki görüş açısı, `scope` dürbünlü mü (dürbün görüntüsü + salınım), `zeroMeters`
+ * nişangâhın sıfırlandığı uzaklık (bu uzaklıkta nişangâh tam isabet eder; yakında hafif yüksek vurur).
+ * Ölçek notu: dünya yatayda 1:50 olduğundan menziller oyun metresidir (200 oyun m = 10 gerçek km); yerçekimi
+ * gerçek değerdedir, dolayısıyla ok/taş 30–60 m'de belirgin kavis çizer, tüfek mermisi 200 m'de ~0,4 m düşer.
  */
 export const RANGED = {
   weapons: {
     slingshot: {
-      speed: 40,
+      speed: 38,
       gravity: 1,
-      spreadDeg: 2,
+      spreadDeg: 2.2,
       pellets: 1,
       magazine: 1,
-      reloadSeconds: 0.8,
-      range: 35,
-      damage: 8,
+      reloadSeconds: 0.7,
+      cooldownSeconds: 0.2,
+      range: 45,
+      damage: 9,
       ammo: 'stone',
+      energyCost: 1.5,
+      recoilDeg: 0,
+      aimFovDeg: 60,
+      scope: false,
+      zeroMeters: 15,
     },
     bow: {
-      speed: 60,
+      speed: 62,
       gravity: 1,
-      spreadDeg: 1,
+      spreadDeg: 1.4,
       pellets: 1,
       magazine: 1,
-      reloadSeconds: 1,
-      range: 60,
-      damage: 30,
+      reloadSeconds: 0.9,
+      cooldownSeconds: 0.2,
+      range: 90,
+      damage: 32,
       ammo: 'arrow',
+      energyCost: 3,
+      recoilDeg: 0,
+      aimFovDeg: 55,
+      scope: false,
+      zeroMeters: 20,
     },
     shotgun: {
       speed: 300,
       gravity: 1,
-      spreadDeg: 5,
+      spreadDeg: 4.5,
       pellets: 8,
       magazine: 2,
       reloadSeconds: 2.2,
-      range: 40,
-      damage: 9,
+      cooldownSeconds: 0.45,
+      range: 45,
+      damage: 10,
       ammo: 'shotgun_shell',
+      energyCost: 0,
+      recoilDeg: 4.5,
+      aimFovDeg: 58,
+      scope: false,
+      zeroMeters: 20,
     },
     pistol: {
       speed: 350,
       gravity: 1,
-      spreadDeg: 1.2,
+      spreadDeg: 1.6,
       pellets: 1,
       magazine: 8,
       reloadSeconds: 1.6,
-      range: 60,
+      cooldownSeconds: 0.28,
+      range: 80,
       damage: 22,
       ammo: 'pistol_ammo',
+      energyCost: 0,
+      recoilDeg: 2,
+      aimFovDeg: 58,
+      scope: false,
+      zeroMeters: 25,
     },
     rifle: {
       speed: 700,
       gravity: 1,
-      spreadDeg: 0.5,
+      spreadDeg: 0.8,
       pellets: 1,
       magazine: 5,
       reloadSeconds: 2.4,
-      range: 200,
-      damage: 45,
+      cooldownSeconds: 0.9,
+      range: 260,
+      damage: 48,
       ammo: 'rifle_ammo',
+      energyCost: 0,
+      recoilDeg: 3,
+      aimFovDeg: 45,
+      scope: false,
+      zeroMeters: 100,
     },
     sniper_rifle: {
       speed: 850,
       gravity: 1,
-      spreadDeg: 0.1,
+      spreadDeg: 1.2,
       pellets: 1,
       magazine: 5,
       reloadSeconds: 2.8,
-      range: 450,
-      damage: 80,
+      cooldownSeconds: 1.4,
+      range: 480,
+      damage: 85,
       ammo: 'rifle_ammo',
+      energyCost: 0,
+      recoilDeg: 4,
+      aimFovDeg: 12,
+      scope: true,
+      zeroMeters: 200,
     },
   },
-  /** Yerçekimi ivmesi (oyun m/sn²; dikey ölçek gereği gerçeğe göre gevşektir). */
+  /** Yerçekimi ivmesi (oyun m/sn²; gerçek değer). */
   gravity: 9.81,
-  /** Işın yürütme adımı (oyun m) ve hedef silindirinin dikey payı. */
+  /** Işın yürütme adımı (oyun m): mermi yolunun her parçasında arazi bu aralıkla örneklenir (+ ikiye bölme). */
   stepMeters: 1,
-  /** Nişan: görüş açısı (derece), dürbünlü görüş açısı ve fare hassasiyeti çarpanı. */
-  aimFovDeg: 50,
-  scopeFovDeg: 12,
-  aimSensitivity: 0.6,
-  /** Nefes tutma (Shift): en uzun süre (sn) ve saniye başına enerji maliyeti. */
+  /** Balistik zaman adımı (sn): yol bu aralıkla doğru parçalarına bölünür (parça içinde kesişim tamdır). */
+  simStepSeconds: 1 / 120,
+  /** Hasarın uzaklıkla azalması: yolun `start` oranına kadar tam, menzil sonunda `min` katı (doğrusal). */
+  falloff: { start: 0.55, min: 0.45 },
+  /**
+   * Saçılma çarpanları: nişanda (sağ tık), yürürken, koşarken/havadayken. Dürbünlü tüfek kalçadan çok saçılır
+   * (`spreadDeg`), nişanda dürbünün salınımı hedeflemeyi zorlaştırır (saçılma neredeyse sıfır).
+   */
+  spreadScale: { aimed: 0.35, scoped: 0.05, moving: 1.6, running: 2.6 },
+  /** Nişana geçiş ve çıkış hızı (sn⁻¹; görüş açısı bu oranla yumuşar). */
+  aimSpeed: 9,
+  /** Nişanda fare hassasiyeti çarpanı = (nişan FOV / normal FOV) × bu değer (dürbünde ince ayar). */
+  aimSensitivity: 0.9,
+  /**
+   * Dürbün salınımı (radyan genliği ve sn⁻¹ frekansları; Lissajous). Nefes tutunca (`Shift`) genlik
+   * `steadySwayScale` katına iner; nefes bitince bir süre (`breathRecoverSeconds`) tutulamaz ve salınım
+   * `exhaustedSwayScale` katına çıkar.
+   */
+  sway: { amplitude: 0.006, freqX: 0.55, freqY: 0.9 },
+  steadySwayScale: 0.12,
+  exhaustedSwayScale: 1.8,
+  /** Nefes tutma (Shift): en uzun süre (sn), saniye başına enerji maliyeti ve tam toparlanma süresi (sn). */
   steadySeconds: 4,
   steadyEnergyPerSecond: 3,
-  /** Atış gürültüsünün yarıçapı (oyun m; `noise:made`). */
+  breathRecoverSeconds: 5,
+  /** Tepmenin bakışa uygulanması: tepme bu sürede (sn) eklenir. */
+  recoilSeconds: 0.08,
+  /** Ateşli silahla bitkinken atış yapılır; yay/sapan için bu enerjinin altında atış yok. */
+  minEnergyPrimitive: 1,
+  /** Atış gürültüsünün yarıçapı (oyun m; `noise:made`: canlılar kaçar, eşkıyalar duyar). */
   noiseRadius: { slingshot: 10, bow: 8, shotgun: 140, pistol: 110, rifle: 170, sniper_rifle: 200 },
+  /** Atanın tünelde olduğu sayılan derinlik (oyun m): tünel içinden atışta arazi engeli yok sayılır (tavan delik). */
+  undergroundDepth: 1.5,
+  /** İsabetin hedefe işlenmesi uçuş süresi kadar gecikir; en uzun gecikme (sn). */
+  maxHitDelaySeconds: 2,
+  /** Görsel izler: aynı anda en çok iz, mermi izi ömrü (sn), ok/taş izinin uzunluğu (oyun m). */
+  tracers: {
+    max: 48,
+    bulletSeconds: 0.09,
+    bulletLength: 14,
+    projectileLength: 0.9,
+    bulletColor: 0xfff2c4,
+    arrowColor: 0x8a6a3e,
+    stoneColor: 0x9a958a,
+  },
+  /**
+   * Atış sesi (Web Audio, kodla sentez; dosya yok): `gain` tepe seviye (ana ses × `headroom` ile çarpılır),
+   * `decay` sönme (sn), `lowpassHz` gürültü süzgeci, `thumpHz` alçak "gümleme" osilatörü (0 = yok), `twangHz`
+   * yay/sapan teli (0 = yok). Uzaktaki sesler (eşkıya atışı) `distanceRolloff` (oyun m) ile kısılır.
+   */
+  sound: {
+    headroom: 0.7,
+    distanceRolloff: 60,
+    profiles: {
+      slingshot: { gain: 0.25, decay: 0.08, lowpassHz: 2500, thumpHz: 0, twangHz: 320 },
+      bow: { gain: 0.35, decay: 0.18, lowpassHz: 1800, thumpHz: 0, twangHz: 150 },
+      shotgun: { gain: 1, decay: 0.55, lowpassHz: 2200, thumpHz: 55, twangHz: 0 },
+      pistol: { gain: 0.75, decay: 0.28, lowpassHz: 3800, thumpHz: 85, twangHz: 0 },
+      rifle: { gain: 0.95, decay: 0.6, lowpassHz: 3000, thumpHz: 60, twangHz: 0 },
+      sniper_rifle: { gain: 1, decay: 0.85, lowpassHz: 2600, thumpHz: 48, twangHz: 0 },
+    },
+    /** Boş tetik / doldurma bitti tıkırtısı. */
+    click: { gain: 0.2, hz: 1800 },
+  },
 } as const;
 
-/** ── Faz 11: D (11.5) ── Mühimmat: tarif başına üretim adedi ve ganimette bulunan aralık (min–max). */
+/**
+ * ── Faz 11: D (11.5) ── Mühimmat: ganimette bulunan aralık (min–max; `settlements/loot.ts` satırları okur). Tarif
+ * başına üretim adedi tariflerin `output`'undadır (`items/recipes.ts`). Mühimmat kıt tutulur (denge riski: plan §7).
+ */
 export const AMMO = {
   lootCount: {
     shotgun_shell: [2, 6],

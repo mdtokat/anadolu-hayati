@@ -1,20 +1,25 @@
 import { RANGED } from '../config';
 import type { WeaponId } from '../items/weaponState';
+import {
+  pitchUp,
+  spreadDirection,
+  traceProjectile,
+  zeroElevation,
+  type SolidQuery,
+  type Vec3Like,
+} from './ballistics';
 import type { HitTarget, TargetProvider } from './targets';
 
-/**
- * Menzilli atış (Faz 11 ortak sözleşmesi, docs/faz-11-paralel-plan.md §3.4). 11.0 uygulaması anında isabetlidir
- * (hitscan): ışın, silahın menzili boyunca araziye (`heightAt` ile adım adım yürütme + ikiye bölme) ve hedef
- * silindirlerine karşı sınanır; en yakın engel kazanır (arazinin arkasındaki hedef vurulmaz). D mermi uçuşu,
- * düşüş, saçılma ve yapı isabetiyle değiştirir; **imza aynı kalır**. Hasarı uygulamaz: çağıran, dönen hedefe
- * `TargetProvider.applyHit` ile hasar verir (eşkıya oyuncuya da hayvana da böyle ateş eder).
- */
+export { rayCylinder, rayTerrain, type Vec3Like } from './ballistics';
 
-export interface Vec3Like {
-  x: number;
-  y: number;
-  z: number;
-}
+/**
+ * Menzilli atış (Faz 11 ortak sözleşmesi, docs/faz-11-paralel-plan.md §3.4; gerçek uygulama 11.5). Mermi silahın
+ * çıkış hızıyla `dir` yönünde fırlar, yerçekimiyle düşer (`combat/ballistics.ts` `traceProjectile`), ilk engelde
+ * (hedef silindiri, katı kutu, arazi) ya da silahın menzilinde durur: arazinin ya da duvarın arkasındaki hedef
+ * vurulmaz. **İmza 11.0'dakiyle aynıdır**; `ShotContext`/`ShotResult`'a yalnızca isteğe bağlı alanlar eklendi.
+ * Hasarı uygulamaz: çağıran, dönen hedefe `TargetProvider.applyHit` ile hasar verir (eşkıya oyuncuya da hayvana da
+ * böyle ateş eder). Saçma (birden çok tane) için `fireVolley`.
+ */
 
 /** Atışın dünyadan istediği. */
 export interface ShotContext {
@@ -26,128 +31,86 @@ export interface ShotContext {
   ignore?: string;
   /** Menzil üst sınırı (oyun m); verilmezse silahın `RANGED.weapons[...].range`'i. */
   range?: number;
+  /** 11.5: mermiyi durduran katılar (oyuncu yapıları, binalar; `combat/shotSolids.ts`). Yoksa yalnız arazi durdurur. */
+  solids?: SolidQuery;
+  /**
+   * 11.5: saçılma için [0, 1) rastgele üreteci. Verilmezse atış saçılmasızdır (deterministik; yön tam `dir`).
+   * Eşkıyalar kendi isabetsizliklerini `spreadScale` ile verebilir.
+   */
+  random?: () => number;
+  /** 11.5: silahın `spreadDeg`'inin çarpanı (nişan, hareket; varsayılan 1). `random` yoksa etkisizdir. */
+  spreadScale?: number;
+  /**
+   * 11.5: `dir` nişangâh çizgisi mi? true ise namlu silahın `zeroMeters` uzaklığına sıfırlanır (mermi o uzaklıkta
+   * nişangâha düşer). Varsayılan false: mermi tam `dir` yönünde fırlar (eşkıya, test).
+   */
+  sighted?: boolean;
 }
 
 export interface ShotResult {
   /** İsabet edilen hedef (yoksa null). */
   hit: HitTarget | null;
-  /** Merminin durduğu nokta (isabet, arazi ya da menzil sonu). */
+  /** Merminin durduğu nokta (isabet, arazi, katı ya da menzil sonu). */
   point: Vec3Like;
-  /** `origin`'den `point`'e uzaklık (oyun m). */
+  /** Mermi yolunun uzunluğu (oyun m; `origin`'den `point`'e). */
   distance: number;
   /** Mermi araziye mi gömüldü? */
   terrain: boolean;
+  /** 11.5: mermi bir katıya (duvar, yapı) mı çarptı? */
+  solid?: boolean;
+  /** 11.5: uçuş süresi (sn). */
+  time?: number;
+  /** 11.5: yolun köşe noktaları (iz çizimi). */
+  path?: Vec3Like[];
 }
 
-/** Arazi kesişimi ikiye bölme tur sayısı (adım/2¹⁰ hassasiyet). */
-const BISECT_STEPS = 10;
-
-/** `origin`'den `dir` yönünde (normalize edilir) `weapon` ile tek atış. */
+/** `origin`'den `dir` yönünde (normalize edilir) `weapon` ile tek atış (saçmada tek tane). */
 export function fireShot(
   origin: Vec3Like,
   dir: Vec3Like,
   weapon: WeaponId,
   ctx: ShotContext,
 ): ShotResult {
+  const stats = RANGED.weapons[weapon];
   const length = Math.hypot(dir.x, dir.y, dir.z);
-  const range = ctx.range ?? RANGED.weapons[weapon].range;
+  const range = ctx.range ?? stats.range;
   if (!(length > 0) || !(range > 0)) {
-    return { hit: null, point: { ...origin }, distance: 0, terrain: false };
+    return { hit: null, point: { ...origin }, distance: 0, terrain: false, solid: false, time: 0 };
   }
-  const d = { x: dir.x / length, y: dir.y / length, z: dir.z / length };
-  const at = (t: number): Vec3Like => ({
-    x: origin.x + d.x * t,
-    y: origin.y + d.y * t,
-    z: origin.z + d.z * t,
-  });
-
-  // En yakın hedef (ışın–dikey silindir kesişimi).
-  let best: { target: HitTarget; t: number } | null = null;
-  const mid = at(range / 2);
-  for (const target of ctx.targets.targetsNear(mid.x, mid.z, range / 2 + 2)) {
-    if (target.id === ctx.ignore) continue;
-    const t = rayCylinder(origin, d, target, range);
-    if (t !== null && (best === null || t < best.t)) best = { target, t };
-  }
-
-  // Arazi: hedefe (ya da menzil sonuna) kadar adım adım yürüt.
-  const limit = best ? best.t : range;
-  const terrainT = rayTerrain(origin, d, limit, ctx.heightAt);
-  if (terrainT !== null) {
-    return { hit: null, point: at(terrainT), distance: terrainT, terrain: true };
-  }
-  if (best) return { hit: best.target, point: at(best.t), distance: best.t, terrain: false };
-  return { hit: null, point: at(range), distance: range, terrain: false };
+  const gravity = RANGED.gravity * stats.gravity;
+  let d: Vec3Like = { x: dir.x / length, y: dir.y / length, z: dir.z / length };
+  if (ctx.sighted) d = pitchUp(d, zeroElevation(stats.speed, gravity, stats.zeroMeters));
+  if (ctx.random) d = spreadDirection(d, stats.spreadDeg * (ctx.spreadScale ?? 1), ctx.random);
+  const flight = traceProjectile(
+    {
+      origin,
+      velocity: { x: d.x * stats.speed, y: d.y * stats.speed, z: d.z * stats.speed },
+      gravity,
+      maxDistance: range,
+    },
+    { heightAt: ctx.heightAt, targets: ctx.targets, ignore: ctx.ignore, solids: ctx.solids },
+  );
+  return {
+    hit: flight.hit,
+    point: flight.point,
+    distance: flight.distance,
+    terrain: flight.terrain,
+    solid: flight.solid,
+    time: flight.time,
+    path: flight.path,
+  };
 }
 
-/** Işının (birim `d`) silindire girdiği `t` (0 ≤ t ≤ `range`); kesişmiyorsa null. */
-export function rayCylinder(
-  o: Vec3Like,
-  d: Vec3Like,
-  c: Pick<HitTarget, 'x' | 'y' | 'z' | 'radius' | 'height'>,
-  range: number,
-): number | null {
-  // Yatay: |(o + t·d) − c|² = r² (xz düzleminde).
-  const ox = o.x - c.x;
-  const oz = o.z - c.z;
-  const a = d.x * d.x + d.z * d.z;
-  let t0: number;
-  let t1: number;
-  if (a < 1e-12) {
-    if (ox * ox + oz * oz > c.radius * c.radius) return null;
-    t0 = -Infinity;
-    t1 = Infinity;
-  } else {
-    const b = 2 * (ox * d.x + oz * d.z);
-    const k = ox * ox + oz * oz - c.radius * c.radius;
-    const disc = b * b - 4 * a * k;
-    if (disc < 0) return null;
-    const root = Math.sqrt(disc);
-    t0 = (-b - root) / (2 * a);
-    t1 = (-b + root) / (2 * a);
+/** Silahın bütün taneleri (`RANGED.weapons[weapon].pellets`; tüfekte 1, saçmada 8): her tane ayrı saçılır. */
+export function fireVolley(
+  origin: Vec3Like,
+  dir: Vec3Like,
+  weapon: WeaponId,
+  ctx: ShotContext,
+): ShotResult[] {
+  const out: ShotResult[] = [];
+  for (let i = 0; i < RANGED.weapons[weapon].pellets; i++) {
+    out.push(fireShot(origin, dir, weapon, ctx));
   }
-  // Dikey: c.y ≤ o.y + t·d.y ≤ c.y + height.
-  let y0: number;
-  let y1: number;
-  if (Math.abs(d.y) < 1e-12) {
-    if (o.y < c.y || o.y > c.y + c.height) return null;
-    y0 = -Infinity;
-    y1 = Infinity;
-  } else {
-    const ta = (c.y - o.y) / d.y;
-    const tb = (c.y + c.height - o.y) / d.y;
-    y0 = Math.min(ta, tb);
-    y1 = Math.max(ta, tb);
-  }
-  const enter = Math.max(t0, y0, 0);
-  const exit = Math.min(t1, y1, range);
-  return enter <= exit ? enter : null;
-}
-
-/** Işının araziye girdiği ilk `t` (`limit`'e kadar); girmiyorsa null. */
-export function rayTerrain(
-  o: Vec3Like,
-  d: Vec3Like,
-  limit: number,
-  heightAt: (x: number, z: number) => number,
-): number | null {
-  const step = RANGED.stepMeters;
-  const below = (t: number): boolean => o.y + d.y * t < heightAt(o.x + d.x * t, o.z + d.z * t);
-  if (below(0)) return 0;
-  let prev = 0;
-  for (let t = step; ; t += step) {
-    const cur = Math.min(t, limit);
-    if (below(cur)) {
-      let lo = prev;
-      let hi = cur;
-      for (let i = 0; i < BISECT_STEPS; i++) {
-        const m = (lo + hi) / 2;
-        if (below(m)) hi = m;
-        else lo = m;
-      }
-      return hi;
-    }
-    if (cur >= limit) return null;
-    prev = cur;
-  }
+  return out;
 }
