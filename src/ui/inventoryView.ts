@@ -1,9 +1,15 @@
-import { craftStatus, NO_STATIONS, type CraftContext, type CraftFailure } from '../items/craft';
-import type { Inventory, ItemStack } from '../items/Inventory';
+import {
+  craft,
+  craftStatus,
+  NO_STATIONS,
+  type CraftContext,
+  type CraftFailure,
+} from '../items/craft';
+import { Inventory, type ItemStack } from '../items/Inventory';
 import { ITEMS, type ItemCategory, type ItemId } from '../items/itemDefs';
-import { RECIPE_LIST, type Recipe, type RecipeId } from '../items/recipes';
+import { RECIPE_LIST, RECIPES, type Recipe, type RecipeId } from '../items/recipes';
 import { FULL_CONTAINER } from '../items/waterContainer';
-import { WATER_CONTAINER } from '../config';
+import { AMMO, COMBAT, RANGED, WATER_CONTAINER } from '../config';
 
 /** Görünüm modeli (saf, testli): DOM katmanı (`InventoryPanel`) yalnızca bunu çizer. */
 
@@ -170,4 +176,99 @@ export function recipeRow(
 
 export function recipeRows(inventory: Inventory, context: CraftContext = NO_STATIONS): RecipeRow[] {
   return RECIPE_LIST.map((recipe) => recipeRow(inventory, recipe, context));
+}
+
+/** Üretim listesi süzgeci (envanter paneli): tarifler çıktılarına göre gruplanır. */
+export const RECIPE_FILTERS = ['all', 'weapon', 'tool', 'structure', 'food', 'material'] as const;
+export type RecipeFilter = (typeof RECIPE_FILTERS)[number];
+
+export const RECIPE_FILTER_LABELS: Readonly<Record<RecipeFilter, string>> = {
+  all: 'Tümü',
+  weapon: 'Silah',
+  tool: 'Alet',
+  structure: 'Yapı',
+  food: 'Gıda',
+  material: 'Malzeme',
+};
+
+/** Silah ve mühimmat sayılan eşyalar (yakın/menzilli silahlar, mermiler, barut; taş balta alettir). */
+const WEAPON_OUTPUTS: ReadonlySet<ItemId> = new Set<ItemId>([
+  ...(Object.keys(COMBAT.weapons).filter((id) => id !== 'fist' && id !== 'stone_axe') as ItemId[]),
+  ...(Object.keys(RANGED.weapons) as ItemId[]),
+  ...(Object.keys(AMMO.lootCount) as ItemId[]),
+  'gunpowder',
+]);
+
+/** Gıda zincirinin ara ürünleri (malzeme kategorisinde ama yalnızca yemek yapımına gider). */
+const FOOD_OUTPUTS: ReadonlySet<ItemId> = new Set<ItemId>(['flour', 'corn_flour']);
+
+/** Tarifin süzgeç grubu (çıktı eşyasına göre; "Tümü" dışındaki tek grup). */
+export function recipeFilterOf(recipe: Recipe): Exclude<RecipeFilter, 'all'> {
+  const id = recipe.output.id;
+  if (WEAPON_OUTPUTS.has(id)) return 'weapon';
+  if (FOOD_OUTPUTS.has(id)) return 'food';
+  switch (ITEMS[id].category) {
+    case 'placeable':
+      return 'structure';
+    case 'food':
+      return 'food';
+    case 'tool':
+      return 'tool';
+    case 'material':
+      return 'material';
+  }
+}
+
+/** Süzgeçten geçen satırlar (`all` hepsini verir; sıra korunur). */
+export function filterRecipeRows(rows: readonly RecipeRow[], filter: RecipeFilter): RecipeRow[] {
+  if (filter === 'all') return [...rows];
+  return rows.filter((row) => recipeFilterOf(RECIPES[row.id]) === filter);
+}
+
+/** Süzgeç başına tarif sayısı (sekme rozetleri: "Silah 12"). */
+export function recipeFilterCounts(rows: readonly RecipeRow[]): Record<RecipeFilter, number> {
+  const counts = Object.fromEntries(RECIPE_FILTERS.map((f) => [f, 0])) as Record<
+    RecipeFilter,
+    number
+  >;
+  for (const row of rows) {
+    counts.all += 1;
+    counts[recipeFilterOf(RECIPES[row.id])] += 1;
+  }
+  return counts;
+}
+
+/** Tek seferde istenebilecek en çok üretim adedi (adet girişinin üst sınırı). */
+export const CRAFT_BATCH_MAX = 50;
+
+/**
+ * Tarif art arda kaç kez üretilebilir (0–`CRAFT_BATCH_MAX`)? Malzeme sınırı önce hesaplanır, sonra envanterin
+ * kopyasında tek tek üretilerek yer (slot/ağırlık) denetlenir; gerçek envanter değişmez.
+ */
+export function maxCraftable(
+  inventory: Inventory,
+  recipe: Recipe,
+  context: CraftContext = NO_STATIONS,
+  limit = CRAFT_BATCH_MAX,
+): number {
+  if (!craftStatus(inventory, recipe, context).ok) return 0;
+  let bound = limit;
+  if (!context.free) {
+    for (const { id, count } of recipe.inputs) {
+      bound = Math.min(bound, Math.floor(inventory.count(id) / count));
+    }
+  }
+  const trial = Inventory.fromJSON(inventory.toJSON(), {
+    slots: inventory.slotCount,
+    maxWeightG: inventory.maxWeightG,
+  });
+  let made = 0;
+  while (made < bound && craft(trial, recipe, context).ok) made += 1;
+  return made;
+}
+
+/** Adet girişini geçerli aralığa çeker (boş/bozuk → 1; 1…`max`, `max` 0 ise 1). */
+export function clampCraftCount(value: number, max: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(Math.max(Math.floor(value), 1), Math.max(max, 1));
 }

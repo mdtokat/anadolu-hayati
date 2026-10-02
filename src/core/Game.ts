@@ -518,7 +518,7 @@ export class Game {
     });
     this.inventoryPanel = new InventoryPanel(container, this.inventory, {
       onEat: (slot) => this.eatFromSlot(slot),
-      onCraft: (recipe) => this.craftRecipe(recipe),
+      onCraft: (recipe, count) => this.craftRecipe(recipe, count),
       onDrink: () => this.drinkContainer(),
       onDrop: (slot, count) => this.dropFromSlot(slot, count),
       onClose: () => this.closeInventory(),
@@ -1560,17 +1560,22 @@ export class Game {
     this.inventoryPanel.refresh();
   }
 
-  private craftRecipe(id: RecipeId): void {
-    const result = craft(this.inventory, RECIPES[id], this.stationsHere());
-    if (result.ok) {
-      this.events.emit('item:crafted', {
-        recipe: id,
-        item: result.output.id,
-        count: result.output.count,
-      });
-    } else {
-      this.inventoryPanel.refresh();
+  /** Tarifi `count` kez art arda üretir; yapılamayan ilk denemede durur (toplu üretim tek olay yayınlar). */
+  private craftRecipe(id: RecipeId, count = 1): void {
+    const context = this.stationsHere();
+    let made = 0;
+    let output: ItemId | null = null;
+    for (let i = 0; i < Math.max(1, Math.floor(count)); i++) {
+      const result = craft(this.inventory, RECIPES[id], context);
+      if (!result.ok) break;
+      made += result.output.count;
+      output = result.output.id;
     }
+    if (output === null) {
+      this.inventoryPanel.refresh();
+      return;
+    }
+    this.events.emit('item:crafted', { recipe: id, item: output, count: made });
   }
 
   /** Ölüm ekranındaki "Yeniden Doğ": göstergeler dolar, oyuncu rastgele güvenli noktaya taşınır. */
