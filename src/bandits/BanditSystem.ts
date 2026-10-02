@@ -323,12 +323,7 @@ export class BanditSystem implements TargetProvider {
   }
 
   /** Dev/test: (x, z)'de kampsız (serbest) bir eşkıya doğurur. */
-  spawnAt(
-    x: number,
-    z: number,
-    weapon: BanditWeapon,
-    activity: 'patrol' | 'sit' = 'patrol',
-  ): number {
+  spawnAt(x: number, z: number, weapon: BanditWeapon, activity: BanditActivity = 'patrol'): number {
     const id = this.nextFreeId++;
     const rng = createRandom(seedFrom(this.seed, id % 2 ** 31));
     const yaw = rng.next() * Math.PI * 2;
