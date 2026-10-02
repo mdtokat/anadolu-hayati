@@ -1,3 +1,4 @@
+import { ROADS } from '../src/config';
 import { describe, expect, it } from 'vitest';
 import { RegionDataError } from '../src/data/region';
 import { decodeRoad, parseSettlements } from '../src/data/settlements';
@@ -69,16 +70,17 @@ describe('RoadIndex', () => {
     const hit = index.nearest(50, 4, 20)!;
     expect(hit.cls).toBe(0);
     expect(hit.distance).toBeCloseTo(4);
-    expect(hit.edgeDistance).toBeCloseTo(4 - 2.5);
+    expect(hit.edgeDistance).toBeCloseTo(4 - ROADS.width[0] / 2);
     expect(hit.angle).toBeCloseTo(0);
     expect(index.nearest(50, 40, 5)).toBeNull();
     expect(index.nearest(1, 100, 5)!.angle).toBeCloseTo(Math.PI / 2);
   });
 
   it('yol üstü sorgusu genişliğe göre', () => {
-    expect(index.onRoad(30, 2)).toBe(true);
-    expect(index.onRoad(30, 3)).toBe(false);
-    expect(index.onRoad(30, 3, 1)).toBe(true);
+    const half = ROADS.width[0] / 2;
+    expect(index.onRoad(30, half - 0.5)).toBe(true);
+    expect(index.onRoad(30, half + 0.5)).toBe(false);
+    expect(index.onRoad(30, half + 0.5, 1)).toBe(true);
     expect(index.onRoad(1, 100)).toBe(true);
   });
 

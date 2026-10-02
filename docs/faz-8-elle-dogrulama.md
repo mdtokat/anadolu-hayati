@@ -227,3 +227,22 @@ Yollar, akarsular, kıyı bantları ve il sınırları artık arazinin kendi sha
 - [ ] **Yakın plan:** dik yamaçta çok yakından bakınca yol/su kenarı basamaklı görünüyor mu (bilinen sınırlama: 2 m hücre)? Rahatsız edici mi: ☐ hayır ☐ evet
 - [ ] **Performans:** Safranbolu, Bolu, Yenice'de FPS (yol mesh'leri kalktı, draw call azaldı; arazi shader'ı biraz ağırlaştı): ___ FPS
 - Notlar: ____________________
+
+## 15. Yol ağı, zemin düzeltme ve köprüler (Faz 10 sonrası)
+
+Yollar zemine uydurulur (kazı/dolgu terası), yumuşatılır, dere geçişlerinde köprü olur, çıkmaz/kopuk yol budanır ya da bağlanır; kırsalda tali yol patikaya iner; kent sokakları yalnız yapılı bloklarda ve ağa bağlı çizilir; dik yamaçlarda yapılar terasa oturur (`CLAUDE.md` "Yol ağı ve zemin düzeltmesi", ölçümler [faz-10-yol-agi-olcumler.md](faz-10-yol-agi-olcumler.md)). Kontrol için test modunda uçarak yukarıdan bakın; konumlar: Düzce, Bolu, Zonguldak, Safranbolu, Karabük, Bartın (`T` + rakam / `Shift` + rakam ışınlanması, bkz. bölüm 14).
+
+- [ ] **Zemin yola uygun mu?** Ana yolda ve köy yolunda yürürken yol yatay (enine) eğimsiz, düz bir teras gibi mi? Yamaçta yolun iki yanında doğal bir şev/kazı görünüyor mu, yoksa yapay basamak/yarık mı? Nerede: ____________________
+- [ ] **Dağ patikaları:** dik dağ yamaçlarında patikalar zemini izliyor (düzeltilmiyor) mu? Bu doğal görünüyor mu?
+- [ ] **Düzgünlük:** yollarda dalga, testere dişi ya da keskin köşe kaldı mı? (Kavşaklarda köşe olması doğal.) Nerede: ____________________
+- [ ] **Eğim:** anayolda uzun, çok dik (≈ 20°+) yokuş kaldı mı? Tali yol/patikada yürümek zor mu? Dik yerler kabul edilebilir mi? (Bilinen sınır: tünel ve serpantin yok.)
+- [ ] **Köprüler:** dere/akarsu geçişlerinde ana yolda daha geniş, patikada dar köprü görünüyor mu? Köprüden yürünüyor mu (korkuluk çarpıyor, güverte düz, kıyıda basamak yok)? Köprü altından geçilebiliyor mu? Çok sık/yan yana küçük köprü kümesi (Bolu merkezi) rahatsız ediyor mu?
+- [ ] **Viyadük:** derin vadi geçişlerinde ayaklı köprü görünüyor mu, ayaklar zemine oturuyor mu?
+- [ ] **Bağlantı:** hiçbir yere varmayan çıkmaz yol ya da tek başına duran yol parçası görüyor musunuz? Her köy/ilçe bir yola bağlı mı? Nerede: ____________________
+- [ ] **Hiyerarşi:** şehirler arası anayol geniş asfalt, kırsal tali yol/patika toprak mı? Kent merkezinde ana cadde + yan sokaklar ayırt ediliyor mu?
+- [ ] **"Yalnız yol" yerleri:** il/ilçe çevresinde aralarında bina olmayan, yollarla dolu boş alan kaldı mı? Kent sokakları yapısız yerde bitiyor mu? Nerede: ____________________
+- [ ] **Yapı terasları:** dik yamaç kasabalarında (Zonguldak, Kozlu, Karabük) yapılar düz teraslara oturuyor mu? Havada kalan ya da yarıya gömülen yapı var mı?
+- [ ] **Nesneler:** ağaç/kaya yol kenarında düzgün (yolun üstünde değil, kazı şevinde asılı değil) mi?
+- [ ] **Yükleme süresi:** oyun açılışı önceki fazlara göre belirgin yavaşladı mı (düzen ≈ +2,5 sn)? ___ sn
+- [ ] **Performans:** Düzce, Bolu, Safranbolu'da FPS: ___ (köprü çizimi tek draw call)
+- Notlar: ____________________

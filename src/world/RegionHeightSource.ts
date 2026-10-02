@@ -87,6 +87,68 @@ export class RegionHeightSource implements HeightSource {
     return this.origin.z + row * this.cell;
   }
 
+  /**
+   * Yol düzeltmesinden önceki (doğal) yükseklikler; düzeltme yoksa null. Nesne dağılımı (eğim/rakım elemesi)
+   * doğal araziye göre yapılır: yol düzeltmesi nesne kimliklerini kaydırmasın.
+   */
+  private base: Float32Array | null = null;
+
+  /** Izgara örneğini değiştirir (yol düzeltmesi). İlk değişiklikte doğal yükseklikler saklanır. */
+  setSample(col: number, row: number, value: number): void {
+    this.base ??= new Float32Array(this.game);
+    this.game[row * this.width + col] = value;
+  }
+
+  /** Sonraki düzeltmelerin (yapı terası) değiştirmeyeceği hücreler: yol yatağı, yapı ayak izi. Tembel açılır. */
+  private locked: Uint8Array | null = null;
+
+  lock(col: number, row: number): void {
+    this.locked ??= new Uint8Array(this.width * this.height);
+    this.locked[row * this.width + col] = 1;
+  }
+
+  isLocked(col: number, row: number): boolean {
+    return this.locked !== null && this.locked[row * this.width + col] === 1;
+  }
+
+  /** Yol düzeltmesi uygulandı mı? */
+  get graded(): boolean {
+    return this.base !== null;
+  }
+
+  /**
+   * Doğal (düzeltilmemiş) araziyi okuyan görünüm: `heightAt`, `slopeDegAt`, `elevationAt`. Düzeltme yoksa kaynağın
+   * kendisi gibi davranır. Yol planı doğal araziden tasarlanır; nesne dağılımı da doğal eğimi kullanır.
+   */
+  natural(): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
+    const read = (col: number, row: number): number => {
+      const c = Math.min(Math.max(col, 0), this.width - 1);
+      const r = Math.min(Math.max(row, 0), this.height - 1);
+      return (this.base ?? this.game)[r * this.width + c] as number;
+    };
+    const heightAt = (x: number, z: number): number => {
+      const fc = Math.min(Math.max((x - this.origin.x) / this.cell, 0), this.width - 1);
+      const fr = Math.min(Math.max((z - this.origin.z) / this.cell, 0), this.height - 1);
+      const c0 = Math.floor(fc);
+      const r0 = Math.floor(fr);
+      const tc = fc - c0;
+      const tr = fr - r0;
+      const top = read(c0, r0) * (1 - tc) + read(c0 + 1, r0) * tc;
+      const bottom = read(c0, r0 + 1) * (1 - tc) + read(c0 + 1, r0 + 1) * tc;
+      return top * (1 - tr) + bottom * tr;
+    };
+    return {
+      heightAt,
+      elevationAt: (x, z) => heightAt(x, z) * VERTICAL_SCALE,
+      slopeDegAt: (x, z) => {
+        const d = this.cell;
+        const gx = (heightAt(x + d, z) - heightAt(x - d, z)) / (2 * d);
+        const gz = (heightAt(x, z + d) - heightAt(x, z - d)) / (2 * d);
+        return (Math.atan(Math.hypot(gx, gz)) * 180) / Math.PI;
+      },
+    };
+  }
+
   /** Tam sayı örnek (kenara sıkıştırılmış): oyun yüksekliği. */
   sample(col: number, row: number): number {
     const c = Math.min(Math.max(col, 0), this.width - 1);

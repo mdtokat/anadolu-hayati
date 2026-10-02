@@ -56,3 +56,24 @@ describe('BUILDING_OVERHANG', () => {
     }
   });
 });
+
+describe('FootprintRegistry.contains — kenar payı her yönde', () => {
+  it('dörtgenin dışındaki nokta, payın içindeyse her kenardan "içeride" sayılır (sargı yönünden bağımsız)', () => {
+    const reg = new FootprintRegistry();
+    reg.add(1, { x: 0, z: 0, hx: 5, hz: 4, yaw: 0.7 });
+    const c = Math.cos(0.7);
+    const s = Math.sin(0.7);
+    // Yerel (lx, lz) → dünya.
+    const at = (lx: number, lz: number) => [lx * c + lz * s, -lx * s + lz * c] as const;
+    for (const [lx, lz] of [
+      [0, 6], // ön kenarın 2 m dışı
+      [0, -6], // arka kenarın 2 m dışı
+      [7, 0], // yan kenarların 2 m dışı
+      [-7, 0],
+    ] as const) {
+      const [x, z] = at(lx, lz);
+      expect(reg.contains(x, z, 3), `${lx},${lz}`).toBe(true);
+      expect(reg.contains(x, z, 1), `${lx},${lz} dar pay`).toBe(false);
+    }
+  });
+});

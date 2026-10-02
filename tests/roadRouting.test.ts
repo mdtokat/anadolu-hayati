@@ -73,3 +73,53 @@ describe('separateRoadsFromWater', () => {
     expect(out).toBe(road);
   });
 });
+
+describe('smoothRoads — keskin köşe ve dalga', () => {
+  /** 4 m aralıklı örneklerde ardışık yön değişimlerinin en büyüğü (derece). */
+  function maxTurnDeg(xz: Float32Array): number {
+    const pts: number[] = [];
+    for (let i = 0; i + 3 < xz.length; i += 2) {
+      const ax = xz[i]!;
+      const az = xz[i + 1]!;
+      const bx = xz[i + 2]!;
+      const bz = xz[i + 3]!;
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 4));
+      for (let k = 0; k < n; k++) pts.push(ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n);
+    }
+    pts.push(xz[xz.length - 2]!, xz[xz.length - 1]!);
+    let worst = 0;
+    for (let i = 2; i + 3 < pts.length; i += 2) {
+      const a1 = Math.atan2(pts[i + 1]! - pts[i - 1]!, pts[i]! - pts[i - 2]!);
+      const a2 = Math.atan2(pts[i + 3]! - pts[i + 1]!, pts[i + 2]! - pts[i]!);
+      let d = Math.abs(a2 - a1);
+      if (d > Math.PI) d = 2 * Math.PI - d;
+      worst = Math.max(worst, (d * 180) / Math.PI);
+    }
+    return worst;
+  }
+
+  it('dik açılı köşe viraja dönüşür (her sınıfta), uçlar sabit', () => {
+    for (const cls of [0, 1, 2] as const) {
+      const [road] = smoothRoads([{ cls, xz: Float32Array.of(0, 0, 120, 0, 120, 120) }]);
+      expect(road!.xz[0]).toBe(0);
+      expect(road!.xz[road!.xz.length - 1]).toBe(120);
+      // Ham yolda 90° tek adımda döner; yumuşatılmışta 4 m'de en çok 45°.
+      expect(maxTurnDeg(road!.xz), `sınıf ${cls}`).toBeLessThan(45);
+    }
+  });
+
+  it('kafes dalgalanması söner (1,5 m genlikli 10 m dalga)', () => {
+    const wave: number[] = [];
+    for (let x = 0; x <= 200; x += 2) wave.push(x, 1.5 * Math.sin((x / 10) * Math.PI));
+    const [road] = smoothRoads([{ cls: 1, xz: Float32Array.from(wave) }]);
+    let amp = 0;
+    for (let i = 20; i + 1 < road!.xz.length - 20; i += 2)
+      amp = Math.max(amp, Math.abs(road!.xz[i + 1]!));
+    expect(amp).toBeLessThan(0.5);
+  });
+
+  it('düz yol düz kalır ve nokta sayısı artmaz', () => {
+    const [road] = smoothRoads([{ cls: 0, xz: Float32Array.of(0, 0, 300, 0) }]);
+    expect(road!.xz.length).toBe(4);
+  });
+});

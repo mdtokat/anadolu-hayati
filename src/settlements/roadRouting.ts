@@ -19,7 +19,7 @@ function waterHalfWidth(kind: string): number {
 const MAX_WATER_HALF = Math.max(...Object.values(FRESH_WATER.lineWidth)) / 2;
 
 /** Douglas–Peucker sadeleştirmesi: `tolerance`'tan (oyun m) az sapan ara noktalar atılır; uçlar kalır. */
-function simplify(pts: readonly number[], tolerance: number): number[] {
+export function simplify(pts: readonly number[], tolerance: number): number[] {
   const n = pts.length / 2;
   if (n <= 2) return [...pts];
   const keep = new Uint8Array(n);
@@ -58,34 +58,112 @@ function simplify(pts: readonly number[], tolerance: number): number[] {
   return out;
 }
 
-/** Chaikin köşe kesme (bir tur): her köşe ¼–¾ noktalarıyla yuvarlanır; uçlar kalır. */
-function chaikin(pts: readonly number[]): number[] {
+/** Çoklu çizgiyi tam `step` aralıklı noktalara yeniden örnekler (ilk ve son nokta korunur). */
+function resample(pts: readonly number[], step: number): number[] {
   const n = pts.length / 2;
-  if (n <= 2) return [...pts];
+  if (n < 2) return [...pts];
   const out: number[] = [pts[0] as number, pts[1] as number];
+  let carried = 0; // son çıktı noktasından beri alınan yol
   for (let i = 0; i + 1 < n; i++) {
     const ax = pts[i * 2] as number;
     const az = pts[i * 2 + 1] as number;
     const bx = pts[i * 2 + 2] as number;
     const bz = pts[i * 2 + 3] as number;
-    if (i > 0) out.push(ax * 0.75 + bx * 0.25, az * 0.75 + bz * 0.25);
-    if (i + 2 < n) out.push(ax * 0.25 + bx * 0.75, az * 0.25 + bz * 0.75);
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len === 0) continue;
+    let at = step - carried;
+    while (at <= len) {
+      out.push(ax + ((bx - ax) * at) / len, az + ((bz - az) * at) / len);
+      at += step;
+    }
+    carried = len - (at - step);
   }
-  out.push(pts[(n - 1) * 2] as number, pts[(n - 1) * 2 + 1] as number);
+  const lx = pts[(n - 1) * 2] as number;
+  const lz = pts[(n - 1) * 2 + 1] as number;
+  // Son örnek uca çok yakınsa uca taşınır (ikiz nokta oluşmasın).
+  const last = out.length / 2 - 1;
+  if (
+    last > 0 &&
+    Math.hypot((out[last * 2] as number) - lx, (out[last * 2 + 1] as number) - lz) < step * 0.5
+  ) {
+    out[last * 2] = lx;
+    out[last * 2 + 1] = lz;
+  } else {
+    out.push(lx, lz);
+  }
+  return out;
+}
+
+/** Gauss çekirdeği ağırlıkları (k = −reach … reach); aynı (σ, adım) için önbellekli. */
+const KERNELS = new Map<string, Float64Array>();
+function kernel(sigma: number, step: number, reach: number): Float64Array {
+  const key = `${sigma}/${step}/${reach}`;
+  let w = KERNELS.get(key);
+  if (!w) {
+    w = new Float64Array(reach * 2 + 1);
+    for (let k = -reach; k <= reach; k++) {
+      w[k + reach] = Math.exp(-((k * step) ** 2) / (2 * sigma * sigma));
+    }
+    KERNELS.set(key, w);
+  }
+  return w;
+}
+
+/**
+ * Gauss yumuşatması: her noktanın yeni konumu, yol boyunca σ ölçeğindeki komşularının ağırlıklı ortalamasıdır.
+ * σ uca yaklaştıkça sönümlenir (uçlar yerinde kalır: kavşak bozulmaz). Noktalar eşit aralıklı (`step`) olmalıdır.
+ */
+function gaussianSmooth(pts: readonly number[], step: number, sigma: number): number[] {
+  const n = pts.length / 2;
+  if (n < 3 || sigma <= 0) return [...pts];
+  const out = [...pts];
+  for (let i = 1; i < n - 1; i++) {
+    // Uca uzaklık (yol boyunca, yaklaşık): σ bununla sınırlanır.
+    const toEnd = Math.min(i, n - 1 - i) * step;
+    const s = Math.min(sigma, toEnd * 0.6);
+    if (s < step * 0.5) continue;
+    const reach = Math.min(Math.ceil((s * 2.5) / step), i, n - 1 - i);
+    // Uçlardan uzakta σ sabit: çekirdek önbellekten; uca yakınken (σ küçülüyor) hesaplanır.
+    const full = Math.ceil((sigma * 2.5) / step);
+    const w =
+      s === sigma && reach === full
+        ? kernel(sigma, step, reach)
+        : kernel(Math.round(s * 100) / 100, step, reach);
+    let sx = 0;
+    let sz = 0;
+    let sw = 0;
+    for (let k = -reach; k <= reach; k++) {
+      const wk = w[k + reach] as number;
+      sx += wk * (pts[(i + k) * 2] as number);
+      sz += wk * (pts[(i + k) * 2 + 1] as number);
+      sw += wk;
+    }
+    out[i * 2] = sx / sw;
+    out[i * 2 + 1] = sz / sw;
+  }
   return out;
 }
 
 /**
+ * Yol çizgisini yumuşatır (saf): kafes basamaklarını sadeleştirir (`smoothTolerance`), eşit aralıkla örnekler ve sınıfın
+ * σ'sıyla Gauss süzgecinden geçirir; son olarak gereksiz noktaları atar. Keskin dönüş ve dalgalanma kalmaz; uçlar sabit.
+ */
+export function smoothPath(xz: ArrayLike<number>, cls: number): Float32Array {
+  const sigma = ROADS.smoothSigma[cls] as number;
+  let pts = simplify(Array.from(xz), ROADS.smoothTolerance);
+  pts = resample(pts, ROADS.smoothStep);
+  // Birkaç tur: tek geçiş uzun düzlükte keskin köşeyi tamamen yuvarlamaz.
+  pts = gaussianSmooth(pts, ROADS.smoothStep, sigma);
+  pts = gaussianSmooth(pts, ROADS.smoothStep, sigma * 0.7);
+  return Float32Array.from(simplify(pts, ROADS.smoothSimplify));
+}
+
+/**
  * Yolları yumuşatır (saf): veri hattı yolları kafes hücresine (2 m) oturtulmuş olduğundan çizgiler merdiven gibi
- * kırıktır. Önce `ROADS.smoothTolerance` ile sadeleştirilir (basamaklar kalkar), sonra `ROADS.smoothRounds` tur
- * Chaikin köşe kesmesiyle virajlar yuvarlanır. Uçlar (kavşaklar) yerinde kalır.
+ * kırık ve dalgalıdır; köşeler keskindir. Bkz. `smoothPath`.
  */
 export function smoothRoads(roads: readonly RoadData[]): RoadData[] {
-  return roads.map((road) => {
-    let pts = simplify(Array.from(road.xz), ROADS.smoothTolerance);
-    for (let k = 0; k < ROADS.smoothRounds; k++) pts = chaikin(pts);
-    return { cls: road.cls, xz: Float32Array.from(pts) };
-  });
+  return roads.map((road) => ({ cls: road.cls, xz: smoothPath(road.xz, road.cls) }));
 }
 
 /** Çoklu çizgiyi en çok `step` aralıklı noktalara sıklaştırır. */
@@ -129,19 +207,32 @@ export function separateRoadsFromWater(
     }
     let moved = false;
     const reach = half + ROADS.waterGap + MAX_WATER_HALF;
-    // İlk geçişte suya yakın noktalar işaretlenir; sonraki geçişler yalnızca onlara (ve komşularına) bakar.
+    // İlk geçişte suya yakın noktalar işaretlenir; sonraki geçişler yalnızca onlara (ve komşularına) bakar. Su yakınlığı
+    // önce her ikinci noktada geniş yarıçapla sınanır (çoğu yol sudan uzaktadır).
     const near = new Uint8Array(count);
+    let anyNear = false;
+    for (let i = 1; i < count - 1; i += 2) {
+      if (
+        nearestWater(pts[i * 2] as number, pts[i * 2 + 1] as number, reach + 2 * ROADS.routeStep)
+      ) {
+        near[i - 1] = near[i] = near[i + 1] = 1;
+        anyNear = true;
+      }
+    }
+    if (!anyNear) {
+      out.push(road);
+      continue;
+    }
     for (let pass = 0; pass < ROADS.routePasses; pass++) {
       const ox = new Float64Array(count);
       const oz = new Float64Array(count);
       let lo = count;
       let hi = -1;
       for (let i = 1; i < count - 1; i++) {
-        if (pass > 0 && near[i] === 0) continue;
+        if (near[i] === 0) continue;
         const x = pts[i * 2] as number;
         const z = pts[i * 2 + 1] as number;
         const hit = nearestWater(x, z, pass === 0 ? reach + ROADS.routeStep : reach);
-        if (pass === 0 && hit) near[i] = 1;
         if (!hit || hit.distance < 1e-3) continue; // su yok ya da göl içi/tam eksen üstü (geçit)
         const need = half + ROADS.waterGap + waterHalfWidth(hit.kind);
         if (hit.distance >= need) continue;

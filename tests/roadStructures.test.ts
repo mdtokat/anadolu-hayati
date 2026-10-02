@@ -1,0 +1,138 @@
+import { describe, expect, it } from 'vitest';
+import { ROADS, ROAD_STRUCTURES } from '../src/config';
+import { SPAN_KIND, type PlannedRoad, type RoadPlan } from '../src/settlements/roadProfile';
+import {
+  StructureIndex,
+  boxBasis,
+  buildBoxVertices,
+  structureShape,
+} from '../src/world/roadStructureGeometry';
+
+/** x ekseninde 30 m'lik düz bir köprü (noktalar 3 m), güverte 5 m yükseklikte, altta 0–5 m'lik vadi. */
+function bridgePlan(cls: 0 | 1 | 2 = 0, high = false): RoadPlan {
+  const count = 15;
+  const xz = new Float32Array(count * 2);
+  const natural = new Float32Array(count);
+  const bed = new Float32Array(count);
+  const kind = new Uint8Array(count);
+  for (let i = 0; i < count; i++) {
+    xz[i * 2] = i * 3;
+    xz[i * 2 + 1] = 0;
+    natural[i] = i < 3 || i > 11 ? 5 : high ? -10 : 4;
+    bed[i] = 5;
+    if (i >= 3 && i <= 11) kind[i] = SPAN_KIND.bridge;
+  }
+  const plan: RoadPlan = {
+    roads: [{ cls, xz, step: 3, natural, bed, kind } satisfies PlannedRoad],
+    spans: [{ road: 0, i0: 2, i1: 12, kind: SPAN_KIND.bridge, viaduct: high }],
+  };
+  return plan;
+}
+
+describe('köprü şekli', () => {
+  it('güverte üst yüzü yatakta; iki yan korkuluk; çarpışanlar ve ayaklar ayrı', () => {
+    const plan = bridgePlan(0);
+    const shape = structureShape(plan, plan.spans[0]!);
+    const S = ROAD_STRUCTURES;
+    const deck = shape.boxes.filter((b) => b.color === S.colors.deck);
+    expect(deck).toHaveLength(10); // 10 parça (i0 … i1)
+    for (const b of deck) {
+      expect(b.y + b.hh).toBeCloseTo(5, 3); // üst yüz yatak seviyesinde
+      expect(b.hw).toBeCloseTo((ROADS.width[0] as number) / 2 + (S.widthPad[0] as number), 3);
+      expect(b.solid).toBe(true);
+    }
+    const rails = shape.boxes.filter((b) => b.color === S.colors.parapet);
+    expect(rails).toHaveLength(20);
+    for (const b of rails) expect(b.y + b.hh).toBeCloseTo(5 + S.parapetHeight, 3);
+    // Alçak köprüde ayak yok; yüksek köprüde (viyadük) ayaklar var ve çarpışmaz.
+    expect(shape.boxes.some((b) => b.color === S.colors.pier)).toBe(false);
+    const tall = bridgePlan(0, true);
+    const piers = structureShape(tall, tall.spans[0]!).boxes.filter(
+      (b) => b.color === S.colors.pier,
+    );
+    expect(piers.length).toBeGreaterThan(0);
+    for (const p of piers) expect(p.solid).toBe(false);
+  });
+
+  it('patika köprüsü ana yol köprüsünden dar', () => {
+    const wide = structureShape(bridgePlan(0), bridgePlan(0).spans[0]!).boxes[0]!;
+    const narrow = structureShape(bridgePlan(2), bridgePlan(2).spans[0]!).boxes[0]!;
+    expect(narrow.hw).toBeLessThan(wide.hw);
+  });
+
+  it('kutu tabanı sağ-el dik birim vektörlerdir (eğimli güvertede de)', () => {
+    const plan = bridgePlan(1);
+    plan.roads[0]!.bed[6] = 6.2; // eğim
+    const shape = structureShape(plan, plan.spans[0]!);
+    for (const b of shape.boxes) {
+      const { r, u, f } = boxBasis(b);
+      const len = (v: readonly number[]) => Math.hypot(v[0]!, v[1]!, v[2]!);
+      const dot = (a: readonly number[], c: readonly number[]) =>
+        a[0]! * c[0]! + a[1]! * c[1]! + a[2]! * c[2]!;
+      expect(len(r)).toBeCloseTo(1, 5);
+      expect(len(u)).toBeCloseTo(1, 5);
+      expect(len(f)).toBeCloseTo(1, 5);
+      expect(Math.abs(dot(r, u))).toBeLessThan(1e-6);
+      expect(Math.abs(dot(r, f))).toBeLessThan(1e-6);
+      expect(Math.abs(dot(u, f))).toBeLessThan(1e-6);
+      // r × u = f (sağ-el)
+      const cross = [
+        r[1] * u[2] - r[2] * u[1],
+        r[2] * u[0] - r[0] * u[2],
+        r[0] * u[1] - r[1] * u[0],
+      ];
+      expect(dot(cross, f)).toBeGreaterThan(0.999);
+    }
+  });
+});
+
+describe('kutu köşe verisi', () => {
+  it('her yüzün normali dışa bakar ve üçgen sargısı normalle uyumlu', () => {
+    const plan = bridgePlan(0);
+    const shape = structureShape(plan, plan.spans[0]!);
+    const box = shape.boxes[0]!;
+    const { position, normal, color } = buildBoxVertices([box]);
+    expect(position.length).toBe(36 * 3);
+    expect(normal.length).toBe(36 * 3);
+    expect(color.length).toBe(36 * 3);
+    for (let t = 0; t < 12; t++) {
+      const p = (k: number) => [
+        position[(t * 3 + k) * 3]!,
+        position[(t * 3 + k) * 3 + 1]!,
+        position[(t * 3 + k) * 3 + 2]!,
+      ];
+      const a = p(0);
+      const b = p(1);
+      const c = p(2);
+      const e1 = [b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!];
+      const e2 = [c[0]! - a[0]!, c[1]! - a[1]!, c[2]! - a[2]!];
+      const n = [
+        e1[1]! * e2[2]! - e1[2]! * e2[1]!,
+        e1[2]! * e2[0]! - e1[0]! * e2[2]!,
+        e1[0]! * e2[1]! - e1[1]! * e2[0]!,
+      ];
+      const given = [normal[t * 9]!, normal[t * 9 + 1]!, normal[t * 9 + 2]!];
+      expect(n[0]! * given[0]! + n[1]! * given[1]! + n[2]! * given[2]!).toBeGreaterThan(0);
+      // Normal, kutu merkezinden yüze doğru (dışa) bakar.
+      const centroid = [
+        (a[0]! + b[0]! + c[0]!) / 3 - box.x,
+        (a[1]! + b[1]! + c[1]!) / 3 - box.y,
+        (a[2]! + b[2]! + c[2]!) / 3 - box.z,
+      ];
+      expect(
+        centroid[0]! * given[0]! + centroid[1]! * given[1]! + centroid[2]! * given[2]!,
+      ).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('StructureIndex', () => {
+  it('yakındaki yapıları bulur, uzaktakini bulmaz; şekil önbellekli', () => {
+    const plan = bridgePlan(1);
+    const index = new StructureIndex(plan);
+    expect(index.count).toBe(1);
+    expect(index.near(15, 0, 40)).toEqual([0]);
+    expect(index.near(2000, 2000, 100)).toEqual([]);
+    expect(index.shape(0)).toBe(index.shape(0));
+  });
+});
