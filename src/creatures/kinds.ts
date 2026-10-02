@@ -9,7 +9,16 @@ import type { Activity } from '../survival/vitals';
  */
 
 /** Canlı türleri (yalnızca sona eklenir). */
-export const CREATURE_KINDS = ['roe_deer', 'wild_boar', 'wolf', 'brown_bear'] as const;
+export const CREATURE_KINDS = [
+  'roe_deer',
+  'wild_boar',
+  'wolf',
+  'brown_bear',
+  'red_deer',
+  'red_fox',
+  'hare',
+  'pheasant',
+] as const;
 export type CreatureKind = (typeof CREATURE_KINDS)[number];
 
 /** Oturumlar arası sabit kimlik: `creatureId(cellKey, index) = cellKey * 256 + index` (aynı tohum → aynı kimlik). */

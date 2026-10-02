@@ -283,6 +283,15 @@ const RANGED_AMMO_NAMES: Partial<Record<string, string>> = Object.fromEntries(
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
 
+/** Av ipucunu tetikleyen türler (eti yenen ya da yaygın av). */
+const PREY_KINDS: ReadonlySet<CreatureKind> = new Set([
+  'roe_deer',
+  'wild_boar',
+  'red_deer',
+  'hare',
+  'pheasant',
+]);
+
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
   readonly events = new EventBus<GameEvents>();
@@ -1784,7 +1793,7 @@ export class Game {
         .some(
           (v) =>
             !v.dead &&
-            (v.kind === 'roe_deer' || v.kind === 'wild_boar') &&
+            PREY_KINDS.has(v.kind) &&
             Math.hypot(v.x - feet.x, v.z - feet.z) <= HINTS.preyRadiusM,
         ),
       inSettlement: (this.world.settlementMap?.settlementAt(feet.x, feet.z) ?? null) !== null,
@@ -2394,7 +2403,7 @@ export class Game {
       prey: (x, z, r) =>
         this.creatures
           .near(x, z, r)
-          .filter((c) => c.kind === 'roe_deer' && !c.dead)
+          .filter((c) => (c.kind === 'roe_deer' || c.kind === 'red_deer') && !c.dead)
           .map((c) => ({ id: `${CREATURE_TARGET_PREFIX}${c.id}`, x: c.x, z: c.z })),
     });
     if (this.pickpocketWorld) {

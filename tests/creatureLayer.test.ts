@@ -47,7 +47,7 @@ describe('modeller (creatureGeometry)', () => {
     }
   });
 
-  it('boyutlar ve merkezler sonlu, parça boyutları pozitif; dört bacak var', () => {
+  it('boyutlar ve merkezler sonlu, parça boyutları pozitif; dört bacak (kuşta iki bacak, iki kanat)', () => {
     for (const kind of CREATURE_KINDS) {
       const { parts } = MODELS[kind];
       for (const part of parts) {
@@ -55,10 +55,12 @@ describe('modeller (creatureGeometry)', () => {
         for (const v of part.size) expect(v, kind).toBeGreaterThan(0);
         if (part.motion !== 'none') expect(part.pivot, kind).toBeDefined();
       }
+      const bird = kind === 'pheasant';
       expect(
         parts.filter((p) => p.motion === 'leg'),
         kind,
-      ).toHaveLength(4);
+      ).toHaveLength(bird ? 2 : 4);
+      expect(parts.filter((p) => p.motion === 'wing')).toHaveLength(bird ? 2 : 0);
     }
   });
 

@@ -10,6 +10,10 @@ export const CREATURE_NAMES: Readonly<Record<CreatureKind, string>> = {
   wild_boar: 'Yaban domuzu',
   wolf: 'Kurt',
   brown_bear: 'Boz ayı',
+  red_deer: 'Kızıl geyik',
+  red_fox: 'Tilki',
+  hare: 'Yabani tavşan',
+  pheasant: 'Sülün',
 };
 
 /** Leş kesme ipucu: "E (basılı tut): Karacayı kes" / "Envanter dolu". */

@@ -290,7 +290,11 @@ const SCATTER_GOLDEN = {
     '1,9': '812bef28',
   },
 };
+/**
+ * Yeniden kaydedildi (Faz 10 sonrası): arazi yumuşatması (eğim → yaşam alanı), yeni türler (kızıl geyik, tilki, yabani
+ * tavşan, sülün) ve azaltılan yaban domuzu/boz ayı yoğunluğu. Nesne golden'ı (`SCATTER_GOLDEN`) değişmedi.
+ */
 const CANDIDATE_GOLDEN = {
-  totals: { 'epoch 0': 270, 'epoch 7': 282, 'epoch 19': 255 },
-  digest: 'fa8d8030',
+  totals: { 'epoch 0': 351, 'epoch 7': 345, 'epoch 19': 305 },
+  digest: '1b69d0fe',
 };

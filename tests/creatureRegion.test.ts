@@ -115,12 +115,10 @@ describe('gerçek bölge: doğma kuralları', () => {
   });
 
   it('tür dağılımı makul: karaca/domuz bol, kurt az, ayı en seyrek ve yüksek rakımda', () => {
-    const count: Record<CreatureKind, number> = {
-      roe_deer: 0,
-      wild_boar: 0,
-      wolf: 0,
-      brown_bear: 0,
-    };
+    const count = Object.fromEntries(CREATURE_KINDS.map((k) => [k, 0])) as Record<
+      CreatureKind,
+      number
+    >;
     const bearElevations: number[] = [];
     for (let epoch = 0; epoch < 3; epoch++) {
       for (const c of allCandidates(epoch)) {

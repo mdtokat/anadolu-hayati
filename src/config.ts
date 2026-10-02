@@ -693,6 +693,8 @@ export const CREATURES = {
   attackLungeSpeedFactor: 0.8,
   /** Yaralı canlının kaçış hızı: sağlık oranı 0'da tam hızın bu kadarı, 1'de tam hız (yaralı hayvan yakalanabilir). */
   woundedSpeedFloor: 0.45,
+  /** Kuşların (sülün) havalanma/konma ve vurulunca düşme hızları (oyun m/sn). */
+  flight: { climbSpeed: 4, landSpeed: 2.5, fallSpeed: 7 },
 } as const;
 
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
@@ -1693,7 +1695,7 @@ export const COMBAT_HUD = {
   /** "Tehlike" bildirimi gösterilen durumlar (yalnızca sinsi yaklaşma ve kovalama). */
   dangerStates: ['stalk', 'chase'],
   /** Bildirimi tetiklemeyen zararsız türler. */
-  harmlessKinds: ['roe_deer'],
+  harmlessKinds: ['roe_deer', 'red_deer', 'red_fox', 'hare', 'pheasant'],
 } as const;
 
 /** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir. */
@@ -1724,7 +1726,13 @@ export const CREATURE_LOOK = {
     wild_boar: 0x4a3a30,
     wolf: 0x6f6f6a,
     brown_bear: 0x5a3b22,
+    red_deer: 0x8a4e2c,
+    red_fox: 0xc2622a,
+    hare: 0x9a8668,
+    pheasant: 0x8f4a22,
   },
+  /** Kuş kanadı çırpma genliği (radyan). */
+  wingFlap: 0.9,
   /** Vurulma parlamasında karıştırılan renk. */
   hitColor: 0xff3b30,
   /** Leş (yan yatık) karardıkça: renk bu oranda koyulaşır (0–1). */
@@ -1748,6 +1756,62 @@ export const CREATURE_LOOK = {
   lunge: 0.3,
   /** Karelerarası zaman sıçramasını sınırlar: animasyon fazı bu süreden (sn) fazla ilerlemez. */
   maxFrameSeconds: 0.1,
+} as const;
+
+/**
+ * Gökyüzü kuşları (`world/birdFlocks.ts`, `BirdLayer`; yalnız görsel): hücrelerin bir kısmında daire çizen sürüler.
+ * Uzaklıklar oyun m, hızlar oyun m/sn, rakım gerçek m.
+ */
+export const BIRDS = {
+  seed: 0xb1d5,
+  /** Sürü hücresi boyu ve hücrede sürü olma olasılığı. */
+  cellSize: 450,
+  flockChance: 0.4,
+  /** Oyuncuya bu uzaklıktaki sürüler çizilir. */
+  drawRadius: 800,
+  /** En çok çizilen kuş (örnek tamponu). */
+  maxBirds: 160,
+  /** Gün ışığı (0–1) bunun altındaysa kuş yok. */
+  minDaylight: 0.25,
+  /** Bu gerçek rakımın (m) altındaki hücrelerde martı (kıyı); karada karga ya da yırtıcı. */
+  gullMaxElevation: 40,
+  /** Karadaki sürülerin yırtıcı (tek kuş) olma payı. */
+  raptorShare: 0.3,
+  kinds: {
+    crow: {
+      count: [5, 10],
+      altitude: [14, 30],
+      radius: [25, 60],
+      speed: [7, 10],
+      spread: 8,
+      span: 0.9,
+      flapHz: 3,
+      glide: 0,
+      color: 0x1d1d22,
+    },
+    gull: {
+      count: [3, 7],
+      altitude: [10, 24],
+      radius: [30, 70],
+      speed: [6, 9],
+      spread: 10,
+      span: 1.2,
+      flapHz: 1.8,
+      glide: 0.4,
+      color: 0xeceff0,
+    },
+    raptor: {
+      count: [1, 2],
+      altitude: [45, 90],
+      radius: [50, 110],
+      speed: [6, 8],
+      spread: 15,
+      span: 1.9,
+      flapHz: 1.2,
+      glide: 0.85,
+      color: 0x5a4330,
+    },
+  },
 } as const;
 
 /**
