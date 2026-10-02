@@ -29,8 +29,8 @@ describe('kamp yeri kuralları (sahte dünya)', () => {
     const q = fakeQuery();
     expect(campSiteOk(q, 0, -200)).not.toBeNull();
     expect(campSiteOk(q, 0, -50)).toBeNull(); // yola çok yakın
-    expect(campSiteOk(q, 0, -450)).toBeNull(); // yoldan çok uzak
-    expect(campSiteOk(q, 0, 300)).toBeNull(); // yerleşime yakın
+    expect(campSiteOk(q, 0, -750)).toBeNull(); // yoldan çok uzak
+    expect(campSiteOk(q, 0, 400)).toBeNull(); // yerleşime yakın
     expect(campSiteOk(fakeQuery({ coverAt: () => 'grass' }), 0, -200)).toBeNull();
     expect(campSiteOk(fakeQuery({ slopeDegAt: () => 40 }), 0, -200)).toBeNull();
     expect(campSiteOk(fakeQuery({ isSea: (x) => x > 5 }), 0, -200)).toBeNull(); // çember denize değiyor
@@ -97,13 +97,13 @@ describe('kamp yerleri (gerçek dünya)', () => {
     w = await loadBanditWorld();
   }, 120_000);
 
-  it('15–18 kamp; hepsi ormanda, yürünebilir, yerleşimlerden ve yoldan kurala uygun uzaklıkta', () => {
-    expect(w.camps.length).toBeGreaterThanOrEqual(15);
+  it('40–48 kamp; hepsi ormanda, yürünebilir, yerleşimlerden ve yoldan kurala uygun uzaklıkta', () => {
+    expect(w.camps.length).toBeGreaterThanOrEqual(40);
     expect(w.camps.length).toBeLessThanOrEqual(BANDITS.campCount);
     for (const c of w.camps) {
       expect(w.terrain.coverAt(c.x, c.z)).toBe('forest');
       expect(w.terrain.slopeDegAt(c.x, c.z)).toBeLessThanOrEqual(BANDITS.maxSlopeDeg);
-      const road = w.settlement.map.roads.nearest(c.x, c.z, 500)!;
+      const road = w.settlement.map.roads.nearest(c.x, c.z, 800)!;
       expect(road.edgeDistance).toBeGreaterThanOrEqual(BANDITS.roadDistance[0]);
       expect(road.edgeDistance).toBeLessThanOrEqual(BANDITS.roadDistance[1]);
       for (const s of w.settlement.map.settlements) {
@@ -116,6 +116,14 @@ describe('kamp yerleri (gerçek dünya)', () => {
     }
     if (process.env.BANDIT_REPORT)
       console.log(w.camps.map((c) => `${c.id}: ${c.x.toFixed(0)}, ${c.z.toFixed(0)}`));
+  });
+
+  it('il/ilçe merkezlerinin çoğuna kısa yürüyüşte bir kamp düşer (oyuncu eşkıyaya rastlayabilsin)', () => {
+    const towns = w.settlement.map.settlements.filter((s) => s.data.rank !== 'koy');
+    const close = towns.filter((s) =>
+      w.camps.some((c) => Math.hypot(c.x - s.data.x, c.z - s.data.z) <= 600),
+    );
+    expect(close.length / towns.length).toBeGreaterThanOrEqual(0.55);
   });
 
   it('yeniden kurulunca aynı kamplar (kimlik kalıcı)', async () => {
