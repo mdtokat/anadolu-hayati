@@ -1,22 +1,35 @@
 import { FRESH_WATER, ROADS, ROAD_STRUCTURES } from '../config';
 import type { RoadClass, RoadData } from '../data/settlements';
 import { NodeIndex, pathLength } from './roadNetwork';
-import type { NearestWater } from './roadRouting';
+import { StreamGrid, type NearestWater } from './roadRouting';
 
 /**
  * Yol boyuna profili (saf mantık): her yol için zemine uygun, düzgün ve eğimi sınırlı bir "yatak" (bed) yüksekliği
- * tasarlar. Arazi yoldan bağımsızdır; yol araziyi yumuşatır: tepeler kazılır (yarma), çukurlar doldurulur, dere geçişleri
- * ve derin vadi geçişleri köprü (viyadük) olur. Tünel yoktur: arazi yükseklik ızgarasında delik açılamadığından derin
- * sırtlar yarma ile geçilir. Zemini yola uydurmayı `world/roadGrading.ts` yapar.
+ * tasarlar. Arazi yoldan bağımsızdır; yol araziyi yumuşatır: tepeler kazılır (yarma), çukurlar doldurulur. Yapılar:
+ *
+ * - **Köprü:** yalnızca yolun akarsu çizgisini gerçekten kestiği yerde; uzunluğu suyun genişliği ve geçiş açısından
+ *   (dik geçiş kısa, verev geçiş uzun) hesaplanır; birbirine yakın köprüler tek köprü olur. Güverte iki ayak arasında
+ *   **düzdür** (tepe yapmaz): açıklık gerekiyorsa ayaklar yükseltilir, yaklaşım yolu eğimle çıkar.
+ * - **Viyadük:** yalnızca anayolda, derin ve uzun vadi geçişinde (dolgu sınırını aşan kesim).
+ * - **Tünel:** anayol ve köy yolunda, eğim sınırlı profil sırtın `tunnelDepth`'ten derin altından geçiyorsa; ağızlar
+ *   kazının `portalDepth`'e indiği yerdedir. Tünelin üstündeki arazi değişmez (ağızlarda arazi delinir:
+ *   `world/roadTunnels.ts`).
+ *
+ * Köprü türü yola ve konuma göre seçilir (`BRIDGE_TYPES`): anayolda beton kirişli köprü ya da viyadük, köy yolunda taş
+ * kemer (kısa) ya da beton, patikada ahşap (kısa) ya da taş kemer. Zemini yola uydurmayı `world/roadGrading.ts` yapar.
  *
  * Yöntem: arazi yüksekliği yol boyunca eşit aralıkla örneklenir, yumuşatılır (sınıfa göre `profileSigma`), eğim
- * `gradeMax` ile sınırlanır (uçlar kavşağın doğal yüksekliğine sabit); sonra köprü/tünel kesimleri seçilir ve kalan
- * noktalarda kazı (`maxCut`) / dolgu (`maxFill`) sınırları uygulanır.
+ * `gradeMax` ile sınırlanır (uçlar kavşağın doğal yüksekliğine sabit); sonra yapı kesimleri seçilir ve sınırlar
+ * (zeminde kazı `maxCut` / dolgu `maxFill`, köprüde açıklık, tünelde örtü) eğim sınırıyla dönüşümlü uygulanır.
  */
 
 /** Plan noktasının türü. */
-export const SPAN_KIND = { ground: 0, bridge: 1 } as const;
+export const SPAN_KIND = { ground: 0, bridge: 1, tunnel: 2 } as const;
 export type SpanKind = (typeof SPAN_KIND)[keyof typeof SPAN_KIND];
+
+/** Köprü türleri: beton kirişli, viyadük (yüksek ayaklı), taş kemer (Osmanlı), ahşap (patika). */
+export const BRIDGE_TYPES = ['beam', 'viaduct', 'arch', 'wooden'] as const;
+export type BridgeType = (typeof BRIDGE_TYPES)[number];
 
 /** Planlanmış yol: sıklaştırılmış eksen + nokta başına doğal yükseklik, yatak yüksekliği ve tür. */
 export interface PlannedRoad {
@@ -29,14 +42,18 @@ export interface PlannedRoad {
   kind: Uint8Array;
 }
 
-/** Köprü: `i0` ve `i1` zemin kalan kıyı (ayak) noktalarıdır, aradaki noktalar köprü kesimidir. */
+/**
+ * Yapı: `i0` ve `i1` zemin kalan uç noktalarıdır (köprü ayağı / tünel ağzı), aradaki noktalar yapı kesimidir.
+ */
 export interface RoadSpan {
   road: number;
   i0: number;
   i1: number;
   kind: Exclude<SpanKind, 0>;
-  /** Köprü için: dere değil, derin dolgu yerine kurulan viyadük. */
+  /** Köprü için: dere değil, derin vadi geçişi (viyadük). */
   viaduct: boolean;
+  /** Köprü türü (tünelde `beam`, kullanılmaz). */
+  type: BridgeType;
 }
 
 export interface RoadPlan {
@@ -50,6 +67,8 @@ export interface ProfileTerrain {
   heightAt(x: number, z: number): number;
   elevationAt(x: number, z: number): number;
   nearestWater?: NearestWater;
+  /** Varsa akarsu çizgileri: köprüler yalnızca yolun bunları kestiği yerde kurulur (yoksa `nearestWater` yakınlığı). */
+  waterLines?: ReadonlyArray<{ kind: string; xz: ArrayLike<number> }>;
 }
 
 const WATER_AREA = new Set(['lake', 'reservoir', 'pond', 'water']);
@@ -174,12 +193,48 @@ function mergeRuns(runs: Array<[number, number]>, gap: number): Array<[number, n
   return out;
 }
 
+/** Kesimi aday listesi: [a, b] nokta aralığı ve türü. */
+interface Candidate {
+  a: number;
+  b: number;
+  kind: Exclude<SpanKind, 0>;
+  viaduct: boolean;
+}
+
+/** Bir değerin deterministik [0, 1) karması (köprü türü çeşitlemesi). */
+function hash01(x: number, z: number): number {
+  const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+/** Köprü türü: yola, uzunluğa, yüksekliğe ve (çeşitleme için) konuma göre. */
+export function bridgeTypeFor(
+  cls: RoadClass,
+  length: number,
+  height: number,
+  viaduct: boolean,
+  x: number,
+  z: number,
+): BridgeType {
+  const B = ROAD_STRUCTURES;
+  if (cls === 0)
+    return viaduct || (height > B.viaductHeight && length > B.archMaxLength) ? 'viaduct' : 'beam';
+  if (cls === 2) return length <= B.woodenMaxLength ? 'wooden' : 'arch';
+  if (cls === 1) {
+    // Köy köprüleri çoğunlukla taş kemer; bir kısmı sonradan yapılmış beton.
+    return length <= B.archMaxLength && hash01(x, z) < B.archShare ? 'arch' : 'beam';
+  }
+  return 'beam';
+}
+
 /**
- * Tüm yolların profilini tasarlar. `roads` düğümlerinde bölünmüş olmalıdır (`shapeRoadNetwork` çıktısı): aynı kavşakta
+ * Tüm yolların profilini tasarlar. `roads` düğümlerinde bölünmüş olmalıdır (`buildRoadNetwork` çıktısı): aynı kavşakta
  * buluşan yolların uçları kavşağın doğal yüksekliğine sabitlenir, böylece kavşakta basamak olmaz.
  */
 export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTerrain): RoadPlan {
   const step = ROADS.profileStep;
+  const S = ROAD_STRUCTURES;
+  const streams = terrain.waterLines ? new StreamGrid(terrain.waterLines) : null;
   // Kavşak yükseklikleri: aynı düğümdeki uçların doğal yüksekliklerinin ortalaması.
   const index = new NodeIndex();
   const nodeSum: number[] = [];
@@ -233,126 +288,185 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
     p[0] = pinA;
     p[count - 1] = pinB;
     limitGrade(p, ds, grade, pinA, pinB);
-
-    // Kesim türleri (dere geçişi, derin dolgu = viyadük, derin kazı = tünel) profile göre seçilir; sınırlar uygulanınca
-    // zeminde kalıp dolgu sınırını aşan noktalar da köprüye alınır (en çok iki tur).
-    const fillMax = ROADS.maxFill[cls] as number;
     const stepsFor = (meters: number) => Math.max(1, Math.ceil(meters / ds));
-    const wet = new Uint8Array(count);
-    if (terrain.nearestWater) {
-      // Önce her ikinci noktada geniş yarıçapla "suya yakın mı" bakılır; yalnızca yakın olanların komşularında kesin ölçülür.
-      const reach =
-        ROAD_STRUCTURES.wetMargin + (FRESH_WATER.lineWidth.river as number) / 2 + ds + 0.5;
-      const near = new Uint8Array(count);
-      for (let i = 1; i < count - 1; i += 2) {
-        if (terrain.nearestWater(xz[i * 2] as number, xz[i * 2 + 1] as number, reach)) {
-          near[i] = 1;
-          near[i - 1] = 1;
-          near[i + 1] = 1;
-        }
-      }
+    const fillMax = ROADS.maxFill[cls] as number;
+    const candidates: Candidate[] = [];
+
+    // Tünel: eğim sınırlı profil sırtın derinden altından geçiyorsa (anayol, köy yolu).
+    if (cls <= 1) {
+      const deep = new Uint8Array(count);
       for (let i = 1; i < count - 1; i++) {
-        if (!near[i]) continue;
-        const hit = terrain.nearestWater(xz[i * 2] as number, xz[i * 2 + 1] as number, 6);
-        if (
-          hit &&
-          !WATER_AREA.has(hit.kind) &&
-          hit.distance < streamHalf(hit.kind) + ROAD_STRUCTURES.wetMargin
-        ) {
-          wet[i] = 1;
-        }
+        if ((h[i] as number) - (p[i] as number) > S.tunnelDepth) deep[i] = 1;
+      }
+      for (const [a0, b0] of mergeRuns(runsOf(deep, 1), stepsFor(S.tunnelMergeGap))) {
+        // Ağızlar: kazının ağız derinliğine indiği yere kadar dışarı.
+        let a = a0;
+        let b = b0;
+        while (a > 1 && (h[a - 1] as number) - (p[a - 1] as number) > S.portalDepth) a--;
+        while (b < count - 2 && (h[b + 1] as number) - (p[b + 1] as number) > S.portalDepth) b++;
+        if ((b - a + 2) * ds < S.tunnelMinLength) continue;
+        if (a < 2 || b > count - 3) continue; // ağız kavşakta olmasın
+        candidates.push({ a, b, kind: SPAN_KIND.tunnel, viaduct: false });
       }
     }
-    const lo = new Float64Array(count);
-    const hi = new Float64Array(count);
-    const mySpans: RoadSpan[] = [];
-    for (let attempt = 0; attempt < 2; attempt++) {
-      kind.fill(SPAN_KIND.ground);
-      mySpans.length = 0;
+
+    // Köprü: akarsu kesişimleri (ya da çizgi yoksa suya yakınlık).
+    if (streams) {
+      for (let i = 0; i + 1 < count; i++) {
+        for (const c of streams.crossings(
+          xz[i * 2] as number,
+          xz[i * 2 + 1] as number,
+          xz[i * 2 + 2] as number,
+          xz[i * 2 + 3] as number,
+        )) {
+          const at = (i + c.t) * ds;
+          const sin = Math.max(c.sin, Math.sin((S.minCrossingDeg * Math.PI) / 180));
+          const half = Math.max(S.minSpan / 2, (c.half + S.bank) / sin);
+          // Aday aralığı ayakların bir içi: ayaklar (a − 1, b + 1) kıyı payının dışındaki ilk noktalardır.
+          const a = Math.max(1, Math.floor((at - half) / ds) + 1);
+          const b = Math.min(count - 2, Math.ceil((at + half) / ds) - 1);
+          if (b >= a) candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: false });
+        }
+      }
+    } else if (terrain.nearestWater) {
+      const wet = new Uint8Array(count);
+      for (let i = 1; i < count - 1; i++) {
+        const hit = terrain.nearestWater(xz[i * 2] as number, xz[i * 2 + 1] as number, 6);
+        if (hit && !WATER_AREA.has(hit.kind) && hit.distance < streamHalf(hit.kind) + S.bank)
+          wet[i] = 1;
+      }
+      for (const [a, b] of mergeRuns(runsOf(wet, 1), 1))
+        candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: false });
+    }
+
+    // Viyadük: yalnız anayolda, uzun ve derin dolgu.
+    if (cls === 0) {
       const fill = new Uint8Array(count);
       for (let i = 1; i < count - 1; i++) {
-        if ((p[i] as number) - (h[i] as number) > ROAD_STRUCTURES.viaductFill) fill[i] = 1;
+        if ((p[i] as number) - (h[i] as number) > S.viaductFill) fill[i] = 1;
       }
-
-      // Köprü adayları: dere kesimleri ve derin dolgu (uzunsa ya da dolgu sınırını aşıyorsa).
-      const wetRuns = mergeRuns(runsOf(wet, 1), 1);
-      const fillRuns = mergeRuns(runsOf(fill, 1), 1).filter(([a, b]) => {
+      for (const [a, b] of mergeRuns(runsOf(fill, 1), 1)) {
         let deepest = 0;
         for (let i = a; i <= b; i++)
           deepest = Math.max(deepest, (p[i] as number) - (h[i] as number));
-        return b - a + 1 >= stepsFor(ROAD_STRUCTURES.viaductMinLength) || deepest > fillMax + 0.4;
-      });
-      const candidates = [
-        ...wetRuns.map(([a, b]) => ({ a, b, viaduct: false })),
-        ...fillRuns.map(([a, b]) => ({ a, b, viaduct: true })),
-      ].sort((x, y) => x.a - y.a);
-      // Çakışan/bitişik adaylar birleşir (dere geçen bir viyadük tek yapıdır).
-      const merged: Array<{ a: number; b: number; viaduct: boolean }> = [];
-      for (const c of candidates) {
-        const last = merged[merged.length - 1];
-        if (last && c.a <= last.b + 2) {
-          last.b = Math.max(last.b, c.b);
-          last.viaduct = last.viaduct || c.viaduct;
-        } else merged.push({ ...c });
+        if ((b - a + 1) * ds >= S.viaductMinLength || deepest > fillMax + S.fillSlack)
+          candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: true });
       }
-      let lastEnd = -1;
-      for (const run of merged) {
-        const i0 = Math.max(0, run.a - 1, lastEnd);
-        const i1 = Math.min(count - 1, run.b + 1);
-        if (i1 - i0 < 2 || (i1 - i0) * ds < ROAD_STRUCTURES.minSpan) continue;
-        if (kind.subarray(i0 + 1, i1).some((k) => k !== SPAN_KIND.ground)) continue; // önceki köprüyle çakışmasın
-        mySpans.push({ road: ri, i0, i1, kind: SPAN_KIND.bridge, viaduct: run.viaduct });
-        for (let i = i0 + 1; i < i1; i++) kind[i] = SPAN_KIND.bridge;
-        lastEnd = i1;
-      }
+    }
 
-      // Sınırlar: zeminde kazı/dolgu, köprüde zeminin üstü. Eğim sınırı ile dönüşümlü uygulanır.
-      for (let i = 0; i < count; i++) {
-        const hv = h[i] as number;
-        if (kind[i] === SPAN_KIND.bridge) {
-          lo[i] = hv + ROAD_STRUCTURES.clearance;
-          hi[i] = Number.POSITIVE_INFINITY;
-        } else {
-          lo[i] = hv - ROADS.maxCut;
-          hi[i] = hv + fillMax;
-        }
+    // Birleştirme: tüneller önce yer alır; yakın köprüler (aralık `bridgeMergeGap`'ten kısa) tek köprüdür; tünelle çakışan
+    // köprü atılır.
+    const tunnels = candidates.filter((c) => c.kind === SPAN_KIND.tunnel);
+    const bridges = candidates
+      .filter((c) => c.kind === SPAN_KIND.bridge)
+      .filter((c) => !tunnels.some((t) => c.b >= t.a - 1 && c.a <= t.b + 1))
+      .sort((x, y) => x.a - y.a);
+    const mergedBridges: Candidate[] = [];
+    for (const c of bridges) {
+      const last = mergedBridges[mergedBridges.length - 1];
+      if (last && c.a - last.b <= stepsFor(S.bridgeMergeGap)) {
+        last.b = Math.max(last.b, c.b);
+        last.viaduct = last.viaduct || c.viaduct;
+      } else mergedBridges.push({ ...c });
+    }
+    const chosen = [...tunnels, ...mergedBridges].sort((x, y) => x.a - y.a);
+    const mySpans: RoadSpan[] = [];
+    let lastEnd = 0;
+    for (const c of chosen) {
+      const i0 = Math.max(1, c.a - 1, lastEnd);
+      const i1 = Math.min(count - 2, c.b + 1);
+      if (i1 - i0 < 2 || i0 >= count - 2) continue;
+      mySpans.push({
+        road: ri,
+        i0,
+        i1,
+        kind: c.kind,
+        viaduct: c.viaduct,
+        type: 'beam',
+      });
+      for (let i = i0 + 1; i < i1; i++) kind[i] = c.kind;
+      lastEnd = i1;
+    }
+
+    // Sınırlar: zeminde kazı/dolgu, köprüde zeminin üstü, tünelde örtü. Eğim sınırı ile dönüşümlü uygulanır.
+    const lo = new Float64Array(count);
+    const hi = new Float64Array(count);
+    for (let i = 0; i < count; i++) {
+      const hv = h[i] as number;
+      if (kind[i] === SPAN_KIND.bridge) {
+        lo[i] = hv + S.clearance;
+        hi[i] = Number.POSITIVE_INFINITY;
+      } else if (kind[i] === SPAN_KIND.tunnel) {
+        lo[i] = Number.NEGATIVE_INFINITY;
+        hi[i] = hv - S.portalDepth;
+      } else {
+        lo[i] = hv - ROADS.maxCut;
+        hi[i] = hv + fillMax;
       }
-      lo[0] = hi[0] = pinA;
-      lo[count - 1] = hi[count - 1] = pinB;
-      // Önce tüm sınırlar (zemin kazı/dolgu dahil), son turlarda yalnız yapı sınırları: eğim ve yapı gerekleri kesindir,
-      // kazı/dolgu sınırı yumuşaktır (bir miktar aşılabilir).
+    }
+    lo[0] = hi[0] = pinA;
+    lo[count - 1] = hi[count - 1] = pinB;
+    // Yükseltilmiş köprü ayakları kesin sınırdır (güverte açıklığı); diğer zemin noktaları yumuşaktır.
+    const hard = new Uint8Array(count);
+    const solve = () => {
+      // Önce tüm sınırlar, son turlarda yalnız yapı sınırları: eğim ve yapı gerekleri kesindir, kazı/dolgu yumuşaktır.
       const rounds = 8;
       for (let round = 0; round < rounds; round++) {
         limitGrade(p, ds, grade, pinA, pinB);
         const soft = round < rounds - 2;
         for (let i = 0; i < count; i++) {
-          if (!soft && kind[i] === SPAN_KIND.ground && i > 0 && i < count - 1) continue;
+          if (!soft && kind[i] === SPAN_KIND.ground && !hard[i] && i > 0 && i < count - 1) continue;
           p[i] = Math.min(Math.max(p[i] as number, lo[i] as number), hi[i] as number);
         }
       }
       limitGrade(p, ds, grade, pinA, pinB);
-      // Yapı sınırları kesindir (köprü açıklığı): eğim sınırlamasının bozduğu yerler yeniden kıskaçlanır.
       for (let i = 1; i < count - 1; i++) {
-        if (kind[i] === SPAN_KIND.ground) continue;
+        if (kind[i] === SPAN_KIND.ground && !hard[i]) continue;
         p[i] = Math.min(Math.max(p[i] as number, lo[i] as number), hi[i] as number);
       }
-
-      // Zeminde kalıp dolgu sınırını aşan nokta var mı? Varsa bir tur daha, bu kez köprüye alınarak.
-      let violation = false;
-      for (let i = 1; i < count - 1 && !violation; i++) {
-        violation =
-          kind[i] === SPAN_KIND.ground &&
-          (p[i] as number) - (h[i] as number) > fillMax + ROAD_STRUCTURES.fillSlack;
+    };
+    solve();
+    // Köprü güvertesi iki ayak arasında düzdür: açıklık yetmiyorsa ayaklar (ve yaklaşım) yükseltilir.
+    for (let iter = 0; iter < 4; iter++) {
+      let raised = false;
+      for (const span of mySpans) {
+        if (span.kind !== SPAN_KIND.bridge) continue;
+        const a = p[span.i0] as number;
+        const b = p[span.i1] as number;
+        let need = 0;
+        for (let i = span.i0 + 1; i < span.i1; i++) {
+          const t = (i - span.i0) / (span.i1 - span.i0);
+          need = Math.max(need, (lo[i] as number) - (a + (b - a) * t));
+        }
+        if (need > 1e-3) {
+          hard[span.i0] = 1;
+          hard[span.i1] = 1;
+          lo[span.i0] = Math.max(lo[span.i0] as number, a + need);
+          lo[span.i1] = Math.max(lo[span.i1] as number, b + need);
+          hi[span.i0] = Math.max(hi[span.i0] as number, lo[span.i0] as number);
+          hi[span.i1] = Math.max(hi[span.i1] as number, lo[span.i1] as number);
+          raised = true;
+        }
       }
-      if (!violation) break;
+      if (!raised) break;
+      solve();
     }
-    spans.push(...mySpans);
-    // Köprüler düzdür: kıyı noktaları arasındaki eksen doğrultulur (virajlı yolda yan yana duran güverte kutuları açılıp
-    // saçılmasın). Uzun açıklıklarda yalnızca kısmen doğrultulur.
+    for (const span of mySpans) {
+      if (span.kind !== SPAN_KIND.bridge) continue;
+      const a = p[span.i0] as number;
+      const b = p[span.i1] as number;
+      for (let i = span.i0 + 1; i < span.i1; i++) {
+        const t = (i - span.i0) / (span.i1 - span.i0);
+        p[i] = a + (b - a) * t;
+      }
+    }
+    // Kısa köprüler düzdür: ayaklar arasındaki eksen doğrultulur (virajlı yolda yan yana duran güverte kutuları açılıp
+    // saçılmasın). Uzun köprü (viyadük) yolun virajını izler.
     for (const span of mySpans) {
       if (span.kind !== SPAN_KIND.bridge) continue;
       const len = (span.i1 - span.i0) * ds;
-      const full = len <= 30 ? 1 : Math.max(0.4, 1 - (len - 30) / 40);
+      // Uzun köprü yolun virajını izler (doğrultulursa yoldan sapar).
+      const full = len <= 24 ? 1 : 0;
       const ax = xz[span.i0 * 2] as number;
       const az = xz[span.i0 * 2 + 1] as number;
       const bx = xz[span.i1 * 2] as number;
@@ -364,13 +478,36 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
         xz[i * 2 + 1] = (xz[i * 2 + 1] as number) * (1 - taper) + (az + (bz - az) * t) * taper;
         natural[i] = terrain.heightAt(xz[i * 2] as number, xz[i * 2 + 1] as number);
       }
+      // Tür: yol sınıfı, uzunluk, güvertenin zeminden en büyük yüksekliği.
+      let height = 0;
+      for (let i = span.i0; i <= span.i1; i++)
+        height = Math.max(height, (p[i] as number) - (natural[i] as number));
+      span.type = bridgeTypeFor(cls, len, height, span.viaduct, ax, az);
     }
+    spans.push(...mySpans);
 
     // Dağ patikası istisnası: eğimli arazide (yalnız sınıf 2) yatak doğal zemine yaklaşır.
     for (let i = 0; i < count; i++) {
       let w = 1;
       if (cls === 2 && kind[i] === SPAN_KIND.ground) w = lowlandWeight(terrain, xz, i, count);
       bed[i] = (h[i] as number) + w * ((p[i] as number) - (h[i] as number));
+    }
+    // Patika köprüsünün ayakları yaklaşan yatakla aynı (doğal zemine yaklaşan patikada da güverte ayağa oturur).
+    if (cls === 2) {
+      for (const span of mySpans) {
+        if (span.kind !== SPAN_KIND.bridge) continue;
+        const a = bed[span.i0] as number;
+        const b = bed[span.i1] as number;
+        let need = 0;
+        for (let i = span.i0 + 1; i < span.i1; i++) {
+          const t = (i - span.i0) / (span.i1 - span.i0);
+          need = Math.max(need, (natural[i] as number) + S.clearance - (a + (b - a) * t));
+        }
+        for (let i = span.i0 + 1; i < span.i1; i++) {
+          const t = (i - span.i0) / (span.i1 - span.i0);
+          bed[i] = a + (b - a) * t + need * Math.sin(Math.PI * t);
+        }
+      }
     }
   });
   return { roads: planned, spans };
@@ -403,6 +540,16 @@ function lowlandWeight(
 
 /** Planın zemin kesimleri: köprü/tünel olmayan çizgiler (arazi kaplamasında boyanır). */
 export function groundRuns(plan: RoadPlan): RoadData[] {
+  return runsWhere(plan, (k) => k === SPAN_KIND.ground);
+}
+
+/** Planın yüzey kesimleri: tünel içi hariç (köprüler dahil): nesne eleme ve insanların yürüyüşü. */
+export function surfaceRuns(plan: RoadPlan): RoadData[] {
+  return runsWhere(plan, (k) => k !== SPAN_KIND.tunnel);
+}
+
+/** `keep` doğru olan noktalardan oluşan kesimler; yapı kesiminin uç (ayak/ağız) noktaları iki yanda da kalır. */
+function runsWhere(plan: RoadPlan, keep: (kind: number) => boolean): RoadData[] {
   const out: RoadData[] = [];
   for (const road of plan.roads) {
     let run: number[] = [];
@@ -414,12 +561,12 @@ export function groundRuns(plan: RoadPlan): RoadData[] {
     for (let i = 0; i < n; i++) {
       run.push(road.xz[i * 2] as number, road.xz[i * 2 + 1] as number);
       const next = i + 1 < n ? (road.kind[i + 1] as number) : 0;
-      // Köprü/tünel başlıyorsa (sonraki nokta kesim türünde) zemin kesimi bu noktada biter.
-      if (next !== SPAN_KIND.ground) {
+      // Atlanan kesim başlıyorsa (sonraki nokta atlanan türde) kesim bu noktada biter.
+      if (!keep(next)) {
         flush();
-        // Kesimin sonuna atla: ilk zemin noktasından (ağız) yeniden başla.
+        // Kesimin sonuna atla: ilk tutulan noktadan (ayak/ağız) yeniden başla.
         let j = i + 1;
-        while (j < n && road.kind[j] !== SPAN_KIND.ground) j++;
+        while (j < n && !keep(road.kind[j] as number)) j++;
         i = j - 1;
       }
     }

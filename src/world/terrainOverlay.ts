@@ -1,6 +1,7 @@
-import { FRESH_WATER, ROADS, TERRAIN_OVERLAY } from '../config';
+import { FRESH_WATER, TERRAIN_OVERLAY } from '../config';
 import type { ProvinceShape, WaterFeatures } from '../data/region';
 import type { RoadData } from '../data/settlements';
+import { roadHalfWidth } from '../settlements/roadWidth';
 import { provinceAt } from './provinces';
 
 /**
@@ -15,9 +16,15 @@ import { provinceAt } from './provinces';
  * daha dar özellik hücre içinde kopuk görünür, bu yüzden `minHalfWidth`).
  */
 
-/** Kanallar (doku bileşeni sırası). */
+/** Kanallar (doku bileşeni sırası): R köy yolu (asfalt), G dağ patikası (toprak), B akarsu/kıyı, A il sınırı. */
 export const OVERLAY_CHANNEL = { paved: 0, dirt: 1, water: 2, border: 3 } as const;
 export type OverlayChannel = (typeof OVERLAY_CHANNEL)[keyof typeof OVERLAY_CHANNEL];
+
+/**
+ * İkinci doku (yol dokusu) kanalları: R anayol, G kent sokağı (uzaklık), B/A anayol boyunca konum evresinin kosinüs ve
+ * sinüsü (`128 + 127 · cos/sin`; kesik orta şerit). Evre iki kanaldadır: doğrusal aradeğerleme sarmada bozulmasın.
+ */
+export const ROAD_CHANNEL = { main: 0, street: 1, cos: 2, sin: 3 } as const;
 
 /** Kaplama ızgarası: arazi ızgarasıyla aynı (hücre merkezleri `origin + (c, r) · cell`). */
 export interface OverlayGrid {
@@ -86,6 +93,52 @@ export class OverlayRaster {
         const i = (r * width + c) * 4 + channel;
         const v = encodeOverlay(d);
         if (v < (data[i] as number)) data[i] = v;
+      }
+    }
+  }
+
+  /**
+   * Anayol parçası (yol dokusu): R kanalına kenar uzaklığı, B/A kanallarına yol boyu konumun evresi (`s0` parçanın
+   * başındaki yol boyu konum, `period` kesik çizgi dönemi). Hücre en yakın parçanın evresini alır.
+   */
+  segmentPhase(
+    ax: number,
+    az: number,
+    bx: number,
+    bz: number,
+    half: number,
+    s0: number,
+    period: number,
+  ): void {
+    const { width, height, cell, origin } = this.grid;
+    const pad = half + REACH;
+    const pad2 = pad * pad;
+    const c0 = Math.max(0, Math.ceil((Math.min(ax, bx) - pad - origin.x) / cell));
+    const c1 = Math.min(width - 1, Math.floor((Math.max(ax, bx) + pad - origin.x) / cell));
+    const r0 = Math.max(0, Math.ceil((Math.min(az, bz) - pad - origin.z) / cell));
+    const r1 = Math.min(height - 1, Math.floor((Math.max(az, bz) + pad - origin.z) / cell));
+    if (c0 > c1 || r0 > r1) return;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const len2 = dx * dx + dz * dz;
+    const len = Math.sqrt(len2);
+    const data = this.data;
+    for (let r = r0; r <= r1; r++) {
+      const z = origin.z + r * cell;
+      for (let c = c0; c <= c1; c++) {
+        const x = origin.x + c * cell;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
+        const px = x - (ax + t * dx);
+        const pz = z - (az + t * dz);
+        const d2 = px * px + pz * pz;
+        if (d2 >= pad2) continue;
+        const i = (r * width + c) * 4;
+        const v = encodeOverlay(Math.sqrt(d2) - half);
+        if (v >= (data[i + ROAD_CHANNEL.main] as number)) continue;
+        data[i + ROAD_CHANNEL.main] = v;
+        const phase = ((s0 + t * len) / period) * Math.PI * 2;
+        data[i + ROAD_CHANNEL.cos] = Math.round(128 + 127 * Math.cos(phase));
+        data[i + ROAD_CHANNEL.sin] = Math.round(128 + 127 * Math.sin(phase));
       }
     }
   }
@@ -185,12 +238,15 @@ export interface OverlaySources {
   borders?: readonly number[];
 }
 
-/** Tüm katmanları rasterler. */
+/**
+ * Tüm katmanları rasterler (ana doku): köy yolu, dağ patikası, akarsular, il sınırı. Anayol ve kent sokağı ikinci
+ * dokudadır (`buildRoadOverlay`).
+ */
 export function buildTerrainOverlay(grid: OverlayGrid, sources: OverlaySources): OverlayRaster {
   const raster = new OverlayRaster(grid);
   for (const road of sources.roads ?? []) {
-    const channel = road.cls === 2 ? OVERLAY_CHANNEL.dirt : OVERLAY_CHANNEL.paved;
-    raster.polyline(channel, road.xz, (ROADS.width[road.cls] as number) / 2);
+    if (road.cls === 1) raster.polyline(OVERLAY_CHANNEL.paved, road.xz, roadHalfWidth(road));
+    else if (road.cls === 2) raster.polyline(OVERLAY_CHANNEL.dirt, road.xz, roadHalfWidth(road));
   }
   const water = sources.water;
   if (water) {
@@ -212,6 +268,36 @@ export function buildTerrainOverlay(grid: OverlayGrid, sources: OverlaySources):
       borders[i + 3] as number,
       0,
     );
+  }
+  return raster;
+}
+
+/**
+ * Yol dokusu: anayollar (R + kesik orta şerit evresi B/A) ve kent sokakları (G). Boş hücre 255 (uzak), evre 128 (sıfır).
+ */
+export function buildRoadOverlay(grid: OverlayGrid, roads: readonly RoadData[]): OverlayRaster {
+  const raster = new OverlayRaster(grid);
+  const data = raster.data;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i + ROAD_CHANNEL.cos] = 128;
+    data[i + ROAD_CHANNEL.sin] = 128;
+  }
+  for (const road of roads) {
+    if (road.cls === 3) {
+      raster.polyline(ROAD_CHANNEL.street as OverlayChannel, road.xz, roadHalfWidth(road));
+      continue;
+    }
+    if (road.cls !== 0) continue;
+    const half = roadHalfWidth(road);
+    let s = 0;
+    for (let i = 0; i + 3 < road.xz.length; i += 2) {
+      const ax = road.xz[i] as number;
+      const az = road.xz[i + 1] as number;
+      const bx = road.xz[i + 2] as number;
+      const bz = road.xz[i + 3] as number;
+      raster.segmentPhase(ax, az, bx, bz, half, s, TERRAIN_OVERLAY.dashPeriod);
+      s += Math.hypot(bx - ax, bz - az);
+    }
   }
   return raster;
 }

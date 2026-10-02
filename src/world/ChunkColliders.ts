@@ -1,5 +1,5 @@
 import { CHUNK } from '../config';
-import { createChunkHeightfieldDesc } from '../physics/heightfield';
+import { createChunkHeightfieldDesc, createChunkTrimeshDesc } from '../physics/heightfield';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import {
   chunkCol0,
@@ -11,6 +11,7 @@ import {
   type ChunkGrid,
 } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
+import type { TerrainHoles } from './roadTunnels';
 
 /**
  * Oyuncuya yakın chunk'lar için tam çözünürlüklü Rapier heightfield collider'ları (mesh LOD'undan
@@ -25,6 +26,8 @@ export class ChunkColliders {
     private readonly physics: PhysicsWorld,
     private readonly source: RegionHeightSource,
     private readonly radius: number = CHUNK.physicsRadius,
+    /** Tünel ağzı delikleri: delikli chunk heightfield yerine deliksiz üçgen ağıyla (trimesh) çarpışır. */
+    private readonly holes: TerrainHoles | null = null,
   ) {
     this.grid = chunkGridFor(source);
   }
@@ -108,12 +111,14 @@ export class ChunkColliders {
     const rect = chunkRect(this.grid, cx, cy);
     const centerX = (rect.minX + rect.maxX) / 2;
     const centerZ = (rect.minZ + rect.maxZ) / 2;
-    this.colliders.set(
-      key,
-      this.physics.addStaticCollider(
-        createChunkHeightfieldDesc(heights, cells, size, centerX, centerZ),
-      ),
-    );
+    const holes = this.holes;
+    const desc =
+      holes && holes.any(col0, row0, col0 + cells, row0 + cells)
+        ? createChunkTrimeshDesc(heights, cells, rect.minX, rect.minZ, this.grid.cellSize, (c, r) =>
+            holes.has(col0 + c, row0 + r),
+          )
+        : createChunkHeightfieldDesc(heights, cells, size, centerX, centerZ);
+    this.colliders.set(key, this.physics.addStaticCollider(desc));
     return true;
   }
 }

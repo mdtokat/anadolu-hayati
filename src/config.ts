@@ -49,6 +49,9 @@ export const CAMERA = {
   thirdPersonPivotHeight: 1.5,
   /** Üçüncü şahıs: kameranın zeminden asgari yüksekliği (yerin altına girmesin). */
   thirdPersonGroundClearance: 0.3,
+  /** Ayak arazi yüzeyinin bu kadar (oyun m) altındaysa oyuncu tüneldedir: üçüncü şahıs kamera yakına gelir. */
+  undergroundDepth: 1.5,
+  undergroundDistance: 2.4,
 } as const;
 
 /** Render ayarları. */
@@ -336,7 +339,25 @@ export const TERRAIN_OVERLAY = {
   edgeLine: 0xc9c4b4,
   shoulder: 0x8a7f6c,
   shoulderWidth: 0.7,
-  /** Köy yolu (stabilize): toprak ve koyu (ıslak/sıkışmış) lekeleri. */
+  /**
+   * Dört yol tipi. Anayol: koyu asfalt (`asphalt`), beyaz kenar çizgileri ve `dashPeriod` (oyun m) dönemli kesik orta
+   * şerit (`centerLine`, yarı genişlik `centerLineHalf`). Köy yolu: açık, yamalı, çizgisiz eski asfalt (`village*`).
+   * Dağ patikası: kenarı düzensiz (`trailWobble`) toprak (`dirt*`), ortası yer yer otlu (`trailGrass`). Kent sokağı:
+   * parke/Arnavut kaldırımı (`cobble*`, taş boyu `cobbleSize`) ve kenarda kaldırım (`sidewalk`, `sidewalkWidth`).
+   */
+  dashPeriod: 7,
+  centerLine: 0xe2dccb,
+  centerLineHalf: 0.1,
+  villageAsphalt: 0x575550,
+  villageWorn: 0x75705f,
+  trailWobble: 0.35,
+  trailGrass: 0x5f6b3f,
+  cobble: 0x8d877b,
+  cobbleDark: 0x625d54,
+  cobbleSize: 0.55,
+  sidewalk: 0xa8a294,
+  sidewalkWidth: 0.75,
+  /** Dağ patikası (toprak): toprak ve koyu (ıslak/sıkışmış) lekeleri. */
   dirt: 0x846e52,
   dirtDark: 0x66543e,
   /** Akarsu: sığ ve derin renk (kenardan ortaya), yansıma için düşük pürüzlülük, akış dalgası hızı. */
@@ -1726,10 +1747,12 @@ export const SETTLEMENT_STYLES = {
 /** Yollar (Faz 10): sınıf başına genişlik (oyun m; gerçek genişlikler abartılı), yumuşatma, ağ düzeni ve zemin düzeltme. */
 export const ROADS = {
   /**
-   * 0 anayol (şehirler arası), 1 tali yol (ilçe/köy bağlantıları, kent sokakları), 2 patika (kırsal toprak yol).
-   * Yollar arazi kaplamasında boyanır (renkler `TERRAIN_OVERLAY`): asfalt sınıf 0–1, toprak sınıf 2.
+   * Dört yol tipi: 0 anayol (şehirler arası; geniş asfalt, şerit çizgili), 1 köy yolu (dar, yıpranmış asfalt),
+   * 2 dağ patikası (toprak), 3 kent sokağı (parke/Arnavut kaldırımı, kaldırımlı). Yollar arazi kaplamasında boyanır
+   * (renkler `TERRAIN_OVERLAY`). Kentin ana caddesi sokaktır ama `avenueWidth` genişliğindedir.
    */
-  width: [6, 4, 2.4],
+  width: [6, 3.6, 2.2, 4.4],
+  avenueWidth: 6.4,
   /** Yol sorgularının uzamsal ızgara hücresi (oyun m). */
   indexCellSize: 32,
   /**
@@ -1739,6 +1762,12 @@ export const ROADS = {
    * arasındaki açının kosinüsü `crossingCos`'tan büyükse nokta suyu kesiyordur (köprü): itilmez.
    */
   routeStep: 4,
+  /**
+   * Menderes: yol aynı dereyi aralarında `uncrossGap`'ten (oyun m) kısa mesafe kalacak şekilde iki kez ya da daha çok
+   * kesiyorsa, ilk/son kesişimin `uncrossPad` dışındaki kesim A* ile derenin bir yakasından yeniden çizilir.
+   */
+  uncrossGap: 40,
+  uncrossPad: 14,
   routePasses: 6,
   /** Geçiş başına kaydırmaları yumuşatma ([1, 2, 1] / 4 süzgeci) tekrar sayısı. */
   routeSmoothing: 6,
@@ -1755,36 +1784,87 @@ export const ROADS = {
    */
   smoothTolerance: 2.2,
   smoothStep: 2,
-  smoothSigma: [14, 9, 5],
+  smoothSigma: [14, 9, 5, 4],
   /** Yumuşatılmış yolun son sadeleştirme toleransı (oyun m). */
   smoothSimplify: 0.2,
   /**
    * Ağ düzeni (`settlements/roadNetwork.ts`): iki uç `nodeSnap` (oyun m) içindeyse aynı kavşaktır; bir uç başka
-   * yolun gövdesine `junctionSnap` içindeyse yol orada bölünür (T kavşağı).
+   * yolun gövdesine `junctionSnap` içindeyse yol orada bölünür (T kavşağı). Hiçbir yola değmeyen (boşta) uç, başka
+   * bir yolun gövdesine `gapSnap` içindeyse ona eklenir (verideki küçük kopukluklar).
    */
   nodeSnap: 2.5,
   junctionSnap: 2.2,
-  /**
-   * Çıkmaz budama: ucu hiçbir yerleşimin (disk yarıçapı + `anchorMargin`) ya da harita kenarının (`boundsMargin`)
-   * yakınında olmayan ve hiçbir noktası yerleşimde olmayan, anayol olmayan yol çıkmaz uçtan başlayarak silinir
-   * (ardından gerisi çıkmaz kalırsa o da). Yerleşime varan yol ucu boşta olsa da silinmez, bağlantı turunda
-   * en yakın yola bağlanır.
-   */
-  anchorMargin: 14,
+  gapSnap: 9,
+  /** Dünya kenarına bu kadar (oyun m) yakın uç "harita dışına gider" (çıkmaz sayılmaz). */
   boundsMargin: 16,
   /**
-   * Kırsal sınıflandırma: yerleşim diskinin kenarından `ruralDistance` (oyun m) uzakta kalan tali yol (sınıf 1)
-   * patikaya (sınıf 2) iner. Binaların seyrek olduğu yerde tali yol da toprak patikadır.
+   * Yerleşimin çizgeye bağlanması: merkezden ayak izi yarıçapı + `attachPad` içindeki düğümler bağlanma noktasıdır
+   * (merkeze uzaklık × `attachCostFactor` maliyetle; yol merkezden geçmeyi yeğler).
    */
-  ruralDistance: 34,
+  attachPad: 18,
+  attachCostFactor: 0.4,
   /**
-   * Bağlantı: bir yerleşim diskinin yakınında (`rim` × yarıçap + `accessPad` m) yol yoksa en yakın yola bağlanır;
-   * kopuk bileşenler `linkMax` (oyun m) içindeki başka bir yola A* ile bağlanır (en çok `linkRounds` tur), bağlanamayan
-   * ve yerleşimsiz bileşenler silinir.
+   * Kenar maliyeti = uzunluk × sınıf çarpanı × (1 + (eğim / `slopePenaltyDeg`)²). Anayol omurgası veri anayollarını
+   * (`trunkClassCost`), köy bağlantıları her yolu (`localClassCost`) kullanır; sıra: veri sınıfı 0, 1, 2.
    */
-  accessPad: 22,
-  linkMax: 260,
-  linkRounds: 2,
+  slopePenaltyDeg: 32,
+  trunkClassCost: [1, 1.6, 2.6, 1.6],
+  localClassCost: [1, 1.05, 1.25, 1],
+  /**
+   * Anayol omurgası: her il/ilçe merkezi en yakın `trunkNeighbors` merkeze en kısa yolla ölçülür; en küçük kapsayan
+   * ağaç seçilir, sonra seçili ağda iki merkez arası doğrudan en kısa yolun `trunkDetour` katından uzunsa o yol da
+   * eklenir. `trunkMaxCost` arama sınırı (maliyet = ağırlıklı oyun m).
+   */
+  trunkNeighbors: 5,
+  trunkDetour: 1.45,
+  trunkMaxCost: 9000,
+  /** Dünya kenarındaki anayol uçları bu uzaklıkta (oyun m) kümelenir (çift şeritli yol tek çıkış). */
+  exitCluster: 120,
+  /**
+   * Köy bağlantısı: ağa çizgede en çok `linkMaxCost` maliyetle bağlanır; çizgede yolu olmayan yerleşim en yakın seçili
+   * yola (ayak izi + `linkMax` oyun m içinde) A* ile bağlanır.
+   */
+  linkMaxCost: 4000,
+  linkMax: 320,
+  /**
+   * Tek parça ağ: seçili ağın her bileşeni en ucuz veri yoluyla (en çok `joinMaxCost` maliyet) başka bir bileşene,
+   * çizgede bağ yoksa en yakın noktasına (`joinRouteMax` oyun m içinde) A* ile bağlanır; en çok `joinRounds` tur.
+   */
+  joinMaxCost: 12000,
+  joinRouteMax: 700,
+  joinRounds: 6,
+  /** Köyde ağın en yakın noktası merkezden bu kadar (oyun m) uzaksa merkeze kısa bir giriş yolu eklenir. */
+  villageSpurMin: 6,
+  /**
+   * Dağ patikası: köy bağlantısının ortalama arazi eğimi `trailSlopeDeg`'i aşıyorsa (ya da çoğu veri köy yoluysa ve
+   * eğim `trailDirtSlopeDeg`'i aşıyorsa) bağlantı patikadır. Komşu köyler (`trailRadius` içinde) arasında ağ
+   * `trailDetour` katından fazla dolaşıyorsa, en çok `trailMaxStretch` kat uzun bir veri yolundan patika eklenir
+   * (en çok `trailMax`).
+   */
+  trailSlopeDeg: 27,
+  trailDirtSlopeDeg: 18,
+  trailRadius: 650,
+  trailDetour: 2.4,
+  trailMaxStretch: 1.6,
+  trailMax: 70,
+  /**
+   * Temizlik: bir kenarın uçları arasında, kenarın `loopStretch` katından (en az + `loopPad` m) kısa başka bir yol varsa
+   * ve halka çevresi `loopMaxPerimeter`'dan kısaysa (göbek, kavşak kolu, çatal) ya da kenar o yolun her yerinde
+   * `twinDistance` içindeyse (çift şeritli yolun ikizi) kenar silinir. Yerleşime varmayan `spurMax`'tan kısa uç silinir.
+   */
+  /**
+   * İkiz şerit: kenarın örneklerinin (`twinSample` m aralıkla) en az `twinShare` oranı başka bir yola `twinDistance`
+   * içinde ve ona paralel (`twinAngle` radyan) ise kenar silinir (en az `twinMinLength` m).
+   */
+  twinSample: 6,
+  twinShare: 0.8,
+  twinAngle: 0.5,
+  twinMinLength: 20,
+  loopStretch: 1.35,
+  loopPad: 40,
+  loopMaxPerimeter: 700,
+  twinDistance: 10,
+  spurMax: 60,
   /** Rota arama (`settlements/routeFinder.ts`): hücre, pencere payı, düğüm sınırı; dere geçişi ek maliyeti (köprü), eğim ölçeği. */
   routeCell: 4,
   routePad: 70,
@@ -1800,10 +1880,10 @@ export const ROADS = {
    * (yükselti / yatay) eğimle yumuşakça bağlanır (en az `minBlend`, en çok `maxBlend` genişlik).
    */
   profileStep: 3,
-  profileSigma: [26, 18, 11],
-  gradeMax: [0.17, 0.23, 0.34],
+  profileSigma: [26, 18, 11, 10],
+  gradeMax: [0.17, 0.23, 0.34, 0.3],
   maxCut: 10,
-  maxFill: [4.5, 4, 3],
+  maxFill: [4.5, 4, 3, 2.5],
   shoulder: 0.7,
   batterCut: 1,
   batterFill: 0.65,
@@ -1817,25 +1897,50 @@ export const ROADS = {
    */
   mountainSlopeDeg: 38,
   mountainBlendDeg: 14,
+  /** Akarsu çizgisine (yarı genişlik +) bu kadar (oyun m) yakın hücre yol dolgusuyla yükseltilmez. */
+  streamGuard: 1.6,
   /** Düzeltme denizden (oyun y) bu kadarın altına inmez ve deniz hücrelerine dokunmaz. */
   minBedHeight: 0.18,
 } as const;
 
 /**
- * Yol yapıları (köprü, viyadük): `settlements/roadProfile.ts` yerlerini seçer, `world/roadStructureGeometry.ts` çizer,
- * `world/RoadStructureColliders.ts` çarpıştırır. Uzunluklar oyun metresi.
+ * Akarsu yatağı oyma (`world/streamCarving.ts`): çizgi `step` (oyun m) aralıkla örneklenir; yatak, çizginin iki yanında
+ * (yarı genişlik + `lateralReach`) en alçak zemindir, akış yönünde yükselmez, doğal zeminden en çok `maxDepth` iner. Su
+ * içinde zemin yatağın `channelDepth` altına, `bankWidth` genişliğinde kıyı bandıyla doğal zemine bağlanır; en çok
+ * `minHeight`'a kadar.
+ */
+export const STREAM_CARVING = {
+  step: 2,
+  lateralReach: 3,
+  maxDepth: 1.8,
+  channelDepth: 0.25,
+  bankWidth: 3.5,
+  /** Oyulan zemin bu yükseklikten (oyun y) aşağı inmez (kıyı ovası denize dönmesin). */
+  minHeight: 0.35,
+} as const;
+
+/**
+ * Yol yapıları (köprü, viyadük, tünel): `settlements/roadProfile.ts` yerlerini seçer, `world/roadStructureGeometry.ts`
+ * çizer, `world/RoadStructureColliders.ts` çarpıştırır, `world/roadTunnels.ts` tünel ağızlarında araziyi deler.
+ * Uzunluklar oyun metresi.
  */
 export const ROAD_STRUCTURES = {
-  /** Köprü: suya `wetMargin` (+ su yarı genişliği) yaklaşan kesim; en kısa açıklık; gerçek dere geçişi için pay. */
-  wetMargin: 1.6,
+  /**
+   * Köprü yalnızca yolun akarsu çizgisini kestiği yerde kurulur. Uzunluk = (su yarı genişliği + `bank` kıyı payı) × 2 /
+   * sin(geçiş açısı) (açı en az `minCrossingDeg`), en az `minSpan`. Aralarında `bridgeMergeGap`'ten az zemin kalan
+   * köprüler tek köprü olur (arka arkaya köprü yok).
+   */
+  bank: 1.1,
+  minCrossingDeg: 32,
   minSpan: 5,
+  bridgeMergeGap: 18,
   /** Güverte zeminden en az bu kadar yüksekte; güverte kalınlığı, korkuluk yüksekliği/kalınlığı. */
   clearance: 0.8,
   deckThickness: 0.55,
   parapetHeight: 0.95,
   parapetThickness: 0.28,
   /** Güverte yolun toplam genişliğine (her yana) eklenen pay: sınıf başına. */
-  widthPad: [0.6, 0.45, 0.25],
+  widthPad: [0.6, 0.45, 0.25, 0.4],
   /** Ayak aralığı (oyun m) ve kalınlığı: güverte zeminden `pierMinHeight`'tan yüksekse ayak konur. */
   pierSpacing: 12,
   pierSize: 0.9,
@@ -1844,16 +1949,54 @@ export const ROAD_STRUCTURES = {
   drawRadius: 520,
   colliderRadius: 90,
   refreshDistance: 30,
-  /** Viyadük: güverte zeminden bu kadar (oyun m) yüksek olacak dolgu, en az bu uzunlukta sürerse köprü kurulur. */
-  viaductFill: 2.8,
-  viaductMinLength: 14,
-  /** Zeminde kalan noktada dolgu, sınırı bu kadar (oyun m) aşarsa o kesim köprüye alınır. */
-  fillSlack: 0.6,
-  /** Renkler 0xRRGGBB. */
+  /**
+   * Viyadük (yalnız anayol): güverte zeminden `viaductFill`'den (oyun m) yüksek dolgu en az `viaductMinLength` sürerse
+   * ya da dolgu sınırını `fillSlack` kadar aşarsa köprü kurulur. Diğer yollar vadide araziyi izler.
+   */
+  viaductFill: 4,
+  viaductMinLength: 24,
+  fillSlack: 1,
+  /**
+   * Köprü türü: anayolda beton kiriş, yüksekliği `viaductHeight`'i ve uzunluğu `archMaxLength`'i aşarsa viyadük; köy
+   * yolunda `archMaxLength`'e kadar çoğunlukla (`archShare`) taş kemer, değilse beton; patikada `woodenMaxLength`'e
+   * kadar ahşap, değilse taş kemer.
+   */
+  viaductHeight: 6,
+  archMaxLength: 24,
+  archShare: 0.7,
+  woodenMaxLength: 14,
+  /**
+   * Tünel (anayol, köy yolu): eğim sınırlı profil arazinin `tunnelDepth`'ten derin altından geçiyorsa; ağızlar kazının
+   * `portalDepth`'e indiği yerde (tünel boyu en az `tunnelMinLength`; aradaki kısa sığ kesim `tunnelMergeGap`'e kadar
+   * tünele katılır). İç yükseklik `tunnelHeight`, yol kenarından duvara `tunnelSidePad`, duvar/tavan kalınlığı
+   * `tunnelWall` (ağızdaki arazi deliğinin kenarını örter: hücre köşegeninin yarısından kalın olmalı; tavan üstü
+   * `portalDepth`'ten alçak kalmalı); ağız cephesi yoldan `portalWing` taşar, üstü tavanın `portalCrown` üstündedir.
+   * Lambalar `lampSpacing` aralıkla.
+   */
+  tunnelDepth: 11,
+  portalDepth: 7,
+  tunnelMinLength: 36,
+  tunnelMergeGap: 18,
+  tunnelHeight: 4.6,
+  tunnelSidePad: 1,
+  tunnelWall: 1.8,
+  portalWing: 2.2,
+  portalCrown: 1.6,
+  lampSpacing: 12,
+  /** Renkler 0xRRGGBB (tür başına). */
   colors: {
     deck: 0x7b7870,
     parapet: 0x9a9284,
     pier: 0x86827a,
+    guardRail: 0xb9bcc0,
+    stone: 0x9b8e78,
+    stoneDark: 0x7d705c,
+    wood: 0x6e5038,
+    woodLight: 0x8f6d4b,
+    tunnel: 0x2b2926,
+    tunnelFloor: 0x3a3a3c,
+    portal: 0xa9a49a,
+    lamp: 0xffc36b,
   },
 } as const;
 

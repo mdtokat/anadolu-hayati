@@ -84,7 +84,7 @@ describe('RoadIndex', () => {
     expect(index.onRoad(1, 100)).toBe(true);
   });
 
-  it('kent içi kesme: anayol kalır, diğerleri daire içinde kopar', () => {
+  it('kent içi kesme: anayolun kent içi kısmı ana cadde olur, diğerleri daire kenarında kopar', () => {
     const cut = cutRoads(
       [
         { cls: 0, xz: Float32Array.from([-50, 0, 50, 0]) },
@@ -92,10 +92,20 @@ describe('RoadIndex', () => {
       ],
       [{ x: 0, z: 0, r: 10 }],
     );
-    expect(cut).toHaveLength(3);
-    expect(cut[0]!.cls).toBe(0);
-    expect(Array.from(cut[1]!.xz)).toEqual([-50, 1, -20, 1]);
-    expect(Array.from(cut[2]!.xz)).toEqual([20, 1, 50, 1]);
+    // Anayol: dış – cadde (sınıf 3, geniş) – dış; parçalar daire kenarında buluşur.
+    const main = cut.filter((r) => r.cls === 0 || r.cls === 3);
+    expect(main.map((r) => r.cls)).toEqual([0, 3, 0]);
+    expect(main[1]!.width).toBe(ROADS.avenueWidth);
+    expect(main[0]!.xz[main[0]!.xz.length - 2]).toBeCloseTo(-10, 1);
+    expect(main[1]!.xz[0]).toBeCloseTo(-10, 1);
+    // İl yolu: daire içi atılır, uçlar daire kenarındadır.
+    const other = cut.filter((r) => r.cls === 1);
+    expect(other).toHaveLength(2);
+    expect(Array.from(other[0]!.xz.slice(0, 4))).toEqual([-50, 1, -20, 1]);
+    const last = other[0]!.xz.length;
+    expect(Math.hypot(other[0]!.xz[last - 2]!, other[0]!.xz[last - 1]!)).toBeCloseTo(10, 1);
+    expect(Math.hypot(other[1]!.xz[0]!, other[1]!.xz[1]!)).toBeCloseTo(10, 1);
+    expect(Array.from(other[1]!.xz.slice(-4))).toEqual([20, 1, 50, 1]);
   });
 });
 

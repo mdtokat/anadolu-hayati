@@ -12,8 +12,11 @@ export const BUILD_BUDGET = {
    * `rawKB` yalnızca ayrıştırma maliyeti önemli olan chunk'larda tanımlıdır.
    */
   chunks: {
-    /** Oyun kodu (`src/`). */
-    'index.js': { gzipKB: 150, rawKB: 500 },
+    /**
+     * Oyun kodu (`src/`). Faz 10 sonrası yol omurgası, köprü türleri ve tüneller (10.13) 150 → 175 kB gzip
+     * (ölçülen ~156 kB; ~%10 pay).
+     */
+    'index.js': { gzipKB: 175, rawKB: 560 },
     /** Three.js; sürüm yükseltmesinde büyüyebilir. */
     'three.js': { gzipKB: 180, rawKB: 700 },
     /** Rapier: WASM base64 gömülüdür (~4,3 MB ham); `vite.config.ts` uyarı eşiği de bu `rawKB`'dir. */

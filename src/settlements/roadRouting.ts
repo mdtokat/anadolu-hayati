@@ -1,5 +1,6 @@
 import { FRESH_WATER, ROADS } from '../config';
 import type { RoadData } from '../data/settlements';
+import { roadHalfWidth } from './roadWidth';
 
 /** Yol ayırmanın okuduğu tatlı su sorgusu (`FreshWaterIndex.nearest` karşılar). */
 export type NearestWater = (
@@ -163,7 +164,7 @@ export function smoothPath(xz: ArrayLike<number>, cls: number): Float32Array {
  * kırık ve dalgalıdır; köşeler keskindir. Bkz. `smoothPath`.
  */
 export function smoothRoads(roads: readonly RoadData[]): RoadData[] {
-  return roads.map((road) => ({ cls: road.cls, xz: smoothPath(road.xz, road.cls) }));
+  return roads.map((road) => ({ ...road, xz: smoothPath(road.xz, road.cls) }));
 }
 
 /** Çoklu çizgiyi en çok `step` aralıklı noktalara sıklaştırır. */
@@ -198,7 +199,7 @@ export function separateRoadsFromWater(
   const step = ROADS.routeStep;
   const out: RoadData[] = [];
   for (const road of roads) {
-    const half = (ROADS.width[road.cls] as number) / 2;
+    const half = roadHalfWidth(road);
     const pts = densify(road.xz, step);
     const count = pts.length / 2;
     if (count < 3) {
@@ -282,9 +283,170 @@ export function separateRoadsFromWater(
       }
     }
     // Sıklaştırılmış noktalar çizgide gereksiz: kaydırılan yol hafifçe sadeleştirilir (dizin ve kaplama hızı).
-    out.push(
-      moved ? { cls: road.cls, xz: Float32Array.from(simplify(pts, ROADS.routeSimplify)) } : road,
-    );
+    out.push(moved ? { ...road, xz: Float32Array.from(simplify(pts, ROADS.routeSimplify)) } : road);
   }
   return out;
+}
+
+/** Akarsu parçalarının uzamsal ızgarası (kesişim sorgusu). */
+export class StreamGrid {
+  private readonly cells = new Map<number, number[]>();
+  private readonly segs: number[] = [];
+  private readonly kinds: string[] = [];
+  private readonly cell = 32;
+
+  constructor(lines: ReadonlyArray<{ kind: string; xz: ArrayLike<number> }>) {
+    for (const line of lines) {
+      if (waterHalfWidth(line.kind) <= 0) continue;
+      const xz = line.xz;
+      for (let i = 0; i + 3 < xz.length; i += 2) {
+        const ax = xz[i] as number;
+        const az = xz[i + 1] as number;
+        const bx = xz[i + 2] as number;
+        const bz = xz[i + 3] as number;
+        const id = this.kinds.push(line.kind) - 1;
+        this.segs.push(ax, az, bx, bz);
+        for (
+          let cx = Math.floor(Math.min(ax, bx) / this.cell);
+          cx <= Math.floor(Math.max(ax, bx) / this.cell);
+          cx++
+        ) {
+          for (
+            let cz = Math.floor(Math.min(az, bz) / this.cell);
+            cz <= Math.floor(Math.max(az, bz) / this.cell);
+            cz++
+          ) {
+            const k = (cx + 32768) * 65536 + (cz + 32768);
+            const list = this.cells.get(k);
+            if (list) list.push(id);
+            else this.cells.set(k, [id]);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * (a → b) parçasının kestiği akarsular: parça üzerindeki konum t ∈ [0, 1], akarsuyun yarı genişliği ve geçiş açısının
+   * sinüsü (dik geçiş 1).
+   */
+  crossings(
+    ax: number,
+    az: number,
+    bx: number,
+    bz: number,
+  ): Array<{ t: number; half: number; sin: number }> {
+    const out: Array<{ t: number; half: number; sin: number }> = [];
+    const seen = new Set<number>();
+    const rx = bx - ax;
+    const rz = bz - az;
+    const rl = Math.hypot(rx, rz) || 1;
+    for (
+      let cx = Math.floor(Math.min(ax, bx) / this.cell);
+      cx <= Math.floor(Math.max(ax, bx) / this.cell);
+      cx++
+    ) {
+      for (
+        let cz = Math.floor(Math.min(az, bz) / this.cell);
+        cz <= Math.floor(Math.max(az, bz) / this.cell);
+        cz++
+      ) {
+        for (const id of this.cells.get((cx + 32768) * 65536 + (cz + 32768)) ?? []) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const cx0 = this.segs[id * 4] as number;
+          const cz0 = this.segs[id * 4 + 1] as number;
+          const sx = (this.segs[id * 4 + 2] as number) - cx0;
+          const sz = (this.segs[id * 4 + 3] as number) - cz0;
+          const den = rx * sz - rz * sx;
+          if (Math.abs(den) < 1e-9) continue;
+          const t = ((cx0 - ax) * sz - (cz0 - az) * sx) / den;
+          const u = ((cx0 - ax) * rz - (cz0 - az) * rx) / den;
+          if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+          const sl = Math.hypot(sx, sz) || 1;
+          out.push({
+            t,
+            half: waterHalfWidth(this.kinds[id] as string),
+            sin: Math.abs(den) / (rl * sl),
+          });
+        }
+      }
+    }
+    return out;
+  }
+}
+
+/**
+ * Menderesli dereye paralel giden yolu derenin tek yakasına alır (saf): yol bir akarsuyu kısa aralıklarla (aralık
+ * `ROADS.uncrossGap`'ten kısa) birden çok kez kesiyorsa, ilk ve son kesişimin `uncrossPad` dışındaki iki nokta arası A*
+ * ile yeniden çizilir (akarsu geçişi pahalı: rota dereyi gerekmedikçe kesmez, kenarından uzak durur). Böylece akarsu
+ * boyunca uzanan köprü kümeleri yerine yol derenin yanından gider ve gerekiyorsa bir kez köprüyle geçer.
+ */
+export function uncrossStreams(
+  roads: readonly RoadData[],
+  streams: StreamGrid,
+  route: (ax: number, az: number, bx: number, bz: number) => number[] | null,
+): RoadData[] {
+  return roads.map((road) => {
+    const pts = densify(road.xz, ROADS.routeStep);
+    const n = pts.length / 2;
+    // Kesişimlerin yol boyu konumları (nokta dizini + t).
+    const at: number[] = [];
+    for (let i = 0; i + 1 < n; i++) {
+      for (const c of streams.crossings(
+        pts[i * 2] as number,
+        pts[i * 2 + 1] as number,
+        pts[i * 2 + 2] as number,
+        pts[i * 2 + 3] as number,
+      )) {
+        at.push(i + c.t);
+      }
+    }
+    if (at.length < 2) return road;
+    at.sort((p, q) => p - q);
+    const gap = ROADS.uncrossGap / ROADS.routeStep;
+    const pad = Math.ceil(ROADS.uncrossPad / ROADS.routeStep);
+    const clusters: Array<[number, number]> = [];
+    let start = at[0] as number;
+    let prev = start;
+    let size = 1;
+    for (let k = 1; k <= at.length; k++) {
+      const cur = at[k];
+      if (cur !== undefined && cur - prev <= gap) {
+        prev = cur;
+        size++;
+        continue;
+      }
+      if (size >= 2) clusters.push([start, prev]);
+      if (cur !== undefined) {
+        start = cur;
+        prev = cur;
+        size = 1;
+      }
+    }
+    if (clusters.length === 0) return road;
+    let out: number[] = [];
+    let from = 0;
+    let changed = false;
+    for (const [c0, c1] of clusters) {
+      const i0 = Math.max(from, Math.floor(c0) - pad);
+      const i1 = Math.min(n - 1, Math.ceil(c1) + pad);
+      if (i1 - i0 < 2) continue;
+      const path = route(
+        pts[i0 * 2] as number,
+        pts[i0 * 2 + 1] as number,
+        pts[i1 * 2] as number,
+        pts[i1 * 2 + 1] as number,
+      );
+      if (!path) continue;
+      for (let i = from; i < i0; i++) out.push(pts[i * 2] as number, pts[i * 2 + 1] as number);
+      out.push(...path.slice(0, path.length - 2));
+      from = i1;
+      changed = true;
+    }
+    if (!changed) return road;
+    for (let i = from; i < n; i++) out.push(pts[i * 2] as number, pts[i * 2 + 1] as number);
+    out = Array.from(smoothPath(out, road.cls));
+    return { ...road, xz: Float32Array.from(out) };
+  });
 }

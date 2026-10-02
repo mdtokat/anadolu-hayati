@@ -3,12 +3,15 @@ import { CHUNK } from '../config';
 import { buildChunkMesh } from './chunkGeometry';
 import { chunkGridFor, chunkKey, distanceToChunk, lodForDistance, type ChunkGrid } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
+import type { TerrainHoles } from './roadTunnels';
 
 export interface ChunkManagerOptions {
   /** Bu uzaklıktan (oyun m) yakın chunk'lar yüklenir; ötesi boşaltılır. */
   viewDistance?: number;
   /** Bir `update` çağrısında kurulabilecek en fazla chunk (mesh) sayısı. */
   maxBuildsPerFrame?: number;
+  /** Tünel ağzı delikleri (yakın LOD'larda mesh'ten çıkarılır). */
+  holes?: TerrainHoles | null;
 }
 
 export interface ChunkUpdateStats {
@@ -39,6 +42,7 @@ export class ChunkManager {
   private readonly chunks = new Map<number, ChunkEntry>();
   private readonly viewDistance: number;
   private readonly maxBuilds: number;
+  private readonly holes: TerrainHoles | null;
   /** LOD geçiş uzaklıkları (oyun m); `setLodScale` ile `CHUNK.lodDistances` çarpanıyla yeniden hesaplanır. */
   private lodThresholds: readonly number[] = CHUNK.lodDistances;
 
@@ -50,6 +54,7 @@ export class ChunkManager {
     this.grid = chunkGridFor(source);
     this.viewDistance = options.viewDistance ?? CHUNK.viewDistance;
     this.maxBuilds = options.maxBuildsPerFrame ?? CHUNK.maxBuildsPerFrame;
+    this.holes = options.holes ?? null;
     this.group.name = 'terrain-chunks';
   }
 
@@ -114,7 +119,7 @@ export class ChunkManager {
 
   private build(cx: number, cy: number, lod: number): void {
     const key = chunkKey(cx, cy);
-    const data = buildChunkMesh(this.source, this.grid, cx, cy, lod);
+    const data = buildChunkMesh(this.source, this.grid, cx, cy, lod, this.holes);
 
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new BufferAttribute(data.positions, 3));

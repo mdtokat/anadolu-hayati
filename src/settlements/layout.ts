@@ -77,7 +77,7 @@ export interface Building {
   stairRun: number;
 }
 
-/** Kent sokağı: sınıfı (merkezden geçen ana cadde 0, diğerleri 1) ve dünya X/Z çizgisi ([x0, z0, x1, z1]). */
+/** Kent sokağı adayı: sınıfı (3) ve dünya X/Z çizgisi ([x0, z0, x1, z1]); `townNetwork.ts` hangilerinin kalacağını seçer. */
 export interface Street {
   cls: RoadClass;
   xz: Float32Array;
@@ -515,13 +515,15 @@ export function layoutSettlement(
     tv: number,
     name: string | null,
     maxDistance: number = L.landmarkSearchRadius,
+    /** En yakın kaç parsel denenir (son çare aramasında hepsi). */
+    tries = 60,
   ): Building | null => {
     const candidates = lots
       .filter((lot) => !usedLots.has(lot))
       .map((lot) => ({ lot, d: Math.hypot(lot.u - tu, lot.v - tv) }))
       .filter((c) => c.d <= maxDistance)
       .sort((a, b) => a.d - b.d);
-    for (const { lot } of candidates.slice(0, 60)) {
+    for (const { lot } of candidates.slice(0, tries)) {
       const b = tryLot(kind, lot, name);
       if (b) return b;
     }
@@ -601,8 +603,8 @@ export function layoutSettlement(
   // merkezi komşu merkezin çekirdeğine sıkışmışsa (Kozlu–Zonguldak) son çare olarak oraya da konabilir.
   if (mosques === 0 && (!village || mosqueTarget > 0)) {
     const tryMosque = () =>
-      placeNear(village ? 'mosque_wooden' : 'mosque', 0, 0, null, radius) ??
-      (village ? null : placeNear('mosque_wooden', 0, 0, null, radius));
+      placeNear(village ? 'mosque_wooden' : 'mosque', 0, 0, null, radius, Infinity) ??
+      (village ? null : placeNear('mosque_wooden', 0, 0, null, radius, Infinity));
     let b = tryMosque();
     if (!b && !village && nearCores.length > 0) {
       allowForeignCore = true;
@@ -660,7 +662,7 @@ export function layoutSettlement(
   }
 
   // 4. Sokaklar (il/ilçe): yapı bulunan her mahalle bloğunun dört kenarı sokak olur; komşu bloklar kenar paylaşır, böylece
-  // sokaklar bağlı bir ağ kurar ve yapısız yerde sokak çizilmez. Merkeze en yakın hat ana caddedir (sınıf 0).
+  // sokaklar bağlı bir ağ kurar ve yapısız yerde sokak çizilmez. Hangi adayların kalacağını ve ana caddeyi `townNetwork.ts` seçer.
   const streets: Street[] = [];
   if (!village) {
     const okAt = (u: number, v: number, half: number): boolean => {
@@ -705,15 +707,11 @@ export function layoutSettlement(
       use('H', b, a);
     }
     const lineCoord = (line: number) => (blockMod * line + L.blockLots) * pitch;
-    const mainLine = [...slices.keys()].reduce<number | null>((best, key) => {
-      const line = Number(key.slice(1));
-      return best === null || Math.abs(lineCoord(line)) < Math.abs(lineCoord(best)) ? line : best;
-    }, null);
     for (const [key, set] of slices) {
       const along: 'u' | 'v' = key[0] === 'V' ? 'v' : 'u';
       const line = Number(key.slice(1));
       const fixed = lineCoord(line);
-      const cls: RoadClass = line === mainLine ? 0 : 1;
+      const cls: RoadClass = 3;
       const half = (ROADS.width[cls] as number) / 2;
       const sorted = [...set].sort((x, y) => x - y);
       // Ardışık dilimler tek hatta birleşir.

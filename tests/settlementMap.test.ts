@@ -198,7 +198,16 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
       expect(map.blocksProp(p.x, p.z, 0.3)).toBe(false);
     }
     expect(map.buildingAt(b.x, b.z)?.id).toBe(b.id);
-    expect(map.roadLines.length).toBeGreaterThan(world.settlements!.roads.length * 0.5);
+    // Yol ağı veri yollarından seçilmiş seyrek bir omurgadır (tüm veri yolları çizilmez).
+    const length = (lines: ReadonlyArray<{ xz: Float32Array }>) =>
+      lines.reduce((sum, l) => {
+        for (let i = 0; i + 3 < l.xz.length; i += 2)
+          sum += Math.hypot(l.xz[i + 2]! - l.xz[i]!, l.xz[i + 3]! - l.xz[i + 1]!);
+        return sum;
+      }, 0);
+    const network = length(map.roadLines.filter((l) => l.cls !== 3));
+    expect(network).toBeGreaterThan(30_000);
+    expect(network).toBeLessThan(length(world.settlements!.roads) * 0.4);
     // Yerleşim sorgusu
     expect(map.settlementAt(zonguldak.data.x, zonguldak.data.z)?.data.name).toBe('Zonguldak');
   });
