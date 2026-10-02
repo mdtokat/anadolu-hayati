@@ -64,6 +64,8 @@ export class RegionWorld implements GameWorld {
   readonly terrain: RegionHeightSource;
   readonly spawn: Vec3;
   private placeCentersCache: readonly PlaceCenter[] | null = null;
+  /** Faz 11 (E): ek nesne engelleyiciler (eşkıya kampları); nesne chunk'ı kurulurken sorulur. */
+  private readonly propBlockers: Array<(x: number, z: number, radius: number) => boolean> = [];
   /** Faz 11: drone görüş odağı (11.0'da etkisiz). */
   private viewFocus: { x: number; z: number } | null = null;
   readonly maxSlopeDeg = REGION_PLAYER.maxSlopeDeg;
@@ -191,7 +193,9 @@ export class RegionWorld implements GameWorld {
           this.source,
           cover,
           this.freshWater,
-          settlements ? (x, z, r) => settlements.blocksProp(x, z, r) : null,
+          (x, z, r) =>
+            (settlements?.blocksProp(x, z, r) ?? false) ||
+            this.propBlockers.some((blocks) => blocks(x, z, r)),
         )
       : null;
     if (this.props) this.scene.add(this.props.group);
@@ -379,6 +383,14 @@ export class RegionWorld implements GameWorld {
       cover: this.cover?.classAt(x, z) ?? 'none',
       seaDistance: this.source.distanceToSea(x, z),
     };
+  }
+
+  /**
+   * Faz 11 (E): ağaç/kaya/çalı gizleyen ek alan (eşkıya kampları). Nesneler chunk kurulurken sorulduğundan ilk karelerden
+   * önce (Game kurulumunda) eklenmelidir; kimlikler değişmez.
+   */
+  addPropBlocker(blocks: (x: number, z: number, radius: number) => boolean): void {
+    this.propBlockers.push(blocks);
   }
 
   /** Görüş odağı (Faz 11 sözleşmesi): 11.0'da yalnızca saklanır, etkisizdir; F LOD/nesne merkezini taşır. */
