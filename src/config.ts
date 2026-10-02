@@ -276,13 +276,16 @@ export const TERRAIN_LOOK = {
   forestFrom: [120, 450],
   /** Orman zemininden yüksek çayıra/kayalığa geçiş: [başlangıç, tam] rakım (m). */
   alpineFrom: [1300, 1750],
-  /** Kaya rengine geçiş: [başlangıç, tam] oyun eğimi (derece). */
-  rockSlopeDeg: [45, 62],
+  /**
+   * Kaya rengine geçiş: [başlangıç, tam] oyun eğimi (derece). Yürünebilir yamaçlar (≤ 60°) çoğunlukla toprak/bitki
+   * renginde kalır; yalnızca uçurumlar kaya olur (asfalt grisiyle karışmasın).
+   */
+  rockSlopeDeg: [52, 72],
   sandColor: 0xc2b280,
   grassColor: 0x5a8f3c,
   forestColor: 0x2f5a2b,
   alpineColor: 0x8a8a5c,
-  rockColor: 0x6f675d,
+  rockColor: 0x7d705f,
   /** Arazi örtüsü sınıfı renkleri (landcover.bin; bkz. data/landcover.ts). */
   cover: {
     forest: 0x2a4d27,
@@ -290,7 +293,7 @@ export const TERRAIN_LOOK = {
     grass: 0x6fa043,
     crop: 0xb5a45a,
     barren: 0x9a8f7c,
-    urban: 0x8d8b86,
+    urban: 0x7c7656,
     snow: 0xf2f4f7,
     wetland: 0x4f6b4a,
   },
@@ -304,6 +307,54 @@ export const TERRAIN_LOOK = {
   noiseStrength: 0.22,
   /** Gürültünün sönmeye başladığı uzaklık (oyun m): uzakta titreşim (aliasing) olmasın. */
   noiseFadeDistance: 900,
+} as const;
+
+/**
+ * Arazi kaplaması (`world/terrainOverlay.ts` + `TerrainMaterial`): yollar, akarsular, kıyı bantları ve il sınırları
+ * arazi shader'ında, arazi ızgarasıyla aynı kafesteki uzaklık alanı dokusundan boyanır (her LOD'da zemine oturur).
+ * Uzunluklar oyun metresi; renkler 0xRRGGBB.
+ */
+export const TERRAIN_OVERLAY = {
+  /** Kodlama: bayt = 128 + uzaklık · scale (1/16 m çözünürlük, ±7,9 m aralık). */
+  scale: 16,
+  /**
+   * Rasterleme özellik kenarından en çok bu kadar (oyun m) dışarı taşar (açılış süresi). En geniş bant (kıyı,
+   * `bankWidth`) + hücre köşegeni (2,83 m) kadar olmalı: daha kısa erişim bandı daraltır.
+   */
+  rasterReach: 4.6,
+  /** Boyanan bir çizginin en dar yarı genişliği: 2 m'lik hücrede daha dar çizgi kopuk görünür. */
+  minHalfWidth: 1.1,
+  /** İl sınırı kenarları bu uzunlukta parçalanır; parçanın iki yanı `borderProbe` uzaklıkta yoklanır (kıyı elemesi). */
+  borderPiece: 15,
+  borderProbe: 2,
+  /** Asfalt (terk edilmiş: koyu, lekeli) ve aşınmış yaması; banket (yol kenarı çakıl şeridi) genişliği ve rengi. */
+  asphalt: 0x3d3e3c,
+  asphaltWorn: 0x5b5a55,
+  /** Asfaltın soluk kenar çizgisi: kenardan içeri uzaklık (oyun m) ve görünürlük (0–1). */
+  edgeLineInset: 0.35,
+  edgeLineStrength: 0.35,
+  edgeLine: 0xc9c4b4,
+  shoulder: 0x8a7f6c,
+  shoulderWidth: 0.7,
+  /** Köy yolu (stabilize): toprak ve koyu (ıslak/sıkışmış) lekeleri. */
+  dirt: 0x846e52,
+  dirtDark: 0x66543e,
+  /** Akarsu: sığ ve derin renk (kenardan ortaya), yansıma için düşük pürüzlülük, akış dalgası hızı. */
+  water: 0x3f8eae,
+  waterDeep: 0x23566e,
+  waterRoughness: 0.12,
+  waterFlowSpeed: 0.35,
+  /** Kıyı bandı: su kenarından bu kadar dışarıya ıslak, koyu toprak (çakıl). */
+  bank: 0x4f4636,
+  bankWidth: 1.6,
+  bankStrength: 0.75,
+  /** Köprü korkuluğu: yol suyun üstündeyse kenarda taş korkuluk şeridi. */
+  parapet: 0x9a9284,
+  parapetWidth: 0.4,
+  /** İl sınırı: yarı genişlik (oyun m), renk ve görünürlük (0–1); `BORDERS.visibleByDefault` ile açılır. */
+  borderHalfWidth: 1.2,
+  border: 0xffd23f,
+  borderStrength: 0.55,
 } as const;
 
 /**
@@ -329,6 +380,11 @@ export const SCATTER = {
   maxChunkBuildsPerFrame: 2,
   /** Hesaplanmış chunk sonuçlarının LRU önbellek kapasitesi. */
   chunkCacheSize: 64,
+  /**
+   * Yapı/yol elemesinde nesnenin görsel yarıçapının (ağaçta taç) kullanılan oranı: taç yapıya/yola bu kadar
+   * değebilirse nesne gizlenir (1 = hiç taşmaz; biraz taşan dal doğal görünür).
+   */
+  blockRadiusFactor: 0.85,
   /** Bu gerçek rakımın (m) altında (deniz/kıyı) nesne yok. */
   minElevation: 3,
   /** Tatlı suya bu uzaklıktan (oyun m) yakın yere ağaç/çalı dikilmez (kıyıda kaya/taş serbest). */
@@ -772,15 +828,8 @@ export const WATER = {
   waveStrength: 0.22,
 } as const;
 
-/** İl sınırı çizgileri: yere yapışık ince çizgi (WebGL'de çizgi kalınlığı 1 pikseldir). */
+/** İl sınırları: arazi kaplamasında boyanan şerit (`TERRAIN_OVERLAY.border*`); `B` tuşu açar/kapatır. */
 export const BORDERS = {
-  /** Çizgi köşeleri arası en büyük aralık (oyun m): arazi yüksekliğini izlesin diye sık örneklenir. */
-  spacing: 20,
-  /** Çizginin zeminden yüksekliği (oyun m): zeminin içine gömülmesin. */
-  lift: 0.6,
-  /** Hedef illerin ve komşu illerin çizgi renkleri. */
-  regionColor: 0xffd23f,
-  neighborColor: 0x8fb4d6,
   /** Başlangıçta görünür mü? */
   visibleByDefault: true,
 } as const;
@@ -1091,10 +1140,10 @@ export const CITY_START = {
 export const FRESH_WATER = {
   /** Su kaynağına (çizgi/kıyı/kaynak noktası) bu uzaklıktan (oyun m) yakın oyuncu içebilir; çokgenin içi 0 sayılır. */
   reachDistance: 3.5,
-  /** Çizim genişlikleri (oyun m): tür başına akarsu şeridi genişliği. */
+  /** Çizim genişlikleri (oyun m): tür başına akarsu genişliği (araziye boyanır; en dar `TERRAIN_OVERLAY.minHalfWidth`). */
   lineWidth: { river: 3, stream: 1.2, canal: 1.5 },
-  /** Uzamsal ızgara hücre boyu (oyun m); sorgu yarıçapından küçük olmamalı. */
-  indexCellSize: 40,
+  /** Uzamsal ızgara hücre boyu (oyun m): küçük hücre, kısa sorgularda daha az parça ölçer. */
+  indexCellSize: 20,
   /** Yerleşim çeşmesinin musluğuna bu uzaklıktan (oyun m) içilir (Faz 10). */
   fountainReach: 2,
   /** Su rengi (nehir şeridi ve göl yüzeyi). */
@@ -1616,12 +1665,22 @@ export const SETTLEMENT_LAYOUT = {
   minElevationM: 2,
   /** Yapı kenarı ile yol ekseni arasında, yol yarı genişliğine eklenen pay (oyun m). */
   roadMargin: 1,
-  /** Yapılar arasındaki en az boşluk (oyun m). */
+  /** Yapılar arasındaki en az boşluk (oyun m; saçak/revak payının dışında). */
   gap: 1.2,
+  /** Ayak izi su/yol denetiminin örnek aralığı (oyun m). */
+  sampleStep: 3,
+  /** Ayak izi (ve sokak) ile akarsu ekseni/göl kıyısı arasındaki en az uzaklık (oyun m; nehir yarı genişliği + pay). */
+  waterClearance: 1.9,
+  /** Yol parselin yakınından geçiyorsa parsel yoldan bu kadar (parsel aralığı oranı) uzağa kaydırılarak da denenir. */
+  roadNudge: [0.25, 0.45],
+  /** Merdiven uzunluğu tahmini çarpanı (ucun zemini kapı önünden alçak olabilir; ayırma payı). */
+  stairRunPad: 1.35,
   /** Yıkık (çatısız) olma olasılığı (rütbeye göre); terk edilmiş havası. */
   ruinChance: { il: 0.18, ilce: 0.25, koy: 0.35 },
   /** Bir simge yapının gerçek konumuna en çok bu kadar uzak parsele oturabilir (oyun m). */
   landmarkSearchRadius: 60,
+  /** Il/ilçe merkezinin ayak izi yarıçapının bu oranı (çekirdek: meydan, cami) yalnızca o merkeze ayrılır. */
+  coreReserve: 0.35,
   /** Il/ilçe merkezinde ayak izi yarıçapının bu oranı içindeki il-ilçe ve köy yolları çizilmez (kentin içi sokak ızgarasıdır). */
   innerRoadCut: 0.85,
   /** Kent sokaklarının genişliği (oyun m) ve örnekleme aralığı. */
@@ -1654,22 +1713,36 @@ export const SETTLEMENT_STYLES = {
   },
 } as const;
 
-/** Yollar (Faz 10): sınıf başına şerit genişliği (oyun m; gerçek genişlikler abartılı) ve renk. */
+/** Yollar (Faz 10): sınıf başına genişlik (oyun m; gerçek genişlikler abartılı), yumuşatma ve sudan ayırma. */
 export const ROADS = {
-  /** 0 anayol, 1 il-ilçe yolu, 2 köy yolu. */
+  /**
+   * 0 anayol, 1 il-ilçe yolu (ve kent sokakları), 2 köy yolu. Yollar arazi kaplamasında boyanır (renkler
+   * `TERRAIN_OVERLAY`): asfalt sınıf 0–1, toprak sınıf 2.
+   */
   width: [5, 3.6, 2.6],
-  /** Terk edilmiş asfalt (koyu, solgun) ve stabilize köy yolu. */
-  color: [0x4a4a48, 0x56544f, 0x7d6a52],
-  /** Şeridin zeminden yüksekliği (oyun m). */
-  lift: 0.06,
-  /** Şerit noktaları en çok bu aralıkla (oyun m) sıklaştırılır: arazi engebesine oturur. */
-  sampleStep: 3,
-  /** Çizim grupları (oyun m kare): yollar bu karelere bölünür, her kare bir mesh (frustum kırpma). */
-  groupSize: 1024,
-  /** Bu uzaklıktan (oyun m) ötedeki yol grupları çizilmez. */
-  drawRadius: 1100,
   /** Yol sorgularının uzamsal ızgara hücresi (oyun m). */
   indexCellSize: 32,
+  /**
+   * Akarsudan ayırma (`settlements/roadRouting.ts`): akarsuya paralel yol noktaları, yol kenarı ile su kenarı
+   * arasında `waterGap` (oyun m) kalana kadar sudan uzağa itilir. `routeStep` sıklaştırma aralığı, `routePasses`
+   * yineleme sayısı (yumuşatılmış itme her geçişte kalan çakışmayı biraz daha giderir), `maxWaterShift` geçiş başına en büyük kaydırma (oyun m). Yol doğrultusu ile itme yönü
+   * arasındaki açının kosinüsü `crossingCos`'tan büyükse nokta suyu kesiyordur (köprü): itilmez.
+   */
+  /**
+   * Yumuşatma (`smoothRoads`): veri yolları 2 m kafese oturtulmuştur (merdiven gibi kırık). Bu sapmadan (oyun m) az
+   * kırıklar sadeleştirilir, sonra `smoothRounds` tur Chaikin köşe kesmesiyle virajlar yuvarlanır.
+   */
+  smoothTolerance: 2.2,
+  smoothRounds: 2,
+  routeStep: 4,
+  routePasses: 6,
+  /** Geçiş başına kaydırmaları yumuşatma ([1, 2, 1] / 4 süzgeci) tekrar sayısı. */
+  routeSmoothing: 6,
+  waterGap: 0.8,
+  /** Kaydırılan yolun sonradan sadeleştirme toleransı (oyun m). */
+  routeSimplify: 0.25,
+  maxWaterShift: 6,
+  crossingCos: 0.5,
 } as const;
 
 /** Yerleşim yapılarının görünümü (Faz 10): renkler 0xRRGGBB, çizim uzaklıkları oyun m. */

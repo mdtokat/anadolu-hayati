@@ -7,13 +7,8 @@ import {
   MeshStandardMaterial,
 } from 'three';
 import { FRESH_WATER } from '../config';
-import type { WaterFeatures, WaterLine } from '../data/region';
-import { buildLakeMeshes, buildRiverRibbons, type HeightFn, type MeshData } from './waterGeometry';
-
-/** Çizgi türüne göre şerit genişliği (oyun m). */
-function widthOf(line: WaterLine): number {
-  return FRESH_WATER.lineWidth[line.kind];
-}
+import type { WaterFeatures } from '../data/region';
+import { buildLakeMeshes, type HeightFn, type MeshData } from './waterGeometry';
 
 function toGeometry(data: MeshData): BufferGeometry {
   const geometry = new BufferGeometry();
@@ -28,10 +23,9 @@ function toGeometry(data: MeshData): BufferGeometry {
 }
 
 /**
- * Tatlı su görseli: akarsular zemine oturan şeritler, göller/göletler/barajlar düz yüzeyler.
- * Tüm şeritler tek mesh, tüm göller tek mesh (bölge başına toplam 2 draw call). Şeffaf; opak
- * araziden sonra, deniz düzleminden önce çizilir. Uzak (kaba) LOD'larda yer yer arazinin altında
- * kalabilir (bkz. CLAUDE.md, il sınırı çizgisiyle aynı sınırlama).
+ * Durgun tatlı su görseli: göller/göletler/barajlar düz yüzeyler (tek mesh, 1 draw call). Şeffaf; opak araziden
+ * sonra, deniz düzleminden önce çizilir. Akarsular ayrı mesh değildir: arazi shader'ında boyanır
+ * (`terrainOverlay.ts`; dik yamaçta havada kalan şeritler kalktı).
  */
 export class FreshWaterMesh {
   readonly object = new Group();
@@ -51,12 +45,8 @@ export class FreshWaterMesh {
 
   constructor(water: WaterFeatures, heightAt: HeightFn) {
     this.object.name = 'fresh-water';
-    const rivers = buildRiverRibbons(water.lines, heightAt, widthOf, FRESH_WATER.lift);
     const lakes = buildLakeMeshes(water.polygons, heightAt, FRESH_WATER.lift);
-    for (const [name, data] of [
-      ['rivers', rivers],
-      ['lakes', lakes],
-    ] as const) {
+    for (const [name, data] of [['lakes', lakes]] as const) {
       if (data.indices.length === 0) continue;
       const geometry = toGeometry(data);
       this.geometries.push(geometry);

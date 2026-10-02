@@ -56,6 +56,8 @@ export class PropLayer {
   private readonly depleted = new Set<PropId>();
   /** Yapı/yol üstünde kalan nesneler (Faz 10): görünmez ve toplanamaz; kimlikler değişmez. */
   private readonly blocked = new Set<PropId>();
+  /** Tür başına (ölçek 1'de) yakın geometrinin yatay yarıçapı (oyun m): eleme yarıçapı. */
+  private readonly baseRadius = new Float32Array(PROP_KINDS.length);
   private active: Array<{ cx: number; cy: number; key: number }> = [];
   private lastX = NaN;
   private lastZ = NaN;
@@ -73,8 +75,11 @@ export class PropLayer {
     private readonly source: RegionHeightSource,
     private readonly cover: LandCoverMap,
     private readonly water: FreshWaterIndex | null,
-    /** (x, z) bir yapının ya da yolun üstünde mi (Faz 10 yerleşimleri)? Yoksa hiçbir nesne elenmez. */
-    private readonly isBlocked: ((x: number, z: number) => boolean) | null = null,
+    /**
+     * `radius` yarıçaplı nesne (x, z)'de bir yapıya ya da yola değiyor mu (Faz 10 yerleşimleri)? Yoksa hiçbir nesne
+     * elenmez. Yarıçap görsel genişliktir (ağaçta taç): saçaklar ve taçlar birbirine girmesin.
+     */
+    private readonly isBlocked: ((x: number, z: number, radius: number) => boolean) | null = null,
   ) {
     this.grid = chunkGridFor(source);
     this.index = new PropIndex(this.grid);
@@ -86,6 +91,7 @@ export class PropLayer {
       for (const lod of lods) {
         const geometry = buildPropGeometry(kind, lod);
         this.geometries.push(geometry);
+        if (lod === 'near') this.baseRadius[PROP_KINDS.indexOf(kind)] = horizontalRadius(geometry);
         const mesh = new InstancedMesh(geometry, this.material, spec.maxInstances);
         mesh.name = `props-${kind}-${lod}`;
         mesh.count = 0;
@@ -219,7 +225,11 @@ export class PropLayer {
       this.index.set(props);
       if (this.isBlocked) {
         for (let i = 0; i < props.count; i++) {
-          if (this.isBlocked(props.x[i] as number, props.z[i] as number)) {
+          const radius =
+            (this.baseRadius[props.kind[i] as number] as number) *
+            (props.scale[i] as number) *
+            SCATTER.blockRadiusFactor;
+          if (this.isBlocked(props.x[i] as number, props.z[i] as number, radius)) {
             this.blocked.add(propId(chunk.key, i));
           }
         }
@@ -288,6 +298,18 @@ export class PropLayer {
     }
     this.instanceTotal = total;
   }
+}
+
+/** Geometrinin dikey eksenden en uzak köşesinin yatay uzaklığı (taç/çalı yarıçapı). */
+function horizontalRadius(geometry: BufferGeometry): number {
+  const position = geometry.getAttribute('position');
+  let r2 = 0;
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const z = position.getZ(i);
+    r2 = Math.max(r2, x * x + z * z);
+  }
+  return Math.sqrt(r2);
 }
 
 /** Örnek matrisini (ölçek · yaw dönüşü · konum) ve ton rengini doğrudan tampona yazar. */

@@ -212,3 +212,18 @@ Dev tuşları: `T` + rakam ve `Shift` + rakam ile il/ilçe merkezlerine ışınl
 - [ ] **Ateş/tezgâh/sandık tabanın üstüne** kurulabiliyor mu (tabanın üst yüzüne oturuyor mu)? Kulübe/sundurma taban üstüne kurulamıyor.
 - [ ] **Şehir merkezi başlangıcı:** Yeni Oyun ve ölüm sonrası "Yeniden Doğ" farklı il/ilçe merkezlerinde (konsolda "Başlangıç: …"), bina dışında ve duvara bakmadan başlıyor mu? 10 denemede çeşitlilik: ___ farklı yer
 - Notlar: ____________________
+
+## 14. Grafik düzenlemesi: yollar, sular, yapılar, ağaçlar (Faz 10 sonrası)
+
+Yollar, akarsular, kıyı bantları ve il sınırları artık arazinin kendi shader'ında boyanıyor; yapılar ve ağaçlar birbirine girmeyecek biçimde eleniyor (`CLAUDE.md` "Grafik düzenlemesi"). Kontrol için: Zonguldak merkez (`Shift+1`), Safranbolu (`T+2`), Yenice (`T+5`, vadi yolu ve ırmak), Bolu (`T+7`), Abant (`T+8`, il sınırı ve toprak yol). Test modunda uçarak yukarıdan bakmak karşılaştırmayı kolaylaştırır.
+
+- [ ] **Yollar:** yamaçta havada kalan ya da araziye gömülen yol kaldı mı? Asfalt (koyu, banketli, soluk kenar çizgili) ve köy yolu (toprak) ayırt ediliyor mu? Uzakta yollar titreşiyor/kayboluyor mu? Nerede: ____________________
+- [ ] **Akarsu ve yol:** vadilerde yol ırmağın üstüne biniyor mu, yoksa yanında mı akıyor? Geçişlerde köprü korkuluğu (yol kenarında açık taş şerit) görünüyor mu?
+- [ ] **Su görünümü:** ırmaklar sudan çok "mavi boya" gibi mi görünüyor? Güneşte parlıyor, yavaş dalgalanıyor mu? Kıyıdaki ıslak toprak bandı doğal mı?
+- [ ] **Yapılar:** komşu iki yapının saçağı/duvarı iç içe giriyor mu? Kapı merdiveni başka yapıya ya da suya iniyor mu? Sokak/yol bir yapının içinden geçiyor mu? Nerede: ____________________
+- [ ] **Ağaçlar ve kayalar:** bir ağacın tacı binanın içinden ya da yolun üstünden çıkıyor mu? Yol kenarındaki ağaçsız şerit fazla geniş mi? (☐ uygun ☐ `SCATTER.blockRadiusFactor` küçülsün)
+- [ ] **İl sınırı:** iller arasındaki sarı şerit zeminde okunuyor mu, deniz kıyısı boyunca çizgi yok mu? `B` açıp kapatıyor mu?
+- [ ] **Renkler:** dik yamaçlar hâlâ çok mu gri? Kent içi zemin (toprak-yeşil) asfalttan ayırt ediliyor mu?
+- [ ] **Yakın plan:** dik yamaçta çok yakından bakınca yol/su kenarı basamaklı görünüyor mu (bilinen sınırlama: 2 m hücre)? Rahatsız edici mi: ☐ hayır ☐ evet
+- [ ] **Performans:** Safranbolu, Bolu, Yenice'de FPS (yol mesh'leri kalktı, draw call azaldı; arazi shader'ı biraz ağırlaştı): ___ FPS
+- Notlar: ____________________

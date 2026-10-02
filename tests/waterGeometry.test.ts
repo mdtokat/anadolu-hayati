@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { RegionData, WaterLine, WaterPolygon } from '../src/data/region';
-import { buildLakeMeshes, buildRiverRibbons, type MeshData } from '../src/world/waterGeometry';
+import type { RegionData, WaterPolygon } from '../src/data/region';
+import { buildLakeMeshes, type MeshData } from '../src/world/waterGeometry';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { loadRealRegion } from './helpers/realRegion';
 
@@ -10,12 +10,6 @@ const flat = () => 5;
 function triangle(mesh: MeshData, t: number): [number, number, number] {
   return [mesh.indices[t] as number, mesh.indices[t + 1] as number, mesh.indices[t + 2] as number];
 }
-
-const line = (coords: number[], kind: WaterLine['kind'] = 'river'): WaterLine => ({
-  kind,
-  intermittent: false,
-  xz: Float64Array.from(coords),
-});
 
 const polygon = (...rings: number[][]): WaterPolygon => {
   const arrays = rings.map((r) => Float64Array.from(r));
@@ -46,76 +40,6 @@ function allFaceUp(mesh: MeshData): boolean {
   }
   return true;
 }
-
-/** Aşağı bakan (katlanmış) üçgenlerin oranı. */
-function foldedFraction(mesh: MeshData): number {
-  const p = mesh.positions;
-  let folded = 0;
-  const count = mesh.indices.length / 3;
-  for (let t = 0; t < mesh.indices.length; t += 3) {
-    const [a, b, c] = triangle(mesh, t);
-    const ux = (p[b * 3] as number) - (p[a * 3] as number);
-    const uz = (p[b * 3 + 2] as number) - (p[a * 3 + 2] as number);
-    const vx = (p[c * 3] as number) - (p[a * 3] as number);
-    const vz = (p[c * 3 + 2] as number) - (p[a * 3 + 2] as number);
-    if (uz * vx - ux * vz <= 0) folded++;
-  }
-  return count === 0 ? 0 : folded / count;
-}
-
-describe('buildRiverRibbons', () => {
-  it('düz çizgi: iki köşe/kesit, genişlik kadar ayrık, yüksekliği zemin + lift', () => {
-    const mesh = buildRiverRibbons([line([0, 0, 10, 0])], flat, () => 3, 0.12);
-    expect(mesh.positions.length / 3).toBe(4);
-    expect(mesh.indices.length).toBe(6);
-    // sol ve sağ köşe arası 3 m
-    const [lx, , lz, rx, , rz] = mesh.positions;
-    expect(
-      Math.hypot((lx as number) - (rx as number), (lz as number) - (rz as number)),
-    ).toBeCloseTo(3, 5);
-    for (let i = 0; i < 4; i++) expect(mesh.positions[i * 3 + 1]).toBeCloseTo(5.12, 5);
-  });
-
-  it('üçgenler yukarı bakar (her yönde çizgi için)', () => {
-    for (const coords of [
-      [0, 0, 10, 0],
-      [10, 0, 0, 0],
-      [0, 0, 0, 10],
-      [0, 10, 0, 0],
-      [0, 0, 10, 0, 10, 10, 0, 10],
-    ]) {
-      const mesh = buildRiverRibbons([line(coords)], flat, () => 2, 0);
-      expect(mesh.indices.length).toBeGreaterThan(0);
-      expect(allFaceUp(mesh)).toBe(true);
-    }
-  });
-
-  it('yamaç kesitinde şerit gömülmez: sol/sağ köşe en yüksek zemin yüksekliğinde', () => {
-    const slope = (_x: number, z: number) => z * 0.5; // güneye doğru yükselir
-    const mesh = buildRiverRibbons([line([0, 0, 10, 0])], slope, () => 4, 0);
-    // Kesit köşeleri z = ±2 → zemin −1 ve +1; şerit y = 1 (en yüksek)
-    for (let i = 0; i < 4; i++) expect(mesh.positions[i * 3 + 1]).toBeCloseTo(1, 5);
-  });
-
-  it('tekrar eden noktalar ve tek noktalı çizgiler atlanır', () => {
-    const mesh = buildRiverRibbons(
-      [line([1, 1, 1, 1]), line([0, 0, 0, 0, 5, 0])],
-      flat,
-      () => 2,
-      0,
-    );
-    expect(mesh.positions.length / 3).toBe(4);
-  });
-
-  it('keskin dönüşte şerit sınırlı genişler (sivrilme yok)', () => {
-    // Neredeyse geri dönen çizgi: köşe normalleri çok kısalır
-    const mesh = buildRiverRibbons([line([0, 0, 10, 0, 0, 0.2])], flat, () => 2, 0);
-    for (let i = 0; i < mesh.positions.length; i += 3) {
-      expect(Math.abs(mesh.positions[i] as number)).toBeLessThan(100);
-      expect(Math.abs(mesh.positions[i + 2] as number)).toBeLessThan(100);
-    }
-  });
-});
 
 describe('buildLakeMeshes', () => {
   const square = [0, 0, 10, 0, 10, 10, 0, 10, 0, 0];
@@ -179,20 +103,11 @@ describe('gerçek bölge verisi', () => {
     source = RegionHeightSource.fromRegion(region);
   });
 
-  it('tüm nehirler ve göller üçgenlenir; indeksler geçerli, üçgenler yukarı bakar', () => {
+  it('tüm göller üçgenlenir; indeksler geçerli, üçgenler yukarı bakar', () => {
     const water = region.features?.water;
     expect(water).toBeTruthy();
     if (!water) return;
     const heightAt = (x: number, z: number) => source.heightAt(x, z);
-
-    const ribbons = buildRiverRibbons(water.lines, heightAt, () => 1.5, 0.12);
-    expect(ribbons.indices.length).toBeGreaterThan(1000);
-    // Tek döngü + tek expect: veri büyüdükçe (Faz 7: su ×2,7) öğe başına expect yavaş CI'da 5 sn'yi aşıyordu.
-    const vertexCount = ribbons.positions.length / 3;
-    expect(ribbons.indices.filter((index) => index >= vertexCount).length).toBe(0);
-    expect(ribbons.positions.filter((value) => !Number.isFinite(value)).length).toBe(0);
-    // Keskin meandrların iç tarafında birkaç üçgen katlanır (FrontSide ile çizilmez); oran küçük kalmalı.
-    expect(foldedFraction(ribbons)).toBeLessThan(0.05);
 
     const lakes = buildLakeMeshes(water.polygons, heightAt, 0.12);
     expect(lakes.indices.length).toBeGreaterThan(30);

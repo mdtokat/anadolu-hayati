@@ -24,6 +24,7 @@ const building = (over: Partial<Building> = {}): Building => ({
   tone: 0.5,
   floors: 1,
   name: null,
+  stairRun: 0,
   ...over,
 });
 

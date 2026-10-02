@@ -25,22 +25,6 @@ interface Segment {
   name?: string;
 }
 
-/** Noktanın doğru parçasına en yakın noktası. */
-function closestOnSegment(
-  px: number,
-  pz: number,
-  s: Segment,
-): { x: number; z: number; d2: number } {
-  const dx = s.x1 - s.x0;
-  const dz = s.z1 - s.z0;
-  const length2 = dx * dx + dz * dz;
-  const t =
-    length2 === 0 ? 0 : Math.min(Math.max(((px - s.x0) * dx + (pz - s.z0) * dz) / length2, 0), 1);
-  const x = s.x0 + t * dx;
-  const z = s.z0 + t * dz;
-  return { x, z, d2: (px - x) ** 2 + (pz - z) ** 2 };
-}
-
 function inRing(ring: Float64Array, x: number, z: number): boolean {
   let inside = false;
   const n = ring.length / 2;
@@ -63,6 +47,12 @@ export class FreshWaterIndex {
   private readonly segments: Segment[] = [];
   private readonly points: Array<{ x: number; z: number; kind: WaterKind; name?: string }> = [];
   private readonly polygons: WaterFeatures['polygons'];
+  /** Hücre → sınır kutusu o hücreye değen çokgenler / o hücredeki kaynak noktaları (sorgu hızı). */
+  private readonly polygonCells = new Map<number, number[]>();
+  private readonly pointCells = new Map<number, number[]>();
+  /** Aynı parçayı bir sorguda iki kez ölçmemek için sorgu damgası (Set ayırmadan). */
+  private stamps = new Uint32Array(0);
+  private stamp = 0;
   private readonly cellSize: number;
 
   constructor(water: WaterFeatures, cellSize: number = FRESH_WATER.indexCellSize) {
@@ -73,8 +63,24 @@ export class FreshWaterIndex {
     for (const polygon of water.polygons) {
       for (const ring of polygon.rings) this.addPath(ring, polygon.kind, polygon.name);
     }
-    for (const point of water.points)
-      this.points.push({ x: point.x, z: point.z, kind: point.kind, name: point.name });
+    this.stamps = new Uint32Array(this.segments.length);
+    water.polygons.forEach((polygon, id) => {
+      const b = polygon.bounds;
+      for (let r = Math.floor(b.minZ / cellSize); r <= Math.floor(b.maxZ / cellSize); r++) {
+        for (let c = Math.floor(b.minX / cellSize); c <= Math.floor(b.maxX / cellSize); c++) {
+          push(this.polygonCells, this.key(c, r), id);
+        }
+      }
+    });
+    for (const point of water.points) {
+      const id =
+        this.points.push({ x: point.x, z: point.z, kind: point.kind, name: point.name }) - 1;
+      push(
+        this.pointCells,
+        this.key(Math.floor(point.x / cellSize), Math.floor(point.z / cellSize)),
+        id,
+      );
+    }
   }
 
   /** İndeksteki toplam çizgi parçası (akarsu + göl kenarı) sayısı. */
@@ -93,8 +99,10 @@ export class FreshWaterIndex {
         best = hit;
     };
 
-    // Göl/gölet/rezervuar içi
-    for (const polygon of this.polygons) {
+    // Göl/gölet/rezervuar içi: yalnızca noktanın hücresine değen çokgenler.
+    const home = this.key(Math.floor(x / this.cellSize), Math.floor(z / this.cellSize));
+    for (const id of this.polygonCells.get(home) ?? []) {
+      const polygon = this.polygons[id] as WaterFeatures['polygons'][number];
       const b = polygon.bounds;
       if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
       const [outer, ...holes] = polygon.rings;
@@ -109,35 +117,63 @@ export class FreshWaterIndex {
     const c1 = Math.floor((x + maxDistance) / this.cellSize);
     const r0 = Math.floor((z - maxDistance) / this.cellSize);
     const r1 = Math.floor((z + maxDistance) / this.cellSize);
-    const seen = new Set<number>();
+    this.stamp = (this.stamp + 1) >>> 0;
+    if (this.stamp === 0) {
+      this.stamps.fill(0);
+      this.stamp = 1;
+    }
+    const stamp = this.stamp;
+    // Sıcak döngü (yerleşim düzeni, nesne dağıtımı): nesne ayırmadan en yakın parça aranır.
+    const max2 = maxDistance * maxDistance;
+    let bestId = -1;
+    let bestD2 = max2;
+    let bestX = 0;
+    let bestZ = 0;
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const bucket = this.cells.get(this.key(c, r));
         if (!bucket) continue;
         for (const id of bucket) {
-          if (seen.has(id)) continue;
-          seen.add(id);
-          const segment = this.segments[id] as Segment;
-          const closest = closestOnSegment(x, z, segment);
-          consider({
-            kind: segment.kind,
-            name: segment.name,
-            distance: Math.sqrt(closest.d2),
-            x: closest.x,
-            z: closest.z,
-          });
+          if (this.stamps[id] === stamp) continue;
+          this.stamps[id] = stamp;
+          const sg = this.segments[id] as Segment;
+          const dx = sg.x1 - sg.x0;
+          const dz = sg.z1 - sg.z0;
+          const length2 = dx * dx + dz * dz;
+          const t =
+            length2 === 0
+              ? 0
+              : Math.min(Math.max(((x - sg.x0) * dx + (z - sg.z0) * dz) / length2, 0), 1);
+          const px = sg.x0 + t * dx;
+          const pz = sg.z0 + t * dz;
+          const d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
+          if (bestId < 0 ? d2 <= bestD2 : d2 < bestD2) {
+            bestId = id;
+            bestD2 = d2;
+            bestX = px;
+            bestZ = pz;
+          }
         }
       }
     }
+    if (bestId >= 0) {
+      const sg = this.segments[bestId] as Segment;
+      consider({ kind: sg.kind, name: sg.name, distance: Math.sqrt(bestD2), x: bestX, z: bestZ });
+    }
 
-    for (const point of this.points) {
-      consider({
-        kind: point.kind,
-        name: point.name,
-        distance: Math.hypot(point.x - x, point.z - z),
-        x: point.x,
-        z: point.z,
-      });
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        for (const id of this.pointCells.get(this.key(c, r)) ?? []) {
+          const point = this.points[id] as (typeof this.points)[number];
+          consider({
+            kind: point.kind,
+            name: point.name,
+            distance: Math.hypot(point.x - x, point.z - z),
+            x: point.x,
+            z: point.z,
+          });
+        }
+      }
     }
     return best;
   }
@@ -180,4 +216,10 @@ export class FreshWaterIndex {
       }
     }
   }
+}
+
+function push(map: Map<number, number[]>, key: number, id: number): void {
+  const list = map.get(key);
+  if (list) list.push(id);
+  else map.set(key, [id]);
 }

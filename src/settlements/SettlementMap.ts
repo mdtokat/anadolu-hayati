@@ -1,14 +1,19 @@
-import { SETTLEMENT_LAYOUT } from '../config';
+import { SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
 import type { LandmarkData, RoadData, SettlementData, SettlementsData } from '../data/settlements';
 import { BUILDING_SHAPES, isMosque } from './kinds';
+import { FootprintRegistry } from './footprints';
 import {
+  STAIR_MIN_RISE,
+  STAIR_SLOPE,
   footprintRadius,
+  stairWidth,
   layoutSettlement,
   settlementCenter,
   type Building,
   type LayoutTerrain,
 } from './layout';
 import { RoadIndex } from './roadIndex';
+import { separateRoadsFromWater, smoothRoads, type NearestWater } from './roadRouting';
 
 /** Bir yerleşimin oyundaki hâli: veri + düzen. */
 export interface SettlementView {
@@ -57,8 +62,26 @@ export function cutRoads(
       continue;
     }
     const xz = road.xz;
+    // Yalnızca yolun sınır kutusuna değen daireler denetlenir.
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (let i = 0; i + 1 < xz.length; i += 2) {
+      minX = Math.min(minX, xz[i] as number);
+      maxX = Math.max(maxX, xz[i] as number);
+      minZ = Math.min(minZ, xz[i + 1] as number);
+      maxZ = Math.max(maxZ, xz[i + 1] as number);
+    }
+    const near = circles.filter(
+      (c) => c.x + c.r > minX && c.x - c.r < maxX && c.z + c.r > minZ && c.z - c.r < maxZ,
+    );
+    if (near.length === 0) {
+      out.push(road);
+      continue;
+    }
     const inside = (i: number) =>
-      circles.some((c) => Math.hypot((xz[i] as number) - c.x, (xz[i + 1] as number) - c.z) < c.r);
+      near.some((c) => Math.hypot((xz[i] as number) - c.x, (xz[i + 1] as number) - c.z) < c.r);
     let run: number[] = [];
     const flush = () => {
       if (run.length >= 4) out.push({ cls: road.cls, xz: Float32Array.from(run) });
@@ -76,11 +99,10 @@ export function cutRoads(
   return out;
 }
 
-/** Merdiven eğimi (yükselti / uzunluk) ve en kısa yükselti (altı basamaksız geçilir). */
-const STAIR_SLOPE = 0.7;
-const STAIR_MIN_RISE = 0.3;
-
-/** Girilebilir/aranabilir yapının kapısı zeminden yüksekse taş merdiven. */
+/**
+ * Girilebilir/aranabilir yapının kapısı zeminden yüksekse taş merdiven. Uzunluk düzenin ayırdığı yeri
+ * (`Building.stairRun`) aşmaz: ucun zemini beklenenden alçaksa merdiven biraz dikleşir (komşu yapıya girmesin).
+ */
 function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
   const shape = BUILDING_SHAPES[b.kind];
   if (!shape.enterable && !shape.searchable) return null;
@@ -90,11 +112,12 @@ function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
   // Merdivenin ucunda zemin: yükseltiye göre uzunluk, ucun zemini yeniden ölçülür (iki adım yakınsar).
   let rise = b.y - terrain.heightAt(start.x, start.z);
   if (rise < STAIR_MIN_RISE) return null;
-  let run = Math.max(1, rise / STAIR_SLOPE);
+  const maxRun = b.stairRun > 0 ? b.stairRun : Infinity;
+  let run = Math.min(maxRun, Math.max(1, rise / STAIR_SLOPE));
   for (let k = 0; k < 2; k++) {
     const end = buildingLocalToWorld(b, doorX, front + run);
     rise = Math.max(STAIR_MIN_RISE, b.y - terrain.heightAt(end.x, end.z));
-    run = Math.max(1, rise / STAIR_SLOPE);
+    run = Math.min(maxRun, Math.max(1, rise / STAIR_SLOPE));
   }
   return {
     building: b.id,
@@ -104,7 +127,7 @@ function stairFor(b: Building, terrain: LayoutTerrain): Stair | null {
     y0: b.y - rise,
     rise,
     run,
-    width: shape.enterable ? 2.6 : 1.6,
+    width: stairWidth(b.kind),
   };
 }
 
@@ -151,9 +174,15 @@ export class SettlementMap {
   private readonly grid = new Map<string, Building[]>();
   private readonly cell = 64;
 
+  /** Tüm yapıların görsel ayak izleri (taşma payı ve merdiven dahil): yerleşimler arası çakışma, sokak eleme. */
+  readonly footprints = new FootprintRegistry();
+
   constructor(
     data: SettlementsData,
-    terrain: LayoutTerrain,
+    terrain: LayoutTerrain & {
+      /** Varsa akarsuya paralel yollar sudan ayrılır (`roadRouting.ts`). */
+      nearestWater?: NearestWater;
+    },
     seed: number = SETTLEMENT_LAYOUT.seed,
   ) {
     // Il/ilçe merkezlerinin içinde il-ilçe ve köy yolları çizilmez: kentin içi kendi sokak ızgarasıdır.
@@ -163,7 +192,12 @@ export class SettlementMap {
         ...settlementCenter(s),
         r: footprintRadius(s) * SETTLEMENT_LAYOUT.innerRoadCut,
       }));
-    const roads = cutRoads(data.roads, cuts);
+    // Yollar: kafes basamakları yumuşatılır, akarsuya paralel kesimler sudan ayrılır (`roadRouting.ts`).
+    const smoothed = smoothRoads(data.roads);
+    const routed = terrain.nearestWater
+      ? separateRoadsFromWater(smoothed, terrain.nearestWater)
+      : smoothed;
+    const roads = cutRoads(routed, cuts);
     const layoutRoads = new RoadIndex(roads);
     const streets: RoadData[] = [];
     const landmarksOf = new Map<number, LandmarkData[]>();
@@ -172,10 +206,37 @@ export class SettlementMap {
       list.push(lm);
       landmarksOf.set(lm.settlement, list);
     }
-    for (const s of data.settlements) {
-      const layout = layoutSettlement(s, landmarksOf.get(s.id) ?? [], terrain, layoutRoads, seed);
+    // Il/ilçe merkezlerinin çekirdeği (meydan, cami) yalnızca kendisine aittir: büyütülmüş ayak izi komşu merkeze
+    // taşan yerleşim oraya yapı koymaz (ör. Zonguldak'ın kenar parselleri Kozlu'nun meydanını yutmasın).
+    const cores = data.settlements
+      .filter((s) => s.rank !== 'koy')
+      .map((s) => ({
+        id: s.id,
+        ...settlementCenter(s),
+        r: footprintRadius(s) * SETTLEMENT_LAYOUT.coreReserve,
+      }));
+    // Düzen sırası: ilçe merkezleri, il merkezleri, köyler (aynı rütbede veri sırası). Büyütülmüş il ayak izi komşu
+    // ilçeyi örtebilir (Zonguldak–Kozlu): küçük merkezin meydanı ve camisi önce yer bulur. Kimlikler yerleşim
+    // kimliğinden türediğinden sıra kimlikleri değiştirmez.
+    const order = { ilce: 0, il: 1, koy: 2 } as const;
+    const ordered = [...data.settlements].sort((a, b) => order[a.rank] - order[b.rank]);
+    for (const s of ordered) {
+      const layout = layoutSettlement(
+        s,
+        landmarksOf.get(s.id) ?? [],
+        terrain,
+        layoutRoads,
+        seed,
+        undefined,
+        this.footprints,
+        cores.filter((c) => c.id !== s.id),
+      );
       this.settlements.push({ data: s, buildings: layout.buildings, radius: layout.radius });
-      for (const xz of layout.streets) streets.push({ cls: 1, xz });
+      for (const xz of layout.streets) {
+        const street: RoadData = { cls: 1, xz };
+        streets.push(street);
+        layoutRoads.add(street); // sonraki yerleşimlerin yapıları bu sokağa binmesin
+      }
       for (const b of layout.buildings) {
         this.buildings.push(b);
         this.byId.set(b.id, b);
@@ -235,11 +296,15 @@ export class SettlementMap {
   }
 
   /**
-   * Nesne (ağaç, kaya, bitki) burada çizilmesin mi? Yapı ayak izinde ya da yol üstünde olan nesne gizlenir
-   * (kimlikler değişmez; yalnızca görünmez ve toplanamaz olur).
+   * `radius` yarıçaplı nesne (ağaç tacı, kaya, bitki) burada çizilmesin mi? Yapının görsel ayak izine (saçak,
+   * merdiven dahil) ya da yola (banket dahil) değen nesne gizlenir (kimlikler değişmez; yalnızca görünmez ve
+   * toplanamaz olur).
    */
-  blocksProp(x: number, z: number): boolean {
-    return this.buildingAt(x, z, 0.8) !== null || this.roads.onRoad(x, z, 0.4);
+  blocksProp(x: number, z: number, radius = 0.8): boolean {
+    return (
+      this.footprints.contains(x, z, radius) ||
+      this.roads.onRoad(x, z, radius + TERRAIN_OVERLAY.shoulderWidth)
+    );
   }
 
   /** (x, y, z) girilebilir bir yapının (cami, han) içinde mi? */
