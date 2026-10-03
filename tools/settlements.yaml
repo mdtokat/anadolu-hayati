@@ -4,7 +4,7 @@
 worlds:
   bati-karadeniz:
     # Yerleşim çizilen iller (provinces.geojson `inRegion=true` illerinin tamamı). Komşu illere yerleşim konmaz.
-    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı]
+    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı, Sinop, Sakarya]
     # Köylerin ne kadarı çizilir (Overture `locality/village`): Batı Karadeniz köyleri dağınıktır; hepsi çizilirse
     # harita evle dolar. Seçim köy kimliğinin karmasıyla deterministiktir.
     village_fraction: 0.2
@@ -33,6 +33,8 @@ worlds:
       Tosya: osmanli
       İnebolu: osmanli
       Çankırı: osmanli
+      Sinop: osmanli
+      Boyabat: osmanli
     # Elle seçilmiş simge yapılar. Konumlar Overture Places kayıtlarından alınmıştır (yaklaşık; oyunda en yakın boş
     # parsele oturur). `kind`: src/settlements/kinds.ts `LANDMARK_KINDS`. Yalnızca konumundan emin olunanlar listelenir.
     landmarks:
@@ -213,3 +215,14 @@ worlds:
           lat: 40.602478,
         }
       - { settlement: Çankırı, kind: castle, name: Çankırı Kalesi, lon: 33.615887, lat: 40.607444 }
+      # Sinop (Sinop–Sakarya genişlemesi)
+      - { settlement: Sinop, kind: mosque_grand, name: Alaattin Camii, lon: 35.148337, lat: 42.026443 }
+      - { settlement: Sinop, kind: castle, name: Sinop Tarihi Cezaevi, lon: 35.143289, lat: 42.025164 }
+      - { settlement: Sinop, kind: clock_tower, name: Sinop Saat Kulesi, lon: 35.153558, lat: 42.02378 }
+      - { settlement: Sinop, kind: tomb, name: Gazi Çelebi Türbesi, lon: 35.148295, lat: 42.026987 }
+      - { settlement: Boyabat, kind: castle, name: Boyabat Kalesi, lon: 34.768416, lat: 41.46779 }
+      - { settlement: Boyabat, kind: clock_tower, name: Boyabat Saat Kulesi, lon: 34.77283, lat: 41.468089 }
+      # Sakarya (Adapazarı, Geyve, Hendek)
+      - { settlement: Adapazarı, kind: mosque_grand, name: Mithatpaşa Ulu Camii, lon: 30.389343, lat: 40.764041 }
+      - { settlement: Geyve, kind: mosque, name: Sinanbey Camii, lon: 30.29032, lat: 40.507775 }
+      - { settlement: Hendek, kind: tomb, name: Sarıdede Türbesi, lon: 30.756592, lat: 40.796971 }
