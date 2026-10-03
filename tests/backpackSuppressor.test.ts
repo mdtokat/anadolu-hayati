@@ -117,7 +117,7 @@ describe('susturucu', () => {
   });
 
   it('v6 kaydı v7e göç eder (susturucu yok)', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(7);
+    expect(SAVE_FORMAT_VERSION).toBe(8);
     const raw = migrateSave({ version: 6, weapons: { loaded: { pistol: 2 } } }) as {
       weapons: { suppressed: unknown };
     };

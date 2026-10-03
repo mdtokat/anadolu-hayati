@@ -2948,3 +2948,103 @@ export const DRONE = {
   /** Pervane dönüş hızı (rad/sn; çizim). */
   rotorSpeed: 60,
 } as const;
+
+/**
+ * Alışveriş ve para (Faz 11 sonrası, kullanıcı talimatı: "şehirlerde satıcılar, eşyalar satılabilir, bazıları
+ * alınabilir"): para birimi Türk lirası (₺, tam sayı). Eşya değerleri `economy/prices.ts` `ITEM_VALUES` tablosundadır;
+ * satıcı eşyayı değerinden satar, geri alırken uzmanlık alanındaki eşyaya `sellRatio`, diğerlerine `offSellRatio`
+ * öder. Hiçbir tarif, girdilerinin hepsi satıcılardan alınabiliyorsa satışta kâr getirmez (`tests/economy` denetler).
+ */
+export const ECONOMY = {
+  /** Yeni oyunun (ve v7'den göçen kaydın) cüzdanı (₺). */
+  startMoney: 300,
+  /** Satıcının uzmanlık alanındaki eşyayı geri alma oranı ve diğer eşyalar için oran (değerin kesri). */
+  sellRatio: 0.5,
+  offSellRatio: 0.3,
+  /** Bir seferde alınabilecek en çok adet (dükkân panelindeki adet kutusu). */
+  maxBatch: 50,
+  /**
+   * Aramada çıkan para (deterministik; kap/yapı kimliğinden): olasılık, en az–en çok tutar (₺, `step`'e yuvarlı).
+   * Dükkân/kahvehane kasası `shopScale` kat, yıkık yapı `ruinedScale` kat.
+   */
+  loot: {
+    containerChance: 0.55,
+    containerMin: 10,
+    containerMax: 90,
+    doorChance: 0.65,
+    doorMin: 20,
+    doorMax: 150,
+    shopScale: 2,
+    ruinedScale: 0.5,
+    step: 5,
+    seed: 0x11a7a,
+  },
+} as const;
+
+/**
+ * Satıcılar (esnaf): il ve ilçe merkezlerinde, merkeze en yakın dükkân/kahvehane/han kapısının önünde durur (yoksa
+ * en yakın girilebilir konutun). Durağandırlar, kayda girmezler (yerleşim düzeninden deterministik türetilir).
+ */
+export const VENDORS = {
+  /** Rütbeye göre satıcı türleri (sıra: merkeze en yakın dükkândan başlayarak). Köylerde satıcı yok. */
+  perRank: {
+    il: ['bakkal', 'nalbur', 'yapi_ustasi', 'av_bayii'],
+    ilce: ['bakkal', 'nalbur', 'yapi_ustasi'],
+  },
+  /** Satıcı yerleştirilecek yapı türleri (öncelikli) ve yedek (girilebilir konut). */
+  shopKinds: ['shop_row', 'kahvehane', 'han'],
+  fallbackKinds: ['house', 'konak', 'lojman', 'apartment'],
+  /** Kapının (ya da merdiven ayağının) önünde duruş uzaklığı ve yana kayma denemeleri (oyun m). */
+  standOut: 1.3,
+  sideSteps: [0, 1.8, -1.8, 3.2, -3.2],
+  /** Oyuncu bu uzaklıktayken satıcı ona döner (oyun m). */
+  faceDistance: 9,
+  /** Bu yarıçap içindeki satıcılar çizilir ve konuşulabilir (oyun m). */
+  drawRadius: 140,
+  /** Ad seçimi tohumu. */
+  seed: 0x5a71c1,
+  /** Satıcı kişi kimlikleri bu tabandan başlar (gezgin insanlarla çakışmasın). */
+  idBase: 1_000_000,
+} as const;
+
+/**
+ * Tapu (yapı satın alma): yerleşim yapıları paraya alınabilir; sahip olunan yapının içine eşya/yapı (sandık, tezgâh,
+ * döşek…) konur, yanına modüler ek yapılır (ilk taban döşemeyle aynı seviyeye oturur), başkasının yapısına bir şey
+ * kurulamaz. Cami, türbe, mezarlık, çeşme, şadırvan, anıt ve hükümet konağı satılık değildir.
+ */
+export const PROPERTY = {
+  /** Temel fiyat (₺; ilçe merkezinde, sağlam yapı). Listede olmayan tür satılık değildir. */
+  prices: {
+    house: 900,
+    konak: 2400,
+    apartment: 600,
+    lojman: 700,
+    serender: 250,
+    shop_row: 1400,
+    kahvehane: 1200,
+    han: 5000,
+    hamam: 4000,
+    clock_tower: 2500,
+    castle: 15000,
+    mine_tower: 3000,
+    factory: 6000,
+  },
+  /** Apartmanda kat başına fiyat (temel fiyat × kat sayısı). */
+  perFloorKinds: ['apartment'],
+  /** Yerleşim rütbesine göre çarpan. */
+  rankScale: { il: 1.25, ilce: 1, koy: 0.6 },
+  /** Yıkık yapı çarpanı. */
+  ruinedScale: 0.35,
+  /** Fiyat bu tutara yuvarlanır (₺). */
+  round: 50,
+  /** Tapu geri satışında ödenen oran. */
+  resaleRatio: 0.5,
+  /** Tapu ipucu: kapı noktasına en çok yatay uzaklık, dikey fark (oyun m) ve bakış konisi (derece). */
+  reach: 2.8,
+  verticalReach: 3,
+  viewConeDeg: 70,
+  /** Sahip olunan yapının ayak izine bu kadar yakın ilk taban, yapının döşemesiyle aynı seviyeye oturur (oyun m). */
+  extensionReach: 3,
+  /** İç mekâna eşya konurken oyuncunun döşemeyle en çok dikey farkı (oyun m). */
+  indoorVerticalReach: 1.5,
+} as const;

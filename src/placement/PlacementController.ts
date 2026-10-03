@@ -3,13 +3,23 @@ import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
 import { isFenceKind, resolveFence } from './fences';
 import { isPieceKind, pieceRotation, resolvePiece } from './pieces';
-import { aimDistanceOf, validatePlacement, type PlaceCheck, type PlaceFailure } from './placeRules';
+import {
+  aimDistanceOf,
+  buildingClash,
+  validatePlacement,
+  type PlaceBuilding,
+  type PlaceCheck,
+  type PlaceFailure,
+} from './placeRules';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
 /** Denetleyicinin dünyaya bakışı (Three.js'siz). */
 export interface PlaceWorld {
   heightAt(x: number, z: number): number;
   nearFreshWater?(x: number, z: number): boolean;
+  /** Tapu kuralları (yerleşimli dünyada; `placeRules.ts` `PlaceContext`). */
+  buildingAt?(x: number, z: number, margin: number): PlaceBuilding | null;
+  ownedFloorNear?(x: number, z: number, reach: number): number | null;
 }
 
 /**
@@ -53,6 +63,9 @@ export interface PlacementDeps {
   /** Test modu: eşya gerekmez ve harcanmaz (yoksa hep false). */
   freeBuild?: () => boolean;
 }
+
+/** Izgara yapılarının yerleşim yapısına çakışma payı (oyun m): taban hücresi (yarım hücre) ve kenar parçaları. */
+const PIECE_CLASH_MARGIN = { floor: 0.9, edge: 0.2 } as const;
 
 /**
  * Yapı yerleştirme (saf mantık, Three.js'siz): bir tür seçilince hayalet oyuncunun önünde belirir ve her
@@ -196,15 +209,19 @@ export class PlacementController {
     const context = {
       heightAt: (x: number, z: number) => this.deps.world.heightAt(x, z),
       nearFreshWater: this.deps.world.nearFreshWater?.bind(this.deps.world),
+      buildingAt: this.deps.world.buildingAt?.bind(this.deps.world),
+      ownedFloorNear: this.deps.world.ownedFloorNear?.bind(this.deps.world),
       structures: this.deps.structures,
     };
+    // Izgaraya oturan yapılar yerleşim yapısının içine/duvarına kurulmaz (tabanın hücresi yarım hücre payıyla).
     if (isPieceKind(kind)) {
       const { target, check } = resolvePiece(kind, pose, this.flip, context);
-      return { ...target, check };
+      const margin = kind === 'foundation' ? PIECE_CLASH_MARGIN.floor : PIECE_CLASH_MARGIN.edge;
+      return { ...target, check: buildingClash(check, target, margin, context) };
     }
     if (isFenceKind(kind)) {
       const { target, check } = resolveFence(kind, pose, this.flip, context);
-      return { ...target, check };
+      return { ...target, check: buildingClash(check, target, PIECE_CLASH_MARGIN.edge, context) };
     }
     const distance = aimDistanceOf(kind);
     const x = pose.x - Math.sin(pose.yaw) * distance;

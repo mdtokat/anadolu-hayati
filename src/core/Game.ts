@@ -18,6 +18,7 @@ import {
   CLOCK,
   DISMANTLE,
   DRYING,
+  ECONOMY,
   EQUIPMENT,
   HINTS,
   INPUT,
@@ -34,6 +35,7 @@ import {
   SURVIVAL,
   SURVIVAL_HUD,
   TELEPORTS,
+  VENDORS,
   VERTICAL_SCALE,
   WORLD,
 } from '../config';
@@ -42,6 +44,24 @@ import { defenseFor } from '../combat/damage';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CookingSystem } from '../combat/cooking';
 import { BuildingSearch, searchPrompt, searchTarget, searchedToast } from '../settlements/search';
+import { Wallet, formatMoney } from '../economy/wallet';
+import {
+  Property,
+  homeSpawnPoint,
+  propertyName,
+  propertyPrice,
+  propertyTarget,
+  resalePrice,
+  roomContains,
+  type SettlementRank,
+} from '../economy/property';
+import { buyItem, sellSlot, shopFailureText, type ShopDeps } from '../economy/shop';
+import { placeVendors, vendorFacing, type Vendor } from '../economy/vendors';
+import { buyPrice } from '../economy/prices';
+import { ShopPanel } from '../ui/ShopPanel';
+import type { PlaceBuilding } from '../placement/placeRules';
+import type { Building } from '../settlements/layout';
+import { worldToBuildingLocal } from '../settlements/SettlementMap';
 import { PrayerTracker, prayerPrompt, prayerWindow } from '../survival/prayer';
 import { PeopleSystem, personInView, type Person, type PeopleWorld } from '../people/PeopleSystem';
 import { GREETINGS, ROLES } from '../people/roles';
@@ -355,8 +375,12 @@ export class Game {
     this.inventory,
     this.structureSystem.structures,
   );
-  /** Terk edilmiş yapıları arama (Faz 10). */
-  readonly search = new BuildingSearch(this.events, this.inventory);
+  /** Cüzdan (alışveriş; kayıtta `economy.money`). */
+  readonly wallet = new Wallet(ECONOMY.startMoney);
+  /** Tapusu alınan yerleşim yapıları (kayıtta `economy.owned`). */
+  readonly property = new Property();
+  /** Terk edilmiş yapıları arama (Faz 10); bulunan para cüzdana eklenir. */
+  readonly search = new BuildingSearch(this.events, this.inventory, this.wallet);
   /** Camide vakit namazı: sağlık kazancı, vakit başına bir kez (kayıtta `settlements.lastPrayer`). */
   readonly prayer = new PrayerTracker(
     (amount) => this.survival.consume({ health: amount }),
@@ -395,6 +419,25 @@ export class Game {
   private talkingTo: Person | null = null;
   /** Bu adımda bakılan, konuşulabilecek kişi. */
   private personTarget: Person | null = null;
+  /** Satıcılar (il/ilçe dükkânları; ilk sorguda yerleşim düzeninden türetilir, kayda girmez). */
+  private vendors: Vendor[] | null = null;
+  /** Satıcıların kişi görüntüleri (çizim ve `E` hedefi; kimlik → kişi). */
+  private readonly vendorPeople = new Map<number, Person>();
+  /** Oyuncuya yakın satıcılar (her adım güncellenir). */
+  private nearbyVendors: Person[] = [];
+  /** Dükkân paneli ve açık dükkânın satıcısı. */
+  private readonly shopPanel: ShopPanel;
+  private shopVendor: Vendor | null = null;
+  /** Bakılan, tapusu alınabilecek (ya da sahip olunan) yapı ve fiyat önbelleği. */
+  private propertyFocus: Building | null = null;
+  private propertyInfo: {
+    id: number;
+    price: number | null;
+    town: string | null;
+    rank: SettlementRank;
+  } | null = null;
+  /** Açık tapu konuşmasının yapısı (konuşma paneli). */
+  private propertyDialogId: number | null = null;
 
   private readonly renderer: WebGLRenderer;
   private readonly world: GameWorld;
@@ -518,6 +561,9 @@ export class Game {
         nearFreshWater: world.freshWaterNear
           ? (x, z) => world.freshWaterNear?.(x, z) != null
           : undefined,
+        // Tapu: başkasının yapısına kurulmaz; sahip olunanın odasına ve yanına (ek) kurulur.
+        buildingAt: (x, z, margin) => this.placeBuildingAt(x, z, margin),
+        ownedFloorNear: (x, z, reach) => this.ownedFloorNear(x, z, reach),
       },
       isAlive: () => this.survival.alive,
       freeBuild: () => this.testMode,
@@ -567,6 +613,7 @@ export class Game {
       onAssignHotbar: (slot, item) => this.assignHotbar(slot, item),
       suppressorState: (item) => this.suppressorState(item),
       onToggleSuppressor: (item) => this.toggleSuppressor(item),
+      getMoney: () => this.wallet.money,
     });
     this.dialogPanel = new DialogPanel(container, () => this.closeDialog());
     this.storagePanel = new StoragePanel(container, this.inventory, {
@@ -575,6 +622,11 @@ export class Game {
       onStoreAll: () => this.moveAllStorage('store'),
       onTakeAll: () => this.moveAllStorage('take'),
       onClose: () => this.closeStorage(),
+    });
+    this.shopPanel = new ShopPanel(container, () => this.shopDeps(), {
+      onBuy: (id, count) => this.buyFromVendor(id, count),
+      onSell: (slot, count) => this.sellToVendor(slot, count),
+      onClose: () => this.closeShop(),
     });
     this.deathScreen = new DeathScreen(container, () => this.respawnPlayer());
 
@@ -669,12 +721,16 @@ export class Game {
       this.events.on('player:prayed', ({ prayer, health }) =>
         this.hud.notify(`${prayer} namazı kılındı · Sağlık +${health}`, INTERACT.toastMs),
       ),
-      this.events.on('building:searched', ({ items }) =>
+      this.events.on('building:searched', ({ items, money }) =>
         this.hud.notify(
-          searchedToast(items, (id) => ITEMS[id].name),
+          searchedToast(items, (id) => ITEMS[id].name, money ?? 0),
           INTERACT.toastMs,
         ),
       ),
+      this.events.on('property:bought', ({ building }) => {
+        const b = this.world.settlementMap?.building(building) ?? null;
+        if (b) this.hud.notify(`Tapu senin: ${propertyName(b, this.townOf(b))}`, INTERACT.toastMs);
+      }),
       this.events.on('time:nightStarted', () =>
         this.hud.notify('Gece bastı: hava soğuyor, yırtıcılar avda', INTERACT.dayNightToastMs),
       ),
@@ -763,7 +819,9 @@ export class Game {
       this.giveDev(FAZ11_DEV_WEAPONS);
     }
     if (event.code === 'KeyY') this.giveDev(FAZ11_DEV_FARMING);
-    if (event.code === 'KeyM') this.giveDev(FAZ11_DEV_DRONE);
+    if (event.code === 'KeyM' && !event.shiftKey) this.giveDev(FAZ11_DEV_DRONE);
+    // Shift+M: cüzdana 1000 ₺ (alışveriş/tapu denemesi).
+    if (event.code === 'KeyM' && event.shiftKey) this.wallet.add(1000);
     // L: Faz 10 eşyaları (kiler erzakı, bakır tencere); N: önüne bir yolcu çıkar (konuşma/takas denemesi).
     if (event.code === 'KeyL') {
       for (const id of ['bulgur', 'tarhana', 'black_tea', 'copper_pot', 'pekmez'] as const) {
@@ -858,6 +916,7 @@ export class Game {
     this.dismantler.reset();
     this.closeStorage(false);
     this.closeDialog(false);
+    this.closeShop(false);
     this.people.clear();
     this.deathScreen.hide();
     this.hud.setPrompt(null);
@@ -967,6 +1026,13 @@ export class Game {
       prayer: this.prayer,
       // Faz 11 (v5): C `farm`, E `bandits`, F `drone` bölümlerini kendi setup'larında bağlar (`saveSections`).
       weapons: this.weapons,
+      economy: {
+        toSave: () => ({ money: this.wallet.money, owned: this.property.toSave() }),
+        loadSave: ({ money, owned }) => {
+          this.wallet.loadSave(money);
+          this.property.loadSave(owned);
+        },
+      },
       ...this.saveSections,
     };
   }
@@ -996,6 +1062,7 @@ export class Game {
     this.creatureLayer.dispose();
     this.peopleLayer.dispose();
     this.dialogPanel.dispose();
+    this.shopPanel.dispose();
     this.combat.dispose();
     this.creatures.dispose();
     this.world.dispose();
@@ -1109,16 +1176,20 @@ export class Game {
     if (peopleWorld) {
       this.people.update(step, { x: feet.x, z: feet.z, alive: this.survival.alive }, peopleWorld);
     }
+    // Satıcılar (dükkân önündeki esnaf): yakındakiler oyuncuya döner; `E` ile dükkân paneli açılır.
+    this.nearbyVendors = this.updateVendors(feet);
     this.personTarget =
       interaction.taker === null && this.survival.alive
-        ? personInView(this.people.list(), pose)
+        ? personInView([...this.people.list(), ...this.nearbyVendors], pose)
         : null;
 
     // Sandık (Faz 9): `E`'yi başka eylem almadıysa bakılan sandık açılır (basış anında; basılı tutma değil).
     const structures = this.structureSystem.structures;
     const interactPressed = this.input.consumeInteractPress();
     if (this.personTarget && interactPressed) {
-      this.openDialog(this.personTarget);
+      const vendor = this.vendorOf(this.personTarget);
+      if (vendor) this.openShop(vendor);
+      else this.openDialog(this.personTarget);
       return;
     }
     this.storageTarget =
@@ -1153,13 +1224,33 @@ export class Game {
           })
         : null;
     if (this.doorTarget && interactPressed) this.toggleDoor(this.doorTarget.id);
+    // Tapu: kapısına bakılan satılık (ya da sahip olunan) yerleşim yapısı; `E` basışında tapu konuşması açılır.
+    this.propertyFocus =
+      settlements &&
+      interaction.taker === null &&
+      this.personTarget === null &&
+      this.storageTarget === null &&
+      this.rackTarget === null &&
+      this.doorTarget === null &&
+      this.survival.alive
+        ? propertyTarget(
+            settlements.buildingsNear(feet.x, feet.z, SEARCH.queryRadius),
+            { x: feet.x, y: feet.y, z: feet.z, yaw: this.playerCamera.yaw },
+            (id) => this.property.isOwned(id),
+          )
+        : null;
+    if (this.propertyFocus && interactPressed) {
+      this.openPropertyDialog(this.propertyFocus);
+      return;
+    }
     // Faz 11: `E` sırasının sonu (kapıdan sonra, sudan önce): E teslim olan eşkıya, üst arama, kamp sandığı.
     const banditTook = this.interactBandits(
       interaction.taker === null &&
         this.personTarget === null &&
         this.storageTarget === null &&
         this.rackTarget === null &&
-        this.doorTarget === null,
+        this.doorTarget === null &&
+        this.propertyFocus === null,
       interactPressed,
       held,
       step,
@@ -1169,6 +1260,7 @@ export class Game {
       this.storageTarget === null &&
       this.rackTarget === null &&
       this.doorTarget === null &&
+      this.propertyFocus === null &&
       !banditTook;
     // Sökme (Faz 9): bakılan yapıya `X` basılı (yerleştirme hayaleti açıkken yok).
     this.dismantleTarget = this.placement.aiming
@@ -1287,7 +1379,9 @@ export class Game {
       this.inventoryOpen ||
       this.storageOpenId !== null ||
       this.talkingTo !== null ||
-      this.banditDialogId !== null
+      this.banditDialogId !== null ||
+      this.propertyDialogId !== null ||
+      this.shopVendor !== null
     );
   }
 
@@ -1400,10 +1494,12 @@ export class Game {
 
   /** Konuşma panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
   private closeDialog(resume = true): void {
-    if (this.talkingTo === null && this.banditDialogId === null) return;
+    if (this.talkingTo === null && this.banditDialogId === null && this.propertyDialogId === null)
+      return;
     if (this.talkingTo) this.talkingTo.talking = false;
     this.talkingTo = null;
     this.banditDialogId = null; // Faz 11 (E): teslim olan eşkıyayla konuşma
+    this.propertyDialogId = null; // tapu konuşması
     this.dialogPanel.hide();
     if (resume) this.resumeAfterOverlay();
   }
@@ -1417,6 +1513,236 @@ export class Game {
     this.placement.cancel();
     this.storagePanel.show(chest, ITEMS[structure.kind].name);
     this.input.exitLock();
+  }
+
+  // ── Alışveriş ve tapu ──
+
+  /** Satıcıları (bir kez) yerleştirir; oyuncuya `VENDORS.drawRadius` içindekilerin kişi görüntülerini döner. */
+  private updateVendors(feet: { x: number; z: number }): Person[] {
+    const map = this.world.settlementMap ?? null;
+    const terrain = this.world instanceof RegionWorld ? this.world.peopleWorld : null;
+    if (!map || !terrain) return [];
+    this.vendors ??= placeVendors(map, terrain);
+    const out: Person[] = [];
+    for (const v of this.vendors) {
+      if (Math.hypot(v.x - feet.x, v.z - feet.z) > VENDORS.drawRadius) continue;
+      let person = this.vendorPeople.get(v.id);
+      if (!person) {
+        person = {
+          id: v.id,
+          role: 'esnaf',
+          name: v.name,
+          x: v.x,
+          y: v.y,
+          z: v.z,
+          yaw: v.yaw,
+          state: 'attend',
+          greeted: true,
+          talking: false,
+          gifted: false,
+          stride: 0,
+          moving: false,
+          age: 0,
+          target: null,
+        };
+        this.vendorPeople.set(v.id, person);
+      }
+      person.yaw = vendorFacing(v, feet);
+      out.push(person);
+    }
+    return out;
+  }
+
+  /** Kişi bir satıcıysa onun kaydı. */
+  private vendorOf(person: Person): Vendor | null {
+    if (person.id < VENDORS.idBase || !this.vendors) return null;
+    return this.vendors[person.id - VENDORS.idBase] ?? null;
+  }
+
+  private shopDeps(): ShopDeps {
+    return { inventory: this.inventory, wallet: this.wallet, free: this.testMode };
+  }
+
+  /** Dükkân panelini açar: oyun donar, fare serbest kalır. */
+  private openShop(vendor: Vendor): void {
+    if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
+    this.shopVendor = vendor; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
+    this.placement.cancel();
+    this.shopPanel.show(vendor);
+    this.input.exitLock();
+  }
+
+  /** Dükkân panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
+  private closeShop(resume = true): void {
+    if (this.shopVendor === null) return;
+    this.shopVendor = null;
+    this.shopPanel.hide();
+    if (resume) this.resumeAfterOverlay();
+  }
+
+  private buyFromVendor(id: ItemId, count: number): string {
+    const vendor = this.shopVendor;
+    if (!vendor) return '';
+    const price = this.testMode ? 0 : buyPrice(id) * count;
+    const result = buyItem(vendor.kind, id, count, this.shopDeps());
+    if (result !== 'ok') return shopFailureText(result);
+    // Alet ve yapılar üretimdeki gibi ilk boş kısayola bağlanır.
+    this.hotbar.autoAssign(id);
+    this.events.emit('shop:bought', { vendor: vendor.id, id, count, price });
+    this.inventoryPanel.refresh();
+    return `Hayırlı olsun: ${count} × ${ITEMS[id].name} (−${formatMoney(price)})`;
+  }
+
+  private sellToVendor(slot: number, count: number): string {
+    const vendor = this.shopVendor;
+    if (!vendor) return '';
+    const sold = sellSlot(vendor.kind, slot, count, this.shopDeps());
+    if (sold.result !== 'ok' || sold.id === null) return shopFailureText(sold.result as 'empty');
+    this.events.emit('shop:sold', { vendor: vendor.id, id: sold.id, count, price: sold.earned });
+    this.inventoryPanel.refresh();
+    return `Satıldı: ${count} × ${ITEMS[sold.id].name} (+${formatMoney(sold.earned)})`;
+  }
+
+  /** Yapının bulunduğu yerleşimin adı (yoksa null). */
+  private townOf(b: Building): string | null {
+    return (
+      this.world.settlementMap?.settlements.find((s) => s.data.id === b.settlement)?.data.name ??
+      null
+    );
+  }
+
+  /** Bakılan yapının fiyat bilgisi (yapı değişince yeniden hesaplanır). */
+  private propertyInfoOf(b: Building): NonNullable<Game['propertyInfo']> {
+    if (this.propertyInfo?.id === b.id) return this.propertyInfo;
+    const view = this.world.settlementMap?.settlements.find((s) => s.data.id === b.settlement);
+    const rank: SettlementRank = view?.data.rank ?? 'koy';
+    this.propertyInfo = {
+      id: b.id,
+      price: propertyPrice(b, rank),
+      town: view?.data.name ?? null,
+      rank,
+    };
+    return this.propertyInfo;
+  }
+
+  /** "E: Tapu — Ev (Devrek) · 900 ₺" / "E: Tapu — Ev (Devrek) · senin". */
+  private propertyPrompt(b: Building): string {
+    const info = this.propertyInfoOf(b);
+    const name = propertyName(b, info.town);
+    if (this.property.isOwned(b.id)) return `E: Tapu — ${name} · senin`;
+    return `E: Tapu — ${name} · ${info.price === null ? 'satılık değil' : formatMoney(info.price)}`;
+  }
+
+  /** Tapu konuşması: satın al ya da (sahipse) geri sat (iki adımlı onay). */
+  private openPropertyDialog(b: Building): void {
+    if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
+    const info = this.propertyInfoOf(b);
+    const price = info.price;
+    if (price === null && !this.property.isOwned(b.id)) return;
+    this.propertyDialogId = b.id; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
+    this.placement.cancel();
+    const name = propertyName(b, info.town);
+    let confirmSell = false;
+    const options = (): DialogOption[] => {
+      if (!this.property.isOwned(b.id)) {
+        const free = this.testMode;
+        return [
+          {
+            label: `Tapuyu al (${free ? 'test modu: ücretsiz' : formatMoney(price ?? 0)})`,
+            kind: 'trade',
+            disabled: !free && !this.wallet.canAfford(price ?? 0),
+            select: () => {
+              const result = this.property.buy(b, info.rank, this.wallet, free);
+              if (result === 'money')
+                return `Paran yetmiyor: cüzdanında ${formatMoney(this.wallet.money)} var.`;
+              if (result !== 'ok') return 'Bu yapı satılık değil.';
+              this.events.emit('property:bought', {
+                building: b.id,
+                kind: b.kind,
+                price: free ? 0 : (price ?? 0),
+              });
+              return 'Hayırlı olsun! Tapu artık senin. İçine sandık, tezgâh, döşek koyabilir; yanına ek yapabilirsin.';
+            },
+          },
+          { label: 'Vazgeç', kind: 'farewell', closes: true, select: () => null },
+        ];
+      }
+      const resale = resalePrice(price ?? 0);
+      return [
+        {
+          label: confirmSell
+            ? `Evet, tapuyu sat (+${formatMoney(resale)})`
+            : `Tapuyu geri sat (+${formatMoney(resale)})`,
+          kind: 'trade',
+          select: () => {
+            if (!confirmSell) {
+              confirmSell = true;
+              return 'Emin misin? İçine kurduğun yapılar yerinde kalır ama artık oraya bir şey kuramazsın.';
+            }
+            confirmSell = false;
+            if (this.property.sell(b, info.rank, this.wallet) !== 'ok') return null;
+            this.events.emit('property:sold', { building: b.id, kind: b.kind, price: resale });
+            return `Tapu satıldı: +${formatMoney(resale)}.`;
+          },
+        },
+        { label: 'Kapat', kind: 'farewell', closes: true, select: () => null },
+      ];
+    };
+    const owned = this.property.isOwned(b.id);
+    this.dialogPanel.show({
+      title: `Tapu: ${name}`,
+      subtitle: owned
+        ? 'Bu yapı senin. Rakam tuşlarıyla da seçebilirsin.'
+        : 'Satılık. Rakam tuşlarıyla da seçebilirsin.',
+      opening: owned
+        ? 'Bu yapının tapusu sende. İçine eşya kurabilir, yanına ek yapabilirsin.'
+        : `Bu yapı satılık: fiyatı ${formatMoney(price ?? 0)}. Cüzdanında ${formatMoney(this.wallet.money)} var.`,
+      options,
+    });
+    this.input.exitLock();
+  }
+
+  /** Yerleştirme kuralı için (x, z)'deki yerleşim yapısı ve sahiplik. */
+  private placeBuildingAt(x: number, z: number, margin: number): PlaceBuilding | null {
+    const b = this.world.settlementMap?.buildingAt(x, z, margin) ?? null;
+    if (!b) return null;
+    return {
+      owned: this.property.isOwned(b.id),
+      floorY: b.y,
+      insideRoom: (px, pz, m) => roomContains(b, px, pz, m),
+    };
+  }
+
+  /** (x, z)'ye `reach` yakın sahip olunan yapının döşeme yüksekliği (ek yapının ilk tabanı için). */
+  private ownedFloorNear(x: number, z: number, reach: number): number | null {
+    const map = this.world.settlementMap;
+    if (!map) return null;
+    for (const id of this.property.list()) {
+      const b = map.building(id);
+      if (!b) continue;
+      const shape = BUILDING_SHAPES[b.kind];
+      const local = worldToBuildingLocal(b, x, z);
+      if (
+        Math.abs(local.x) <= shape.width / 2 + reach &&
+        Math.abs(local.z) <= shape.depth / 2 + reach
+      ) {
+        return b.y;
+      }
+    }
+    return null;
+  }
+
+  /** Evde doğma noktası: en son tapusu alınan girilebilir yapının içi (yoksa null). */
+  private homePoint(): { x: number; y: number; z: number } | null {
+    const map = this.world.settlementMap;
+    if (!map) return null;
+    const owned = this.property.list();
+    for (let i = owned.length - 1; i >= 0; i--) {
+      const b = map.building(owned[i] as number);
+      const point = b ? homeSpawnPoint(b) : null;
+      if (point) return point;
+    }
+    return null;
   }
 
   /** Sandık panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
@@ -1683,7 +2009,10 @@ export class Game {
   private respawnPlayer(): void {
     if (this.survival.alive) return;
     this.survival.respawn();
-    const point = this.world.respawnPoint?.(this.survival.deathCount) ?? null;
+    // Tapusu alınmış girilebilir bir yapı varsa (en son alınan) orada uyanılır.
+    const home = this.homePoint();
+    if (home) this.hud.notify('Evinde uyandın', INTERACT.toastMs);
+    const point = home ?? this.world.respawnPoint?.(this.survival.deathCount) ?? null;
     if (point) {
       this.world.prepare(point.x, point.z);
       this.player.teleport(point);
@@ -1716,7 +2045,7 @@ export class Game {
     this.structureLayer.setGhost(this.survival.alive ? this.placement.ghost : null);
     this.updateTorch(now / 1000, feet);
     this.creatureLayer.update(this.visibleCreatures(feet), now / 1000);
-    this.peopleLayer.sync(this.people.list());
+    this.peopleLayer.sync([...this.people.list(), ...this.nearbyVendors]);
     // Faz 11 akışlarının çizim katmanları (her akış yalnızca kendi yönteminin gövdesini yazar).
     this.drawStations(now / 1000, feet);
     this.drawFarming(now / 1000, feet);
@@ -1970,7 +2299,9 @@ export class Game {
     const person = alive ? this.personTarget : null;
     if (person) {
       this.hud.setProgress(null);
-      this.hud.setPrompt(`E: ${person.name} ile konuş`);
+      this.hud.setPrompt(
+        this.vendorOf(person) ? `E: ${person.name} · alışveriş` : `E: ${person.name} ile konuş`,
+      );
       return;
     }
     const storage = alive ? this.storageTarget : null;
@@ -1996,6 +2327,12 @@ export class Game {
     if (door) {
       this.hud.setProgress(null);
       this.hud.setPrompt(doorPrompt(door.open === true, door.kind));
+      return;
+    }
+    const estate = alive ? this.propertyFocus : null;
+    if (estate) {
+      this.hud.setProgress(null);
+      this.hud.setPrompt(this.propertyPrompt(estate));
       return;
     }
     // Faz 11 (E): eşkıya etkileşimi (teslim, üst arama, kamp sandığı).

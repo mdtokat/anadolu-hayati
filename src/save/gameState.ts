@@ -8,10 +8,12 @@ import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import {
   SAVE_FORMAT_VERSION,
   SaveError,
+  emptyEconomySave,
   emptyFaz11Save,
   parseSave,
   type BanditsSave,
   type DroneSave,
+  type EconomySave,
   type FarmSave,
   type PlayerSave,
   type SaveGame,
@@ -54,6 +56,8 @@ export interface SaveTargets {
   bandits?: SaveSection<BanditsSave>;
   /** F: drone. */
   drone?: SaveSection<DroneSave>;
+  /** v8: para ve tapular; bağlı değilse kayda başlangıç değeri yazılır. */
+  economy?: SaveSection<EconomySave>;
 }
 
 /** Canlı oyun durumunun kayıt görüntüsünü alır. Ölüyken çağrılmamalıdır (ölüm durumu kayda girmez). */
@@ -75,6 +79,7 @@ export function captureSave(targets: SaveTargets, now: Date = new Date()): SaveG
       lastPrayer: targets.prayer?.toSave() ?? -1,
     },
     ...faz11Sections(targets),
+    economy: targets.economy?.toSave() ?? emptyEconomySave(),
   };
 }
 
@@ -115,6 +120,7 @@ export function applySave(raw: unknown, targets: SaveTargets): SaveGame {
   targets.weapons?.loadSave(save.weapons);
   targets.bandits?.loadSave(save.bandits);
   targets.drone?.loadSave(save.drone);
+  targets.economy?.loadSave(save.economy);
   targets.player.apply(save.player);
   return save;
 }

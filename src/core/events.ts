@@ -79,11 +79,20 @@ export interface GameEvents {
     kind: BuildingKind;
     items: ItemStack[];
     container: ContainerKind | null;
+    /** Bulunan para (₺; cüzdan bağlı değilse 0). */
+    money?: number;
   };
   /** Faz 10: bir kişi oyuncuya selam verdi. */
   'person:greeted': { id: number; name: string; text: string };
   /** Faz 10: kişiyle takas yapıldı (`give` boşsa hediye). */
   'person:traded': { id: number; give: ItemStack[]; get: ItemStack[] };
+  /** Alışveriş: satıcıdan eşya alındı (`price` toplam ₺). */
+  'shop:bought': { vendor: number; id: ItemId; count: number; price: number };
+  /** Alışveriş: satıcıya eşya satıldı (`price` toplam ₺). */
+  'shop:sold': { vendor: number; id: ItemId; count: number; price: number };
+  /** Tapu: yerleşim yapısı satın alındı ya da geri satıldı (`price` ₺; satışta alınan para). */
+  'property:bought': { building: number; kind: BuildingKind; price: number };
+  'property:sold': { building: number; kind: BuildingKind; price: number };
 
   // ── Faz 11: ortak (11.0) ──
   /**

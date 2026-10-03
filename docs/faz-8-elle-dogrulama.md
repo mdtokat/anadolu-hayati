@@ -284,3 +284,20 @@ Konutlar (ev, konak, apartman zemin katı, maden lojmanı), dükkânlar, kahveha
 - [ ] **Ağaçlar ve yapılar:** yapraklı ağaçların dalları/kök genişlemesi, çam katları, kayalardaki yosun, kamp ateşi odunları/közleri, sundurma sırıkları, tezgâh aletleri, kulübe mahyası güzel görünüyor mu?
 - [ ] **FPS:** kasaba içinde (iç mekân kademesi açıkken) ve ormanda FPS: ___
 - Notlar: ____________________
+
+---
+
+## 18. Alışveriş, satıcılar ve tapu (Faz 11 sonrası)
+
+İl ve ilçe merkezlerinde dükkân kapılarının önünde esnaf (bakkal, nalbur, yapı ustası, av bayii) durur; `E` ile dükkân paneli açılır. Yerleşim yapılarının kapısına bakınca `E` ile tapu alınır; tapulu yapının içine sandık/tezgâh kurulur, yanına ek yapılır. Ayrıntı `CLAUDE.md` "Alışveriş, satıcılar ve tapu" ve ROADMAP "Faz 11 sonrası". Hızlı deneme için geliştirme modunda `Shift` + `M` cüzdana 1000 ₺ ekler.
+
+- [ ] **Satıcıyı bulma:** il/ilçe merkezinde (ör. Devrek, Safranbolu, Bolu) dükkânların önünde önlüklü esnaf görünüyor mu; yaklaşınca size dönüyor, "E: Bakkal … · alışveriş" ipucu çıkıyor mu? Merdivenin, yolun ya da başka yapının içinde duran satıcı var mı? Nerede: ____________________
+- [ ] **Dükkân paneli:** satın al listesi, fiyatlar, adet kutusu, "En çok" ve "Al" çalışıyor mu? Para ya da yer yetmeyince düğme sönük ve nedeni yazıyor mu? Sağda eşyaya tıklayınca satış teklifi (uzmanlık alanında daha iyi fiyat) doğru mu?
+- [ ] **Satış:** av ürünlerini (deri, et) av bayiine/bakkala, aramada bulunan eşyaları satarak para kazanmak makul hızda mı? Hangi eşya fazla ucuz/pahalı: ____________________
+- [ ] **Yapı ustası:** kulübe, sandık, tezgâh, ocak, çit ve modüler parçaların hepsi satılıyor mu? Alınan yapı kısayola bağlanıp kurulabiliyor mu?
+- [ ] **Aramada para:** sandık/dolap ve dükkân kasalarından para çıkıyor mu ("+35 ₺")? Miktar dengeli mi?
+- [ ] **Tapu:** evin kapısına bakınca "E: Tapu — Ev (Devrek) · 900 ₺" çıkıyor mu? Satın alma ve iki adımlı geri satış çalışıyor mu? Cami, türbe, çeşme için tapu ipucu çıkmıyor mu?
+- [ ] **İçine sandık:** tapulu evin içinde sandık/tezgâh/döşek döşemeye oturuyor mu (havada/gömülü değil)? Duvara, dolaba çok yakın kurulamıyor mu? Başkasının evinde "Bu yapı senin değil" diyor mu?
+- [ ] **Ek yapı:** tapulu evin yanına kurulan ilk taban döşemeyle aynı seviyede mi; kapıdan düz geçilebiliyor mu? Parçalar binanın duvarına girmiyor mu?
+- [ ] **Evde uyanma:** tapulu evin varken ölünce evin içinde uyanıyor musunuz? Kayıt/yükleme sonrası para ve tapular korunuyor mu?
+- Notlar: ____________________

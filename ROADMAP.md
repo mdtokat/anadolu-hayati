@@ -379,6 +379,27 @@ Elle doğrulanacak:
 - [ ] Çanta kapasiteleri ve susturucu dengesi
 - [ ] Kastamonu–Çankırı: gerçek GPU'da FPS (draw call sınırda), ilk yükleme süresi, Ilgaz/Çankırı bozkırında oyun hissi ve gece soğuğu
 
+### Alışveriş, satıcılar ve tapu (kullanıcı talimatı)
+_(Kullanıcı talimatı: "oyuna alışveriş sistemi ekle; şehirlerde satıcılar olsun; eşyalar satılabilir, bazı eşyalar alınabilir olsun; parayla ayrıca tüm yapılar alınabilsin; alınan yapıya kullanıcı ek yapabilsin, içine sandık koyabilsin — planı geliştir ve uygula". Branch `ccr-304e2e07-3axm6q`.)_
+
+Geliştirilmiş plan: para tek birimdir (₺, cüzdan; eşya değil, envanterde yer tutmaz); dört esnaf türü il/ilçe dükkânlarının önünde durur; **her eşya** (değeri olan) her esnafa satılabilir, uzmanlık alanındaki eşyaya daha iyi fiyat verilir; esnaf türü başına seçili eşyalar satın alınır; yapı ustası **tüm yerleştirilebilir yapıları** satar; ayrıca yerleşim yapılarının **tapusu** alınır — sahip olunan yapının odasına sandık/tezgâh/döşek kurulur, yanına modüler ek yapılır, başkasının yapısına bir şey kurulamaz; ölünce evde uyanılır; aramada para çıkar; tapu geri satılabilir.
+
+- [x] **Para ve fiyatlar** (`economy/wallet.ts`, `economy/prices.ts`, `ECONOMY`): `ITEM_VALUES` (`Record<ItemId, …>`: yeni eşyaya değer yazılmazsa derleme kırılır); satıcı değerinden satar, geri alırken uzmanlık alanına %50, diğerlerine %30 öder; 1 ₺'lik eşyalar (kabuk, kav, tohum) alınmaz; **kâr döngüsü yok** (girdileri satıcılardan alınabilen hiçbir tarifin çıktısı girdilerinden pahalıya satılmaz — `tests/economy`); hurda/demir satılmaz (silah zinciri aramayla beslenir). Başlangıç parası 300 ₺
+- [x] **Satıcılar** (`economy/vendors.ts`, `VENDORS`; esnaf kişi rolü `esnaf`, önlük + kasket): bakkal (kiler, ekmek, tohum, su kabı, tencere), nalbur (alet, meşale, madenci lambası, battaniye, kütük, kömür, kükürt, elektronik, pil, pervane, küçük/orta çanta), yapı ustası (tarla dışındaki tüm yapılar ve parçalar), av bayii (sapan, yay, ok, kama, pala, av tüfeği, tabanca, fişek/mermi, barut, deri yelek, kürk pelerin). İl merkezinde 4, ilçede 3 satıcı; merkeze en yakın dükkân/kahvehane/han kapısının (merdiven ayağının) önünde, yetmezse konut önünde, yapı da yetmezse aynı kapıda yan yana. Gerçek dünyada **202 satıcı** (yalnız çeşmesi sığan Çatalzeytin'de yok). Deterministik, kayda girmez; 140 m içindekiler çizilir ve yakındaki oyuncuya döner
+- [x] **Dükkân paneli** (`ui/ShopPanel.ts`, `ui/shopView.ts`): satın al listesi (fiyat, adet kutusu, "En çok": para/yer/parti sınırı 50), sat (envanter ızgarası, adet fiyatı, "1 sat"/"Hepsini sat", uzmanlık ibaresi), cüzdan rozeti; işlemler atomik (`economy/shop.ts`), alınan alet/yapı kısayola bağlanır; dolu çanta satılmaz; test modunda alış ücretsiz. Envanter panelinde cüzdan
+- [x] **Tapu** (`economy/property.ts`, `PROPERTY`): kapısına bakılan yapıda `E` → tapu konuşması (satın al / iki adımlı geri satış %50). Fiyat tür × rütbe (il ×1,25, ilçe ×1, köy ×0,6) × apartmanda kat × yıkıkta ×0,35 (ev 900, konak 2 400, kahvehane 1 200, han 5 000, kale 15 000 ₺…); cami, türbe, mezarlık, çeşme, şadırvan, anıt, hükümet konağı satılık değil
+- [x] **Tapulu yapıda inşa** (`placement/placeRules.ts` `PlaceBuilding`, `buildingClash`; `pieces.ts` `groundFoundation`): başkasının yapısının ayak izine hiçbir şey kurulamaz (`not_owned`); sahip olunan yapının odasına (duvar ve sandık/dolaplardan uzak) küçük yapılar **döşeme seviyesinde** kurulur (kulübe/sundurma değil); modüler parçalar ve çitler binanın içine/duvarına kurulmaz, yanına kurulur; yapının 3 m yakınındaki ilk taban, üst yüzü döşemeye denk gelecek seviyeye oturur (zemin toleransı içindeyse) — ek yapıya kapıdan düz geçilir
+- [x] **Evde uyanma:** ölünce en son tapusu alınan girilebilir yapının kapı içinde doğulur (yoksa eskisi gibi il/ilçe merkezi)
+- [x] **Aramada para** (`economy/lootMoney.ts`): kap %55 (10–90 ₺), kapıdan aranan yapı %65 (20–150 ₺), dükkân/kahvehane/han kasası ×2, yıkıkta yarı olasılık; deterministik; bildirimde "+35 ₺"
+- [x] **Kayıt v8** (`economy`: `money`, `owned`; `migrateV7toV8` 300 ₺ ve tapusuz). Olaylar `shop:bought`, `shop:sold`, `property:bought`, `property:sold`; `building:searched.money`. Dev: `Shift` + `M` cüzdana 1000 ₺
+
+Bilinen sınırlar: satıcıların stoğu ve fiyatları sabittir (bitmez, pazarlık yok); satıcılar gece de dükkân önündedir; oda içindeki görsel eşyalar (sini, sedir, kilim) yerleştirmeyi engellemez (yalnız sandık/dolap ve duvarlar); modüler ek 2 m'lik küresel ızgaraya oturur, yapı döndürülmüşse duvarına tam hizalanmaz; tapu geri satılınca içine kurulan oyuncu yapıları yerinde kalır.
+
+Elle doğrulanacak:
+- [ ] Fiyat dengesi: başlangıç parası, satış gelirleri, aramada çıkan para, ev/han fiyatları (bir ev kaç saatlik oyunla alınıyor?)
+- [ ] Satıcıların konumu ve görünümü (kapı önü, merdiven, sokak); dükkân panelinin okunabilirliği
+- [ ] Tapulu evin içine sandık/tezgâh kurma, ek tabanın döşemeyle hizası, başkasının evine kurulamama
+
 ---
 
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)

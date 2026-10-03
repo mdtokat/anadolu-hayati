@@ -80,5 +80,7 @@ export function sampleSave(): SaveGame {
       battery: 0.35,
       marks: [{ x: 120, z: -300, label: 'Eşkıya kampı' }],
     },
+    // v8: para ve tapular.
+    economy: { money: 1725, owned: [12 * 1024 + 4, 3 * 1024] },
   };
 }

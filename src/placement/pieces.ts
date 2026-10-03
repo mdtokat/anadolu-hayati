@@ -1,4 +1,4 @@
-import { PIECES, PIECES_II, PLACEMENT, PLAYER, SCATTER, VERTICAL_SCALE } from '../config';
+import { PIECES, PIECES_II, PLACEMENT, PLAYER, PROPERTY, SCATTER, VERTICAL_SCALE } from '../config';
 import type { PlaceCheck, PlaceContext, PlaceFailure } from './placeRules';
 import type { Structure, StructureKind, StructureSet } from './structures';
 
@@ -576,6 +576,13 @@ function groundFoundation(index: PieceIndex, aim: Aim, ctx: PlaceContext): Candi
 
   const natural = highest - PIECES.floorSink;
   let y = natural;
+  // Tapu: sahip olunan yapının yanındaki ilk taban, üst yüzü yapının döşemesine denk gelecek seviyeye oturur (zemin
+  // toleransı içinde kalıyorsa): ek yapıya kapıdan düz geçilir.
+  const owned = ctx.ownedFloorNear?.(cx, cz, PROPERTY.extensionReach + HALF) ?? null;
+  if (owned !== null) {
+    const level = owned - PIECES.slab;
+    if (highest <= level + PIECES.maxBury && lowest >= level - PIECES.maxDrop) y = level;
+  }
   for (const edge of edgesOfCell(cx, cz)) {
     const neighbor = neighborAcross(cx, cz, edge);
     // Yalnızca aynı kattaki (zemin) komşu: üst kat tabanının yüksekliği alınmaz.

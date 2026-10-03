@@ -2321,3 +2321,92 @@
     background-position: 0 0 !important;
   }
 }
+
+/* ───────────────────── Alışveriş (dükkân paneli, cüzdan) ───────────────────── */
+
+.inv-money {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.inv-money .ui-icon {
+  color: var(--ui-accent);
+  font-size: 17px;
+}
+.inv-stats .inv-money {
+  margin-left: auto;
+}
+.shop-status {
+  margin: 10px 0 14px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--ui-tile);
+  background: var(--ui-surface-2);
+  border-radius: var(--ui-radius);
+  font-size: 13.5px;
+  color: var(--ui-text);
+}
+.shop-free {
+  color: var(--ui-text-muted);
+}
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(58vh, 520px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.shop-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 56px auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--accent, var(--ui-border));
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.shop-row[data-blocked='true'] {
+  opacity: 0.6;
+}
+.shop-row-icon {
+  font-size: 26px;
+}
+.shop-row-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13.5px;
+}
+.shop-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ui-accent);
+  font-variant-numeric: tabular-nums;
+}
+.shop-count {
+  width: 56px;
+  padding: 4px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface-bottom);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 13px;
+}
+.inv-panel button.shop-most,
+.inv-panel button.shop-buy {
+  padding: 5px 10px;
+  font-size: 12.5px;
+}
+.inv-panel button.shop-buy {
+  min-width: 52px;
+}

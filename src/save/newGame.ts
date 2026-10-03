@@ -5,6 +5,7 @@ import type { Vec3 } from '../player/movement';
 import { initialVitals } from '../survival/vitals';
 import {
   SAVE_FORMAT_VERSION,
+  emptyEconomySave,
   emptyFaz11Save,
   emptyHotbarSave,
   emptySettlementsSave,
@@ -41,5 +42,6 @@ export function createNewGameSave(
     hotbar: emptyHotbarSave(),
     settlements: emptySettlementsSave(),
     ...emptyFaz11Save(),
+    economy: emptyEconomySave(),
   };
 }

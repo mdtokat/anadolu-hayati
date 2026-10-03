@@ -99,7 +99,7 @@ describe('kayıt v1 → v2 göçü (yapı)', () => {
   it('fixture gerçekten v1 ve geçerli sürüm 6 (v1 → … → v5 → v6 zinciri)', () => {
     expect(V1.version).toBe(1);
     expect(V1.regionId).toBe(WORLD.legacyRegionId);
-    expect(SAVE_FORMAT_VERSION).toBe(7);
+    expect(SAVE_FORMAT_VERSION).toBe(8);
   });
 
   it('bölge kimliği dünya kimliğine, nesne ve hücre kimlikleri mutlak anahtara çevrilir', () => {
