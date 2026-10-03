@@ -2949,8 +2949,21 @@ export const GANGS = {
   /** Çetelerin sokakta olduğu saatler [başlangıç, bitiş) ve bir yerleşimde bir gün içinde bulunma olasılığı. */
   hours: [9, 22] as readonly [number, number],
   presenceChance: 0.4,
-  /** Çete başına üye sayısı (reis dahil) ve silah dağılımı; reis tabanca, av tüfeği ya da piyade tüfeğiyle gelir. */
-  members: [2, 4] as readonly [number, number],
+  /**
+   * Çete başına üye sayısı (reis dahil): uç değerler ve ağırlıklar (kullanıcı talimatı: çıkan haydut sayısı hep aynı
+   * olmasın; tek-iki kişilik küçük çeteler sık, beş-altı kişilik kalabalık çeteler nadir). Silah dağılımı aşağıda;
+   * reis tabanca, av tüfeği ya da piyade tüfeğiyle gelir.
+   */
+  members: [1, 6] as readonly [number, number],
+  memberWeights: { '1': 2, '2': 3, '3': 3, '4': 2, '5': 1, '6': 1 } as Readonly<
+    Record<string, number>
+  >,
+  /**
+   * Bir yerde aynı anda bulunan çete sayısı ağırlıkları (hep iki çete değil: çoğu zaman bir ya da iki, ara sıra üç).
+   * Çete sayısı gün ve yere göre deterministiktir; en çok `maxGangs`. Tek çete rakipsizdir: oyuncuya tepki verir.
+   */
+  gangCountWeights: { '1': 4, '2': 4, '3': 2 } as Readonly<Record<string, number>>,
+  maxGangs: 3,
   weapons: { pistol: 4, shotgun: 2, pala: 2, club: 2, rifle: 1 },
   leaderWeapons: { pistol: 2, shotgun: 2, rifle: 1 },
   /** Çeteler arası görüş menzili (oyun m) ve göz yüksekliği: rakip bu mesafede görüş hattındaysa çatışma başlar. */

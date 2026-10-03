@@ -4,8 +4,10 @@ import {
   GANG_ID_BASE,
   gangHours,
   gangMemberId,
+  gangFactionsPresent,
   gangPresent,
   gangRoster,
+  gangSpot,
   placeGangSites,
   type GangSite,
   type GangSiteQuery,
@@ -37,6 +39,16 @@ describe('placeGangSites', () => {
     expect(gap).toBeLessThanOrEqual(GANGS.pairDistance[1] + 3);
   });
 
+  it('çoğu merkezde üçüncü çete noktası da bulunur (cadde yeterince uzunsa)', () => {
+    const site = sites[0] as GangSite;
+    expect(site.c).toBeDefined();
+    const gapAC = Math.hypot(site.a.x - site.c!.x, site.a.z - site.c!.z);
+    const gapBC = Math.hypot(site.b.x - site.c!.x, site.b.z - site.c!.z);
+    expect(gapAC).toBeGreaterThanOrEqual(GANGS.pairDistance[0] - 3);
+    expect(gapBC).toBeGreaterThanOrEqual(GANGS.pairDistance[0] - 1e-9);
+    expect(gangSpot(site, 2)).toEqual(site.c);
+  });
+
   it('deterministik: aynı girdi aynı yerleri verir', () => {
     expect(placeGangSites(query())).toEqual(sites);
   });
@@ -63,14 +75,46 @@ describe('gün, saat ve kadro', () => {
     expect(gangHours(3)).toBe(false);
   });
 
+  it('çete sayısı hep iki değil: 1, 2 ve 3 çete de çıkar; seçim deterministik ve noktası olanlarla sınırlı', () => {
+    const counts = new Map<number, number>();
+    for (let d = 0; d < 600; d++) {
+      const present = gangFactionsPresent(site, d);
+      counts.set(present.length, (counts.get(present.length) ?? 0) + 1);
+      expect(present).toEqual(gangFactionsPresent(site, d));
+      expect(new Set(present).size).toBe(present.length);
+      for (const f of present) expect(gangSpot(site, f)).not.toBeNull();
+    }
+    expect([...counts.keys()].sort()).toEqual([1, 2, 3]);
+    // Üçüncü noktası olmayan yerde en çok iki çete.
+    const two: GangSite = { ...site };
+    delete two.c;
+    for (let d = 0; d < 200; d++) {
+      expect(gangFactionsPresent(two, d).length).toBeLessThanOrEqual(2);
+      expect(gangFactionsPresent(two, d)).not.toContain(2);
+    }
+  });
+
+  it('çete başına üye sayısı değişir (1–6) ve sınırlar içinde kalır', () => {
+    const sizes = new Set<number>();
+    for (let d = 0; d < 300; d++) {
+      for (const f of [0, 1, 2] as const) {
+        const n = gangRoster(site, d, f).length;
+        expect(n).toBeGreaterThanOrEqual(GANGS.members[0]);
+        expect(n).toBeLessThanOrEqual(GANGS.members[1]);
+        sizes.add(n);
+      }
+    }
+    expect(sizes.size).toBeGreaterThanOrEqual(5);
+  });
+
   it('kadro: sayı aralıkta, ilk üye reis, silahlar tanımlı ve çeteler farklı', () => {
-    for (const faction of [0, 1] as const) {
+    for (const faction of [0, 1, 2] as const) {
       const roster = gangRoster(site, 5, faction);
       expect(roster.length).toBeGreaterThanOrEqual(GANGS.members[0]);
       expect(roster.length).toBeLessThanOrEqual(GANGS.members[1]);
       expect(roster[0]?.role).toBe('leader');
       expect(roster.slice(1).every((m) => m.role === 'member')).toBe(true);
-      const spot = faction === 0 ? site.a : site.b;
+      const spot = gangSpot(site, faction)!;
       expect(roster[0]?.x).toBe(spot.x);
       for (const m of roster) {
         expect(Math.hypot(m.x - spot.x, m.z - spot.z)).toBeLessThanOrEqual(GANGS.spread + 1e-9);
@@ -82,7 +126,7 @@ describe('gün, saat ve kadro', () => {
   it('üye kimlikleri kamp/serbest eşkıya aralığının dışında ve tekil', () => {
     const ids = new Set<number>();
     for (let site = 0; site < 3; site++) {
-      for (const faction of [0, 1] as const) {
+      for (const faction of [0, 1, 2] as const) {
         for (let i = 0; i < GANGS.members[1]; i++) {
           const id = gangMemberId(site, faction, i);
           expect(id).toBeGreaterThanOrEqual(GANG_ID_BASE);
@@ -90,7 +134,7 @@ describe('gün, saat ve kadro', () => {
         }
       }
     }
-    expect(ids.size).toBe(3 * 2 * GANGS.members[1]);
+    expect(ids.size).toBe(3 * 3 * GANGS.members[1]);
     expect(GANG_ID_BASE).toBeGreaterThan(2 ** 40);
   });
 });

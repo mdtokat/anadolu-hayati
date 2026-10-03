@@ -8,6 +8,7 @@ import {
   SphereGeometry,
 } from 'three';
 import type { BanditRole, BanditWeapon } from '../bandits/kinds';
+import { isGangStyle, type BanditStyle } from '../bandits/styles';
 
 /**
  * Eşkıya ve yankesici modelleri (Faz 11): düşük poligonlu, vertex renkli; `personGeometry` ile aynı iskelet (gövde,
@@ -138,43 +139,174 @@ function weaponParts(weapon: BanditWeapon): Part[] {
   }
 }
 
-/** Sokak çetesi modeli: şehir kıyafeti (deri ceket, kasket/bere); çeteyi ceket rengi ayırır (0 kızıl, 1 lacivert). */
+/** Çete renkleri (0 kızıl, 1 lacivert, 2 yeşil): ceket/atlet rengi ve koyu süs rengi. */
+const GANG_COLORS: ReadonlyArray<{ main: number; trim: number }> = [
+  { main: 0x7a2a26, trim: 0x2a1412 },
+  { main: 0x2c3f63, trim: 0x161e30 },
+  { main: 0x2f5a3a, trim: 0x15281a },
+];
+
+/**
+ * Sokak çetesi modeli: şehir kıyafeti; çeteyi ana renk ayırır (0 kızıl, 1 lacivert, 2 yeşil), çeşidi (`style`) kıyafet
+ * biçimi belirler: deri ceket, kapüşonlu, takım elbise + fötr şapka, atlet + bandana.
+ */
 function buildGangGeometry(
   role: BanditRole,
   weapon: BanditWeapon,
   faction: number,
+  style: BanditStyle,
 ): BanditGeometry {
-  const jacket = faction === 0 ? 0x7a2a26 : 0x2c3f63;
-  const trim = faction === 0 ? 0x2a1412 : 0x161e30;
-  const parts: Part[] = [
-    box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, 0x2b2b2e), // tişört
-    box(0.45, 0.5, 0.26, 0, HIP_Y + 0.06, 0, jacket), // ceket
-    box(0.46, 0.06, 0.27, 0, HIP_Y + 0.02, 0, trim), // ceket eteği
+  const { main, trim } = GANG_COLORS[faction % GANG_COLORS.length]!;
+  const head: Part[] = [
     box(0.1, 0.08, 0.1, 0, SHOULDER_Y, 0, SKIN),
     { geometry: at(new SphereGeometry(0.115, 8, 6), 0, SHOULDER_Y + 0.2, 0), color: SKIN },
   ];
-  if (role === 'leader') {
-    // Reis: fötr şapka.
-    parts.push(box(0.34, 0.04, 0.34, 0, SHOULDER_Y + 0.3, 0, 0x1f1d1b));
-    parts.push(box(0.2, 0.14, 0.2, 0, SHOULDER_Y + 0.33, 0, 0x1f1d1b));
-  } else {
-    // Üyeler: bere.
-    parts.push({
-      geometry: at(new SphereGeometry(0.13, 8, 6), 0, SHOULDER_Y + 0.25, -0.01),
-      color: trim,
-    });
+  let parts: Part[];
+  let sleeves = main;
+  switch (style) {
+    case 'hoodie':
+      parts = [
+        box(0.44, SHOULDER_Y - HIP_Y + 0.02, 0.26, 0, HIP_Y, 0, main), // kapüşonlu gövde
+        box(0.3, 0.1, 0.04, 0, HIP_Y + 0.08, 0.145, trim), // karın cebi
+        // Kapüşon: başın arkasında ve üstünde.
+        {
+          geometry: at(new SphereGeometry(0.15, 8, 6), 0, SHOULDER_Y + 0.2, -0.03),
+          color: main,
+        },
+        ...head,
+      ];
+      break;
+    case 'suit':
+      parts = [
+        box(0.45, SHOULDER_Y - HIP_Y + 0.02, 0.26, 0, HIP_Y, 0, 0x1d1d22), // takım
+        box(0.1, 0.42, 0.02, 0, HIP_Y + 0.08, 0.135, 0xe8e4da), // gömlek
+        box(0.035, 0.3, 0.02, 0, HIP_Y + 0.06, 0.145, main), // kravat
+        ...head,
+        box(0.34, 0.035, 0.34, 0, SHOULDER_Y + 0.29, 0, 0x16161a), // fötr kenar
+        box(0.2, 0.13, 0.2, 0, SHOULDER_Y + 0.32, 0, 0x16161a), // fötr tepe
+        box(0.205, 0.03, 0.205, 0, SHOULDER_Y + 0.33, 0, main), // fötr kurdelesi
+      ];
+      sleeves = 0x1d1d22;
+      break;
+    case 'tank':
+      parts = [
+        box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, main), // atlet
+        box(0.42, 0.04, 0.245, 0, SHOULDER_Y - 0.04, 0, SKIN), // omuz çizgisi
+        box(0.12, 0.012, 0.012, 0, SHOULDER_Y - 0.03, 0.125, 0xd4b13a), // zincir
+        ...head,
+        box(0.27, 0.05, 0.27, 0, SHOULDER_Y + 0.25, 0, 0xb02a24), // bandana
+        box(0.06, 0.06, 0.04, 0, SHOULDER_Y + 0.22, -0.14, 0xb02a24), // düğüm
+      ];
+      sleeves = SKIN;
+      break;
+    default:
+      // jacket: deri ceket + tişört; reiste fötr şapka, üyelerde bere.
+      parts = [
+        box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, 0x2b2b2e), // tişört
+        box(0.45, 0.5, 0.26, 0, HIP_Y + 0.06, 0, main), // ceket
+        box(0.46, 0.06, 0.27, 0, HIP_Y + 0.02, 0, trim), // ceket eteği
+        ...head,
+      ];
+      if (role === 'leader') {
+        parts.push(box(0.34, 0.04, 0.34, 0, SHOULDER_Y + 0.3, 0, 0x1f1d1b));
+        parts.push(box(0.2, 0.14, 0.2, 0, SHOULDER_Y + 0.33, 0, 0x1f1d1b));
+      } else {
+        parts.push({
+          geometry: at(new SphereGeometry(0.13, 8, 6), 0, SHOULDER_Y + 0.25, -0.01),
+          color: trim,
+        });
+      }
   }
   parts.push(...weaponParts(weapon));
-  return limbs(merge(parts), 0x23262b, 0x16130f, jacket);
+  return limbs(merge(parts), 0x23262b, 0x16130f, sleeves);
 }
 
-/** Eşkıya modeli (rol ve silaha göre); `faction` 0/1 ise sokak çetesi kıyafeti. */
+/** Kamp eşkıyası (dağ eşkıyası dışındaki) çeşitleri: yol kesen, kaçakçı, nişancı, kavgacı. */
+function buildCampStyleGeometry(
+  role: BanditRole,
+  weapon: BanditWeapon,
+  style: Exclude<BanditStyle, GangStyleName>,
+): BanditGeometry {
+  const face: Part[] = [
+    box(0.1, 0.08, 0.1, 0, SHOULDER_Y, 0, SKIN),
+    { geometry: at(new SphereGeometry(0.115, 8, 6), 0, SHOULDER_Y + 0.2, 0), color: SKIN },
+  ];
+  let parts: Part[];
+  let trousers: number;
+  let sleeves: number;
+  switch (style) {
+    case 'highwayman':
+      parts = [
+        box(0.5, 0.92, 0.3, 0, HIP_Y - 0.34, 0, 0x2e2620), // uzun pelerin/palto
+        box(0.52, 0.1, 0.32, 0, SHOULDER_Y - 0.1, 0, 0x241d17), // yaka
+        ...face,
+        box(0.22, 0.09, 0.02, 0, SHOULDER_Y + 0.17, 0.115, 0x3a1f1f), // yüz bezi
+        box(0.46, 0.03, 0.46, 0, SHOULDER_Y + 0.28, 0, 0x241d17), // geniş şapka kenarı
+        box(0.22, 0.17, 0.22, 0, SHOULDER_Y + 0.31, 0, 0x241d17),
+      ];
+      sleeves = 0x2e2620;
+      trousers = 0x1f1a16;
+      break;
+    case 'smuggler':
+      parts = [
+        box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, 0xc9b99a), // gömlek
+        box(0.44, 0.4, 0.26, 0, HIP_Y + 0.12, 0, 0x5a3d26), // deri yelek
+        box(0.32, 0.4, 0.16, 0, HIP_Y + 0.05, -0.2, 0x3b4a2e), // sırt çantası
+        box(0.3, 0.06, 0.12, 0, HIP_Y + 0.42, -0.2, 0x2a3320), // çanta kapağı
+        ...face,
+        box(0.3, 0.05, 0.3, 0, SHOULDER_Y + 0.29, 0, 0x4a4a42), // kasket
+        box(0.22, 0.02, 0.12, 0, SHOULDER_Y + 0.27, 0.17, 0x35352f), // siperlik
+      ];
+      sleeves = 0xc9b99a;
+      trousers = 0x3a3f2e;
+      break;
+    case 'marksman':
+      parts = [
+        box(0.44, SHOULDER_Y - HIP_Y + 0.02, 0.26, 0, HIP_Y, 0, 0x4a5a34), // zeytin yeşili ceket
+        box(0.18, 0.14, 0.02, -0.1, HIP_Y + 0.22, 0.135, 0x38442a), // kamuflaj lekeleri
+        box(0.14, 0.12, 0.02, 0.1, HIP_Y + 0.08, 0.135, 0x38442a),
+        ...face,
+        box(0.4, 0.03, 0.4, 0, SHOULDER_Y + 0.27, 0, 0x4a5a34), // geniş kenarlı şapka
+        box(0.22, 0.1, 0.22, 0, SHOULDER_Y + 0.31, 0, 0x4a5a34),
+        box(0.2, 0.06, 0.02, 0, SHOULDER_Y + 0.15, 0.11, 0x2e3a22), // yüz boyası
+      ];
+      sleeves = 0x4a5a34;
+      trousers = 0x3a4430;
+      break;
+    default:
+      // brawler: yırtık gömlek (kollar çıplak), kırmızı bandana.
+      parts = [
+        box(0.42, 0.3, 0.24, 0, HIP_Y + 0.2, 0, 0x8a8274), // kısa gömlek
+        box(0.43, SHOULDER_Y - HIP_Y - 0.3, 0.245, 0, HIP_Y, 0, SKIN), // açık karın
+        box(0.45, 0.07, 0.27, 0, HIP_Y - 0.02, 0, 0x6b3a2a), // kemer
+        ...face,
+        box(0.27, 0.05, 0.27, 0, SHOULDER_Y + 0.25, 0, 0xa33025), // bandana
+        box(0.06, 0.05, 0.04, 0, SHOULDER_Y + 0.22, -0.14, 0xa33025),
+        box(0.08, 0.03, 0.02, 0, SHOULDER_Y + 0.15, 0.11, 0x2a221c), // bıyık
+      ];
+      sleeves = SKIN;
+      trousers = 0x3b3328;
+  }
+  if (role === 'leader' && style !== 'highwayman') {
+    parts.push(box(0.3, 0.015, 0.3, 0, SHOULDER_Y + 0.4, 0, 0xc9a23c)); // reis: altın sorguç/süs
+  }
+  parts.push(...weaponParts(weapon));
+  return limbs(merge(parts), trousers, 0x1f1a16, sleeves);
+}
+
+type GangStyleName = 'jacket' | 'hoodie' | 'suit' | 'tank';
+
+/** Eşkıya modeli (rol, silah ve çeşide göre); `faction` 0–2 ise sokak çetesi kıyafeti. */
 export function buildBanditGeometry(
   role: BanditRole,
   weapon: BanditWeapon,
   faction = -1,
+  style: BanditStyle = faction >= 0 ? 'jacket' : 'mountain',
 ): BanditGeometry {
-  if (faction >= 0) return buildGangGeometry(role, weapon, faction);
+  if (faction >= 0) return buildGangGeometry(role, weapon, faction, style);
+  if (style !== 'mountain' && !isGangStyle(style)) {
+    return buildCampStyleGeometry(role, weapon, style);
+  }
   const parts: Part[] = [
     box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, 0xd8d0c0), // gömlek
     box(0.44, 0.44, 0.26, 0, HIP_Y + 0.1, 0, 0x3b2a1e), // yelek

@@ -1,3 +1,5 @@
+import type { BanditStyle } from './styles';
+
 /**
  * Eşkıya sözleşmesi (Faz 11, 11.6; saf): durumlar, etkinlikler, roller ve silahlar. Yalnızca sona eklenir.
  */
@@ -62,6 +64,8 @@ export interface BanditView {
   hitFlash: number;
   /** Ölüyse üstü arandı mı? */
   searched: boolean;
-  /** Sokak çetesi (şehir): 0 ya da 1 (rakip çeteler); kamp eşkıyasında −1. */
+  /** Sokak çetesi (şehir): 0, 1 ya da 2 (çeteler); kamp eşkıyasında −1. */
   faction?: number;
+  /** Görünüm çeşidi (`bandits/styles.ts`; kimlikten türetilir); verilmezse dağ eşkıyası / deri ceket. */
+  style?: BanditStyle;
 }

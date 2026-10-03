@@ -27,6 +27,8 @@ export const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readon
         [['Sol tık'], 'Saldır · hayalet varken kur'],
         [['F'], 'Hızlı yemek'],
         [['I', 'Tab'], 'Envanter ve üretim (sırt çantası taşınınca yer artar)'],
+        [['Sürükle'], 'Envanterde eşyayı slota bırak: taşı/birleştir; panelin dışına bırak: at'],
+        [['Çift tık'], 'Ganimet panelinde eşyayı al (ya da "Hepsini al")'],
         [['1–8', 'Tekerlek'], 'Kısayol çubuğu'],
       ],
     ],

@@ -2748,7 +2748,9 @@
 }
 .inv-drag-ghost[data-drop='true'] {
   border-color: #d9534f;
-  box-shadow: 0 0 0 1px #d9534f, 0 6px 20px rgba(217, 83, 79, 0.45);
+  box-shadow:
+    0 0 0 1px #d9534f,
+    0 6px 20px rgba(217, 83, 79, 0.45);
 }
 .inv-drag-ghost .inv-slot-count {
   position: absolute;

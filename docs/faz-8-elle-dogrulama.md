@@ -345,3 +345,16 @@ Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup 
 - [ ] **Bellek:** Chrome Görev Yöneticisi / `performance.memory`: uzun gezintiden sonra (10 dk, farklı iller) JS yığını ve sekme belleği nasıl (başsız ~310–370 MB)? Karo tavanı (25) aşılıyor mu, bellek sızıntısı var mı?
 - [ ] **Eski kayıtlar:** Faz 11 sonrası (v8) bir kayıt yükleniyor mu? Kayıttaki "aranmış yapı" listesi yerleşim düzeni değiştiği için başka yapıyı gösterebilir (kabul edilmiş sınır): yapılar, envanter, saat doğru mu?
 - Notlar: ____________________
+
+## 22. Savaş görünümü, çeteler, envanter sürükle-bırak ve ganimet paneli (Faz 12 sonrası)
+
+- [ ] **Elde eşya (birinci şahıs):** kısayolla silah/alet seç → sağ altta eşya ve el görünüyor mu? Tabanca, tüfek, pompalı, yay, sapan, pala, sopa, balta, mızrak, bıçak, meşale, lamba, su kabı: hepsi tanınır mı, ölçü ve konum rahat mı? Duvara çok yakınken eşya duvara giriyor mu? Yürürken sallanma abartılı mı? Nişanda (dürbün) eşya kayboluyor mu?
+- [ ] **Elde eşya (üçüncü şahıs, `V`):** sağ kol ve eşya görünüyor mu? Silah öne kalkık, yakın silah ucu yukarı mı?
+- [ ] **Ateşli silah efekti:** ateş edince ağız alevi, kıvılcım, duman ve tepme açıkça fark ediliyor mu? Tabanca / pompalı / piyade / keskin nişancı farkı okunuyor mu? Susturucuda alev yok, duman az mı? Birinci şahısta alev gözü kamaştırıyor mu (`HELD_ITEM`, `COMBAT_FX.muzzle` boyutları)?
+- [ ] **Yakın dövüş efekti:** pala/bıçak (gümüş yay), balta (dikey), sopa (geniş koyu yay + toz), mızrak (saplama çizgisi), yumruk: ateşli silahtan ve birbirinden ayırt ediliyor mu? Vınlama sesi uygun mu? İsabette kıvılcım çıkıyor mu?
+- [ ] **Eşkıya ateşi/savurması:** uzaktan bir eşkıya ateş edince alev, mermi izi ve silah sesi (uzaklıkla kısılan) var mı? Pala/sopa savurması görünüyor mu?
+- [ ] **Çete sayısı ve boyu:** şehir merkezlerinde farklı günlerde/yerlerde 1, 2 ve 3 çete çıkıyor mu? Çete boyu 1–6 arasında değişiyor mu? Tek çete oyuncuya tepki veriyor mu? Üç çete çatışması okunur mu (kızıl/lacivert/yeşil)?
+- [ ] **Eşkıya çeşitleri:** kampta ve sokakta farklı kıyafetler (yol kesen, kaçakçı, nişancı, kavgacı; ceket, kapüşonlu, takım elbise, atlet) görünüyor mu?
+- [ ] **Envanter sürükle-bırak:** slottan slota bırakınca taşınıyor/birleşiyor/yer değiştiriyor mu? Panelin dışına (karartılmış arka plana) bırakınca yığın atılıyor mu (imleç kırmızı hayalet)? Tıklama hâlâ seçiyor mu? Chrome, Firefox ve Edge'de aynı mı?
+- [ ] **Ganimet paneli:** ölü eşkıya (E basılı), kamp sandığı ve bina kabı (sandık/dolap) arayınca panel açılıyor mu? Çift tık eşyayı alıyor mu, "Hepsini al" hepsini alıyor mu? Envanter doluyken sığanı alıp kalanı bırakıyor mu? Paneli kapatıp yeniden arayınca kalan geliyor mu? Oyunu kaydedip yükleyince bina kabının kalanı korunuyor mu (cesetlerin kalanı kayda girmez)?
+- Notlar: ____________________

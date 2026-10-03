@@ -28,15 +28,17 @@ import {
 } from './kinds';
 import { rollBanditLoot, rollCampChest } from './loot';
 import {
-  GANG_FACTIONS,
+  gangFactionsPresent,
   gangHours,
   gangMemberId,
   gangPresent,
   gangRoster,
+  gangSpot,
   type GangFaction,
   type GangSite,
 } from './gangs';
 import { banditName, gangName } from './names';
+import { campStyle, gangStyle, type BanditStyle } from './styles';
 import { perceivePlayer, type BanditPlayer } from './perception';
 
 /**
@@ -151,6 +153,8 @@ export class BanditSystem implements TargetProvider {
   private readonly gangClashed = new Set<string>();
   /** Üstü kısmen aranmış cesetlerin kalan ganimeti (eşkıya kimliği → liste; ganimet panelinden alınan düşer). */
   private readonly corpseLeft = new Map<number, ItemStack[]>();
+  /** Görünüm çeşidi önbelleği (kimlik:silah:rol → çeşit). */
+  private readonly styles = new Map<string, BanditStyle>();
   /** Bu adımın katıları (görüş hattı); `update` doldurur. */
   private solids: SolidQuery | null = null;
 
@@ -236,7 +240,21 @@ export class BanditSystem implements TargetProvider {
       hitFlash: m.hitFlash,
       searched: m.searched,
       faction: m.gang?.faction ?? -1,
+      style: this.styleOf(m),
     }));
+  }
+
+  /** Üyenin görünüm çeşidi (kimlik/silah/rolden deterministik; önbellekli). */
+  private styleOf(m: Member): BanditStyle {
+    const key = `${m.id}:${m.brain.weapon}:${m.brain.role}:${m.gang ? 1 : 0}`;
+    let style = this.styles.get(key);
+    if (!style) {
+      style = m.gang
+        ? gangStyle(m.id, m.brain.weapon, m.brain.role)
+        : campStyle(m.id, m.brain.weapon, m.brain.role);
+      this.styles.set(key, style);
+    }
+    return style;
   }
 
   get(id: number): BanditView | null {
@@ -568,9 +586,7 @@ export class BanditSystem implements TargetProvider {
     const center = camp
       ? { x: camp.x, z: camp.z }
       : gangSite && m.gang
-        ? m.gang.faction === 0
-          ? gangSite.a
-          : gangSite.b
+        ? (gangSpot(gangSite, m.gang.faction) ?? gangSite.a)
         : { x: b.x, z: b.z };
     let home = { x: b.x, z: b.z, yaw: b.yaw };
     if (layout && camp) {
@@ -893,15 +909,23 @@ export class BanditSystem implements TargetProvider {
         return;
       const far = (p: { x: number; z: number }) =>
         Math.hypot(p.x - ctx.player.x, p.z - ctx.player.z) >= GANGS.minSpawnDistance;
-      if (!far(site.a) || !far(site.b)) return;
-      this.spawnGang(site, index, day);
+      const factions = gangFactionsPresent(site, day);
+      if (!factions.every((f) => far(gangSpot(site, f)!))) return;
+      this.spawnGang(site, index, day, factions);
     });
   }
 
-  private spawnGang(site: GangSite, siteIndex: number, day: number): void {
-    for (const faction of GANG_FACTIONS) {
+  private spawnGang(
+    site: GangSite,
+    siteIndex: number,
+    day: number,
+    factions: readonly GangFaction[],
+  ): void {
+    for (const faction of factions) {
       const roster = gangRoster(site, day, faction);
-      const toward = faction === 0 ? site.b : site.a;
+      // Bakış: bir sonraki çetenin tarafı; tek çete merkeze (caddenin ortasına) bakar.
+      const other = factions.find((f) => f !== faction);
+      const toward = (other !== undefined ? gangSpot(site, other) : null) ?? site;
       roster.forEach((member, index) => {
         const id = gangMemberId(siteIndex, faction, index);
         const rng = createRandom(seedFrom(this.seed, id % 2 ** 31, day));
