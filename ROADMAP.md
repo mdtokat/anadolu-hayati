@@ -402,6 +402,19 @@ Elle doğrulanacak:
 
 ---
 
+### Katı nesneler, katlı bina içleri, sokak çeteleri, yol düzeltmesi ve arayüz (kullanıcı talimatı)
+_(Kullanıcı talimatı: envanter/üretim çakışmasını düzelt; envanter, üretim ve göstergeleri farklı tasarla; şehir merkezinde de NPC'ler ve çatışma; köprü/yol/dere/dağ iç içe geçmelerini düzelt; hiçbir nesnenin içinden oyuncu ve canlılar geçemesin; katlı binalarda çatı dahil her kata merdiven. Onaylanan kararlar: sokak çeteleri, ağaç+kaya+çalı katı, düz çatı terası.)_
+
+- [x] **Envanter/üretim/HUD:** iki bağımsız kaydırmalı bölge, sabit slot boyutu, dar pencerede sekmeler; üretimde arama, süzgeç, kompakt satırlar ve sabit ayrıntı çubuğu; HUD göstergeleri halka
+- [x] **Katı nesneler:** ağaç/kaya/çalı Rapier silindirleri (`PropColliders`); canlı/insan/eşkıya/yankesici engel sorgusu ağaç/kaya/çalı, köprü-viyadük-tünel kutuları ve kamp çadırlarını da kapsar (dikey aralık denetimiyle)
+- [x] **Katlı yapılar:** konak, apartman (3–6 kat), maden lojmanı, hükümet konağı zemin kattan düz çatı terasına kadar girilebilir; U dönüşlü iç merdiven, merdiven boşluklu döşemeler, korkuluklu teras (`settlements/storeys.ts`); Rapier'li testle kapıdan çatıya yürünür
+- [x] **Sokak çeteleri:** il/ilçe caddelerinde iki rakip silahlı çete, birbirlerine ve oyuncuya saldırır; duvarlar görüşü ve mermiyi keser (`bandits/gangs.ts`, `BanditSystem`)
+- [x] **Yol iç içe geçmeleri:** köprü altı zemin oyulur ve kilitlenir; kavşaktaki ve göl içindeki geçişlere köprü (`docs/faz-10-ic-ice-gecme-olcumler.md`)
+
+Elle doğrulanacak: kılavuz bölüm 19.
+
+---
+
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
 > **Güncelleme (Faz 11 sonrası):** kullanıcı "çevre illeri ve içlerindeki yapıları da oluştur (Ankara, Kastamonu gibi)" dedi. Ankara il sınırı 38,6°K'ye iner: dünya alanı ~3,4 katına çıkar (veri ~55 MB, açılış bütçesi 10 sn ve bellek aşılır, yerleşim düzeni açılışta ~15 sn). Bu yüzden önce **karo akışı** gerekir; kapsam (önce Kastamonu–Çankırı mı, Ankara'nın kuzeyi mi, tamamı mı) kullanıcı kararı bekliyor.
@@ -438,7 +451,7 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Tuzak ve olta ile av; suyu kaynatma (su kabı doldurma/içme bakım turunda eklendi)
 - Hasar vinyetinde saldıran yönü göstergesi; hayvan sesleri (ses altyapısı Faz 6'da geldi: `audio/`; hayvan sesleri henüz yok)
 - Hayvan ekolojisi: gerçek dağılım verisi, yavru/üreme, sürü formasyonu, mevsimsel göç, daha çok tür (tilki, geyik, sırtlan…)
-- Ağaç ve kaya collider'ı (oyuncu ve hayvan şimdilik içlerinden geçer), hayvanların engel/ağaç arkasında görüş hattı
+- Hayvanların ağaç/kaya arkasında görüş hattı (ağaç/kaya collider'ı ve engel sorgusu geldi), üst katlarda cam ve ganimet kapları, merdiven/kat sesleri, çetelerin sokakta yol bulması
 - Hayvan tuzağı/oltası, kurutulmuş et (yiyecek bozulması), deri işleme
 - Ses: adım sesleri (zemine göre), kamp ateşi çıtırtısı, yağmur/fırtına, su kenarı ve nehir sesi, iç/dış mekân yankısı, ses kanalları için ayrı kaydırıcılar (müzik/efekt/ortam)
 - Kayıt: canlıları ve leşleri kaydetme, kaydı dosya olarak dışa/içe aktarma, bulut kaydı, kayıt küçük resmi (ekran görüntüsü), yuva adlandırma

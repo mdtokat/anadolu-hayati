@@ -2801,7 +2801,9 @@ export class Game {
           walkable: (x, z) =>
             people.elevationAt(x, z) > 1 &&
             people.slopeDegAt(x, z) <= PEOPLE.maxSlopeDeg &&
-            !people.blocked(x, z),
+            !people.blocked(x, z) &&
+            // Ağaç, kaya, çalı ve oyuncu yapıları yankesiciyi de keser.
+            !(this.obstacles?.contains(x, z, 0.35) ?? false),
           townRankAt: (x, z) => people.settlementRankAt(x, z),
         }
       : null;
