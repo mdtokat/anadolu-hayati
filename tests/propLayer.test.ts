@@ -201,3 +201,38 @@ describe('PropLayer.setDrawRadius', () => {
     layer.dispose();
   });
 });
+
+describe('PropLayer — GPU yüklemesi ve doldurma sıklığı (performans)', () => {
+  it('yalnızca dolu örnekler yüklenir: güncelleme aralığı sayım kadar, boş katman yüklenmez', () => {
+    const layer = makeLayer();
+    layer.prepare(forest.x, forest.z);
+    let checked = 0;
+    for (const child of layer.group.children) {
+      const mesh = child as InstancedMesh;
+      const ranges = mesh.instanceMatrix.updateRanges;
+      if (mesh.count === 0) {
+        expect(ranges).toHaveLength(0);
+        continue;
+      }
+      expect(ranges).toEqual([{ start: 0, count: mesh.count * 16 }]);
+      expect(mesh.instanceColor!.updateRanges).toEqual([{ start: 0, count: mesh.count * 3 }]);
+      expect(mesh.count * 16).toBeLessThan(mesh.instanceMatrix.array.length);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(3);
+    layer.dispose();
+  });
+
+  it('bekleyen chunk hesaplanırken tamponlar her karede değil, aralıkla doldurulur', () => {
+    const layer = makeLayer();
+    layer.update(forest.x, forest.z); // ilk çağrı: yenileme (doldurur)
+    expect(layer.stats.pendingChunks).toBeGreaterThan(SCATTER.maxChunkBuildsPerFrame * 3);
+    const first = layer.stats.instances;
+    // Sonraki birkaç kare chunk hesaplar ama yeniden doldurmaz.
+    for (let i = 0; i < SCATTER.pendingFillInterval - 2; i++) layer.update(forest.x, forest.z);
+    expect(layer.stats.instances).toBe(first);
+    for (let i = 0; i < 3; i++) layer.update(forest.x, forest.z);
+    expect(layer.stats.instances).toBeGreaterThan(first);
+    layer.dispose();
+  });
+});

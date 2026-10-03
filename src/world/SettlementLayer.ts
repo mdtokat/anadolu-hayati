@@ -1,5 +1,4 @@
 import {
-  BufferAttribute,
   CanvasTexture,
   Color,
   DoubleSide,
@@ -23,6 +22,7 @@ import {
 } from '../settlements/kinds';
 import type { Building } from '../settlements/layout';
 import type { SettlementMap, Stair } from '../settlements/SettlementMap';
+import { commitInstances } from './instancing';
 import {
   buildBuildingGeometry,
   buildFarGenericGeometry,
@@ -298,9 +298,7 @@ function colorOf(tone: number): Color {
 }
 
 function commit(mesh: InstancedMesh, count: number): void {
-  mesh.count = count;
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) (mesh.instanceColor as BufferAttribute).needsUpdate = true;
+  commitInstances(mesh, count);
   mesh.computeBoundingSphere();
 }
 

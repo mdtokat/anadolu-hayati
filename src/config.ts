@@ -418,6 +418,11 @@ export const SCATTER = {
   refreshDistance: 24,
   /** Karede hesaplanabilecek en fazla chunk (`scatterChunk`): takılma olmasın. */
   maxChunkBuildsPerFrame: 2,
+  /**
+   * Bekleyen chunk'lar hesaplanırken örnek tamponları bu kadar `update`'te bir yeniden doldurulur (son chunk
+   * hesaplanınca hemen): her karede tam doldurma + GPU yüklemesi takılma yapıyordu.
+   */
+  pendingFillInterval: 8,
   /** Hesaplanmış chunk sonuçlarının LRU önbellek kapasitesi. */
   chunkCacheSize: 64,
   /**

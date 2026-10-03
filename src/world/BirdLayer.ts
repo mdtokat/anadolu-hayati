@@ -12,6 +12,7 @@ import {
 } from 'three';
 import { BIRDS } from '../config';
 import { birdPose, flockForCell, type Flock } from './birdFlocks';
+import { commitInstances } from './instancing';
 
 /** Kuş geometrisi: gövde (ince eşkenar dörtgen) + iki kanat; kanat uçları y = 1'de (çırpma ölçekle yapılır). */
 function buildBirdGeometry(): BufferGeometry {
@@ -45,7 +46,7 @@ export class BirdLayer {
   readonly mesh: InstancedMesh;
   private readonly geometry = buildBirdGeometry();
   private readonly material = new MeshLambertMaterial({ side: DoubleSide });
-  private readonly flocks = new Map<string, Flock | null>();
+  private readonly flocks = new Map<number, Flock | null>();
 
   constructor(
     private readonly heightAt: (x: number, z: number) => number,
@@ -70,7 +71,7 @@ export class BirdLayer {
     let n = 0;
     for (let dr = -reach; dr <= reach; dr++) {
       for (let dc = -reach; dc <= reach; dc++) {
-        const key = `${c0 + dc},${r0 + dr}`;
+        const key = (c0 + dc + 32768) * 65536 + (r0 + dr + 32768); // sayısal anahtar: her karede metin üretilmesin
         let flock = this.flocks.get(key);
         if (flock === undefined) {
           flock = flockForCell(c0 + dc, r0 + dr, this.elevationAt);
@@ -95,9 +96,7 @@ export class BirdLayer {
         }
       }
     }
-    this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    commitInstances(this.mesh, n);
     // Önbellek uzaktaki hücreleri unutsun.
     if (this.flocks.size > 400) this.flocks.clear();
   }
