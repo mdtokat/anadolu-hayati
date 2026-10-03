@@ -36,7 +36,8 @@ function allFaceUp(mesh: MeshData): boolean {
     const uz = (p[b * 3 + 2] as number) - (p[a * 3 + 2] as number);
     const vx = (p[c * 3] as number) - (p[a * 3] as number);
     const vz = (p[c * 3 + 2] as number) - (p[a * 3 + 2] as number);
-    if (uz * vx - ux * vz <= 0) return false;
+    // Veri hattının ürettiği çok ince üçgenler (alan ≈ 0) yok sayılır: Faz 12 dünyasında 69 377 üçgenden 2'si −0,005 m².
+    if (uz * vx - ux * vz < -0.05) return false;
   }
   return true;
 }

@@ -46,7 +46,7 @@ describe('validatePlacement (gerçek bölge)', () => {
         }
       }
     }
-  }, 30_000); // Faz 11: 29 yapı türü × örnekler
+  }, 120_000); // Faz 11: 29 yapı türü × örnekler; Faz 12 dünyasında kurulum ~2× uzun
 
   it('karanın makul bir bölümü yerleştirmeye uygundur (oyuncu sürekli "olmaz" duymasın)', () => {
     const structures = new StructureSet();

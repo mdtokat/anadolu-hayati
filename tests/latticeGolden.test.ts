@@ -221,8 +221,8 @@ describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 1
   // (cx = 0, 12; cy = 0, 9) deniz tabanı/yumuşatma komşuluğu yüzünden değişebilir.
   const interior = (cx: number, cy: number) => cx >= 1 && cx <= 11 && cy >= 1 && cy <= 8;
 
-  it('gerçek dünyanın ızgarası hedef kapsam: 37 × 19 chunk, ilk chunk (−9, −3)', () => {
-    expect(real.grid).toMatchObject({ cx0: -9, cy0: -3, cols: 37, rows: 19 });
+  it('gerçek dünyanın ızgarası hedef kapsam: 52 × 25 chunk, ilk chunk (−13, −3)', () => {
+    expect(real.grid).toMatchObject({ cx0: -13, cy0: -3, cols: 52, rows: 25 });
     expect(chunkRect(real.grid, 3, 2)).toEqual(chunkRect(legacy.grid, 3, 2));
   });
 

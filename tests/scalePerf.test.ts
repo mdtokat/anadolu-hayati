@@ -106,7 +106,7 @@ function prepareWorld(region: RegionData) {
 const MB = 1024 * 1024;
 
 describe('Faz 7 ölçeği (gerçek dünya, CPU)', { timeout: 120_000 }, () => {
-  it('703 chunk (37 × 19), bellek bütçesi; açılış hazırlığı ölçülür', async () => {
+  it('1 300 chunk (52 × 25), bellek bütçesi; açılış hazırlığı ölçülür', async () => {
     const loadStart = performance.now();
     const wide = await loadWorld(WORLD.id, '/', publicFsFetch());
     const assembleMs = performance.now() - loadStart;
@@ -114,23 +114,26 @@ describe('Faz 7 ölçeği (gerçek dünya, CPU)', { timeout: 120_000 }, () => {
     const old = prepareWorld(legacy);
     const big = prepareWorld(wide);
 
-    // Sinop–Sakarya genişlemesi: 4699 × 2346 örnek, 37 × 19 = 703 chunk. Görüş uzaklığı (4 km) artık tüm dünyayı
-    // kapsamaz: Zonguldak'tan Çankırı'nın doğu ucu görüş dışında kalır (draw call'ı yine frustum sınırlar).
-    expect(big.grid).toMatchObject({ cx0: -9, cy0: -3, cols: 37, rows: 19 });
-    expect(big.chunks).toBeGreaterThan(500);
-    expect(big.chunks).toBeLessThanOrEqual(703);
-    expect(big.grid.sampleWidth * big.grid.sampleHeight).toBe(4699 * 2346);
+    // Faz 12 genişlemesi: 6637 × 3148 örnek, 52 × 25 = 1 300 chunk. Görüş uzaklığı (4 km) tüm dünyayı kapsamaz (draw call'ı
+    // frustum ve karo akışı sınırlar).
+    expect(big.grid).toMatchObject({ cx0: -13, cy0: -3, cols: 52, rows: 25 });
+    expect(big.chunks).toBeGreaterThan(500); // ölçülen 625: derin deniz chunk'ları sayılmaz
+    expect(big.chunks).toBeLessThanOrEqual(1300);
+    expect(big.grid.sampleWidth * big.grid.sampleHeight).toBe(6637 * 3148);
 
     // Sinop–Sakarya genişlemesi: 11,0 M örnek (Kastamonu–Çankırı dünyasının ~1,44 katı); sınırlar orantılı yükseltildi.
     // Önceki dünya — bellek (7,66 M örnek: yükseklik Float32 ≈ 29 MB, deniz uzaklığı ≈ 29 MB, örtü ≈ 7 MB, dokular ≈ 58 MB;
     // Faz 7 dünyasının ~1,75 katı)
     const total = Object.values(big.memory).reduce((a, b) => a + b, 0);
-    expect(big.memory.gameHeightsFloat32 / MB).toBeLessThan(45);
-    expect(big.memory.coverTexturesRgba / MB).toBeLessThan(90);
-    expect(total / MB).toBeLessThan(215);
+    // Faz 12 dünyası, tam bellek (yoğun) yolu: 20,9 M örnek; heightsUint16 40 MB, gameHeights 80 MB, seaDistance 80 MB, örtü 20 MB,
+    // dokular 159 MB (toplam ≈ 379 MB). Oyun karo akışlıdır (JS yığını dünya boyutundan bağımsız ~300 MB); bu yol yalnızca testler
+    // ve `stream.json` olmayan yerel dünya içindir.
+    expect(big.memory.gameHeightsFloat32 / MB).toBeLessThan(100);
+    expect(big.memory.coverTexturesRgba / MB).toBeLessThan(180);
+    expect(total / MB).toBeLessThan(430);
 
     // Süre: başsız bütçe 3 sn (ağ ve birleştirme hariç); yavaş CI için gevşek tavan.
-    expect(big.totalMs + assembleMs).toBeLessThan(15_000);
+    expect(big.totalMs + assembleMs).toBeLessThan(30_000); // ölçülen ~9,5 sn (Faz 12 dünyası)
 
     if (process.env.SCALE_REPORT) {
       const rows = big.phases.map((p, i) => {

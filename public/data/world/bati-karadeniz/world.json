@@ -15,10 +15,10 @@
   },
   "tileSize": 512,
   "extent": {
-    "col0": -1152,
+    "col0": -1664,
     "row0": -384,
-    "cols": 4699,
-    "rows": 2346
+    "cols": 6637,
+    "rows": 3148
   },
   "elevation": {
     "min": 0.0,
@@ -26,6 +26,14 @@
     "encoding": "uint16"
   },
   "tiles": [
+    {
+      "tx": -4,
+      "ty": -1,
+      "height": "tiles/-4_-1.height.bin",
+      "cover": "tiles/-4_-1.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
     {
       "tx": -3,
       "ty": -1,
@@ -107,6 +115,38 @@
       "sha256": "aa9e8848007b8850386a07bc803879514020d605ddcc44dd001fa2522fa26dc0"
     },
     {
+      "tx": 7,
+      "ty": -1,
+      "height": "tiles/7_-1.height.bin",
+      "cover": "tiles/7_-1.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
+    {
+      "tx": 8,
+      "ty": -1,
+      "height": "tiles/8_-1.height.bin",
+      "cover": "tiles/8_-1.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
+    {
+      "tx": 9,
+      "ty": -1,
+      "height": "tiles/9_-1.height.bin",
+      "cover": "tiles/9_-1.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
+    {
+      "tx": -4,
+      "ty": 0,
+      "height": "tiles/-4_0.height.bin",
+      "cover": "tiles/-4_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "07854d2fef297a06ba81685e660c332de36d5d18d546927d30daad6d7fda1541"
+    },
+    {
       "tx": -3,
       "ty": 0,
       "height": "tiles/-3_0.height.bin",
@@ -184,7 +224,39 @@
       "height": "tiles/6_0.height.bin",
       "cover": "tiles/6_0.cover.bin",
       "bytes": 524288,
-      "sha256": "e2659084d0c1b2473c73a49cfa39192ab53b84c04f998d58a5199cd4cf365f51"
+      "sha256": "f7924d7e04fd93bfbfc508760049f27b526ef4ce522ee1282b68d94c5e983573"
+    },
+    {
+      "tx": 7,
+      "ty": 0,
+      "height": "tiles/7_0.height.bin",
+      "cover": "tiles/7_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "c787f9d5999f280f445ec25dd23d013d06dfbd6eed6eeea341044ae5b34aaf4a"
+    },
+    {
+      "tx": 8,
+      "ty": 0,
+      "height": "tiles/8_0.height.bin",
+      "cover": "tiles/8_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "de5b34a909584a9c3d95b7d50a1552a6d91a5cf9682a1120fd1ec3a09049ca70"
+    },
+    {
+      "tx": 9,
+      "ty": 0,
+      "height": "tiles/9_0.height.bin",
+      "cover": "tiles/9_0.cover.bin",
+      "bytes": 524288,
+      "sha256": "bfbce0ef486beff16fc2ac3885276c11d747147b616d16f0d3e511d056f71c0f"
+    },
+    {
+      "tx": -4,
+      "ty": 1,
+      "height": "tiles/-4_1.height.bin",
+      "cover": "tiles/-4_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "102a09b631f126c4d8ed266fff33b447aa34c180fd1f15a59becd335e8d2eb60"
     },
     {
       "tx": -3,
@@ -192,7 +264,7 @@
       "height": "tiles/-3_1.height.bin",
       "cover": "tiles/-3_1.cover.bin",
       "bytes": 524288,
-      "sha256": "b86670b2e478b55d3abe6e84a2c9e8e8848cfe3591f8441e53c0567ba793cb0a"
+      "sha256": "302c2ad3b1fa05d2be707e7ecf127030c14f91194d9294a39a083bbef6849059"
     },
     {
       "tx": -2,
@@ -264,7 +336,39 @@
       "height": "tiles/6_1.height.bin",
       "cover": "tiles/6_1.cover.bin",
       "bytes": 524288,
-      "sha256": "c2759af051af4f1315feab426afd6ec14f197ccb3df1d45d98dae1390179f5f9"
+      "sha256": "04142350bb921d2bfd9695952a37f4fab3c713bad0c2a1f3255b22941bbe1b7e"
+    },
+    {
+      "tx": 7,
+      "ty": 1,
+      "height": "tiles/7_1.height.bin",
+      "cover": "tiles/7_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "4e24bbf64f430f1d8ea6a1e3cfeb60cf614d8ec85b399f3116f39a23e9098967"
+    },
+    {
+      "tx": 8,
+      "ty": 1,
+      "height": "tiles/8_1.height.bin",
+      "cover": "tiles/8_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "0abe53d618c95e761d60f0f349a9ae6cb3928df3497354ff4a9153d5a65a94c8"
+    },
+    {
+      "tx": 9,
+      "ty": 1,
+      "height": "tiles/9_1.height.bin",
+      "cover": "tiles/9_1.cover.bin",
+      "bytes": 524288,
+      "sha256": "daff26e22ca54d26e490f33341a4fca19038a4393a3defe49b7ed2de5918783c"
+    },
+    {
+      "tx": -4,
+      "ty": 2,
+      "height": "tiles/-4_2.height.bin",
+      "cover": "tiles/-4_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "a51311973e6c7091a689e58f18dcf27f2e7c523b8cff434c5fed4d2754abf38a"
     },
     {
       "tx": -3,
@@ -272,7 +376,7 @@
       "height": "tiles/-3_2.height.bin",
       "cover": "tiles/-3_2.cover.bin",
       "bytes": 524288,
-      "sha256": "25cb156e13d008f09a35fe53d12113285d6921767c6cea77016818070825df23"
+      "sha256": "157571ed4731e56e96465fb834c825cceb569a300a23bff1fbf6d2ad6ac332c0"
     },
     {
       "tx": -2,
@@ -344,7 +448,39 @@
       "height": "tiles/6_2.height.bin",
       "cover": "tiles/6_2.cover.bin",
       "bytes": 524288,
-      "sha256": "2eadf0f24c859bbc56fbc929bf8c792eadd9821e4a25dda2cb7e1cdfccb898be"
+      "sha256": "1f53f783208afd7c277e2d8f03897c956311ccda08caab2a2ed23944b878432d"
+    },
+    {
+      "tx": 7,
+      "ty": 2,
+      "height": "tiles/7_2.height.bin",
+      "cover": "tiles/7_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "e33f8c3c09721ab692c5d8421e90fd08615273dd63cf04b6ab24028ac8e99db5"
+    },
+    {
+      "tx": 8,
+      "ty": 2,
+      "height": "tiles/8_2.height.bin",
+      "cover": "tiles/8_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "5e9657f2a3a5d56d772d2ede8f4732873a177d45e72d0b3c358d6ffcb06cebbe"
+    },
+    {
+      "tx": 9,
+      "ty": 2,
+      "height": "tiles/9_2.height.bin",
+      "cover": "tiles/9_2.cover.bin",
+      "bytes": 524288,
+      "sha256": "84c43453e663f38103a628a263a7d9f9db5cb8e36859711f6b53ec13dff21087"
+    },
+    {
+      "tx": -4,
+      "ty": 3,
+      "height": "tiles/-4_3.height.bin",
+      "cover": "tiles/-4_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "bed90d289ef08a436d849eba3ed9fca40b490a334116e879c60251a4b5bf8495"
     },
     {
       "tx": -3,
@@ -352,7 +488,7 @@
       "height": "tiles/-3_3.height.bin",
       "cover": "tiles/-3_3.cover.bin",
       "bytes": 524288,
-      "sha256": "ea7249336ade86f78caee96242319353c5f4d7093b4e88f5412210c4c89c0945"
+      "sha256": "b89103a2cea56c6e3b29e09c46ace396ad05d5080dfbce075c10a857ac5a0ab8"
     },
     {
       "tx": -2,
@@ -360,7 +496,7 @@
       "height": "tiles/-2_3.height.bin",
       "cover": "tiles/-2_3.cover.bin",
       "bytes": 524288,
-      "sha256": "6cb1218ee10da931eddb3a6df6942f8ed3c3f0a0b4a43ec45b8b97215e6533a7"
+      "sha256": "69e6f4be5341c4b3342ff6425edf4704fd5cf039aaa280a2b0897bcea68b442a"
     },
     {
       "tx": -1,
@@ -368,7 +504,7 @@
       "height": "tiles/-1_3.height.bin",
       "cover": "tiles/-1_3.cover.bin",
       "bytes": 524288,
-      "sha256": "843a5213523ee7d13528c3672b2720bc03273f60b5d779de96d6bf7493e10998"
+      "sha256": "91043d9765fc15af9de1b8584e1b105a77c183c8226a87787c406651e8c4d871"
     },
     {
       "tx": 0,
@@ -376,7 +512,7 @@
       "height": "tiles/0_3.height.bin",
       "cover": "tiles/0_3.cover.bin",
       "bytes": 524288,
-      "sha256": "0f2c6600317bf478a3f2b4d6a74ae77a7c0b0544dd6bb7f787b84d0992233265"
+      "sha256": "5cd9b67588acfb092eb180b472f21c6aba51472530cad5b23bb89f5d9999eb35"
     },
     {
       "tx": 1,
@@ -384,7 +520,7 @@
       "height": "tiles/1_3.height.bin",
       "cover": "tiles/1_3.cover.bin",
       "bytes": 524288,
-      "sha256": "7594169aaf15c3ff2a40979747a27aaa3b6887f27e13b46999909095a7862e67"
+      "sha256": "5eecdf012e1b1a3c4301d78f7c36e89e6d8eede17c52b5d6b36ab3252165b2fb"
     },
     {
       "tx": 2,
@@ -392,7 +528,7 @@
       "height": "tiles/2_3.height.bin",
       "cover": "tiles/2_3.cover.bin",
       "bytes": 524288,
-      "sha256": "931fd8b3d498de31d5259d097065db37a258e87a66e156d5c15be0f7d3f09cb3"
+      "sha256": "e055eb8b1eea6eff5ccc24e0d7a7c4d3ffcccb409446c343105ef37eaf92fbec"
     },
     {
       "tx": 3,
@@ -400,7 +536,7 @@
       "height": "tiles/3_3.height.bin",
       "cover": "tiles/3_3.cover.bin",
       "bytes": 524288,
-      "sha256": "8c2c3b360fa7669735b5e624a734291895df0e7f27290a0ed618b5f97fdc6ef7"
+      "sha256": "d12489810a03c6bb9a00eac2ccd4ee0d04ee10c6f5fefbc253eee7e45f734ff3"
     },
     {
       "tx": 4,
@@ -408,7 +544,7 @@
       "height": "tiles/4_3.height.bin",
       "cover": "tiles/4_3.cover.bin",
       "bytes": 524288,
-      "sha256": "1442b1e89637f6e7e8c3c9934f1023039c9c9058f189e5a9888f65b4219ee8e2"
+      "sha256": "3ddb4b15d473d9fd26e7b8ede58c0d9963b663fa47372744087f5e6d28b93949"
     },
     {
       "tx": 5,
@@ -416,7 +552,7 @@
       "height": "tiles/5_3.height.bin",
       "cover": "tiles/5_3.cover.bin",
       "bytes": 524288,
-      "sha256": "1b85dd2845830f7fc4ff31b61451d5e4fd9715af801598d7e5f5615eb7ee2553"
+      "sha256": "4bafa3bd78d330eaed4c023dfdb1ea3c4b1d40e23cc8c857a4788147a9e3d390"
     },
     {
       "tx": 6,
@@ -424,7 +560,255 @@
       "height": "tiles/6_3.height.bin",
       "cover": "tiles/6_3.cover.bin",
       "bytes": 524288,
-      "sha256": "bc1d5fa7bb9cb120c65850829abf2dd0833e6cb63fe2afeb0daa41144ff74836"
+      "sha256": "7715602163d7b632daebab427963b46c1f602d0e3aae36bd42ae100c4b5fca62"
+    },
+    {
+      "tx": 7,
+      "ty": 3,
+      "height": "tiles/7_3.height.bin",
+      "cover": "tiles/7_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "b2945efeb7c787dff8d5963c031fb937d24fa65ba2dcaed335c849b49fae6c8e"
+    },
+    {
+      "tx": 8,
+      "ty": 3,
+      "height": "tiles/8_3.height.bin",
+      "cover": "tiles/8_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "60c7d242d77bc40c487abaed076ccf26d9fad15d81462bdb92f85bed311de83d"
+    },
+    {
+      "tx": 9,
+      "ty": 3,
+      "height": "tiles/9_3.height.bin",
+      "cover": "tiles/9_3.cover.bin",
+      "bytes": 524288,
+      "sha256": "ea622799ab4aa3efbb13ec8c104fd2c50fb8e4986b054d6ef66b1feeaf25d97a"
+    },
+    {
+      "tx": -4,
+      "ty": 4,
+      "height": "tiles/-4_4.height.bin",
+      "cover": "tiles/-4_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "847ce7527f7feb88b558e002b417afb52572bc216f5bf4ccdb5fe04e13a4c669"
+    },
+    {
+      "tx": -3,
+      "ty": 4,
+      "height": "tiles/-3_4.height.bin",
+      "cover": "tiles/-3_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "070b88207289dd954400554e0e27ad3bd7495563455fa86455beac9532a8f31e"
+    },
+    {
+      "tx": -2,
+      "ty": 4,
+      "height": "tiles/-2_4.height.bin",
+      "cover": "tiles/-2_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "761598310ff0d1948f4aca0836fee9f2b5820c44356b92d0f9ac83a4de39d30a"
+    },
+    {
+      "tx": -1,
+      "ty": 4,
+      "height": "tiles/-1_4.height.bin",
+      "cover": "tiles/-1_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "8c9b4a6f592c12662897de9c82acd2ce93dc6d72a5c50ac4c50d786f015e04fb"
+    },
+    {
+      "tx": 0,
+      "ty": 4,
+      "height": "tiles/0_4.height.bin",
+      "cover": "tiles/0_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "7b37a958d1d78d2461c187927d31e76c726b7088db402db7f6826e6ec90002b3"
+    },
+    {
+      "tx": 1,
+      "ty": 4,
+      "height": "tiles/1_4.height.bin",
+      "cover": "tiles/1_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "a43da909e9516f1c117eb716cabd2472bff37c3d8cdfba5a82e34ebc11d5e01e"
+    },
+    {
+      "tx": 2,
+      "ty": 4,
+      "height": "tiles/2_4.height.bin",
+      "cover": "tiles/2_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "b1d828b29ad8b98c3d5176ce6a55eab880a130588512063d1986e0b3300ffb70"
+    },
+    {
+      "tx": 3,
+      "ty": 4,
+      "height": "tiles/3_4.height.bin",
+      "cover": "tiles/3_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "47183af63105dd3f1e3ece7a2659546e2891add1abee1ce7c1cb65066c7a1458"
+    },
+    {
+      "tx": 4,
+      "ty": 4,
+      "height": "tiles/4_4.height.bin",
+      "cover": "tiles/4_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "4a2fb4191e5a13cf0c29cf8c359f588a5dc5c764e71e8b69d451c0040751000a"
+    },
+    {
+      "tx": 5,
+      "ty": 4,
+      "height": "tiles/5_4.height.bin",
+      "cover": "tiles/5_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "b431fe99d983f3262924421f3f50952e48bb13e79702a8aec2476d2ad43b3d63"
+    },
+    {
+      "tx": 6,
+      "ty": 4,
+      "height": "tiles/6_4.height.bin",
+      "cover": "tiles/6_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "860e8d619fc1bce1668a73cd40a838560da7ef9b60aa7e5650463e6ef9385229"
+    },
+    {
+      "tx": 7,
+      "ty": 4,
+      "height": "tiles/7_4.height.bin",
+      "cover": "tiles/7_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "c4b50808fee2b5575ce1dd52462f04b3b799602ccfd4ea82a9af25cf8316e8d6"
+    },
+    {
+      "tx": 8,
+      "ty": 4,
+      "height": "tiles/8_4.height.bin",
+      "cover": "tiles/8_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "84ba28ad9a03df94a8759a66cd733e0c4e12ede611d0941c83a059e68767b2ea"
+    },
+    {
+      "tx": 9,
+      "ty": 4,
+      "height": "tiles/9_4.height.bin",
+      "cover": "tiles/9_4.cover.bin",
+      "bytes": 524288,
+      "sha256": "d4a59bbc5054efdbd5bca41811603b784f49fb0b58bbaa9810afef36230ae40a"
+    },
+    {
+      "tx": -4,
+      "ty": 5,
+      "height": "tiles/-4_5.height.bin",
+      "cover": "tiles/-4_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "e80451c05d7fe23fe5e512980504bac7ce2550edfb9932d19e382e685d2c11e3"
+    },
+    {
+      "tx": -3,
+      "ty": 5,
+      "height": "tiles/-3_5.height.bin",
+      "cover": "tiles/-3_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "22d60ad5ab6a745baec06e8e47ec9fd0b9d158b81fa3b6fabdb8005bbcccc392"
+    },
+    {
+      "tx": -2,
+      "ty": 5,
+      "height": "tiles/-2_5.height.bin",
+      "cover": "tiles/-2_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "db27102c42b6963e42c5525244ff4959f055f5c08406eee930329a0ffce490f3"
+    },
+    {
+      "tx": -1,
+      "ty": 5,
+      "height": "tiles/-1_5.height.bin",
+      "cover": "tiles/-1_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "6542dd56061af52646c25ce177b9a09a37174a54a78d9882a920f3e607f03b75"
+    },
+    {
+      "tx": 0,
+      "ty": 5,
+      "height": "tiles/0_5.height.bin",
+      "cover": "tiles/0_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "75e523579e35d7690303a016a2bd123561b0a4c78c3269ac6b04dd038b0b08fc"
+    },
+    {
+      "tx": 1,
+      "ty": 5,
+      "height": "tiles/1_5.height.bin",
+      "cover": "tiles/1_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "89769f1eb39aa694a6b09ddf0470548371930d83d1ec5482a554100dafc7d494"
+    },
+    {
+      "tx": 2,
+      "ty": 5,
+      "height": "tiles/2_5.height.bin",
+      "cover": "tiles/2_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "098c3e15c47f52cf8c3c3349e08320fd22e6de10893d78949efe2a687cfef3cc"
+    },
+    {
+      "tx": 3,
+      "ty": 5,
+      "height": "tiles/3_5.height.bin",
+      "cover": "tiles/3_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "1c12c3f56cb0d4753c29b4097500fe5731cf12864dff0acc0b57b3564a225753"
+    },
+    {
+      "tx": 4,
+      "ty": 5,
+      "height": "tiles/4_5.height.bin",
+      "cover": "tiles/4_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "116b27170e0a132c6ddabc9f162c3239aa601acfd992b920e475f5469e0cbf35"
+    },
+    {
+      "tx": 5,
+      "ty": 5,
+      "height": "tiles/5_5.height.bin",
+      "cover": "tiles/5_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "260dcdead16c4173de156740f8f901df9ad913cfae9e37fb6a3362d36ab26922"
+    },
+    {
+      "tx": 6,
+      "ty": 5,
+      "height": "tiles/6_5.height.bin",
+      "cover": "tiles/6_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "264eec55ab1b1f88a1a005d979c15a6bceda0b6a5b091e29e46355e9eb67e158"
+    },
+    {
+      "tx": 7,
+      "ty": 5,
+      "height": "tiles/7_5.height.bin",
+      "cover": "tiles/7_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "4efa787fd73ef5a09f5e11186e61670a15e1b32d24580290989a9f1d1e29657e"
+    },
+    {
+      "tx": 8,
+      "ty": 5,
+      "height": "tiles/8_5.height.bin",
+      "cover": "tiles/8_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "147dad394c19eba4e0ebbe0b275a656b2c8889cd273318b4646896f09462ba4e"
+    },
+    {
+      "tx": 9,
+      "ty": 5,
+      "height": "tiles/9_5.height.bin",
+      "cover": "tiles/9_5.cover.bin",
+      "bytes": 524288,
+      "sha256": "7d2f2dc6d2c42f5d09b65d78476c76ec7a343c7ee370dc1e2e96376d95e0c0eb"
     }
   ],
   "provinces": "provinces.geojson",
@@ -457,7 +841,7 @@
   "built": "2026-10-03",
   "settlements": {
     "file": "settlements.json",
-    "bytes": 2222092,
-    "sha256": "1584a1432628173fe7c6b36fcad4cf52838edd168765da9018a4a3929d424351"
+    "bytes": 4578685,
+    "sha256": "4725fb4904145ee13f8df78fe6faa75e5a0ebf4dc38536e81ba5058503c1917f"
   }
 }

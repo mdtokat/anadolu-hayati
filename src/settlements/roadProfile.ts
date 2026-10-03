@@ -367,7 +367,16 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
 
     // Birleştirme: tüneller önce yer alır; yakın köprüler (aralık `bridgeMergeGap`'ten kısa) tek köprüdür; tünelle çakışan
     // köprü atılır.
-    const tunnels = candidates.filter((c) => c.kind === SPAN_KIND.tunnel);
+    // Ağızlar dışarı genişletildiğinden komşu tünel adayları çakışabilir: çakışan ya da bitişik adaylar tek tüneldir
+    // (yoksa ikincisi önceki aralığın bittiği yerden başlayan kısa bir kalıntı olur ve ortada gereksiz bir ağız çıkar).
+    const tunnels: Candidate[] = [];
+    for (const c of candidates
+      .filter((c) => c.kind === SPAN_KIND.tunnel)
+      .sort((x, y) => x.a - y.a)) {
+      const last = tunnels[tunnels.length - 1];
+      if (last && c.a <= last.b + 2) last.b = Math.max(last.b, c.b);
+      else tunnels.push({ ...c });
+    }
     const bridges = candidates
       .filter((c) => c.kind === SPAN_KIND.bridge)
       .filter((c) => !tunnels.some((t) => c.b >= t.a - 1 && c.a <= t.b + 1))
