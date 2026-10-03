@@ -369,7 +369,7 @@ _(Kullanıcı talimatı: "ana menüdeki tuş göstergeleri ayrı menüde; küç�
 - [x] **Sırt çantaları** (küçük/orta/büyük; `BACKPACKS`): envanterdeki en büyük çanta +4/+8/+14 slot ve +8/+15/+25 kg; dolu çanta çıkarılamaz; eski 20 slotluk kayıtlar yüklenir
 - [x] **Değişken hava** (`survival/weather.ts`, `WEATHER`): oyun saatinin deterministik fonksiyonu (kayda girmez): açık, bulutlu, yağmurlu; bulut katmanı, kapalı gök ışığı, yağmurda sis, yağmur damlaları (`RainLayer`), yağmur sesi, ıslanınca üşüme (barınakta yok), HUD'da hava adı ve değişim bildirimi
 - [x] **Kastamonu – Çankırı** (kullanıcı kararı: "önce Kastamonu–Çankırı", karo akışı olmadan, bütçeler bilinçli yükseltilerek): dünya 2228 × 1962 → **3452 × 2218 örnek** (27 × 18 = 486 chunk, **40 karo**; kafes `extent` −640, −256; en yüksek nokta Ilgaz, `max` 2400 → 2600 m), `tools/world.yaml` 7 hedef il; eski alan ≤ 1 nicem, örtü birebir (`PINNED_WINDOWS` iki pencere). Yerleşimler 376 → **705** (7 il, 60 ilçe, 638 köy; ~3 640 yapı, düzen ~4,1 sn), simge yapılar (Nasrullah Camii, Kastamonu Kalesi, İsmail Bey Külliyesi, Atabey Gazi Camii, Tosya Ulu Camii, Taşköprü Taş Camii, Sultan Süleyman Camii, Çankırı Kalesi), yer adları/ışınlanma (Kastamonu 10, Çankırı 10 yer; Shift + rakam), eşkıya kampı 48 → 72. Bütçe: veri 35 MB (sınır 40), tahmini ilk yükleme 13,9 sn (sınır 10 → 16 sn), en büyük dosya `features.json` 1,9 MB (sınır 2,56). Başsız ölçüm: en kötü **292 draw call** (İnebolu, denize bakarken; < 300), ~0,6 M üçgen, sayfa açılışı ~8 sn, JS yığını ~415 MB
-- [ ] **Ankara** (ve diğer çevre illeri): **karo akışı** gerekir (dünya ~3,4 katı; veri, bellek ve açılış bütçesi aşılır) — bkz. aşağıdaki "Genişleme"
+- [x] **Ankara** (ve diğer çevre illeri): karo akışı gerekiyordu — **Faz 12'de yapıldı** (12.0a karo akışı; Ankara kuzey şeridi + Kırıkkale 12.C; bkz. aşağıdaki "Genişleme")
 
 Elle doğrulanacak:
 - [ ] Yumuşatılmış dağların görünümü ve yürüme hissi; ağaç yoğunluğu
@@ -425,24 +425,28 @@ _(Kullanıcı talimatı: "hareket ederken kasıyor; şimdi ve sonrasında da etk
 
 ---
 
-## Genişleme (Faz 12 ile yeniden açıldı — kullanıcı talimatıyla)
-> **Faz 12 (planlandı, kullanıcı onayıyla):** çevre iller üç grupta (Batı: Kocaeli, Bilecik; Doğu: Samsun, Çorum, Amasya; Güney: Ankara kuzeyi, Kırıkkale) paralel hazırlanır; plan [docs/faz-12-paralel-plan.md](docs/faz-12-paralel-plan.md). Sıra: 12.0a karo akışı + 12.0b veri iskelesi → 12.A/B/C (içerik ve doğrulama, dünya verisi yok) → 12.9 entegrasyon (dünya verisi tek seferde). İstanbul, Eskişehir, Tokat, Yozgat bu fazda yok.
-> Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
-> **Güncelleme (Faz 11 sonrası):** kullanıcı "çevre illeri ve içlerindeki yapıları da oluştur (Ankara, Kastamonu gibi)" dedi. Ankara il sınırı 38,6°K'ye iner: dünya alanı ~3,4 katına çıkar (veri ~55 MB, açılış bütçesi 10 sn ve bellek aşılır, yerleşim düzeni açılışta ~15 sn). Bu yüzden önce **karo akışı** gerekir; kapsam (önce Kastamonu–Çankırı mı, Ankara'nın kuzeyi mi, tamamı mı) kullanıcı kararı bekliyor.
+## Genişleme (Faz 12: çevre iller — tamamlandı, kullanıcı talimatıyla)
+> **Faz 12 (kod, veri ve belgeler tamam; elle doğrulama bekliyor):** çevre iller üç grupta paralel hazırlandı ve 12.9'da tek seferde birleşti; plan [docs/faz-12-paralel-plan.md](docs/faz-12-paralel-plan.md), ölçümler [docs/faz-12-olcumler.md](docs/faz-12-olcumler.md), grup raporları [batı](docs/faz-12-bati-rapor.md) · [doğu](docs/faz-12-dogu-rapor.md) · [güney](docs/faz-12-guney-rapor.md), karo akışı [docs/faz-12-karo-akisi-olcumler.md](docs/faz-12-karo-akisi-olcumler.md). Elle doğrulama: kılavuz bölüm 21.
+> Harita genişletmesi yine kullanıcı açıkça söyleyene kadar yeni il eklemez: Faz 12 iller listesi (Kocaeli, Bilecik, Samsun, Çorum, Amasya, Ankara kuzey/orta, Kırıkkale) kapandı; planda adı geçmeyen iller (İstanbul, Eskişehir, Tokat, Yozgat) hâlâ yoktur.
 
-> **Güncelleme (kullanıcı kararı):** Kastamonu – Çankırı karo akışı olmadan eklendi (yukarıdaki "Faz 11 sonrası"; veri/açılış bütçesi bilinçli yükseltildi). Ankara karo akışını bekliyor.
+- [x] **12.0a Karo akışı:** sayfalı arazi (karo = sayfa), oyuncuya göre karo yükleme/boşaltma (`world/TileStreamer.ts`, en çok 25 karo), açılış hesaplarının veri hattında bir kez yapılması (`npm run bake`: dere yatakları, yol ağı, yapı düzeni, tüneller → `stream.json`, `stream/`); JS yığını dünya boyutundan bağımsız (~300 MB), tahmini ilk yükleme 17,2 → 4–6 sn
+- [x] **12.0b Veri iskelesi:** il grupları `tools/groups/*.yaml` (çekirdek, batı, doğu, güney), türetilmiş sınır kutusu, grup yer adları `src/config/places/<grup>.ts`, il listeleri testlerde veriden okunur, `fetch_*.py --groups`
+- [x] **12.A Batı:** Kocaeli, Bilecik (Körfez sanayi kuşağı, Söğüt/Bilecik tarihî doku; 12 simge yapı)
+- [x] **12.B Doğu:** Samsun, Çorum, Amasya (Bafra/Çarşamba deltası, Hattuşa, Amasya vadisi; 20 simge yapı); `bbox_max` ±4,5° (28,5–37,5°D); yerleşim kimliği çakışması düzeltmesi
+- [x] **12.C Güney:** Ankara (ızgara içi %78) ve Kırıkkale (8 simge yapı); Overture "… Belediyesi" yinelemesi düzeltmesi
+- [x] **12.9 Entegrasyon:** 16 hedef il, 6637 × 3148 örnek (13,27 × 6,29 km), 98 karo, `elevation.max` 2600 m (değişmedi), `PINNED_WINDOWS` dördüncü pencere (eski alan 0 hücre fark: golden'lar aynı); 1 759 yerleşim; veri bütçesi 55 → 160 MB, açılış sınırı 20 → 10 sn; tünel adayı birleştirme düzeltmesi; test eşikleri gerekçeyle güncellendi _(tam test takımı yeşil; yerel `npm run check`)_
 
-Her genişleme ayrı bir faz olarak planlanır. Olası sıra (komşuluğa göre):
-
-1. ~~**Kastamonu – Çankırı**~~ _(eklendi, Faz 11 sonrası)_
-2. **Ankara** (kuzeyi önce) — **karo akışı** (oyuncuya göre yükleme/boşaltma) önce gerekir
-3. **Sakarya – Kocaeli** … (EPSG:32636 batıda ~28,5°D'ye kadar yeter; ötesi için ayrı karar)
+Bilinen sınırlar ve sonraki işler (ayrıntı [docs/faz-12-olcumler.md](docs/faz-12-olcumler.md) §5):
+- [ ] **Draw call:** başsız ölçümde 16 konumun 11'inde > 300 (en kötü 343, Anıtkabir); `CHUNK.viewDistance` 4000 → 3000 en kötüyü 219'a indirir (sis `fogFar` ile birlikte); gerçek GPU'da karar
+- [ ] **Karo başına özellik dosyaları** (`features.json` 4,9 MB, `settlements.json` 4,6 MB küresel); eski `tiles/*.bin` dağıtımdan çıkarılabilir (74 MB)
+- [ ] **Büyükşehir yerleşimi:** düzen sırası ilçe → il olduğundan Samsun (13) ve Ankara (41) il merkezi sıkışır; Ankara'da satıcı sayısı; kent sokaklarının dereyi köprüyle geçmesi (köprüsüz kesişim 15)
+- [ ] **Eynegazi (Samsun)** yolsuz; Ankara'nın güney ucu (Şereflikoçhisar, Evren), İstanbul, Eskişehir, Tokat, Yozgat eklenmedi
 
 Genişleme için teknik gereksinimler:
-- [x] Çoklu bölge desteği ve bölgeler arası kesintisiz geçiş _(Faz 7'de tek koordinat sistemi + karolarla çözülür; ayrı "bölge geçişi" gerekmez)_
+- [x] Çoklu bölge desteği ve bölgeler arası kesintisiz geçiş _(Faz 7'de tek koordinat sistemi + karolarla çözülür)_
 - [x] Heightmap'in diskte karo dosyalarına bölünmesi _(Faz 7)_
-- [x] UTM zone değişimi _(Faz 7'de gerekmedi: Düzce–Bolu 30°D'nin doğusunda; EPSG:32636 batıda ~28,5°D'ye, doğuda 36°D'ye kadar yeter)_
-- [ ] Karo akışı (oyuncuya göre karo yükleme/boşaltma; bellek tavanı)
+- [x] UTM zone değişimi _(Faz 7'de gerekmedi; Faz 12'de `bbox_max` 28,5–37,5°D: ölçek sapması ≤ %0,2)_
+- [x] Karo akışı (oyuncuya göre karo yükleme/boşaltma; bellek tavanı) _(Faz 12, 12.0a)_
 - [ ] Karo başına özellik dosyaları (su/örtü vektörleri) — `features.json` büyüdüğünde
 
 ---

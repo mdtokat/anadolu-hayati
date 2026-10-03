@@ -328,3 +328,20 @@ Ayrıntı `CLAUDE.md` "Performans çalışması" ve [performans-olcumler.md](per
 - [ ] **Otomatik çözünürlük:** zorlanan bir sahnede (kalabalık şehir, uzak manzara) `F3`'teki "Çözünürlük" yüzdesi düşüyor mu, görüntü bulanıklaşması rahatsız edici mi? Rahatlayınca geri yükseliyor mu? Ayarlar'da kapatınca eski davranış mı?
 - [ ] **Göstergede:** FPS, %1 en kötü, draw call değerleri (şehirde ve ormanda): ____________________
 - Notlar: ____________________
+
+## 21. Faz 12: çevre iller ve karo akışı (Kocaeli, Bilecik, Samsun, Çorum, Amasya, Ankara, Kırıkkale)
+
+Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup raporları ([batı](faz-12-bati-rapor.md), [doğu](faz-12-dogu-rapor.md), [güney](faz-12-guney-rapor.md)), karo akışı [faz-12-karo-akisi-olcumler.md](faz-12-karo-akisi-olcumler.md). Harita 16 hedef ile (13,27 × 6,29 km) büyüdü; dünya artık oyuncuya yaklaştıkça karo karo yüklenir.
+
+- [ ] **Açılış ve yükleme:** sayfa açılışı → menü kaç saniye? Yeni Oyun / Devam sonrası "Harita yükleniyor…" kısa mı? Konsolda hata var mı? Bağlantı hızı: ____________________
+- [ ] **Işınlanma ve karo akışı:** `T` + rakam ve `Shift` + rakam ile uzak noktalara (Ankara'dan Samsun'a, Kocaeli'den Amasya'ya) ışınlanınca oyun karolar gelene kadar bekleyip sorunsuz devam ediyor mu? Yürürken karo sınırlarında (kaplama dokusu, yol/dere kenarı, ağaç/collider) dikiş, kayma ya da düşme var mı? Koşarken yeni karo yüklenirken takılma var mı (`F3` "Karo akışı" bölümü)?
+- [ ] **Uzak arazi:** yüksek bir yerden (Ilgaz, Köroğlu) uzağa bakınca uzak arazi (genel bakış, 16 m doku) yakın arazi ile uyumlu mu, geçişte belirgin renk/yükseklik sıçraması var mı?
+- [ ] **Başlangıç / yeniden doğma:** birkaç Yeni Oyun ve `K` ile ölüm: il ve ilçe merkezlerinden rastgele başlıyor; yeni illerde (Ankara, Samsun, Kocaeli …) bina içine/suya düşme, havada kalma var mı? Notlar: ____________________
+- [ ] **Yeni ilde il bildirimi ve yer adları:** sınır geçince "Ankara'ya / Kırıkkale'ye / Kocaeli'ne / Samsun'a / Çorum'a / Amasya'ya / Bilecik'e hoş geldiniz" doğru dilbilgisiyle çıkıyor mu? `Shift` + 1–9, 0 her yeni ilin 8–10 yerine götürüyor mu, yer adı bildirimi çıkıyor mu?
+- [ ] **Ankara:** Anıtkabir, Ankara Kalesi, Hacı Bayram Veli ve Kocatepe camileri çevresi inandırıcı mı? Şehir merkezinde (Kızılay) satıcı sayısı çok mu, FPS nasıl (en kötü draw call 343, bkz. ölçüm)? Kızılcahamam–Çamlıdere ormanında gece soğuğu, Çubuk/Kalecik bozkırında yiyecek hissi?
+- [ ] **Samsun ve doğu:** Bafra/Çarşamba deltasında yol, köprü, dere sıklığı; Samsun merkezinin görünümü (il merkezi yalnız 13 yapı); Amasya vadisi (Kral Kaya Mezarları, kale), Çorum (Hattuşa, Ulu Cami), Eynegazi köyünün yolsuzluğu.
+- [ ] **Kocaeli ve Bilecik:** Körfez kıyısındaki sanayi dokusu (İzmit, Gebze, Dilovası: yalnız birkaç fabrika), Körfez'e batıdan bakarken FPS (en kötü draw call 309–355), Söğüt/Bilecik tarihî doku, Sapanca–Kartepe ormanı.
+- [ ] **FPS (asıl madde):** gerçek GPU'lu masaüstünde en kötü konumlarda (Anıtkabir, Safranbolu, İnebolu, İzmit, Zonguldak, Çorum) `F3`'teki FPS, %1 en kötü, draw call, üçgen. Başsız (yazılımsal) ölçümde 16 konumun 11'inde draw call 300'ü aşıyor; gerçek GPU'da ≥ 60 FPS mi? Aşağıdaysa `CHUNK.viewDistance` 4000 → 3000 (+ `fogFar`) en hızlı çare (ölçüm: en kötü 343 → 219): ____________________
+- [ ] **Bellek:** Chrome Görev Yöneticisi / `performance.memory`: uzun gezintiden sonra (10 dk, farklı iller) JS yığını ve sekme belleği nasıl (başsız ~310–370 MB)? Karo tavanı (25) aşılıyor mu, bellek sızıntısı var mı?
+- [ ] **Eski kayıtlar:** Faz 11 sonrası (v8) bir kayıt yükleniyor mu? Kayıttaki "aranmış yapı" listesi yerleşim düzeni değiştiği için başka yapıyı gösterebilir (kabul edilmiş sınır): yapılar, envanter, saat doğru mu?
+- Notlar: ____________________

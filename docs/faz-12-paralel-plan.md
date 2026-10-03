@@ -2,6 +2,8 @@
 
 Bu belge, harita genişletmesinin **üç oturumda aynı anda** yürütülmesi için hazırlandı (kullanıcı talimatı: "3 farklı oturumda aynı anda çalıştırıp diğer illerden de ekleyeceğim"; plan sunuldu ve **kullanıcı tarafından onaylandı**). Yöntem [faz-11-paralel-plan.md](faz-11-paralel-plan.md) ve [faz-7-paralel-plan.md](faz-7-paralel-plan.md) ile aynıdır: önce **küçük bir iskele** birleşir, sonra akışlar dosya sahipliğine uyarak paralel çalışır, en sonda **tek bir entegrasyon oturumu** dünya verisini bir kez üretir.
 
+> **Durum (12.9 sonrası):** 12.0a, 12.0b, 12.A, 12.B, 12.C ve 12.9 tamamlandı; birleşik ölçüm [faz-12-olcumler.md](faz-12-olcumler.md), `CLAUDE.md` "Faz 12 çevre iller ve karo akışı". Aşağıdaki plan tarihsel kayıttır.
+
 > **Kullanıma başlamadan önce:** `CLAUDE.md` ("Mevcut Durum", "Bölge Veri Formatı", "Çalışma Kuralları"), `ROADMAP.md` "Genişleme" bölümü ve bu belgenin §2 (kurallar) ile kendi akışının bölümünü oku. Kullanıcı seni bu belgeye işaret ederek başlattıysa **plan onaylanmıştır** (CLAUDE.md "Plan, sonra kod"). Plandan sapmak gerekirse uygulamadan önce kullanıcıya sor. Yalnızca kendi akışının işini yap.
 
 **Kullanıcı kararı (CLAUDE.md'deki "harita genişletmesi durduruldu" notunun yerine geçer):** harita genişletmesi yeniden açıldı; çevre iller Faz 12'de eklenir. Bu karar yalnızca bu belgedeki iller için geçerlidir.
