@@ -11,6 +11,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:check": "node scripts/check-build.ts",
+    "perf": "node scripts/perfWalk.ts",
     "build:analyze": "tsc --noEmit && vite build --mode analyze && node scripts/check-build.ts",
     "preview": "vite preview",
     "preview:build": "npm run build && vite preview",

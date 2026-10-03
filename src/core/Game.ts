@@ -1394,6 +1394,9 @@ export class Game {
    */
   private creatureContext(activity: Activity): CreatureContext {
     const feet = this.player.position;
+    // Her 60 Hz adımda çağrılır: kamp ateşleri bir kez hesaplanır, kamp yoksa yapı listesi kopyalanmaz.
+    const all = this.structureSystem.structures.all();
+    const camps = this.campFires();
     const { clock } = this.survival;
     return {
       player: {
@@ -1410,8 +1413,8 @@ export class Game {
       sunAltitudeDeg: clock.sun.altitudeDeg,
       isNight: clock.isNight,
       // Faz 11 (E): yanık eşkıya kampı ateşlerinden de yırtıcılar çekinir; kamp çevresinde canlı doğmaz.
-      fires: [...this.structureSystem.structures.all().filter(isLit), ...this.campFires()],
-      structures: [...this.structureSystem.structures.all(), ...this.campFires()],
+      fires: camps.length === 0 ? all.filter(isLit) : [...all.filter(isLit), ...camps],
+      structures: camps.length === 0 ? all : [...all, ...camps],
       terrain: this.world.creatureTerrain ?? null,
       ...(this.obstacles ? { obstacles: this.obstacles } : {}),
     };

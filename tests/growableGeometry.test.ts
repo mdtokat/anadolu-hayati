@@ -19,7 +19,9 @@ describe('GrowableGeometry', () => {
     buffer.set({ position: new Float32Array(9).fill(1), color: new Float32Array(9) }, 3);
     expect(mesh.geometry).toBe(first);
     expect(mesh.geometry.drawRange).toEqual({ start: 0, count: 3 });
-    expect((mesh.geometry.getAttribute('position') as BufferAttribute).updateRanges).toEqual([{ start: 0, count: 9 }]);
+    expect((mesh.geometry.getAttribute('position') as BufferAttribute).updateRanges).toEqual([
+      { start: 0, count: 9 },
+    ]);
     expect(mesh.visible).toBe(true);
 
     buffer.set({ position: [], color: [] }, 0);
