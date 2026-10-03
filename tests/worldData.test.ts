@@ -17,10 +17,10 @@ import { publicFsFetch } from './helpers/fsFetch';
 const WORLD_DIR = resolve(__dirname, '../public/data/world', WORLD.id);
 
 /**
- * Kapsam: 7 hedef il (Faz 7 planının 5 ili + Kastamonu–Çankırı genişlemesi) + 2 km pay; batı ve kuzey kenarı chunk'a
+ * Kapsam: 9 hedef il (Faz 7 planının 5 ili + Kastamonu–Çankırı + Sinop–Sakarya genişlemeleri) + 2 km pay; batı ve kuzey kenarı chunk'a
  * hizalı. Faz 7 kapsamı (−640, 0, 2228 × 1962) bunun içinde aynen durur.
  */
-const EXPECTED_EXTENT = { col0: -640, row0: -256, cols: 3452, rows: 2218 };
+const EXPECTED_EXTENT = { col0: -1152, row0: -384, cols: 4699, rows: 2346 };
 /** Eski bölgenin kafesteki alanı (7.2: extent 0,0,1588,1176). */
 const LEGACY = { col0: 0, row0: 0, cols: 1588, rows: 1176 };
 
@@ -56,12 +56,12 @@ describe('manifest ve karo dosyaları', () => {
     expect(Math.abs(manifest.extent.col0 % CHUNK_CELLS)).toBe(0);
     expect(Math.abs(manifest.extent.row0 % CHUNK_CELLS)).toBe(0);
     const range = tileRangeOf(manifest.extent);
-    expect(range).toEqual({ tx0: -2, tx1: 5, ty0: -1, ty1: 3 });
-    expect(manifest.tiles).toHaveLength(40);
+    expect(range).toEqual({ tx0: -3, tx1: 6, ty0: -1, ty1: 3 });
+    expect(manifest.tiles).toHaveLength(50);
     expect(manifest.overtureRelease).toBe('2026-09-23.1');
     expect(world.meta.gridWidth).toBe(EXPECTED_EXTENT.cols);
     expect(world.meta.gridHeight).toBe(EXPECTED_EXTENT.rows);
-    expect(world.meta.gridOrigin).toEqual({ x: -2867, z: -1687 });
+    expect(world.meta.gridOrigin).toEqual({ x: -3891, z: -1943 });
   });
 
   it('dünya geneli yükseklik aralığı: max yukarı 100e yuvarlı ve en yüksek noktayı kapsar', () => {
@@ -89,13 +89,13 @@ describe('manifest ve karo dosyaları', () => {
 });
 
 describe('iller', () => {
-  it('yedi hedef il inRegion=true; komşular false', () => {
+  it('dokuz hedef il inRegion=true; komşular false', () => {
     const targets = world.provinces.filter((p) => p.inRegion).map((p) => p.name);
     expect(targets.sort()).toEqual(
-      ['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak', 'Kastamonu', 'Çankırı'].sort(),
+      ['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak', 'Kastamonu', 'Çankırı', 'Sinop', 'Sakarya'].sort(),
     );
     const neighbors = world.provinces.filter((p) => !p.inRegion).map((p) => p.name);
-    for (const name of ['Ankara', 'Sakarya', 'Bilecik', 'Sinop', 'Çorum']) {
+    for (const name of ['Ankara', 'Bilecik', 'Samsun', 'Çorum', 'Kocaeli']) {
       expect(neighbors, name).toContain(name);
     }
   });
@@ -220,7 +220,7 @@ describe('arazi örtüsü', () => {
         }
         // Kıyı blokları az kara içerir; oran blok alanına göredir (kıyıdaki `none` hücreler şerit sayılmaz).
         if (blockLand > 0)
-          expect(blockNone / CHUNK_CELLS ** 2, `blok (${c0}, ${r0})`).toBeLessThan(0.2);
+          expect(blockNone / CHUNK_CELLS ** 2, `blok (${c0}, ${r0})`).toBeLessThan(0.25); // göl (Sapanca) none sayılır
       }
     }
   });

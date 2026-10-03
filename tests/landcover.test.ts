@@ -143,8 +143,8 @@ describe('gerçek dünya arazi örtüsü (public/data/world)', () => {
     for (const value of region.landcover as Uint8Array) counts[value] = (counts[value] ?? 0) + 1;
     const total = region.heights.length;
     const forest = (counts[LANDCOVER_VALUE.forest] ?? 0) / total;
-    // Batı Karadeniz ormanlı bir bölge; Çankırı'nın bozkırı (Kastamonu–Çankırı genişlemesi) oranı ~%42'ye indirdi.
-    expect(forest).toBeGreaterThan(0.38);
+    // Batı Karadeniz ormanlı bir bölge; Çankırı'nın bozkırı (Kastamonu–Çankırı) oranı ~%42'ye, Sinop–Sakarya ile ~%37'ye indirdi.
+    expect(forest).toBeGreaterThan(0.33);
     expect(forest).toBeLessThan(0.8);
     expect(counts[LANDCOVER_VALUE.shrub]).toBeGreaterThan(0);
     expect(counts[LANDCOVER_VALUE.crop]).toBeGreaterThan(0);

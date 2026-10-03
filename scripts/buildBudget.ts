@@ -36,10 +36,11 @@ export const BUILD_BUDGET = {
     /**
      * `dist/data/` toplamı (ham). CLAUDE.md: karo akışı yok, açılışta hepsi iner. Kastamonu–Çankırı genişlemesi
      * (kullanıcı kararı: karo akışı yazmadan, bütçe bilinçli yükseltilerek): 24 → 40 MB (ölçülen ~35 MB; 40 karo).
+     * Sinop–Sakarya genişlemesi (50 karo): 40 → 55 MB.
      */
-    totalKB: 40_000,
-    /** Tek veri dosyası (ham). Karolar 512 kB; istisna `features.json` (genişlemeyle ≈ 1,9 MB): 1,5 → 2,5 MB. */
-    maxFileKB: 2_560,
+    totalKB: 55_000,
+    /** Tek veri dosyası (ham). Karolar 512 kB; istisna `features.json` (genişlemeyle ≈ 1,9 MB; Sinop–Sakarya ile ≈ 2,5 MB): 1,5 → 3,5 MB. */
+    maxFileKB: 3_584,
   },
   /**
    * Performans bütçesi "ilk yükleme < 10 sn": açılışta inen her şeyin (JS + CSS + dünya verisi)

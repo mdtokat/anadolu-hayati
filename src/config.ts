@@ -946,7 +946,7 @@ export const OTHER_PROVINCE_PLACES = {
     { name: 'Karasu', lat: 41.0958, lon: 30.6958 },
     { name: 'Kocaali', lat: 41.0542, lon: 30.8508 },
     { name: 'Geyve', lat: 40.5069, lon: 30.2933 },
-    { name: 'Pamukova', lat: 40.5086, lon: 30.1639 },
+    { name: 'Ferizli', lat: 40.9425, lon: 30.4850 },
     { name: 'Kaynarca', lat: 41.0344, lon: 30.3067 },
     { name: 'Taraklı', lat: 40.3969, lon: 30.4958 },
   ],

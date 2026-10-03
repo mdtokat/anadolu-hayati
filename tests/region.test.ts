@@ -210,7 +210,8 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
     expect(region.meta.crs).toBe('EPSG:32636');
     expect(region.meta.horizontalScale).toBe(HORIZONTAL_SCALE);
     expect(region.heights.length).toBe(region.meta.gridWidth * region.meta.gridHeight);
-    expect(region.meta.gridWidth * region.meta.gridHeight * 2).toBeLessThan(20 * 1024 * 1024);
+    // Karolu dünyada tek dosya yok (her karo ≤ 1 MB); birleştirilmiş dizi bellek içi (Sinop–Sakarya: ~22 MB).
+    expect(region.meta.gridWidth * region.meta.gridHeight * 2).toBeLessThan(32 * 1024 * 1024);
   });
 
   it('yükseklik aralığı meta ile tutarlı: 0 .. elevationMax', () => {
@@ -228,13 +229,13 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
     expect(region.meta.elevationMax).toBeLessThan(2700);
   });
 
-  it('dünya boyutu oyunda ~6,90 × 4,43 km (Kastamonu–Çankırı dahil)', () => {
+  it('dünya boyutu oyunda ~9,40 × 4,69 km (Sinop–Sakarya dahil)', () => {
     const width = source.bounds.maxX - source.bounds.minX;
     const depth = source.bounds.maxZ - source.bounds.minZ;
-    expect(width).toBeGreaterThan(6850);
-    expect(width).toBeLessThan(6950);
-    expect(depth).toBeGreaterThan(4400);
-    expect(depth).toBeLessThan(4480);
+    expect(width).toBeGreaterThan(9350);
+    expect(width).toBeLessThan(9450);
+    expect(depth).toBeGreaterThan(4650);
+    expect(depth).toBeLessThan(4730);
   });
 
   // Python veri hattı + TS koordinat dönüşümü + heightmap okuma birlikte doğrulanır.
@@ -270,18 +271,23 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
 
   it('komşu iller inRegion=false, hedef iller true', () => {
     const byName = new Map(region.provinces.map((p) => [p.name, p]));
-    for (const name of ['Zonguldak', 'Bartın', 'Karabük', 'Düzce', 'Bolu', 'Kastamonu', 'Çankırı'])
+    for (const name of ['Zonguldak', 'Bartın', 'Karabük', 'Düzce', 'Bolu', 'Kastamonu', 'Çankırı', 'Sinop', 'Sakarya'])
       expect(byName.get(name)?.inRegion).toBe(true);
-    for (const name of ['Ankara', 'Sakarya', 'Bilecik', 'Eskişehir', 'Sinop', 'Çorum'])
+    for (const name of ['Ankara', 'Bilecik', 'Eskişehir', 'Samsun', 'Çorum', 'Kocaeli'])
       expect(byName.get(name)?.inRegion).toBe(false);
   });
 
-  it('hedef il (Bolu) ve komşu il (Sakarya) noktası doğru bulunur; açık deniz null', () => {
+  it('hedef il (Bolu, Sakarya) ve komşu il (Çorum) noktası doğru bulunur; açık deniz null', () => {
     const bolu = latLonToGame(40.85, 31.6, region.meta.originUtm);
     expect(provinceAt(region.provinces, bolu.x, bolu.z)?.name).toBe('Bolu');
     const sakarya = latLonToGame(40.78, 30.62, region.meta.originUtm);
     expect(provinceAt(region.provinces, sakarya.x, sakarya.z)).toMatchObject({
       name: 'Sakarya',
+      inRegion: true,
+    });
+    const corum = latLonToGame(40.98, 34.8, region.meta.originUtm);
+    expect(provinceAt(region.provinces, corum.x, corum.z)).toMatchObject({
+      name: 'Çorum',
       inRegion: false,
     });
     const sea = latLonToGame(41.9, 32.0, region.meta.originUtm);

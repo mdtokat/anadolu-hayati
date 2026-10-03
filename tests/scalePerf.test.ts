@@ -106,7 +106,7 @@ function prepareWorld(region: RegionData) {
 const MB = 1024 * 1024;
 
 describe('Faz 7 ölçeği (gerçek dünya, CPU)', { timeout: 120_000 }, () => {
-  it('486 chunk (27 × 18), bellek bütçesi; açılış hazırlığı ölçülür', async () => {
+  it('703 chunk (37 × 19), bellek bütçesi; açılış hazırlığı ölçülür', async () => {
     const loadStart = performance.now();
     const wide = await loadWorld(WORLD.id, '/', publicFsFetch());
     const assembleMs = performance.now() - loadStart;
@@ -114,12 +114,12 @@ describe('Faz 7 ölçeği (gerçek dünya, CPU)', { timeout: 120_000 }, () => {
     const old = prepareWorld(legacy);
     const big = prepareWorld(wide);
 
-    // Kastamonu–Çankırı genişlemesi: 3452 × 2218 örnek, 27 × 18 = 486 chunk. Görüş uzaklığı (4 km) artık tüm dünyayı
+    // Sinop–Sakarya genişlemesi: 4699 × 2346 örnek, 37 × 19 = 703 chunk. Görüş uzaklığı (4 km) artık tüm dünyayı
     // kapsamaz: Zonguldak'tan Çankırı'nın doğu ucu görüş dışında kalır (draw call'ı yine frustum sınırlar).
-    expect(big.grid).toMatchObject({ cx0: -5, cy0: -2, cols: 27, rows: 18 });
-    expect(big.chunks).toBeGreaterThan(400);
-    expect(big.chunks).toBeLessThanOrEqual(486);
-    expect(big.grid.sampleWidth * big.grid.sampleHeight).toBe(3452 * 2218);
+    expect(big.grid).toMatchObject({ cx0: -9, cy0: -3, cols: 37, rows: 19 });
+    expect(big.chunks).toBeGreaterThan(550);
+    expect(big.chunks).toBeLessThanOrEqual(703);
+    expect(big.grid.sampleWidth * big.grid.sampleHeight).toBe(4699 * 2346);
 
     // Bellek (7,66 M örnek: yükseklik Float32 ≈ 29 MB, deniz uzaklığı ≈ 29 MB, örtü ≈ 7 MB, dokular ≈ 58 MB;
     // Faz 7 dünyasının ~1,75 katı)
