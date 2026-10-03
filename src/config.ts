@@ -2147,6 +2147,8 @@ export const ROADS = {
   minBlend: 2.6,
   /** Yol gövdesinin dışındaki bir hücrede zeminin doğal yüksekliğinden en çok değişimi (oyun m). */
   maxEdgeChange: 8,
+  /** Köprü güvertesinin (yatak) altında zeminin kalacağı en çok yükseklik: yatak − bu değer (oyun m; güverte kalınlığı + boşluk). */
+  bridgeClearance: 0.9,
   maxBlend: 11,
   /**
    * Dağ patikası istisnası: patikada (sınıf 2) arazinin eğimi `mountainSlopeDeg`'in üstündeyse zemin düzeltilmez;
@@ -2482,6 +2484,31 @@ export const STRUCTURE_OBSTACLES = {
   maxBottom: 0.6,
   /** Kutunun tepesi en az bu kadar yüksekse engeldir (plakalar ve basamaklar yürünür). */
   minTop: 0.4,
+} as const;
+
+/**
+ * Katı nesneler (kullanıcı talimatı: "hiçbir nesnenin içinden ne oyuncu ne canlılar geçemesin"): ağaç, kaya ve çalılar
+ * silindir collider'dır (yerdeki dal/taş/mantar geçilir). Tür başına `radius` (ölçek 1'de gövde/gövde-taban yarıçapı;
+ * taç değil), `height` (collider boyu; ağaçta oyuncunun aşamayacağı kadar yüksek, çalı/kayada görsel boy) ve
+ * `scaleHeight` (boy nesne ölçeğiyle büyür mü). Rapier collider'ları oyuncuya `colliderRadius` içindekiler için kurulur
+ * (`resyncDistance` hareketle yenilenir); aynı tablo canlı/insan/eşkıya engel sorgusunda da kullanılır.
+ */
+export const PROP_SOLIDS = {
+  colliderRadius: 36,
+  resyncDistance: 5,
+  /** Yarıçap hiçbir ölçekte bu değerin altına inmez (oyun m). */
+  minRadius: 0.25,
+  kinds: {
+    tree_broadleaf: { radius: 0.75, height: 6, scaleHeight: false },
+    tree_conifer: { radius: 0.55, height: 6, scaleHeight: false },
+    chestnut: { radius: 0.75, height: 6, scaleHeight: false },
+    hazel: { radius: 0.5, height: 3, scaleHeight: false },
+    bush: { radius: 0.9, height: 1.1, scaleHeight: true },
+    berry_bush: { radius: 0.75, height: 1, scaleHeight: true },
+    rock: { radius: 0.95, height: 1.1, scaleHeight: true },
+  } as Readonly<
+    Record<string, { radius: number; height: number; scaleHeight: boolean } | undefined>
+  >,
 } as const;
 
 /** ── Faz 11: B (11.2) ── Döşek: üstünde hareketsiz dinlenirken barınak etkisinin üstüne eklenen çarpanlar. */
@@ -2863,6 +2890,44 @@ export const BANDITS = {
   drawRadius: 420,
   colliderRadius: 90,
   seed: 0xba4d17,
+} as const;
+
+/**
+ * Sokak çeteleri (kullanıcı talimatı: "şehir merkezinde de başka NPC oyuncular çıksın, çatışma olsun"): il ve ilçe
+ * merkezlerinin caddelerinde, eşkıya sisteminin (`BanditSystem`) yapay zekâsını kullanan silahlı iki rakip çete. Oyuncuya
+ * yaklaşınca (ve gün/saat uygunsa) canlanırlar; birbirlerini görünce çatışırlar, oyuncuyu görünce ona da saldırırlar.
+ * `Settings.bandits` kapalıysa çıkmazlar. Camide saldırmazlar (kutsal alan). Uzaklıklar oyun metresidir.
+ */
+export const GANGS = {
+  /** Çete adayı yerleşim sıraları (il ve ilçe merkezleri). */
+  ranks: ['il', 'ilce'] as readonly string[],
+  /** Merkezin çevresinde cadde noktası aranan en geniş yarıçap (yerleşim yarıçapının oranı) ve deneme sayısı. */
+  searchRadiusFraction: 0.5,
+  searchTries: 80,
+  /** Cadde noktasında yola en çok bu kadar uzaklık (yol ekseni) ve binalara en az uzaklık (oyun m). */
+  streetDistance: 2.5,
+  buildingClearance: 1.5,
+  /** İki çetenin başlangıç noktaları arası uzaklık aralığı (oyun m): görüş menzilinde ama yakın değil. */
+  pairDistance: [22, 40],
+  /** Çete üyelerinin başlangıç noktasının çevresine dağılma yarıçapı (oyun m). */
+  spread: 3,
+  /** Merkez çevresinde oyuncu bu uzaklığa girince canlanırlar; `despawnMargin` ötesinde kalkarlar. */
+  activeRadius: 130,
+  despawnMargin: 60,
+  /** Çeteler oyuncuya bu uzaklıktan yakın başlangıç noktasında canlanmaz (oyuncunun gözü önünde belirmesin). */
+  minSpawnDistance: 40,
+  /** Oyun başından bu kadar oyun saniyesi çete çıkmaz (şehir merkezinde başlayan oyuncuya ısınma payı). */
+  graceSeconds: 15 * 60,
+  /** Çetelerin sokakta olduğu saatler [başlangıç, bitiş) ve bir yerleşimde bir gün içinde bulunma olasılığı. */
+  hours: [9, 22] as readonly [number, number],
+  presenceChance: 0.4,
+  /** Çete başına üye sayısı (reis dahil) ve silah dağılımı; reis tabanca, av tüfeği ya da piyade tüfeğiyle gelir. */
+  members: [2, 4] as readonly [number, number],
+  weapons: { pistol: 4, shotgun: 2, pala: 2, club: 2, rifle: 1 },
+  leaderWeapons: { pistol: 2, shotgun: 2, rifle: 1 },
+  /** Çeteler arası görüş menzili (oyun m) ve göz yüksekliği: rakip bu mesafede görüş hattındaysa çatışma başlar. */
+  rivalSight: 60,
+  seed: 0x6a9c5e,
 } as const;
 
 /** ── Faz 11: E (11.7) ── Yankesiciler (il/ilçe merkezlerinde): nadir; yaklaşıp bir eşya çalıp kaçar. */

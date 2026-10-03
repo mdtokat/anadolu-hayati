@@ -25,6 +25,12 @@ export interface ObstacleExtras {
    * insanlar binaların içinden geçmez).
    */
   solidAt?: (x: number, z: number, radius: number) => boolean;
+  /**
+   * Dünya nesneleri (ağaç, kaya, çalı; köprü ve tünel kutuları; kamp çadırları): (x0, z0)→(x1, z1) yürüyüşü keser mi?
+   * `solidContains` hareketsiz noktalar içindir (insan yürüyüşü, doğma).
+   */
+  solidBlocks?: (x0: number, z0: number, x1: number, z1: number, radius: number) => boolean;
+  solidContains?: (x: number, z: number, radius: number) => boolean;
   /** Zemin yüksekliği: verilirse zeminden `upperFloorRise` yüksekteki üst kat duvarları yerdeki yürüyüşü kesmez. */
   heightAt?: (x: number, z: number) => number;
 }
@@ -33,7 +39,7 @@ export interface ObstacleExtras {
 const UPPER_FLOOR_RISE = 1.9;
 
 /** Dünya düzleminde yönlü dikdörtgen (yapı yaw'ı ile dönmüş kutunun yatay izdüşümü). */
-interface Rect {
+export interface ObstacleRect {
   cx: number;
   cz: number;
   cos: number;
@@ -57,7 +63,7 @@ const key = (gx: number, gz: number): number => gx * 73856093 + gz * 19349663;
  * basamak gibi yürünen/üstte kalan parçalar engel değildir.
  */
 export class StructureObstacles implements ObstacleQuery {
-  private readonly grid = new Map<number, Rect[]>();
+  private readonly grid = new Map<number, ObstacleRect[]>();
   private syncedVersion = -1;
   private stamp = 0;
   private count = 0;
@@ -78,6 +84,7 @@ export class StructureObstacles implements ObstacleQuery {
     if (this.extras.solidAt) {
       if (this.extras.solidAt(x1, z1, radius) && !this.extras.solidAt(x0, z0, radius)) return true;
     }
+    if (this.extras.solidBlocks?.(x0, z0, x1, z1, radius)) return true;
     if (this.count === 0) return false;
     this.stamp += 1;
     const cell = STRUCTURE_OBSTACLES.cell;
@@ -103,6 +110,7 @@ export class StructureObstacles implements ObstacleQuery {
   contains(x: number, z: number, radius: number): boolean {
     this.sync();
     if (this.extras.solidAt?.(x, z, radius)) return true;
+    if (this.extras.solidContains?.(x, z, radius)) return true;
     if (this.count === 0) return false;
     const cell = STRUCTURE_OBSTACLES.cell;
     const bucket = this.grid.get(key(Math.floor(x / cell), Math.floor(z / cell)));
@@ -136,10 +144,10 @@ export class StructureObstacles implements ObstacleQuery {
   }
 
   /** Yapının engel dikdörtgenleri (zemine yakın katı kutular). */
-  private rectsOf(s: Readonly<Structure>): Rect[] {
+  private rectsOf(s: Readonly<Structure>): ObstacleRect[] {
     const ground = this.extras.heightAt;
     if (ground && s.y - ground(s.x, s.z) > UPPER_FLOOR_RISE) return [];
-    const rects: Rect[] = [];
+    const rects: ObstacleRect[] = [];
     for (const b of solidBoxes(s.kind, s.open === true)) {
       if (b.cy - b.hy > STRUCTURE_OBSTACLES.maxBottom) continue;
       if (b.cy + b.hy < STRUCTURE_OBSTACLES.minTop) continue;
@@ -168,7 +176,7 @@ export class StructureObstacles implements ObstacleQuery {
 }
 
 /** Noktanın dikdörtgenin (yarıçapla genişletilmiş) içindeki derinliği: > 0 içeride, ≤ 0 dışarıda. */
-function depthIn(rect: Rect, x: number, z: number, radius: number): number {
+function depthIn(rect: ObstacleRect, x: number, z: number, radius: number): number {
   const dx = x - rect.cx;
   const dz = z - rect.cz;
   // Dünya → yerel (localToWorld'ün tersi).
@@ -181,8 +189,8 @@ function depthIn(rect: Rect, x: number, z: number, radius: number): number {
  * Doğru parçası (yarıçapla genişletilmiş) dikdörtgene giriyor mu? Başlangıç zaten içerideyse (örn. yapı üstüne
  * doğmuş/geri tepmiş gövde) yalnızca daha derine gitmek engeldir: çıkış hareketi serbesttir.
  */
-function segmentBlockedByRect(
-  rect: Rect,
+export function segmentBlockedByRect(
+  rect: ObstacleRect,
   x0: number,
   z0: number,
   x1: number,

@@ -130,7 +130,9 @@ export interface GameEvents {
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici; bu bölüme yalnızca E ekler) ──
   /** Bir eşkıya oyuncuyu fark edip saldırıya geçti (çatışma başına bir kez). */
-  'bandit:noticed': { id: number; name: string };
+  'bandit:noticed': { id: number; name: string; gang?: boolean };
+  /** Şehirde iki rakip sokak çetesi çatışmaya başladı (`site`: yerleşim adı; gün ve yer başına bir kez). */
+  'gang:clash': { site: string };
   /** Bir eşkıya hasar aldı (`killed`: bu vuruşla öldü). */
   'bandit:damaged': { id: number; amount: number; killed: boolean };
   /** Ağır yaralı eşkıya teslim oldu ("Aman ağam, canımı bağışla"). */

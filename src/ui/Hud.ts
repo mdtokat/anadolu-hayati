@@ -72,8 +72,8 @@ export interface SurvivalHudInfo {
  * (yalnızca dev modunda) geliştirici bilgisi. Biçimlendirme mantığı `survivalFormat`/`hudView`'dadır (saf, testli).
  */
 export class Hud {
-  /** Sağlık/tokluk/su/enerji kartı (sol alt). */
-  readonly gauges = el('div', 'hud-vitals hud-card');
+  /** Sağlık/tokluk/su/enerji halkaları ve durum çipleri (sol alt). */
+  readonly gauges = el('div', 'hud-vitals');
 
   private readonly root = el('div', 'hud');
   private readonly debug: HTMLElement | null;
@@ -205,20 +205,22 @@ export class Hud {
     this.compass.hidden = true;
   }
 
+  /** Dört halka gösterge (sağlık, tokluk, su, enerji) ve altında durum çipleri. */
   private buildGauges(): void {
+    const rings = el('div', 'hud-rings');
     for (const [key, label] of GAUGES) {
       const row = el('div', 'hud-gauge');
       row.dataset.gauge = key;
       row.title = label;
-      const track = el('div', 'hud-gauge-track');
-      const fill = el('div', 'hud-gauge-fill');
-      track.append(fill);
+      const ring = el('div', 'hud-gauge-ring');
+      const inner = el('div', 'hud-gauge-core');
       const value = el('span', 'hud-gauge-value');
-      row.append(uiIcon(key, 'ui-icon hud-gauge-icon'), track, value);
-      this.gauges.append(row);
-      this.gaugeElements.set(key, { row, fill, value });
+      inner.append(uiIcon(key, 'ui-icon hud-gauge-icon'), value);
+      row.append(ring, inner);
+      rings.append(row);
+      this.gaugeElements.set(key, { row, fill: ring, value });
     }
-    this.gauges.append(this.statusChips);
+    this.gauges.append(rings, this.statusChips);
   }
 
   /** Hayatta kalma göstergelerini, saati ve uyarıları günceller. */
@@ -231,8 +233,11 @@ export class Hud {
       const element = this.gaugeElements.get(key);
       if (!element) continue;
       const value = vitals[key];
-      const width = `${(gaugeFraction(value) * 100).toFixed(1)}%`;
-      if (element.fill.style.width !== width) element.fill.style.width = width;
+      const percent = (gaugeFraction(value) * 100).toFixed(1);
+      if (element.fill.dataset.p !== percent) {
+        element.fill.dataset.p = percent;
+        element.fill.style.setProperty('--p', percent);
+      }
       setText(element.value, String(Math.round(value)));
       setState(element.row, key === 'energy' && vitals.exhausted ? 'critical' : gaugeLevel(value));
     }

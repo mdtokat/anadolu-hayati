@@ -138,8 +138,43 @@ function weaponParts(weapon: BanditWeapon): Part[] {
   }
 }
 
-/** Eşkıya modeli (rol ve silaha göre). */
-export function buildBanditGeometry(role: BanditRole, weapon: BanditWeapon): BanditGeometry {
+/** Sokak çetesi modeli: şehir kıyafeti (deri ceket, kasket/bere); çeteyi ceket rengi ayırır (0 kızıl, 1 lacivert). */
+function buildGangGeometry(
+  role: BanditRole,
+  weapon: BanditWeapon,
+  faction: number,
+): BanditGeometry {
+  const jacket = faction === 0 ? 0x7a2a26 : 0x2c3f63;
+  const trim = faction === 0 ? 0x2a1412 : 0x161e30;
+  const parts: Part[] = [
+    box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, 0x2b2b2e), // tişört
+    box(0.45, 0.5, 0.26, 0, HIP_Y + 0.06, 0, jacket), // ceket
+    box(0.46, 0.06, 0.27, 0, HIP_Y + 0.02, 0, trim), // ceket eteği
+    box(0.1, 0.08, 0.1, 0, SHOULDER_Y, 0, SKIN),
+    { geometry: at(new SphereGeometry(0.115, 8, 6), 0, SHOULDER_Y + 0.2, 0), color: SKIN },
+  ];
+  if (role === 'leader') {
+    // Reis: fötr şapka.
+    parts.push(box(0.34, 0.04, 0.34, 0, SHOULDER_Y + 0.3, 0, 0x1f1d1b));
+    parts.push(box(0.2, 0.14, 0.2, 0, SHOULDER_Y + 0.33, 0, 0x1f1d1b));
+  } else {
+    // Üyeler: bere.
+    parts.push({
+      geometry: at(new SphereGeometry(0.13, 8, 6), 0, SHOULDER_Y + 0.25, -0.01),
+      color: trim,
+    });
+  }
+  parts.push(...weaponParts(weapon));
+  return limbs(merge(parts), 0x23262b, 0x16130f, jacket);
+}
+
+/** Eşkıya modeli (rol ve silaha göre); `faction` 0/1 ise sokak çetesi kıyafeti. */
+export function buildBanditGeometry(
+  role: BanditRole,
+  weapon: BanditWeapon,
+  faction = -1,
+): BanditGeometry {
+  if (faction >= 0) return buildGangGeometry(role, weapon, faction);
   const parts: Part[] = [
     box(0.42, SHOULDER_Y - HIP_Y, 0.24, 0, HIP_Y, 0, 0xd8d0c0), // gömlek
     box(0.44, 0.44, 0.26, 0, HIP_Y + 0.1, 0, 0x3b2a1e), // yelek

@@ -1,7 +1,12 @@
 import { BUILDING_LOOK } from '../config';
 import { solidBoxes, localToWorld } from '../placement/structureShapes';
 import type { StructureSet } from '../placement/structures';
-import { BUILDING_SHAPES, type BuildingKind, type LocalBox } from '../settlements/kinds';
+import {
+  BUILDING_SHAPES,
+  shapeVariant,
+  type BuildingKind,
+  type LocalBox,
+} from '../settlements/kinds';
 import { paneHole, paneId, subtractHoles, windowPanes } from '../settlements/windows';
 import type { Building } from '../settlements/layout';
 import type { SettlementMap } from '../settlements/SettlementMap';
@@ -57,15 +62,16 @@ export function shotSolids(
 }
 
 /** Türün mermi katıları: camlı pencerelerde duvar delinir (mermi camdan geçer; `settlements/windows.ts`). */
-const holedSolids = new Map<BuildingKind, readonly LocalBox[]>();
-function solidsOf(kind: BuildingKind, ruined: boolean): readonly LocalBox[] {
-  const solids = BUILDING_SHAPES[kind].solids;
+const holedSolids = new Map<string, readonly LocalBox[]>();
+function solidsOf(kind: BuildingKind, ruined: boolean, floors: number): readonly LocalBox[] {
+  const solids = shapeVariant(kind, floors, ruined).solids;
   if (ruined) return solids;
-  let list = holedSolids.get(kind);
+  const key = `${kind}:${floors}`;
+  let list = holedSolids.get(key);
   if (!list) {
     const holes = windowPanes(kind).map((pane) => paneHole(pane));
     list = holes.length > 0 ? subtractHoles(solids, holes) : solids;
-    holedSolids.set(kind, list);
+    holedSolids.set(key, list);
   }
   return list;
 }
@@ -73,7 +79,7 @@ function solidsOf(kind: BuildingKind, ruined: boolean): readonly LocalBox[] {
 /** Bir binanın katı kutuları (dünya): `BUILDING_SHAPES.solids` (pencereler delik) + yamaçtaki taş temel. */
 export function buildingSolids(b: Building): SolidBox[] {
   const shape = BUILDING_SHAPES[b.kind];
-  const out: SolidBox[] = solidsOf(b.kind, b.ruined).map((box) => {
+  const out: SolidBox[] = solidsOf(b.kind, b.ruined, b.floors).map((box) => {
     const c = localToWorld(b, box.cx, box.cz);
     return {
       x: c.x,

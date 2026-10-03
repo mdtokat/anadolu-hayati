@@ -62,4 +62,6 @@ export interface BanditView {
   hitFlash: number;
   /** Ölüyse üstü arandı mı? */
   searched: boolean;
+  /** Sokak çetesi (şehir): 0 ya da 1 (rakip çeteler); kamp eşkıyasında −1. */
+  faction?: number;
 }

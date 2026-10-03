@@ -1,6 +1,6 @@
 import { absolutePropId, decodeAbsolutePropId, PROP_ID_STRIDE } from './chunkKeys';
 import { chunkIndexAt, chunkKey, chunkRect, type ChunkGrid } from './chunks';
-import { PROP_KINDS, type PropId, type PropRef } from './propKinds';
+import { PROP_KINDS, type PropId, type PropKind, type PropRef } from './propKinds';
 import type { ChunkProps } from './scatter';
 
 /** Bir chunk'taki en fazla nesne sayısı (kimlik kodlaması: `chunkKey · 65536 + indeks`). */
@@ -84,6 +84,61 @@ export class PropIndex {
       }
     }
     return hits.sort((a, b) => a.d2 - b.d2).map((h) => h.ref);
+  }
+
+  /** (x, z)'nin bulunduğu chunk yüklü mü (katı nesne sorguları yüklü olmayan yerde güvenilmez)? */
+  hasChunkAt(x: number, z: number): boolean {
+    const at = chunkIndexAt(this.grid, x, z);
+    return this.chunks.has(chunkKey(at.cx, at.cy));
+  }
+
+  /**
+   * (x, z)'ye `radius` içindeki nesnelerden biri `test`'i sağlıyor mu? Nesne dizisi ayırmaz (canlı/insan yürüyüşü her
+   * adımda sorar). `test` kimlik, tür indeksi, konum ve ölçeği alır.
+   */
+  someNear(
+    x: number,
+    z: number,
+    radius: number,
+    test: (id: PropId, kind: PropKind, px: number, pz: number, scale: number) => boolean,
+  ): boolean {
+    const from = chunkIndexAt(this.grid, x - radius, z - radius);
+    const to = chunkIndexAt(this.grid, x + radius, z + radius);
+    const r2 = radius * radius;
+    for (let cy = from.cy; cy <= to.cy; cy++) {
+      for (let cx = from.cx; cx <= to.cx; cx++) {
+        const key = chunkKey(cx, cy);
+        const props = this.chunks.get(key);
+        if (!props) continue;
+        const rows = props.rowStart.length - 1;
+        const row0 = Math.max(Math.floor((z - radius - props.minZ) / props.spacing), 0);
+        const row1 = Math.min(Math.floor((z + radius - props.minZ) / props.spacing), rows - 1);
+        if (row1 < row0) continue;
+        for (
+          let i = props.rowStart[row0] as number;
+          i < (props.rowStart[row1 + 1] as number);
+          i++
+        ) {
+          const px = props.x[i] as number;
+          const pz = props.z[i] as number;
+          const dx = px - x;
+          const dz = pz - z;
+          if (dx * dx + dz * dz > r2) continue;
+          if (
+            test(
+              propId(key, i),
+              PROP_KINDS[props.kind[i] as number] as PropKind,
+              px,
+              pz,
+              props.scale[i] as number,
+            )
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   private ref(props: ChunkProps, key: number, index: number): PropRef {

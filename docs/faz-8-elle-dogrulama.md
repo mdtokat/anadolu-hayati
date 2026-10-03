@@ -301,3 +301,18 @@ Konutlar (ev, konak, apartman zemin katı, maden lojmanı), dükkânlar, kahveha
 - [ ] **Ek yapı:** tapulu evin yanına kurulan ilk taban döşemeyle aynı seviyede mi; kapıdan düz geçilebiliyor mu? Parçalar binanın duvarına girmiyor mu?
 - [ ] **Evde uyanma:** tapulu evin varken ölünce evin içinde uyanıyor musunuz? Kayıt/yükleme sonrası para ve tapular korunuyor mu?
 - Notlar: ____________________
+
+---
+
+## 19. Arayüz, katı nesneler, katlı bina içleri, sokak çeteleri ve yol düzeltmesi (Faz 11 sonrası)
+
+Ayrıntı `CLAUDE.md` "Katı nesneler, katlı bina içleri, sokak çeteleri…" ve ROADMAP "Faz 11 sonrası".
+
+- [ ] **Envanter düzeni:** farklı pencere boyutlarında (dar ~800 px, geniş, kısa) `I` ile açınca eşyalar ve üretim bölümü üst üste binmiyor, taşan yer yok mu? Dar pencerede Eşyalar/Üretim sekmeleri çalışıyor mu? Sırt çantalı (34 slot) envanter kaydırılıyor mu?
+- [ ] **Üretim paneli:** arama kutusu ve süzgeç tarifleri doğru süzüyor mu; bir tarife tıklayınca altta ayrıntı (malzemeler, eksik nedeni), adet −/+ ve "En çok" çalışıyor mu; yazı yazarken oyun tuşları (rakamlar, I) tetiklenmiyor mu?
+- [ ] **Göstergeler:** sol alttaki halka göstergeler (sağlık, tokluk, su, enerji) okunaklı mı; düşük/kritik durumda renk ve yanıp sönme yeterince belirgin mi; durum çipleri (ısı, ateş, barınak) hâlâ görünüyor mu?
+- [ ] **Katı nesneler:** ağaca, kayaya, çalıya yürüyünce içinden geçilmiyor mu; sık ormanda yürümek (takılma, dolaşma) hâlâ akıcı mı; kesilen ağaç gövdesi yok oluyor mu (içinden geçilebilir)? Canlılar (karaca, domuz), yolcular, eşkıyalar ağaç/kaya/köprü korkuluğuna takılıp dolaşıyor mu, ağaç içinden geçen var mı? Gerçek GPU'da FPS düşüyor mu?
+- [ ] **Katlı binalar:** konak, apartman, maden lojmanı, hükümet konağında (kapıdan girip) merdivenle her kata ve çatı terasına çıkılıyor mu? Merdivenin üstünde baş çarpması, döşemeden düşme, sahanlıkta takılma var mı? Çatıda korkuluk yüksekliği ve manzara iyi mi? Çatıdayken "Bina içinde" çipi kalkıyor, yağmur görünüyor mu? Yıkık konak/lojmanda yalnız zemin kat mı? Nerede: ____________________
+- [ ] **Sokak çeteleri:** il/ilçe merkezinde (gündüz, oyunun ilk ~15 dakikasından sonra) bazı günlerde caddede iki rakip çete görülüyor mu; birbirleriyle çatışıyorlar mı, "sokakta iki çete çatışıyor" bildirimi çıkıyor mu? Oyuncuyu görünce ona da saldırıyorlar mı; bina duvarı arkasından ateş ediyorlar mı (etmemeli)? Ayarlar'da eşkıya kapalıyken çıkmıyorlar mı? Çok mu sık/zor (olasılık `GANGS.presenceChance`, ısınma `GANGS.graceSeconds`)?
+- [ ] **Köprü ve yollar:** köprü güvertesi/korkuluğu araziye gömülü görünüyor mu (özellikle yamaçta, bina yanında)? Yolun ucundaki (kavşak) dere geçişlerinde ve göl/baraj kenarlarında köprü var mı, kavşakta iki köprünün birleştiği yer kötü görünüyor mu? Köprü altında yamaç oyuğu (basamaklı çukur) rahatsız ediyor mu?
+- Notlar: ____________________

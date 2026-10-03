@@ -58,6 +58,8 @@ import { SettlementColliders } from './SettlementColliders';
 import { StructureIndex } from './roadStructureGeometry';
 import { RoadStructureLayer } from './RoadStructureLayer';
 import { RoadStructureColliders } from './RoadStructureColliders';
+import { PropColliders } from './PropColliders';
+import { StructureWalkSolids } from './roadStructureWalk';
 
 /**
  * Gerçek bölge dünyası: chunk'lanmış LOD'lu arazi mesh'leri, yakın chunk'lar için Rapier
@@ -99,6 +101,10 @@ export class RegionWorld implements GameWorld {
   /** Yağmur damlaları. */
   private readonly rain = new RainLayer();
   private readonly settlementColliders: SettlementColliders | null;
+  /** Ağaç, kaya ve çalı collider'ları (nesne katmanı yoksa null). */
+  private readonly propColliders: PropColliders | null;
+  /** Köprü/viyadük/tünel kutularının yürüyen gövdeler için engel sorgusu (yol yapısı yoksa null). */
+  private readonly roadWalk: StructureWalkSolids | null;
   /** Köprü/viyadük/tünel çizimi ve collider'ları (yol planından); yerleşim verisi yoksa null. */
   private readonly structureLayer: RoadStructureLayer | null;
   private readonly structureColliders: RoadStructureColliders | null;
@@ -194,6 +200,7 @@ export class RegionWorld implements GameWorld {
     this.structureLayer = structures ? new RoadStructureLayer(structures) : null;
     if (this.structureLayer) this.scene.add(this.structureLayer.group);
     this.structureColliders = structures ? new RoadStructureColliders(physics, structures) : null;
+    this.roadWalk = structures ? new StructureWalkSolids(structures) : null;
     this.peopleWorld = settlements
       ? {
           heightAt: (x, z) => this.source.heightAt(x, z),
@@ -222,6 +229,7 @@ export class RegionWorld implements GameWorld {
         )
       : null;
     if (this.props) this.scene.add(this.props.group);
+    this.propColliders = this.props ? new PropColliders(physics, this.props) : null;
 
     // Canlılar (Faz 5): arazi örtüsü yoksa her yer `none` sayılır ve canlı doğmaz.
     this.creatureTerrain = createRegionCreatureTerrain({
@@ -298,6 +306,7 @@ export class RegionWorld implements GameWorld {
     this.structureColliders?.update(focusX, focusZ);
     this.chunks.update(visual.x, visual.z);
     this.props?.update(visual.x, visual.z);
+    this.propColliders?.update(focusX, focusZ);
     this.settlementLayer?.update(visual.x, visual.z);
     this.glass?.update(visual.x, visual.z, timeSeconds);
     this.birds.update(visual.x, visual.z, timeSeconds, this.daylight);
@@ -358,11 +367,21 @@ export class RegionWorld implements GameWorld {
     );
   }
 
+  walkBlocked(x0: number, z0: number, x1: number, z1: number, radius: number): boolean {
+    if (this.props?.solidBlocks(x0, z0, x1, z1, radius)) return true;
+    return this.roadWalk?.blocks(x0, z0, x1, z1, radius, this.source.heightAt(x1, z1)) ?? false;
+  }
+
+  walkContains(x: number, z: number, radius: number): boolean {
+    return this.props?.solidContains(x, z, radius) ?? false;
+  }
+
   prepare(x: number, z: number): void {
     this.colliders.ensureAround(x, z);
     this.settlementColliders?.update(x, z, true);
     this.structureColliders?.update(x, z, true);
     this.props?.prepare(x, z);
+    this.propColliders?.update(x, z, true);
     this.settlementLayer?.update(x, z);
     this.structureLayer?.update(x, z);
   }
@@ -456,6 +475,7 @@ export class RegionWorld implements GameWorld {
   }
 
   dispose(): void {
+    this.propColliders?.dispose();
     this.structureColliders?.dispose();
     this.structureLayer?.dispose();
     this.settlementColliders?.dispose();

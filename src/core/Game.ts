@@ -10,6 +10,7 @@ import { isBackpack } from '../items/backpack';
 import { PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
 import {
   BANDITS,
+  GANGS,
   COMBAT,
   DRONE,
   COMBAT_HUD,
@@ -206,6 +207,7 @@ import {
 } from '../combat/targets';
 import { BanditSystem, fitsAll } from '../bandits/BanditSystem';
 import { campSiteQuery, placeCamps } from '../bandits/camps';
+import { placeGangSites } from '../bandits/gangs';
 import { SURRENDER_TEXT, WARNING_QUESTION, banditWarning, campAnswer } from '../bandits/dialog';
 import { banditInView, inView } from '../bandits/interact';
 import { PickpocketSystem, type PickpocketWorld } from '../bandits/pickpocket';
@@ -218,10 +220,12 @@ import { DroneLayer } from '../world/DroneLayer';
 import { DroneHud } from '../ui/DroneHud';
 import { batteryPercent } from '../ui/droneFormat';
 import { rayTerrain } from '../combat/ranged';
-import { BUILDING_NAMES, BUILDING_SHAPES } from '../settlements/kinds';
+import { BUILDING_NAMES, BUILDING_SHAPES, indoorCeiling, shapeVariant } from '../settlements/kinds';
 import type { BuildingInterior } from '../settlements/SettlementMap';
 import { CREATURE_NAMES } from '../combat/promptText';
 import { CampColliders } from '../world/CampColliders';
+import { campSolidBoxes } from '../world/campGeometry';
+import { walkBoxBlocks, yawBox, type WalkBox } from '../world/walkSolids';
 import { darknessOf } from '../creatures/perception';
 import type { ItemStack } from '../items/Inventory';
 import type { PersonRole } from '../people/roles';
@@ -1288,7 +1292,12 @@ export class Game {
     this.interior = interior;
     this.playerCamera.setIndoor(
       interior
-        ? BUILDING_SHAPES[interior.building.kind].roomHeight - (feet.y - interior.building.y)
+        ? indoorCeiling(
+            interior.building.kind,
+            interior.building.floors,
+            interior.building.ruined,
+            feet.y - interior.building.y,
+          )
         : null,
     );
     if (interior && this.exposure.shelter !== 'hut') {
@@ -2564,9 +2573,34 @@ export class Game {
     this.obstacles = new StructureObstacles(this.structureSystem.structures, {
       heightAt: (x, z) => this.world.terrain.heightAt(x, z),
       ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
+      // Ağaç, kaya, çalı, köprü/tünel kutuları ve kamp çadırları canlıları, insanları ve eşkıyaları da keser.
+      solidBlocks: (x0, z0, x1, z1, r) =>
+        (this.world.walkBlocked?.(x0, z0, x1, z1, r) ?? false) ||
+        this.campBlocksWalk(x0, z0, x1, z1, r),
+      solidContains: (x, z, r) => this.world.walkContains?.(x, z, r) ?? false,
     });
   }
   private updateStations(_dt: number): void {}
+
+  /** Kamp çadırı/sandığı (x0, z0)→(x1, z1) yürüyüşünü keser mi? Kamp kutuları kamp başına bir kez hesaplanır. */
+  private campBlocksWalk(x0: number, z0: number, x1: number, z1: number, radius: number): boolean {
+    const bandits = this.bandits;
+    if (!bandits) return false;
+    for (const camp of bandits.camps) {
+      if (Math.abs(camp.x - x1) > 20 || Math.abs(camp.z - z1) > 20) continue;
+      let boxes = this.campWalkBoxes.get(camp.id);
+      if (!boxes) {
+        const layout = bandits.layoutOf(camp.id);
+        boxes = layout
+          ? campSolidBoxes(layout, (x, z) => this.world.terrain.heightAt(x, z)).map(yawBox)
+          : [];
+        this.campWalkBoxes.set(camp.id, boxes);
+      }
+      const ground = this.world.terrain.heightAt(x1, z1);
+      if (boxes.some((box) => walkBoxBlocks(box, x0, z0, x1, z1, radius, ground))) return true;
+    }
+    return false;
+  }
   private drawStations(_time: number, _feet: { x: number; y: number; z: number }): void {}
 
   // ── Faz 11: C (11.4 ekme biçme) ──
@@ -2693,6 +2727,8 @@ export class Game {
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici) ──
   /** Eşkıya kampları (yerleşim verisi olan gerçek dünyada; yoksa null). */
   private bandits: BanditSystem | null = null;
+  /** Kamp çadırı/sandığı yürüyüş kutuları (kamp kimliği → kutular). */
+  private readonly campWalkBoxes = new Map<number, WalkBox[]>();
   /** Şehirlerde yankesiciler. */
   private readonly pickpockets = new PickpocketSystem(this.events);
   private pickpocketWorld: PickpocketWorld | null = null;
@@ -2722,11 +2758,34 @@ export class Game {
     if (import.meta.env.DEV) {
       console.info(`Eşkıya kampları: ${camps.length} (${(performance.now() - t0).toFixed(0)} ms)`);
     }
-    const bandits = new BanditSystem(this.events, camps, {
-      heightAt,
-      slopeDegAt: (x, z) => terrain.slopeDegAt(x, z),
-      isSea: (x, z) => terrain.isSea(x, z),
+    const gangSites = placeGangSites({
+      centers: map.settlements
+        .filter((s) => GANGS.ranks.includes(s.data.rank))
+        .map((s) => ({
+          id: s.data.id,
+          name: s.data.name,
+          x: s.data.x,
+          z: s.data.z,
+          radius: s.radius,
+        })),
+      onStreet: (x, z, distance) => map.roads.nearest(x, z, distance) !== null,
+      open: (x, z, margin) =>
+        map.buildingAt(x, z, margin) === null &&
+        !terrain.isSea(x, z) &&
+        terrain.slopeDegAt(x, z) <= 25,
     });
+    if (import.meta.env.DEV) console.info(`Sokak çetesi yerleri: ${gangSites.length}`);
+    const bandits = new BanditSystem(
+      this.events,
+      camps,
+      {
+        heightAt,
+        slopeDegAt: (x, z) => terrain.slopeDegAt(x, z),
+        isSea: (x, z) => terrain.isSea(x, z),
+      },
+      undefined,
+      gangSites,
+    );
     this.bandits = bandits;
     // Kamp alanında ağaç/çalı/kaya çizilmez (çadırlar ağaçların içinde kalmasın).
     const clearance = BANDITS.campRadius + 2;
@@ -2742,7 +2801,9 @@ export class Game {
           walkable: (x, z) =>
             people.elevationAt(x, z) > 1 &&
             people.slopeDegAt(x, z) <= PEOPLE.maxSlopeDeg &&
-            !people.blocked(x, z),
+            !people.blocked(x, z) &&
+            // Ağaç, kaya, çalı ve oyuncu yapıları yankesiciyi de keser.
+            !(this.obstacles?.contains(x, z, 0.35) ?? false),
           townRankAt: (x, z) => people.settlementRankAt(x, z),
         }
       : null;
@@ -2764,12 +2825,15 @@ export class Game {
       this.targets.register(bandits),
       this.targets.register(this.pickpockets),
       this.events.on('noise:made', ({ x, z, radius }) => bandits.hearNoise(x, z, radius)),
-      this.events.on('bandit:noticed', ({ name }) => {
+      this.events.on('bandit:noticed', ({ name, gang }) => {
         const now = performance.now();
         if (now - this.lastDangerToast < COMBAT_HUD.dangerToastCooldownMs) return;
         this.lastDangerToast = now;
-        toast(`Tehlike: Eşkıya! (${name})`);
+        toast(gang ? `Tehlike: Sokak çetesi! (${name})` : `Tehlike: Eşkıya! (${name})`);
       }),
+      this.events.on('gang:clash', ({ site }) =>
+        toast(`${site}: sokakta iki çete çatışıyor — silah sesleri!`),
+      ),
       this.events.on('bandit:damaged', ({ killed }) =>
         this.hud.showHitMarker(hitMarkerKind(killed)),
       ),
@@ -2841,6 +2905,8 @@ export class Game {
       targets: this.targets,
       // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser.
       ...(this.obstacles ? { obstacles: this.obstacles } : {}),
+      // Bina duvarları görüşü ve mermiyi keser (şehirdeki sokak çeteleri).
+      ...(this.shotSolidQuery ? { solids: this.shotSolidQuery } : {}),
       // Faz 11 (F): alçak uçan drone'a ateş ederler.
       drone: this.drone.state,
       prey: (x, z, r) =>
@@ -3192,7 +3258,7 @@ export class Game {
         solidAt: settlements
           ? (x, y, z) => {
               const b = settlements.buildingAt(x, z);
-              return b !== null && y < b.y + BUILDING_SHAPES[b.kind].height;
+              return b !== null && y < b.y + shapeVariant(b.kind, b.floors, b.ruined).height;
             }
           : undefined,
       },
@@ -3451,7 +3517,7 @@ export class Game {
       }
     }
     for (const b of this.world.settlementMap?.buildingsNear(s.x, s.z, range) ?? []) {
-      const shape = BUILDING_SHAPES[b.kind];
+      const shape = shapeVariant(b.kind, b.floors, b.ruined);
       candidates.push({
         x: b.x,
         y: b.y + shape.height / 2,

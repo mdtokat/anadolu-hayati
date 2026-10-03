@@ -6,6 +6,17 @@
  * dünyaya `yaw` ile döndürülür (`localToWorld`). Ölçüler oyun metresidir (oyuncu 1,8 m).
  */
 
+import {
+  SLAB,
+  ceilingAbove,
+  rampBox,
+  slabBoxes,
+  storeyPlan,
+  upperWallBoxes,
+  type RampBox,
+  type StoreyPlan,
+} from './storeys';
+
 export const BUILDING_KINDS = [
   // konut
   'house',
@@ -94,6 +105,12 @@ export interface BuildingShape {
   containers: readonly InteriorContainer[];
   /** Girilebilir yapının iç (zemin kat) tavan yüksekliği (oyun m; iç mekân yoksa 0). */
   roomHeight: number;
+  /** Merdiven kollarının eğik çarpışma levhaları (katlı yapı; yerel). */
+  ramps: readonly RampBox[];
+  /** Zemin kat döşemesinden bu yükseklikte ya da üstünde açık havadır (çatı terası); katsızda `height`. */
+  indoorTop: number;
+  /** Katlı yapının kat planı (merdiven, döşeme, çatı terası); katsızda null. */
+  storeys: StoreyPlan | null;
 }
 
 /** Bina içindeki aranabilir eşya kabı türü. */
@@ -180,7 +197,10 @@ export const ROOMS: Partial<
       room: number;
       door: number;
       doorX: number;
-      top: number;
+      /** Katlı yapı (`storeys.ts`): üst katların iç yüksekliği, kat sayısı (apartmanda binaya göre) ve çıkma payı. */
+      upper?: number;
+      storeys?: number;
+      over?: number;
       containers: ReadonlyArray<readonly [ContainerKind, Side, number]>;
     }
   >
@@ -189,7 +209,6 @@ export const ROOMS: Partial<
     room: 3.2,
     door: 1.3,
     doorX: 0,
-    top: 0,
     containers: [
       ['chest', 'back', -1.9],
       ['cupboard', 'right', -1.2],
@@ -199,20 +218,22 @@ export const ROOMS: Partial<
     room: 2.8,
     door: 1.4,
     doorX: 0,
-    top: 5.4,
+    upper: 2.6,
+    storeys: 2,
+    over: 0.7,
     containers: [
       ['chest', 'back', -2.6],
       ['cupboard', 'back', 2.4],
-      ['chest', 'left', 1.2],
+      ['chest', 'right', 1.2],
     ],
   },
   apartment: {
-    room: 2.9,
+    room: 2.6,
     door: 1.4,
     doorX: 0,
-    top: 11.6,
+    upper: 2.6,
     containers: [
-      ['cupboard', 'left', -1.5],
+      ['cupboard', 'back', -3],
       ['chest', 'right', -2],
       ['cupboard', 'back', 3],
     ],
@@ -221,18 +242,18 @@ export const ROOMS: Partial<
     room: 2.9,
     door: 1.3,
     doorX: -2.5,
-    top: 4.8,
+    upper: 2.7,
+    storeys: 2,
     containers: [
       ['chest', 'back', -3.2],
       ['cupboard', 'back', 1.4],
-      ['chest', 'right', 0.6],
+      ['chest', 'left', -1.6],
     ],
   },
   kahvehane: {
     room: 3.2,
     door: 1.3,
     doorX: 0,
-    top: 0,
     containers: [
       ['cupboard', 'back', 2.4],
       ['chest', 'left', -1.2],
@@ -242,7 +263,6 @@ export const ROOMS: Partial<
     room: 3.6,
     door: 1.5,
     doorX: -1.625,
-    top: 0,
     containers: [
       ['cupboard', 'back', -4.5],
       ['cupboard', 'back', 1],
@@ -253,11 +273,12 @@ export const ROOMS: Partial<
     room: 3,
     door: 1.6,
     doorX: 0,
-    top: 6.2,
+    upper: 3,
+    storeys: 2,
     containers: [
       ['cupboard', 'back', -5.5],
       ['cupboard', 'back', 5.5],
-      ['chest', 'left', 0],
+      ['chest', 'back', 0],
       ['chest', 'right', 1],
     ],
   },
@@ -265,7 +286,6 @@ export const ROOMS: Partial<
     room: 3.4,
     door: 1.3,
     doorX: 0,
-    top: 0,
     containers: [
       ['chest', 'left', -1.5],
       ['cupboard', 'back', 3.6],
@@ -303,13 +323,13 @@ export function containerBox(c: InteriorContainer): LocalBox {
 /** Ölçüler — `world/buildingGeometry.ts` görselleri bunlarla çizer. */
 export const SHAPE_DIMS = {
   house: { w: 6.5, d: 5.5, h: 5.2 },
-  konak: { w: 8.5, d: 7.5, h: 7.6 },
+  konak: { w: 8.5, d: 7.5, h: 7 },
   apartment: { w: 10, d: 8.5, floors: 4, floorH: 2.9 },
-  lojman: { w: 10, d: 7, h: 6.4 },
+  lojman: { w: 10, d: 7, h: 7.2 },
   serender: { w: 3, d: 3, h: 4.2 },
   shop_row: { w: 13, d: 5.5, h: 3.6 },
   kahvehane: { w: 8, d: 6.5, h: 4 },
-  government: { w: 18, d: 10, h: 7.5 },
+  government: { w: 18, d: 10, h: 7.6 },
   mosque_grand: { w: 18, d: 18, h: 9, dome: 7, portico: 5, minaret: 26 },
   mosque: { w: 11, d: 11, h: 6.5, dome: 4.6, portico: 3.5, minaret: 17 },
   mosque_wooden: { w: 8, d: 9, h: 4.2, minaret: 10 },
@@ -336,8 +356,38 @@ export function mosqueOffset(kind: BuildingKind): number {
   return 0;
 }
 
-/** Girilebilir oda (`ROOMS`): kapı boşluklu duvarlar, döşeme, üst katların katı gövdesi ve iç duvarlara dayalı kaplar. */
-function roomShape(kind: BuildingKind, w: number, d: number, height: number): BuildingShape {
+/** Katlı yapının kat planı (apartmanda kat sayısı binaya göre); katsız türde null. */
+export function storeyPlanOf(kind: BuildingKind, floors?: number): StoreyPlan | null {
+  const room = ROOMS[kind];
+  if (!room) return null;
+  const storeys =
+    kind === 'apartment' ? (floors ?? SHAPE_DIMS.apartment.floors) : (room.storeys ?? 1);
+  if (storeys < 2) return null;
+  const dims = SHAPE_DIMS[kind] as { w: number; d: number };
+  return storeyPlan({
+    w: dims.w,
+    d: dims.d,
+    wall: WALL,
+    room: room.room,
+    upper: room.upper ?? room.room,
+    storeys,
+    over: room.over ?? 0,
+    doorX: room.doorX,
+  });
+}
+
+/**
+ * Girilebilir oda (`ROOMS`): kapı boşluklu duvarlar, döşeme ve iç duvarlara dayalı kaplar; katlı yapıda ayrıca kapısız
+ * üst kat duvarları, merdiven boşluklu döşemeler, korkuluklu çatı terası ve merdiven kollarının eğik levhaları.
+ * `plan` null ise (katsız ya da yıkık) yalnızca zemin kat.
+ */
+function roomShape(
+  kind: BuildingKind,
+  w: number,
+  d: number,
+  height: number,
+  plan: StoreyPlan | null,
+): BuildingShape {
   const room = ROOMS[kind];
   if (!room) throw new Error(`oda tanımı yok: ${kind}`);
   const inner = { halfWidth: w / 2 - WALL, back: -d / 2 + WALL, front: d / 2 - WALL };
@@ -348,15 +398,19 @@ function roomShape(kind: BuildingKind, w: number, d: number, height: number): Bu
     box(0, -0.1, 0, w / 2, 0.1, d / 2),
     ...containers.map(containerBox),
   ];
-  // Üst katlar (girilmez): oda tavanından gövdenin tepesine katı blok.
-  if (room.top > room.room) {
-    const hy = (room.top - room.room) / 2;
-    solids.push(box(0, room.room + hy, 0, w / 2, hy, d / 2));
+  const ramps: RampBox[] = [];
+  if (plan) {
+    // Üst katlar: kapısız dış duvarlar (çatı korkuluğuna kadar tek parça), her katın döşemesi (merdiven boşluklu).
+    solids.push(...upperWallBoxes(plan, WALL));
+    for (let level = 1; level <= plan.storeys; level++) {
+      solids.push(...slabBoxes(plan, level, plan.upperW / 2 - WALL, plan.upperD / 2 - WALL));
+    }
+    ramps.push(...plan.flights.map(rampBox));
   }
   return {
     width: w,
     depth: d,
-    height,
+    height: plan ? plan.parapetTop : height,
     solids,
     enterable: true,
     interior: inner,
@@ -364,20 +418,26 @@ function roomShape(kind: BuildingKind, w: number, d: number, height: number): Bu
     door: { x: room.doorX, z: d / 2 + 0.6 },
     containers,
     roomHeight: room.room,
+    ramps,
+    indoorTop: plan ? plan.roofY - SLAB + 0.2 : height,
+    storeys: plan,
   };
 }
 
-type BaseShape = Omit<BuildingShape, 'containers' | 'roomHeight'>;
+type BaseShape = Omit<
+  BuildingShape,
+  'containers' | 'roomHeight' | 'ramps' | 'indoorTop' | 'storeys'
+>;
 
 function shapeOf(kind: BuildingKind): BuildingShape {
   const d = SHAPE_DIMS;
   if (kind === 'apartment') {
     const s = d.apartment;
-    return roomShape(kind, s.w, s.d, s.floors * s.floorH + 1);
+    return roomShape(kind, s.w, s.d, s.floors * s.floorH + 1, storeyPlanOf(kind));
   }
   if (ROOMS[kind]) {
     const s = d[kind] as { w: number; d: number; h: number };
-    return roomShape(kind, s.w, s.d, s.h);
+    return roomShape(kind, s.w, s.d, s.h, storeyPlanOf(kind));
   }
   const base = baseShapeOf(kind);
   if (kind === 'han') {
@@ -394,12 +454,18 @@ function shapeOf(kind: BuildingKind): BuildingShape {
       solids: [...base.solids, ...containers.map(containerBox)],
       containers,
       roomHeight: d.han.h,
+      ramps: [],
+      indoorTop: base.height,
+      storeys: null,
     };
   }
   return {
     ...base,
     containers: [],
     roomHeight: base.interior ? Math.min(base.height, (d[kind] as { h?: number }).h ?? 4) : 0,
+    ramps: [],
+    indoorTop: base.height,
+    storeys: null,
   };
 }
 
@@ -629,6 +695,43 @@ function baseShapeOf(kind: BuildingKind): BaseShape {
 export const BUILDING_SHAPES: Readonly<Record<BuildingKind, BuildingShape>> = Object.fromEntries(
   BUILDING_KINDS.map((kind) => [kind, shapeOf(kind)]),
 ) as Record<BuildingKind, BuildingShape>;
+
+const variants = new Map<string, BuildingShape>();
+
+/**
+ * Bir binanın gerçek şekli: katlı yapılarda kat sayısına (apartman 3–6) göre; yıkık katlı yapı yalnızca zemin katıdır
+ * (üst katlar ve merdiven yok). Diğer türlerde `BUILDING_SHAPES[kind]`.
+ */
+export function shapeVariant(kind: BuildingKind, floors?: number, ruined = false): BuildingShape {
+  const room = ROOMS[kind];
+  if (!room || (kind !== 'apartment' && (room.storeys ?? 1) < 2)) return BUILDING_SHAPES[kind];
+  const n = kind === 'apartment' ? (floors ?? SHAPE_DIMS.apartment.floors) : (room.storeys ?? 1);
+  const key = `${kind}:${n}:${ruined ? 1 : 0}`;
+  let shape = variants.get(key);
+  if (!shape) {
+    const dims = SHAPE_DIMS[kind] as { w: number; d: number; h?: number };
+    shape = ruined
+      ? roomShape(kind, dims.w, dims.d, (dims.h ?? 4) * 0.55, null)
+      : roomShape(kind, dims.w, dims.d, dims.h ?? 4, storeyPlanOf(kind, n));
+    variants.set(key, shape);
+  }
+  return shape;
+}
+
+/**
+ * Girilebilir yapıda ayağın üstündeki tavana uzaklık (oyun m): katlı yapıda bulunduğu katın tavanı, katsızda oda
+ * yüksekliği. `rel` ayağın zemin kat döşemesinden yüksekliğidir.
+ */
+export function indoorCeiling(
+  kind: BuildingKind,
+  floors: number | undefined,
+  ruined: boolean,
+  rel: number,
+): number {
+  const shape = shapeVariant(kind, floors, ruined);
+  if (shape.storeys) return ceilingAbove(shape.storeys, rel) ?? Number.POSITIVE_INFINITY;
+  return shape.roomHeight - rel;
+}
 
 /** Cami türleri (barınak "cami": kutsal ve güvenli alan; aranmaz). */
 export function isMosque(kind: BuildingKind): boolean {

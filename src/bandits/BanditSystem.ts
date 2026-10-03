@@ -1,6 +1,7 @@
-import { BANDITS, DRONE, RANGED } from '../config';
+import { BANDITS, DRONE, GANGS, RANGED } from '../config';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
+import { rayBox, type SolidQuery } from '../combat/ballistics';
 import { fireShot, rayTerrain } from '../combat/ranged';
 import type { HitSource, HitTarget, TargetProvider } from '../combat/targets';
 import { Inventory, type ItemStack } from '../items/Inventory';
@@ -26,7 +27,16 @@ import {
   type BanditWeapon,
 } from './kinds';
 import { rollBanditLoot, rollCampChest } from './loot';
-import { banditName } from './names';
+import {
+  GANG_FACTIONS,
+  gangHours,
+  gangMemberId,
+  gangPresent,
+  gangRoster,
+  type GangFaction,
+  type GangSite,
+} from './gangs';
+import { banditName, gangName } from './names';
 import { perceivePlayer, type BanditPlayer } from './perception';
 
 /**
@@ -58,6 +68,8 @@ export interface BanditContext {
   obstacles?: ObstacleQuery;
   /** Faz 11 (F): uçan drone (yoksa null); alçak uçarsa görenler ateş eder. */
   drone?: { x: number; y: number; z: number } | null;
+  /** Mermiyi ve görüşü kesen katılar (bina duvarları, oyuncu yapıları); yoksa yalnızca arazi keser. */
+  solids?: SolidQuery;
 }
 
 /** Bir eşkıyanın simülasyon kaydı. */
@@ -79,6 +91,12 @@ interface Member {
   freeActivity: BanditActivity;
   /** Faz 11 (F): drone'a iki atış arası bekleme (sn). */
   droneCooldown: number;
+  /** Sokak çetesi üyesi: yer sırası ve çete (0/1); kamp eşkıyasında null. */
+  gang: { site: number; faction: GangFaction } | null;
+  /** Bu adımda çatıştığı rakip çete üyesi (yoksa null: hedef oyuncu). */
+  fight: number | null;
+  /** Sokak çetesi: oyuncuyu hedef aldığı bildirildi mi (görüşten çıkınca sıfırlanır)? */
+  playerNoticed: boolean;
 }
 
 /** Bir kampın oturumluk hafızası: ölen/kaçan üyeler (kayda girmez; temizlenen kamp girer). */
@@ -126,12 +144,21 @@ export class BanditSystem implements TargetProvider {
   private nextFreeId = FREE_ID_BASE;
   private enabledFlag = true;
   private lastNow = 0;
+  /** Oturumda ilk gözlenen oyun zamanı (çete ısınma payı bundan sayılır). */
+  private startNow: number | null = null;
+  /** Bugün sokakta temizlenen/dağılan çeteler (yer sırası → gün) ve çatışma bildirilenler (`yer:gün`). */
+  private readonly gangDone = new Map<number, number>();
+  private readonly gangClashed = new Set<string>();
+  /** Bu adımın katıları (görüş hattı); `update` doldurur. */
+  private solids: SolidQuery | null = null;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
     readonly camps: readonly Camp[],
     private readonly world: BanditWorld,
     private readonly seed: number = BANDITS.seed,
+    /** Şehirlerdeki sokak çetesi yerleri (`bandits/gangs.ts`); verilmezse çete yok. */
+    private readonly gangSites: readonly GangSite[] = [],
   ) {
     for (const camp of camps) this.campById.set(camp.id, camp);
   }
@@ -151,6 +178,9 @@ export class BanditSystem implements TargetProvider {
     this.members.clear();
     this.memory.clear();
     this.sinceActivation = Infinity;
+    this.startNow = null;
+    this.gangDone.clear();
+    this.gangClashed.clear();
   }
 
   layoutOf(campId: number): CampLayout | null {
@@ -202,6 +232,7 @@ export class BanditSystem implements TargetProvider {
       stride: m.stride,
       hitFlash: m.hitFlash,
       searched: m.searched,
+      faction: m.gang?.faction ?? -1,
     }));
   }
 
@@ -260,6 +291,7 @@ export class BanditSystem implements TargetProvider {
     // Kamp arkadaşları duyar (yakın dövüş sessizdir, ama vurulan bağırır).
     this.hearNoise(m.brain.x, m.brain.z, HURT_CALL_RADIUS);
     this.checkCleared(m.camp);
+    if (killed) this.checkGangDone(m.gang);
     return killed;
   }
 
@@ -357,6 +389,9 @@ export class BanditSystem implements TargetProvider {
       noise: null,
       freeActivity: activity,
       droneCooldown: 0,
+      gang: null,
+      fight: null,
+      playerNoticed: false,
     });
     return id;
   }
@@ -393,11 +428,14 @@ export class BanditSystem implements TargetProvider {
   update(dt: number, ctx: BanditContext): void {
     this.lastNow = ctx.now;
     if (!this.enabledFlag) return;
+    this.startNow ??= ctx.now;
+    this.solids = ctx.solids ?? null;
     this.reoccupy(ctx.now);
     this.sinceActivation += dt;
     if (this.sinceActivation >= ACTIVATION_SECONDS) {
       this.sinceActivation = 0;
       this.activate(ctx.player);
+      this.activateGangs(ctx);
     }
     for (const m of [...this.members.values()]) this.updateMember(m, dt, ctx);
   }
@@ -416,26 +454,60 @@ export class BanditSystem implements TargetProvider {
     if (m.brain.state === 'flee') {
       const far =
         Math.hypot(m.brain.x - ctx.player.x, m.brain.z - ctx.player.z) > BANDITS.activeRadius;
-      if (m.brain.stateTime >= BANDITS.fleeSeconds || far) this.members.delete(m.id);
+      if (m.brain.stateTime >= BANDITS.fleeSeconds || far) {
+        this.members.delete(m.id);
+        this.checkGangDone(m.gang);
+      }
     }
   }
 
   private sensesFor(m: Member, ctx: BanditContext): BanditSenses {
     const b = m.brain;
     const sleeping = b.state === 'sleep';
-    const player = perceivePlayer(
+    let player = perceivePlayer(
       { x: b.x, z: b.z, yaw: b.yaw, eyeY: m.y + BANDITS.eyeHeight },
       ctx.player,
       ctx.darkness,
       sleeping,
       (from, to) => this.lineOfSight(from, to),
     );
+    // Sokak çetesi: görüş hattındaki en yakın rakip, oyuncudan yakınsa (ya da oyuncu görünmüyorsa) hedeftir; yapay
+    // zekâ rakibi "oyuncu" yerine koyar, vuruş ve atış `act`/`shoot` içinde ona yönlenir.
+    m.fight = null;
+    if (m.gang && !sleeping) {
+      const rival = this.nearestRival(m);
+      if (rival && (!player?.visible || rival.dist < player.dist)) {
+        player = { x: rival.x, z: rival.z, dist: rival.dist, visible: true, heard: true };
+        m.fight = rival.id;
+        const site = this.gangSites[m.gang.site];
+        const key = `${m.gang.site}:${Math.floor(ctx.now / SECONDS_PER_DAY)}`;
+        if (site && !this.gangClashed.has(key)) {
+          this.gangClashed.add(key);
+          this.events.emit('gang:clash', { site: site.name });
+        }
+      }
+    }
+    if (m.gang) {
+      // Çete oyuncuyu hedef aldığında bir kez uyarır (rakip çeteyle çatışma bildirim üretmez).
+      const targetsPlayer = player?.visible === true && m.fight === null;
+      if (targetsPlayer && !m.playerNoticed) {
+        this.events.emit('bandit:noticed', { id: m.id, name: m.name, gang: true });
+      }
+      m.playerNoticed = targetsPlayer;
+    }
     const camp = m.camp;
     const layout = camp ? this.layoutOf(camp.id) : null;
     const activity = camp
       ? scheduledActivity(b.role, m.index, camp.id, ctx.hour, camp.ambush !== null)
       : m.freeActivity;
-    const center = camp ? { x: camp.x, z: camp.z } : { x: b.x, z: b.z };
+    const gangSite = m.gang ? this.gangSites[m.gang.site] : undefined;
+    const center = camp
+      ? { x: camp.x, z: camp.z }
+      : gangSite && m.gang
+        ? m.gang.faction === 0
+          ? gangSite.a
+          : gangSite.b
+        : { x: b.x, z: b.z };
     let home = { x: b.x, z: b.z, yaw: b.yaw };
     if (layout && camp) {
       if (activity === 'guard') home = layout.post;
@@ -500,7 +572,34 @@ export class BanditSystem implements TargetProvider {
     const length = Math.hypot(dx, dy, dz);
     if (length < 1e-6) return true;
     const dir = { x: dx / length, y: dy / length, z: dz / length };
-    return rayTerrain(from, dir, length, (x, z) => this.world.heightAt(x, z)) === null;
+    if (rayTerrain(from, dir, length, (x, z) => this.world.heightAt(x, z)) !== null) return false;
+    // Bina duvarları ve oyuncu yapıları da görüşü keser (pencere delikleri açık).
+    if (this.solids) {
+      const boxes = this.solids.boxesNear((from.x + to.x) / 2, (from.z + to.z) / 2, length / 2 + 2);
+      for (const box of boxes) {
+        const t = rayBox(from, dir, box, length);
+        if (t !== null && t < length - 0.05) return false;
+      }
+    }
+    return true;
+  }
+
+  /** `m`nin görüş hattındaki en yakın rakip çete üyesi (aynı yerde, farklı çete, canlı ve silahlı/savaşabilir). */
+  private nearestRival(m: Member): { id: number; x: number; z: number; dist: number } | null {
+    const b = m.brain;
+    const eye = { x: b.x, y: m.y + BANDITS.eyeHeight, z: b.z };
+    let best: { id: number; x: number; z: number; dist: number } | null = null;
+    for (const o of this.members.values()) {
+      if (!o.gang || !m.gang || o.gang.site !== m.gang.site || o.gang.faction === m.gang.faction)
+        continue;
+      const s = o.brain.state;
+      if (s === 'dead' || s === 'surrender' || s === 'flee') continue;
+      const dist = Math.hypot(o.brain.x - b.x, o.brain.z - b.z);
+      if (dist > GANGS.rivalSight || (best && dist >= best.dist)) continue;
+      if (!this.lineOfSight(eye, { x: o.brain.x, y: o.y + 1.2, z: o.brain.z })) continue;
+      best = { id: o.id, x: o.brain.x, z: o.brain.z, dist };
+    }
+    return best;
   }
 
   private act(m: Member, action: BanditAction, ctx: BanditContext): void {
@@ -508,13 +607,15 @@ export class BanditSystem implements TargetProvider {
     const from: HitSource = { x: b.x, y: m.y, z: b.z, by: 'bandit', weapon: b.weapon };
     switch (action.type) {
       case 'noticed':
-        this.events.emit('bandit:noticed', { id: m.id, name: m.name });
+        // Sokak çetesinin bildirimi `sensesFor`'dadır (rakip çeteyi fark etmek oyuncuya tehlike değildir).
+        if (!m.gang) this.events.emit('bandit:noticed', { id: m.id, name: m.name });
         break;
       case 'surrender':
         this.events.emit('bandit:surrendered', { id: m.id, name: m.name });
         break;
       case 'strike':
-        ctx.targets.applyHit('player', action.damage, from);
+        if (m.fight !== null) this.damage(m.fight, action.damage, from);
+        else ctx.targets.applyHit('player', action.damage, from);
         break;
       case 'shoot':
         this.shoot(m, action, ctx, from);
@@ -529,8 +630,10 @@ export class BanditSystem implements TargetProvider {
     ctx: BanditContext,
     from: HitSource,
   ): void {
-    const targetY =
-      action.target === 'player'
+    const rival = m.fight !== null ? this.members.get(m.fight) : undefined;
+    const targetY = rival
+      ? rival.y + 1.2
+      : action.target === 'player'
         ? ctx.player.y + 1.2
         : this.world.heightAt(action.x, action.z) + 0.6;
     this.shootAt(m, action.x, targetY, action.z, ctx, from);
@@ -556,10 +659,19 @@ export class BanditSystem implements TargetProvider {
     const baseYaw = Math.atan2(dz, dx);
     const basePitch = Math.atan2(targetY - origin.y, horizontal);
     const errorDeg = BANDITS.ranged[weapon].aimErrorDeg * (m.speed > 0.2 ? 2 : 1) + spec.spreadDeg;
-    // Atanın kendisi ve diğer eşkıyalar vurulmaz: hedefler eşkıyasız süzülür.
+    // Atanın kendisi ve diğer eşkıyalar vurulmaz: hedefler eşkıyasız süzülür. Sokak çetesi yalnızca kendi çetesini
+    // korur: rakip çete üyeleri vurulabilir.
+    const gang = m.gang;
     const targets = {
       targetsNear: (x: number, z: number, r: number) =>
-        ctx.targets.targetsNear(x, z, r).filter((t) => t.kind !== 'bandit'),
+        ctx.targets.targetsNear(x, z, r).filter((t) => {
+          if (t.kind !== 'bandit') return true;
+          if (!gang) return false;
+          const other = this.members.get(Number(t.id.slice(BANDIT_TARGET_PREFIX.length)));
+          return (
+            other?.gang !== null && other?.gang !== undefined && other.gang.faction !== gang.faction
+          );
+        }),
     };
     for (let i = 0; i < spec.pellets; i++) {
       const yaw = baseYaw + ((m.rng.next() * 2 - 1) * errorDeg * Math.PI) / 180;
@@ -572,6 +684,7 @@ export class BanditSystem implements TargetProvider {
       const shot = fireShot(origin, dir, weapon, {
         heightAt: (x, z) => this.world.heightAt(x, z),
         targets,
+        solids: ctx.solids,
       });
       if (shot.hit) ctx.targets.applyHit(shot.hit.id, spec.damage * BANDITS.damageScale, from);
     }
@@ -624,7 +737,7 @@ export class BanditSystem implements TargetProvider {
     }
     // Serbest (dev) eşkıyalar da çok uzaklaşınca kalkar.
     for (const m of [...this.members.values()]) {
-      if (m.camp) continue;
+      if (m.camp || m.gang) continue;
       const d = Math.hypot(m.brain.x - player.x, m.brain.z - player.z);
       if (d > BANDITS.activeRadius + BANDITS.despawnMargin) this.members.delete(m.id);
     }
@@ -666,8 +779,85 @@ export class BanditSystem implements TargetProvider {
         noise: null,
         freeActivity: 'sit',
         droneCooldown: 0,
+        gang: null,
+        fight: null,
+        playerNoticed: false,
       });
     }
+  }
+
+  /**
+   * Şehir merkezlerindeki sokak çeteleri: oyuncu merkeze `GANGS.activeRadius` yaklaşınca, saat/gün uygunsa ve çeteler
+   * bugün dağılmadıysa iki rakip çete caddede canlanır (oyuncunun gözü önünde değil); uzaklaşınca kalkarlar.
+   */
+  private activateGangs(ctx: BanditContext): void {
+    if (this.gangSites.length === 0) return;
+    const day = Math.floor(ctx.now / SECONDS_PER_DAY);
+    const grace = (this.startNow ?? ctx.now) + GANGS.graceSeconds;
+    this.gangSites.forEach((site, index) => {
+      const d = Math.hypot(site.x - ctx.player.x, site.z - ctx.player.z);
+      const present = [...this.members.values()].some((m) => m.gang?.site === index);
+      if (present) {
+        if (d > GANGS.activeRadius + GANGS.despawnMargin) {
+          let anyDead = false;
+          for (const m of [...this.members.values()]) {
+            if (m.gang?.site !== index) continue;
+            if (m.brain.state === 'dead') anyDead = true;
+            this.members.delete(m.id);
+          }
+          if (anyDead) this.gangDone.set(index, day);
+        }
+        return;
+      }
+      if (d > GANGS.activeRadius || ctx.now < grace) return;
+      if (!gangHours(ctx.hour) || !gangPresent(site, day) || this.gangDone.get(index) === day)
+        return;
+      const far = (p: { x: number; z: number }) =>
+        Math.hypot(p.x - ctx.player.x, p.z - ctx.player.z) >= GANGS.minSpawnDistance;
+      if (!far(site.a) || !far(site.b)) return;
+      this.spawnGang(site, index, day);
+    });
+  }
+
+  private spawnGang(site: GangSite, siteIndex: number, day: number): void {
+    for (const faction of GANG_FACTIONS) {
+      const roster = gangRoster(site, day, faction);
+      const toward = faction === 0 ? site.b : site.a;
+      roster.forEach((member, index) => {
+        const id = gangMemberId(siteIndex, faction, index);
+        const rng = createRandom(seedFrom(this.seed, id % 2 ** 31, day));
+        const activity: BanditActivity = member.role === 'leader' ? 'sit' : 'patrol';
+        const yaw = Math.atan2(-(toward.x - member.x), -(toward.z - member.z));
+        this.members.set(id, {
+          id,
+          camp: null,
+          index,
+          name: gangName(rng, member.role),
+          brain: createBrain(member.x, member.z, yaw, member.weapon, member.role, activity),
+          rng,
+          y: this.world.heightAt(member.x, member.z),
+          speed: 0,
+          stride: 0,
+          hitFlash: 0,
+          searched: false,
+          noise: null,
+          freeActivity: activity,
+          droneCooldown: 0,
+          gang: { site: siteIndex, faction },
+          fight: null,
+          playerNoticed: false,
+        });
+      });
+    }
+  }
+
+  /** Çetenin bütün üyeleri ölünce ya da dağılınca o gün o yerde çete yeniden çıkmaz. */
+  private checkGangDone(gang: { site: number } | null): void {
+    if (!gang) return;
+    for (const m of this.members.values()) {
+      if (m.gang?.site === gang.site && m.brain.state !== 'dead') return;
+    }
+    this.gangDone.set(gang.site, Math.floor(this.lastNow / SECONDS_PER_DAY));
   }
 
   private memoryOf(campId: number): CampMemory {

@@ -322,11 +322,22 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
           const at = (i + c.t) * ds;
           const sin = Math.max(c.sin, Math.sin((S.minCrossingDeg * Math.PI) / 180));
           const half = Math.max(S.minSpan / 2, (c.half + S.bank) / sin);
-          // Aday aralığı ayakların bir içi: ayaklar (a − 1, b + 1) kıyı payının dışındaki ilk noktalardır.
-          const a = Math.max(1, Math.floor((at - half) / ds) + 1);
-          const b = Math.min(count - 2, Math.ceil((at + half) / ds) - 1);
+          // Aday aralığı ayakların bir içi: ayaklar (a − 1, b + 1) kıyı payının dışındaki ilk noktalardır. Yolun ucuna
+          // (kavşak) yakın geçişte aday uca kadar uzanır: ayak uç noktanın kendisi olur.
+          const a = Math.max(0, Math.floor((at - half) / ds) + 1);
+          const b = Math.min(count - 1, Math.ceil((at + half) / ds) - 1);
           if (b >= a) candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: false });
         }
+      }
+      // Göl/rezervuar içinden geçen kesim de köprü (baraj, gölü kesen yol): çokgenin içindeki noktalar.
+      if (terrain.nearestWater) {
+        const wet = new Uint8Array(count);
+        for (let i = 1; i < count - 1; i++) {
+          const hit = terrain.nearestWater(xz[i * 2] as number, xz[i * 2 + 1] as number, 0.5);
+          if (hit && WATER_AREA.has(hit.kind) && hit.distance <= 0.5) wet[i] = 1;
+        }
+        for (const [a, b] of mergeRuns(runsOf(wet, 1), 1))
+          candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: false });
       }
     } else if (terrain.nearestWater) {
       const wet = new Uint8Array(count);
@@ -373,9 +384,11 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
     const mySpans: RoadSpan[] = [];
     let lastEnd = 0;
     for (const c of chosen) {
-      const i0 = Math.max(1, c.a - 1, lastEnd);
-      const i1 = Math.min(count - 2, c.b + 1);
-      if (i1 - i0 < 2 || i0 >= count - 2) continue;
+      const i0 = Math.max(0, c.a - 1, lastEnd);
+      let i1 = Math.min(count - 1, c.b + 1);
+      // Uca yaslanan köprü en az iki adım uzar (ayak uç noktadır).
+      if (i1 - i0 < 2) i1 = Math.min(count - 1, i0 + 2);
+      if (i1 - i0 < 2) continue;
       mySpans.push({
         road: ri,
         i0,
@@ -439,10 +452,32 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
           need = Math.max(need, (lo[i] as number) - (a + (b - a) * t));
         }
         if (need > 1e-3) {
+          // Yolun ucundaki ayak kavşağa sabittir (kavşakta basamak olmasın): yalnızca öbür ayak yükselir, güverte eğimli olur.
+          const pinnedA = span.i0 === 0;
+          const pinnedB = span.i1 === count - 1;
+          if (pinnedA && pinnedB) continue;
+          let raiseA = need;
+          let raiseB = need;
+          if (pinnedA || pinnedB) {
+            // Sabit uçtan geçen doğrunun tüm köprü noktalarının üstünde kalması için öbür ucun gereken yükselişi.
+            let top = 0;
+            for (let i = span.i0 + 1; i < span.i1; i++) {
+              const t = (i - span.i0) / (span.i1 - span.i0);
+              const t2 = pinnedA ? t : 1 - t;
+              const fixed = pinnedA ? a : b;
+              const free = pinnedA ? b : a;
+              top = Math.max(
+                top,
+                ((lo[i] as number) - fixed) / Math.max(t2, 1e-6) - (free - fixed),
+              );
+            }
+            raiseA = pinnedA ? 0 : top;
+            raiseB = pinnedB ? 0 : top;
+          }
           hard[span.i0] = 1;
           hard[span.i1] = 1;
-          lo[span.i0] = Math.max(lo[span.i0] as number, a + need);
-          lo[span.i1] = Math.max(lo[span.i1] as number, b + need);
+          lo[span.i0] = Math.max(lo[span.i0] as number, a + raiseA);
+          lo[span.i1] = Math.max(lo[span.i1] as number, b + raiseB);
           hi[span.i0] = Math.max(hi[span.i0] as number, lo[span.i0] as number);
           hi[span.i1] = Math.max(hi[span.i1] as number, lo[span.i1] as number);
           raised = true;

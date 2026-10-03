@@ -483,23 +483,27 @@
   border-radius: 999px;
 }
 
-/* Hayatta kalma göstergeleri (sol alt) */
+/* Hayatta kalma göstergeleri (sol alt): dört halka; dolgu `--p` (0–100) ile conic-gradient */
 .hud-vitals {
   position: absolute;
   left: 16px;
   bottom: 16px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  width: 248px;
-  padding: 12px 14px;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(320px, 38vw);
+}
+.hud-rings {
+  display: flex;
+  gap: 8px;
 }
 .hud-gauge {
   --g: var(--ui-good);
-  display: grid;
-  grid-template-columns: 18px 1fr 26px;
-  align-items: center;
-  gap: 9px;
+  --p: 100;
+  position: relative;
+  width: 58px;
+  height: 58px;
 }
 .hud-gauge[data-gauge='health'] {
   --g: var(--ui-health);
@@ -513,59 +517,48 @@
 .hud-gauge[data-gauge='energy'] {
   --g: var(--ui-energy);
 }
+.hud-gauge-ring {
+  --p: 100;
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--g) calc(var(--p) * 1%),
+    rgba(0, 0, 0, 0.55) calc(var(--p) * 1%)
+  );
+  /* Halka: iç disk kesilir */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--g) 45%, transparent));
+}
+.hud-gauge-core {
+  position: absolute;
+  inset: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: radial-gradient(circle at 50% 35%, rgba(34, 42, 37, 0.82), rgba(10, 13, 11, 0.86));
+  border: 1px solid var(--ui-border);
+  border-radius: 50%;
+  box-shadow: var(--ui-shadow-hud);
+}
 .hud-gauge-icon {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--g);
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
 }
-.hud-gauge-track {
-  position: relative;
-  height: 8px;
-  overflow: hidden;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 999px;
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-.hud-gauge-track::after {
-  /* Çeyrek çentikleri */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0 calc(25% - 1px),
-    rgba(0, 0, 0, 0.35) calc(25% - 1px) 25%
-  );
-}
-.hud-gauge-fill {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--g) 70%, white) 0%,
-    var(--g) 45%,
-    color-mix(in srgb, var(--g) 75%, black) 100%
-  );
-  border-radius: inherit;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--g) 45%, transparent);
-  transition: width 0.25s linear;
-}
 .hud-gauge-value {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-  text-align: right;
-  color: var(--ui-text-muted);
+  color: var(--ui-text);
 }
 .hud-gauge[data-state='low'] .hud-gauge-value {
   color: var(--ui-warn);
-}
-.hud-gauge[data-state='low'] .hud-gauge-track {
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(240, 180, 60, 0.45);
 }
 .hud-gauge[data-state='critical'] {
   --g: var(--ui-danger);
@@ -573,7 +566,7 @@
 .hud-gauge[data-state='critical'] .hud-gauge-value {
   color: #ff8a78;
 }
-.hud-gauge[data-state='critical'] .hud-gauge-fill,
+.hud-gauge[data-state='critical'] .hud-gauge-ring,
 .hud-gauge[data-state='critical'] .hud-gauge-icon {
   animation: hud-blink 0.8s ease-in-out infinite;
 }
@@ -588,9 +581,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 3px;
-  padding-top: 9px;
-  border-top: 1px solid var(--ui-border);
 }
 .hud-chip {
   display: inline-flex;
@@ -599,9 +589,10 @@
   padding: 2px 8px 2px 6px;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(14, 18, 16, 0.78);
   border: 1px solid var(--ui-border);
   border-radius: 999px;
+  box-shadow: var(--ui-shadow-hud);
 }
 .hud-chip .ui-icon {
   font-size: 13px;
@@ -1284,8 +1275,12 @@
 
 .inv-columns {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
+}
+/* Panel sütunları asla birbirine binmesin: içerik kendi hücresinde kırpılır/kayar */
+.inv-columns > * {
+  min-width: 0;
 }
 @media (max-width: 760px) {
   .inv-columns {
@@ -1316,7 +1311,8 @@
 .inv-slots {
   display: grid;
   /* minmax(0, …): uzun eşya adı (nowrap) sütunu genişletip ızgarayı kabından taşırmasın; ad kısaltılır. */
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  grid-auto-rows: 72px;
   gap: 7px;
 }
 .inv-panel button.inv-slot {
@@ -1327,9 +1323,8 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  aspect-ratio: 1;
   min-width: 0;
-  min-height: 64px;
+  height: 72px;
   padding: 6px 4px 5px;
   font: 500 11px/1.15 var(--ui-font);
   color: var(--ui-text);
@@ -1517,14 +1512,6 @@
   flex-direction: column;
   gap: 7px;
 }
-@media (min-width: 761px) {
-  .inv-recipe-list {
-    max-height: calc(92vh - 250px);
-    min-height: 200px;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-}
 .inv-recipe {
   --accent: var(--ui-border-strong);
   display: grid;
@@ -1639,14 +1626,16 @@
 /* Üretim süzgeç sekmeleri */
 .inv-filter-tabs {
   display: flex;
-  flex-wrap: wrap;
   gap: 5px;
-  margin-bottom: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
 }
 .inv-panel button.inv-filter-tab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: none;
   padding: 4px 10px;
   font-size: 12.5px;
   color: var(--ui-text-muted);
@@ -1672,6 +1661,269 @@
   background: rgba(143, 207, 107, 0.16);
   border-color: rgba(143, 207, 107, 0.45);
   box-shadow: none;
+}
+
+/* ───── Envanter düzeni (bag): iki bağımsız kaydırmalı bölge, hiçbir genişlikte binmez ───── */
+
+.inv-panel-body.inv-bag {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  width: min(1040px, 96vw);
+  height: min(90vh, 780px);
+  overflow: hidden;
+}
+.inv-bag .inv-stats {
+  margin-bottom: 12px;
+}
+.bag-body {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 22px;
+  min-height: 0;
+}
+.bag-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.bag-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+.bag-pane > .inv-detail,
+.bag-pane > .craft-detail {
+  flex: none;
+}
+.bag-pane > .inv-detail {
+  margin-top: 10px;
+}
+.bag-tabs {
+  display: none;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.inv-panel button.bag-tab {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  color: var(--ui-text-muted);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: none;
+}
+.inv-panel button.bag-tab[data-active='true'] {
+  color: var(--ui-accent-ink);
+  background: linear-gradient(180deg, var(--ui-accent-hi), var(--ui-accent-lo));
+  border-color: rgba(255, 222, 160, 0.6);
+}
+@media (max-width: 860px) {
+  .bag-tabs {
+    display: flex;
+  }
+  .bag-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bag-body[data-view='items'] > .bag-craft,
+  .bag-body[data-view='craft'] > .bag-items {
+    display: none;
+  }
+}
+@media (max-height: 640px) {
+  .inv-panel-body.inv-bag {
+    height: 96vh;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .inv-bag .inv-title-sub,
+  .inv-bag .inv-stations {
+    display: none;
+  }
+}
+
+/* Üretim: arama + süzgeç, kompakt satırlar, sabit ayrıntı çubuğu */
+.craft-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.craft-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: var(--ui-text-faint);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-s);
+}
+.craft-search:focus-within {
+  border-color: var(--ui-accent);
+}
+.inv-panel input.craft-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ui-text);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+.inv-bag .inv-stations {
+  flex: none;
+  margin-bottom: 8px;
+}
+.inv-bag .inv-recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.inv-panel button.craft-row {
+  --accent: var(--ui-border-strong);
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  width: 100%;
+  padding: 6px 10px 6px 7px;
+  font: inherit;
+  text-align: left;
+  color: var(--ui-text);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: none;
+}
+.inv-panel button.craft-row:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+  background: var(--ui-surface-3);
+}
+.inv-panel button.craft-row[data-craftable='true'] {
+  border-color: rgba(143, 207, 107, 0.4);
+}
+.inv-panel button.craft-row[data-selected='true'] {
+  background: linear-gradient(90deg, rgba(232, 176, 74, 0.2), rgba(232, 176, 74, 0.05));
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 1px var(--ui-accent);
+}
+.craft-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  font-size: 26px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.craft-row[data-craftable='false'] .craft-row-icon .item-icon {
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+.craft-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.craft-row-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.craft-row-note {
+  font-size: 11.5px;
+  color: var(--ui-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.craft-row[data-craftable='false'] .craft-row-note {
+  color: var(--ui-warn);
+}
+.craft-row-badge {
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-faint);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+}
+.craft-row[data-craftable='true'] .craft-row-badge {
+  color: #1d3410;
+  background: var(--ui-good);
+}
+.craft-detail {
+  --accent: var(--ui-border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--ui-radius);
+}
+.craft-detail:empty {
+  display: none;
+}
+.craft-detail[data-craftable='true'] {
+  background: linear-gradient(90deg, rgba(143, 207, 107, 0.1), rgba(143, 207, 107, 0.02));
+}
+.craft-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.craft-detail-title {
+  min-width: 0;
+}
+.craft-detail-sub {
+  font-size: 12px;
+  color: var(--ui-text-muted);
+}
+.craft-detail .inv-recipe-inputs {
+  margin-top: 0;
+}
+.craft-detail .inv-reason {
+  margin-top: 0;
+}
+.craft-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.craft-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.inv-panel button.craft-step {
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ui-text);
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--ui-border);
+  box-shadow: none;
+}
+.craft-controls .inv-craft {
+  margin-left: auto;
+  padding: 8px 22px;
+  font-size: 14px;
 }
 
 /* ─────────────────── Ayarlar, yuva seçici, krediler ─────────────────── */

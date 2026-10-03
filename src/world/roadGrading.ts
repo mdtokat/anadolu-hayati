@@ -154,6 +154,23 @@ export function applyRoadGrading(
       if (change > maxChange) maxChange = change;
     }
   }
+  // Köprü altı: zemin güvertenin altında kalır (doğal zemin yüksekse ya da dolgu şevi taşmışsa oyulur).
+  const ceiling = bridgeCeiling(grid, plan);
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      const limit = ceiling[r * width + c] as number;
+      if (!Number.isFinite(limit)) continue;
+      grid.lock?.(c, r); // yapı terasları köprü altını yeniden yükseltmesin
+      const current = grid.sample(c, r);
+      if (current <= 0 || current <= limit) continue; // deniz / zaten altında
+      const value = Math.max(limit, 0.05);
+      const change = current - value;
+      if (change < 1e-4) continue;
+      grid.setSample(c, r, value);
+      cells++;
+      if (change > maxChange) maxChange = change;
+    }
+  }
   return { cells, maxChange };
 }
 
@@ -192,4 +209,52 @@ function streamMask(
     }
   }
   return mask;
+}
+
+/**
+ * Köprü koridoru tavanı: güvertenin altındaki hücrelerde zemin, yatak yüksekliğinin `ROADS.bridgeClearance` altını
+ * aşamaz (hücre başına tavan yüksekliği; koridor dışı +∞). Koridor, köprü kesiminin (ayak noktaları `i0`…`i1` arası)
+ * eksenine `yarı genişlik + banket + 1 hücre` yakın hücrelerdir; ayak noktalarında tavan yatak yüksekliğine çıkar (yaklaşım yolu
+ * yatağında kalır), içeri girdikçe bir adımda tam açıklığa iner. Doğal zemin güverteden yüksekse ya da yaklaşım dolgusunun
+ * şevi köprü altına taşıyorsa güverte arazinin içinde kalırdı.
+ */
+function bridgeCeiling(grid: HeightGrid, plan: RoadPlan): Float32Array {
+  const { width, height, cell, origin } = grid;
+  const ceiling = new Float32Array(width * height).fill(Number.POSITIVE_INFINITY);
+  for (const span of plan.spans) {
+    if (span.kind !== SPAN_KIND.bridge) continue;
+    const road = plan.roads[span.road];
+    if (!road) continue;
+    // Bir hücre payı: çift doğrusal örnekleme koridor kenarındaki yüksek hücreyi korkuluğun altına çekmesin.
+    const half = (ROADS.width[road.cls] as number) / 2 + ROADS.shoulder + cell;
+    for (let i = span.i0; i < span.i1; i++) {
+      const ax = road.xz[i * 2] as number;
+      const az = road.xz[i * 2 + 1] as number;
+      const bx = road.xz[i * 2 + 2] as number;
+      const bz = road.xz[i * 2 + 3] as number;
+      const bedA = road.bed[i] as number;
+      const bedB = road.bed[i + 1] as number;
+      const dx = bx - ax;
+      const dz = bz - az;
+      const len2 = dx * dx + dz * dz;
+      const c0 = Math.max(0, Math.ceil((Math.min(ax, bx) - half - origin.x) / cell));
+      const c1 = Math.min(width - 1, Math.floor((Math.max(ax, bx) + half - origin.x) / cell));
+      const r0 = Math.max(0, Math.ceil((Math.min(az, bz) - half - origin.z) / cell));
+      const r1 = Math.min(height - 1, Math.floor((Math.max(az, bz) + half - origin.z) / cell));
+      for (let r = r0; r <= r1; r++) {
+        const z = origin.z + r * cell;
+        for (let c = c0; c <= c1; c++) {
+          const x = origin.x + c * cell;
+          const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
+          if (Math.hypot(x - (ax + t * dx), z - (az + t * dz)) > half) continue;
+          const u = i + t;
+          const factor = Math.min(1, Math.max(0, Math.min(u - span.i0, span.i1 - u)));
+          const limit = bedA + t * (bedB - bedA) - ROADS.bridgeClearance * factor;
+          const at = r * width + c;
+          if (limit < (ceiling[at] as number)) ceiling[at] = limit;
+        }
+      }
+    }
+  }
+  return ceiling;
 }

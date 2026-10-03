@@ -1,6 +1,6 @@
 import { ROADS, SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
 import type { LandmarkData, RoadData, SettlementData, SettlementsData } from '../data/settlements';
-import { BUILDING_SHAPES, MAX_BURY, isMosque } from './kinds';
+import { BUILDING_SHAPES, MAX_BURY, isMosque, shapeVariant } from './kinds';
 import { FootprintRegistry } from './footprints';
 import {
   STAIR_MIN_RISE,
@@ -533,9 +533,10 @@ export class SettlementMap {
   /** (x, y, z) girilebilir bir yapının (cami, han) içinde mi? */
   interiorAt(x: number, y: number, z: number): BuildingInterior | null {
     for (const b of this.buildingsNear(x, z, MAX_HALF_DIAGONAL)) {
-      const shape = BUILDING_SHAPES[b.kind];
+      const shape = shapeVariant(b.kind, b.floors, b.ruined);
       if (!shape.interior) continue;
-      if (y < b.y - 1 || y > b.y + shape.height) continue;
+      // Katlı yapıda çatı terası açık havadır (döşemenin üstü): yalnızca terasın altı iç mekândır.
+      if (y < b.y - 1 || y > b.y + shape.indoorTop) continue;
       const local = worldToBuildingLocal(b, x, z);
       const area = shape.interior;
       if (Math.abs(local.x) <= area.halfWidth && local.z >= area.back && local.z <= area.front) {

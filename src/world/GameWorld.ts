@@ -72,6 +72,13 @@ export interface GameWorld {
   locationInfo?(x: number, z: number, feetY: number): LocationInfo;
   /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa; destekleyen dünyalarda. */
   propsNear?(x: number, z: number, radius: number): PropRef[];
+  /**
+   * Yürüyen bir gövde (canlı, insan, eşkıya) (x0, z0)→(x1, z1) giderken dünya nesnelerine (ağaç, kaya, çalı; köprü,
+   * viyadük ve tünel kutuları) çarpar mı? Verilmezse engel yok.
+   */
+  walkBlocked?(x0: number, z0: number, x1: number, z1: number, radius: number): boolean;
+  /** (x, z) noktası (yarıçap payıyla) bir ağaç/kaya/çalının içinde mi? */
+  walkContains?(x: number, z: number, radius: number): boolean;
   /** Nesneyi gizler/geri getirir (toplanan/kesilen nesne); destekleyen dünyalarda. */
   setPropDepleted?(id: PropId, depleted: boolean): void;
   /** Dev göstergesi: nesne katmanı sayımları (yoksa null ya da tanımsız). */

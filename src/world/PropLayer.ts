@@ -12,6 +12,7 @@ import type { LandCoverMap } from './LandCoverMap';
 import { buildPropGeometry, type PropLod } from './propGeometry';
 import { PropIndex, propId } from './propIndex';
 import { PROP_KINDS, type PropId, type PropKind, type PropRef } from './propKinds';
+import { MAX_PROP_SOLID_RADIUS, propSolid, type PropSolid } from './propSolids';
 import type { RegionHeightSource } from './RegionHeightSource';
 import { scatterChunk, type ChunkProps, type ScatterHeight } from './scatter';
 import type { FreshWaterIndex } from './waterIndex';
@@ -54,7 +55,7 @@ interface TierMesh {
  * Seed'li nesnelerin (ağaç, çalı, kaya, yenebilir bitki) çizimi: her tür ve kademe için bir `InstancedMesh`.
  * Oyuncuya `SCATTER.drawRadius` içindeki chunk'ların nesneleri `scatterChunk` ile hesaplanır (karede en
  * fazla `maxChunkBuildsPerFrame`, LRU önbellekli) ve oyuncu `refreshDistance` kadar yer değiştirince örnek
- * tamponları yeniden doldurulur. Nesnelerin collider'ı yoktur. Kaynakları (`geometry`, materyal, mesh)
+ * tamponları yeniden doldurulur. Katı nesnelerin (ağaç, kaya, çalı) collider'ları `PropColliders`'tadır. Kaynakları (`geometry`, materyal, mesh)
  * `dispose()` eder.
  */
 export class PropLayer {
@@ -80,6 +81,7 @@ export class PropLayer {
   /** Çizim yarıçapı (oyun m); varsayılan `SCATTER.drawRadius`, grafik kalitesiyle değişir. */
   private drawRadius: number = SCATTER.drawRadius;
   private instanceTotal = 0;
+  private solidVer = 0;
   private readonly countByKind = Object.fromEntries(PROP_KINDS.map((k) => [k, 0])) as Record<
     PropKind,
     number
@@ -185,12 +187,67 @@ export class PropLayer {
       .filter((ref) => !this.depleted.has(ref.id) && !this.blocked.has(ref.id));
   }
 
+  /**
+   * Katı nesneler (ağaç, kaya, çalı) listesi değişti mi? Sayaç tükenme/geri gelme ve yeni yüklenen chunk'larla artar;
+   * collider eşitleyicisi yalnızca değişince yeniden bakar.
+   */
+  get solidVersion(): number {
+    return this.solidVer;
+  }
+
+  /** (x, z)'nin chunk'ı yüklü mü (collider eşitlemesi yüklü olmayan yerde yapılmaz)? */
+  isLoadedAt(x: number, z: number): boolean {
+    return this.index.hasChunkAt(x, z);
+  }
+
+  /** (x, z)'ye `radius` içindeki görünür katı nesneler: konum, yarıçap ve boy (collider eşitleyici). */
+  solidsNear(x: number, z: number, radius: number): Array<PropRef & { solid: PropSolid }> {
+    const out: Array<PropRef & { solid: PropSolid }> = [];
+    for (const ref of this.propsNear(x, z, radius)) {
+      const solid = propSolid(ref.kind, ref.scale);
+      if (solid) out.push({ ...ref, solid });
+    }
+    return out;
+  }
+
+  /**
+   * (x0, z0)'dan (x1, z1)'e yürüyen `radius` yarıçaplı gövde katı bir nesneye giriyor mu? Başlangıç zaten içerideyse
+   * (örn. nesne üstüne doğmuş) yalnızca daha derine gitmek engeldir. Nesne dizisi ayırmaz (kinematik yürüyüş her adımda
+   * sorar); gizli/tükenmiş nesneler engel değildir.
+   */
+  solidBlocks(x0: number, z0: number, x1: number, z1: number, radius: number): boolean {
+    return this.index.someNear(
+      x1,
+      z1,
+      radius + MAX_PROP_SOLID_RADIUS,
+      (id, kind, px, pz, scale) => {
+        const solid = propSolid(kind, scale);
+        if (!solid) return false;
+        const reach = solid.radius + radius;
+        const d1 = Math.hypot(px - x1, pz - z1);
+        if (d1 >= reach) return false;
+        if (this.depleted.has(id) || this.blocked.has(id)) return false;
+        return d1 < Math.hypot(px - x0, pz - z0) - 1e-9 || Math.hypot(px - x0, pz - z0) >= reach;
+      },
+    );
+  }
+
+  /** (x, z) noktası (yarıçap payıyla) görünür bir katı nesnenin içinde mi? Hareketsiz noktalar için (insan yürüyüşü). */
+  solidContains(x: number, z: number, radius: number): boolean {
+    return this.index.someNear(x, z, radius + MAX_PROP_SOLID_RADIUS, (id, kind, px, pz, scale) => {
+      const solid = propSolid(kind, scale);
+      if (!solid || Math.hypot(px - x, pz - z) >= solid.radius + radius) return false;
+      return !this.depleted.has(id) && !this.blocked.has(id);
+    });
+  }
+
   /** Nesneyi gizler/geri getirir (durumu tutan 4.6'dır; burası yalnızca görseli ve sorguyu yönetir). */
   setPropDepleted(id: PropId, depleted: boolean): void {
     if (depleted === this.depleted.has(id)) return;
     if (depleted) this.depleted.add(id);
     else this.depleted.delete(id);
     this.dirty = true;
+    this.solidVer++;
   }
 
   isPropDepleted(id: PropId): boolean {
@@ -268,6 +325,7 @@ export class PropLayer {
       }
       built++;
     }
+    if (built > 0) this.solidVer++;
     this.evict();
     return built;
   }

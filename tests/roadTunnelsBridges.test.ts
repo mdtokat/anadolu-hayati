@@ -67,6 +67,39 @@ describe('köprüler — yalnız gerçek dere geçişlerinde', () => {
     expect(parallel.spans).toHaveLength(0);
   });
 
+  it('yolun ucundaki (kavşaktaki) geçişe köprü yaslanır: ayak uç noktadır ve kavşak yüksekliği sabit kalır', () => {
+    const flat = () => 10;
+    // Dere yolun başlangıcından 1 m ötede: eskiden aday uç noktaya kadar uzanamadığından köprü hiç kurulmuyordu.
+    const plan = planRoadProfiles(
+      [road(1, 0, 0, 100, 0)],
+      terrain(flat, [{ kind: 'stream', xz: [1, -50, 1, 50] }]),
+    );
+    expect(plan.spans).toHaveLength(1);
+    const span = plan.spans[0]!;
+    expect(span.i0).toBe(0);
+    const r = plan.roads[0]!;
+    expect(r.bed[0]).toBeCloseTo(10, 3); // kavşak (uç) yatağı doğal yükseklikte sabit
+    for (let i = span.i0 + 1; i < span.i1; i++)
+      expect(r.bed[i]!).toBeGreaterThanOrEqual(10 + ROAD_STRUCTURES.clearance - 0.01);
+  });
+
+  it('göl/rezervuar içinden geçen yol köprü olur', () => {
+    const flat = () => 10;
+    const lake = {
+      ...terrain(flat),
+      nearestWater: (x: number) =>
+        x > 20 && x < 50 ? { kind: 'reservoir' as const, distance: 0, x, z: 0 } : null,
+      waterLines: [],
+    };
+    const plan = planRoadProfiles([road(1, -100, 0, 100, 0)], lake);
+    expect(plan.spans).toHaveLength(1);
+    const r = plan.roads[0]!;
+    const from = r.xz[plan.spans[0]!.i0 * 2]!;
+    const to = r.xz[plan.spans[0]!.i1 * 2]!;
+    expect(from).toBeLessThanOrEqual(20 + 0.01);
+    expect(to).toBeGreaterThanOrEqual(50 - 0.01);
+  });
+
   it('verev geçiş dik geçişten uzundur', () => {
     const flat = () => 10;
     const square = planRoadProfiles(
