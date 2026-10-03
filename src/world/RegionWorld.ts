@@ -322,9 +322,8 @@ export class RegionWorld implements GameWorld {
       });
       this.streamer = new TileStreamer<TileBlob>({
         tiles,
-        steps: 3,
         fetch: (tx, ty) => streamed.fetchTile(tx, ty),
-        activate: (tx, ty, blob, step) => this.activateTile(tx, ty, blob, step),
+        activate: (tx, ty, blob) => this.activateTile(tx, ty, blob),
         release: (tx, ty) => this.releaseTile(tx, ty),
         onError: (tx, ty, error) => console.error(`Karo (${tx}, ${ty}) yüklenemedi`, error),
       });
@@ -347,21 +346,48 @@ export class RegionWorld implements GameWorld {
     return this.streamer.isTileReady(tx, ty);
   }
 
-  /** Karo etkinleştirme aşamaları: 0 yükseklik/örtü, 1 kaplama rasteri, 2 materyal. */
-  private activateTile(tx: number, ty: number, blob: TileBlob, step: number): void {
-    if (step === 0) {
-      this.source.loadTile(tx, ty, { ...blob.window, raw: blob.raw });
-      this.source.patchTile(tx, ty, blob.patchIndices, blob.patchValues);
-      (this.cover as LandCoverMap).setTile(tx, ty, blob.window, blob.cover);
-    } else if (step === 1) {
-      this.tiles?.rasterize(blob);
-    } else {
-      this.tiles?.createMaterial(blob);
-      this.props?.invalidate();
+  /** Karo etkinleştirme işleri (dilimli): bitene kadar karo başına tek iş nesnesi. */
+  private readonly tileJobs = new Map<
+    string,
+    { phase: number; heights: Generator<void, void> | null }
+  >();
+
+  /**
+   * Karo etkinleştirmesinden bir dilim: yükseklik/deniz tabanı/yumuşatma (≈ 1 ms'lik dilimler), sonra yama + örtü,
+   * kaplama rasteri, materyal. Tamamlanınca true.
+   */
+  private activateTile(tx: number, ty: number, blob: TileBlob): boolean {
+    const key = `${tx},${ty}`;
+    let job = this.tileJobs.get(key);
+    if (!job) {
+      job = { phase: 0, heights: null };
+      this.tileJobs.set(key, job);
+    }
+    switch (job.phase) {
+      case 0: {
+        job.heights ??= this.source.loadTileSteps(tx, ty, { ...blob.window, raw: blob.raw });
+        if (job.heights.next().done) job.phase = 1;
+        return false;
+      }
+      case 1:
+        this.source.patchTile(tx, ty, blob.patchIndices, blob.patchValues);
+        (this.cover as LandCoverMap).setTile(tx, ty, blob.window, blob.cover);
+        job.phase = 2;
+        return false;
+      case 2:
+        this.tiles?.rasterize(blob);
+        job.phase = 3;
+        return false;
+      default:
+        this.tiles?.createMaterial(blob);
+        this.props?.invalidate();
+        this.tileJobs.delete(key);
+        return true;
     }
   }
 
   private releaseTile(tx: number, ty: number): void {
+    this.tileJobs.delete(`${tx},${ty}`);
     this.tiles?.release(tx, ty);
     this.cover?.removeTile(tx, ty);
     this.source.unloadTile(tx, ty);

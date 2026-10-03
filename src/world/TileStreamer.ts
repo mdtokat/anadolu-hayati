@@ -3,8 +3,7 @@ import type { FrameBudget } from '../core/FrameBudget';
 
 /**
  * Dünya karolarının yaşam döngüsü (saf mantık, Three.js'siz; Faz 12): odağa yakın karolar indirilir, aşamalı olarak
- * etkinleştirilir (kare bütçesine uyarak) ve uzaklaşınca boşaltılır. Karo sırasıyla `fetching → staged (aşama 0…n−1)
- * → ready`. Boşaltma `unloadRadius` ötesinde (histerezis) ve `maxResident` tavanını aşınca en uzaktan yapılır.
+ * etkinleştirilir (kare bütçesine uyarak) ve uzaklaşınca boşaltılır. Karo sırasıyla `fetching → staged → ready`; etkinleştirme dilimlidir (`activate` her çağrıda bir dilim). Boşaltma `unloadRadius` ötesinde (histerezis) ve `maxResident` tavanını aşınca en uzaktan yapılır.
  */
 
 export interface TileRect {
@@ -19,10 +18,11 @@ export interface StreamerHooks<Blob> {
   tiles: ReadonlyArray<{ tx: number; ty: number; rect: TileRect }>;
   /** Karo verisini indirir (doğrulanmış). */
   fetch(tx: number, ty: number): Promise<Blob>;
-  /** Etkinleştirme aşamaları sayısı (her aşama kare bütçesinden bir iş). */
-  steps: number;
-  /** `step`. aşamayı çalıştırır (0'dan başlar). Son aşamadan sonra karo hazırdır. */
-  activate(tx: number, ty: number, blob: Blob, step: number): void;
+  /**
+   * Karonun etkinleştirmesinden bir dilim çalıştırır (≈ 1 ms; kare bütçesi dilimleri yayar). Karo tamamen etkinse
+   * `true` döner (hazır olur); aksi hâlde bir sonraki çağrıda sürer.
+   */
+  activate(tx: number, ty: number, blob: Blob): boolean;
   /** Karoyu boşaltır (en az bir aşaması çalışmışsa çağrılır). */
   release(tx: number, ty: number): void;
   /** Hata (indirme/etkinleştirme); karo atlanır ve sonraki güncellemede yeniden denenir. */
@@ -37,7 +37,6 @@ interface Entry<Blob> {
   rect: TileRect;
   state: State;
   blob: Blob | null;
-  step: number;
   /** Aşaması çalışmış (boşaltırken `release` gerekir). */
   touched: boolean;
   cancelled: boolean;
@@ -171,7 +170,6 @@ export class TileStreamer<Blob> {
       rect,
       state: 'fetching',
       blob: null,
-      step: 0,
       touched: false,
       cancelled: false,
     };
@@ -196,10 +194,8 @@ export class TileStreamer<Blob> {
 
   private runStep(e: Entry<Blob>): void {
     try {
-      this.hooks.activate(e.tx, e.ty, e.blob as Blob, e.step);
       e.touched = true;
-      e.step++;
-      if (e.step >= this.hooks.steps) {
+      if (this.hooks.activate(e.tx, e.ty, e.blob as Blob)) {
         e.state = 'ready';
         e.blob = null;
         this.version++;

@@ -12,6 +12,24 @@ export function smoothLand(
   sigmaCells: number,
   strength = 1,
 ): void {
+  for (const _ of smoothLandSteps(values, width, height, isLand, sigmaCells, strength, Infinity)) {
+    void _;
+  }
+}
+
+/**
+ * `smoothLand`'in dilimli hâli (aynı aritmetik, aynı sonuç): her `rowsPerStep` satır/sütunda bir `yield` eder; çağıran
+ * dilimleri kare bütçesine yayabilir (karo akışı).
+ */
+export function* smoothLandSteps(
+  values: Float32Array,
+  width: number,
+  height: number,
+  isLand: (index: number) => boolean,
+  sigmaCells: number,
+  strength = 1,
+  rowsPerStep = 32,
+): Generator<void, void> {
   if (sigmaCells <= 0 || strength <= 0) return;
   const radius = Math.max(1, Math.ceil(sigmaCells * 3));
   const kernel = new Float32Array(radius * 2 + 1);
@@ -41,6 +59,7 @@ export function smoothLand(
       sum[row + c] = s;
       weight[row + c] = w;
     }
+    if ((r + 1) % rowsPerStep === 0) yield;
   }
   for (let c = 0; c < width; c++) {
     for (let r = 0; r < height; r++) {
@@ -61,5 +80,6 @@ export function smoothLand(
       const original = values[i] as number;
       values[i] = original + (smooth - original) * strength;
     }
+    if ((c + 1) % rowsPerStep === 0) yield;
   }
 }

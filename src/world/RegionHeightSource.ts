@@ -11,6 +11,7 @@ import {
   overviewSize,
   pageGridOf,
   terrainFromRaw,
+  terrainFromRawSteps,
   type TerrainPage,
 } from './terrainPages';
 
@@ -244,6 +245,22 @@ export class RegionHeightSource implements HeightSource {
    * çekirdeği ve (varsa) `TILE_HALO` payını kapsamalı; sonuç yoğun kipteki değerle bire bir aynıdır.
    */
   loadTile(tx: number, ty: number, window: TileWindow): void {
+    const steps = this.loadTileSteps(tx, ty, window, Infinity);
+    while (!steps.next().done) {
+      // dilimler peş peşe
+    }
+  }
+
+  /**
+   * `loadTile`'ın dilimli hâli: her `next()` yaklaşık 1 ms'lik iş yapar (karo akışı dilimleri kare bütçesine yayar);
+   * bitince sayfa yüklüdür. Sonuç `loadTile` ile bire bir aynıdır.
+   */
+  *loadTileSteps(
+    tx: number,
+    ty: number,
+    window: TileWindow,
+    rowsPerStep = 32,
+  ): Generator<void, void> {
     const core = this.tileCore(tx, ty);
     if (!core) throw new Error(`Karo (${tx}, ${ty}) dünyanın dışında`);
     if (window.raw.length !== window.cols * window.rows) {
@@ -257,7 +274,14 @@ export class RegionHeightSource implements HeightSource {
     ) {
       throw new Error(`Karo (${tx}, ${ty}) penceresi çekirdeği kapsamıyor`);
     }
-    const game = terrainFromRaw(window.raw, window.cols, window.rows, this.meta, this.smooth);
+    const game = yield* terrainFromRawSteps(
+      window.raw,
+      window.cols,
+      window.rows,
+      this.meta,
+      this.smooth,
+      rowsPerStep,
+    );
     const page = createPage();
     page.raw = new Uint16Array(PAGE_SIZE * PAGE_SIZE);
     const px = tx - this.tileX0;

@@ -1,7 +1,7 @@
 import { HORIZONTAL_SCALE, SEABED, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
 import { latticeCol, latticeRow, LATTICE_CELL } from './lattice';
-import { seabedDepth, seaDistanceToLand } from './seabed';
-import { smoothLand } from './terrainSmoothing';
+import { seabedDepth, seaDistanceToLandSteps } from './seabed';
+import { smoothLandSteps } from './terrainSmoothing';
 
 /**
  * Sayfalı arazi (saf): yükseklik dizisi `PAGE_SIZE × PAGE_SIZE` örneklik sayfalara bölünür (= dünya karosu); akış
@@ -46,25 +46,50 @@ export function terrainFromRaw(
   encoding: HeightEncoding,
   smooth: boolean,
 ): Float32Array {
+  const steps = terrainFromRawSteps(heights, width, height, encoding, smooth, Infinity);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+/**
+ * `terrainFromRaw`'ın dilimli hâli (aynı aritmetik, bire bir aynı sonuç): her dilimde (≈ 1 ms) bir `yield` eder; karo
+ * akışı dilimleri kare bütçesine yayar (tek parça ~20 ms'lik takılma olmasın).
+ */
+export function* terrainFromRawSteps(
+  heights: Uint16Array,
+  width: number,
+  height: number,
+  encoding: HeightEncoding,
+  smooth: boolean,
+  rowsPerStep = 32,
+): Generator<void, Float32Array> {
   const range = encoding.elevationMax - encoding.elevationMin;
   const game = new Float32Array(heights.length);
   for (let i = 0; i < heights.length; i++) {
     game[i] = (encoding.elevationMin + ((heights[i] as number) / 65535) * range) / VERTICAL_SCALE;
   }
+  yield;
   // Küçük tümsekler (deve sırtı) düzlenir; deniz hücreleri ve kıyı çizgisi değişmez (TERRAIN_SMOOTHING).
   if (smooth && TERRAIN_SMOOTHING.sigmaCells > 0) {
-    smoothLand(
+    yield* smoothLandSteps(
       game,
       width,
       height,
       (i) => heights[i] !== 0,
       TERRAIN_SMOOTHING.sigmaCells,
       TERRAIN_SMOOTHING.strength,
+      rowsPerStep,
     );
   }
   // Deniz hücreleri (uint16 değeri 0) kıyıdan uzaklığa göre aşağı indirilir.
   const cell = encoding.cellSizeReal / HORIZONTAL_SCALE;
-  const distance = seaDistanceToLand(width, height, (i) => heights[i] === 0);
+  const distance = yield* seaDistanceToLandSteps(
+    width,
+    height,
+    (i) => heights[i] === 0,
+    rowsPerStep * 2,
+  );
   const depth = seabedDepth(distance, cell, SEABED.slopeDeg, SEABED.maxDepth);
   for (let i = 0; i < depth.length; i++) {
     if (heights[i] === 0) game[i] = -(depth[i] as number);
