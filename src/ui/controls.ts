@@ -40,6 +40,14 @@ export const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readon
       ],
     ],
     [
+      'Alışveriş ve tapu',
+      [
+        [['E'], 'Dükkân önündeki esnafla alışveriş (il/ilçe merkezleri): al, sat'],
+        [['E'], 'Yapının kapısına bakıp tapusunu al ya da geri sat'],
+        [['1–8'], 'Tapulu yapının içine sandık, tezgâh, döşek kur; yanına ek yap'],
+      ],
+    ],
+    [
       'Silahlar',
       [
         [['Sol tık'], 'Ateş et (elde menzilli silah)'],
@@ -77,6 +85,7 @@ export const DEV_CONTROLS: readonly ControlRow[] = [
   [['L', 'N'], 'Erzak ver / önüne bir yolcu çıkar'],
   [['J'], 'Silah, mühimmat, susturucu ve büyük çanta ver'],
   [['M'], 'Drone ve pil ver'],
+  [['Shift', 'M'], 'Cüzdana 1000 ₺'],
   [['[', ']'], 'Saati ±1 saat'],
   [['K'], 'Canı sıfırla'],
 ];

@@ -1,4 +1,4 @@
-import { DRONE, HOTBAR, INVENTORY, WORLD } from '../config';
+import { DRONE, ECONOMY, HOTBAR, INVENTORY, WORLD } from '../config';
 import { isCropId, type CropId } from '../farming/kinds';
 import { Hotbar, type HotbarSave } from '../items/hotbar';
 import { Inventory, type InventorySave, type ItemStack } from '../items/Inventory';
@@ -26,8 +26,10 @@ import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkK
  *   (`settlements.lastPrayer`: mutlak vakit sırası, yoksa −1).
  * - v7: susturucu takılı silahlar (`weapons.suppressed`); yeni eşyalar (susturucu, sırt çantaları). Oyuncu envanteri
  *   çanta slotlarıyla daha uzundur (eski 20 slotluk envanter okunur, eksik slotlar boş).
+ * - v8: alışveriş ve tapu (`economy`: cüzdandaki para, tapusu alınan yerleşim yapıları). Eski kayıt
+ *   `ECONOMY.startMoney` ile ve tapusuz başlar.
  */
-export const SAVE_FORMAT_VERSION = 7;
+export const SAVE_FORMAT_VERSION = 8;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -93,6 +95,21 @@ export interface SaveGame {
   bandits: BanditsSave;
   /** Faz 11 (F): drone durumu ve işaretler. */
   drone: DroneSave;
+  /** v8: para ve tapular. */
+  economy: EconomySave;
+}
+
+/** Alışveriş ve tapu (v8). */
+export interface EconomySave {
+  /** Cüzdandaki para (₺, negatif olmayan tam sayı). */
+  money: number;
+  /** Tapusu alınan yerleşim yapıları (`yerleşim · 1024 + sıra`; alış sırasıyla). */
+  owned: number[];
+}
+
+/** Yeni oyunun (ve v7 → v8 göçünün) ekonomi durumu. */
+export function emptyEconomySave(): EconomySave {
+  return { money: ECONOMY.startMoney, owned: [] };
 }
 
 // ── Faz 11 (v5) alanları: zaman alanları oyun saatinin mutlak saniyesidir (`(gün · 24 + saat) · 3600`). ──
@@ -300,6 +317,11 @@ function migrateV6toV7(raw: RawSave): RawSave {
   return { ...raw, weapons: { ...weapons, suppressed: [] } };
 }
 
+/** v7 → v8: cüzdan başlangıç parasıyla, tapu listesi boş eklenir. */
+function migrateV7toV8(raw: RawSave): RawSave {
+  return { ...raw, economy: emptyEconomySave() };
+}
+
 export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   1: migrateV1toV2,
   2: migrateV2toV3,
@@ -307,6 +329,7 @@ export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   4: migrateV4toV5,
   5: migrateV5toV6,
   6: migrateV6toV7,
+  7: migrateV7toV8,
 };
 
 /**
@@ -391,6 +414,7 @@ export function parseSave(raw: unknown): SaveGame {
   const weapons = parseWeapons(save.weapons);
   const bandits = parseBandits(save.bandits);
   const drone = parseDrone(save.drone);
+  const economy = parseEconomy(save.economy);
 
   return {
     version: SAVE_FORMAT_VERSION,
@@ -408,7 +432,18 @@ export function parseSave(raw: unknown): SaveGame {
     weapons,
     bandits,
     drone,
+    economy,
   };
+}
+
+function parseEconomy(raw: unknown): EconomySave {
+  const o = record(raw, 'economy');
+  const money = nonNegativeInt(o.money, 'economy.money');
+  if (!Array.isArray(o.owned) || !o.owned.every((v) => Number.isInteger(v) && v >= 0)) {
+    throw invalid('economy.owned negatif olmayan tam sayı listesi olmalı');
+  }
+  // Yinelenenler atılır, alış sırası korunur.
+  return { money, owned: [...new Set(o.owned as number[])] };
 }
 
 function parseFarm(raw: unknown): FarmSave {

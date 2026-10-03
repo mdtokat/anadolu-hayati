@@ -242,3 +242,35 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     expect(map.interiorAt(mosque.x, mosque.y + 40, mosque.z)).toBeNull();
   });
 });
+
+describe('satıcılar — gerçek dünya (alışveriş)', () => {
+  it('il merkezlerinde 4, ilçelerde 3 satıcı; hepsi yapı dışında, karada', async () => {
+    const { placeVendors } = await import('../src/economy/vendors');
+    const { VENDORS } = await import('../src/config');
+    const vendors = placeVendors(map, {
+      heightAt: terrain.heightAt,
+      elevationAt: terrain.elevationAt,
+      blocked: (x, z) => map.buildingAt(x, z, 0.4) !== null,
+    });
+    const byTown = new Map<string, string[]>();
+    for (const v of vendors) {
+      byTown.set(v.town, [...(byTown.get(v.town) ?? []), v.kind]);
+      expect(map.buildingAt(v.x, v.z, 0.3)).toBeNull();
+      expect(terrain.elevationAt(v.x, v.z)).toBeGreaterThan(1);
+      expect(v.y).toBeCloseTo(terrain.heightAt(v.x, v.z), 6);
+    }
+    for (const s of map.settlements) {
+      if (s.data.rank === 'koy') continue;
+      const kinds = byTown.get(s.data.name) ?? [];
+      expect(kinds, s.data.name).toEqual(VENDORS.perRank[s.data.rank].slice(0, kinds.length));
+      // Dükkânı/konutu olan her merkezde satıcıların hepsi (gerekirse aynı kapıda yan yana); yalnız çeşmesi sığan
+      // kıyı ilçesinde (Çatalzeytin) satıcı yok.
+      const usable = s.buildings.some(
+        (b) =>
+          !b.ruined && [...VENDORS.shopKinds, ...VENDORS.fallbackKinds].includes(b.kind as never),
+      );
+      expect(kinds.length, s.data.name).toBe(usable ? VENDORS.perRank[s.data.rank].length : 0);
+    }
+    expect(vendors.length).toBeGreaterThan(7 * 4 + 58 * 3 - 1);
+  });
+});

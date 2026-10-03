@@ -19,6 +19,7 @@ const FAILURE_TEXT: Record<ConfirmFailure, string> = {
   occupied: 'Burası dolu',
   on_roof: 'Çatının üstüne bir şey kurulamaz',
   stairwell: 'Merdivenin önü ve üstü açık kalmalı',
+  not_owned: 'Bu yapı senin değil: önce tapusunu al (kapısında E)',
   not_aiming: '',
   no_target: 'Hedef yok',
   no_item: 'Eşya kalmadı',

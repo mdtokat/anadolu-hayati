@@ -1,6 +1,8 @@
 import { SEARCH } from '../config';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
+import { searchMoney } from '../economy/lootMoney';
+import type { Wallet } from '../economy/wallet';
 import { Inventory, type ItemStack } from '../items/Inventory';
 import {
   BUILDING_NAMES,
@@ -146,6 +148,8 @@ export class BuildingSearch {
   constructor(
     private readonly events: EventBus<GameEvents>,
     private readonly inventory: Inventory,
+    /** Varsa aramada bulunan para buraya eklenir (`economy/lootMoney.ts`). */
+    private readonly wallet: Wallet | null = null,
   ) {}
 
   get offer(): SearchOffer | null {
@@ -230,11 +234,14 @@ export class BuildingSearch {
     if (target.type === 'door') this.searched.add(target.id);
     else this.containers.add(target.id);
     const b = target.building;
+    const money = this.wallet ? searchMoney(target.type, target.id, b) : 0;
+    if (money > 0) this.wallet?.add(money);
     this.events.emit('building:searched', {
       id: b.id,
       kind: b.kind,
       items,
       container: target.type === 'container' ? target.container.kind : null,
+      money,
     });
   }
 }
@@ -251,11 +258,14 @@ export function searchPrompt(offer: SearchOffer): string {
   return `E (basılı tut): ${name} ara`;
 }
 
-/** Arama bildirimi: "Bulundu: +2 Bulgur, +1 Bakır Tencere" / "Boş: çoktan yağmalanmış". */
+/** Arama bildirimi: "Bulundu: +2 Bulgur, +1 Bakır Tencere, +35 ₺" / "Boş: çoktan yağmalanmış". */
 export function searchedToast(
   items: ReadonlyArray<ItemStack>,
   names: (id: ItemStack['id']) => string,
+  money = 0,
 ): string {
-  if (items.length === 0) return 'Boş çıktı: burası çoktan yağmalanmış';
-  return `Bulundu: ${items.map((s) => `+${s.count} ${names(s.id)}`).join(', ')}`;
+  if (items.length === 0 && money <= 0) return 'Boş çıktı: burası çoktan yağmalanmış';
+  const parts = items.map((s) => `+${s.count} ${names(s.id)}`);
+  if (money > 0) parts.push(`+${money.toLocaleString('tr-TR')} ₺`);
+  return `Bulundu: ${parts.join(', ')}`;
 }

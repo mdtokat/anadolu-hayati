@@ -35,6 +35,10 @@ export const UI_ICONS = {
     '<path fill="currentColor" d="M13.6 3.2 9.3 4.6l1.2 1.6-7.8 7.8a1.7 1.7 0 0 0 0 2.4l1.1 1.1a1.7 1.7 0 0 0 2.4 0l7.8-7.8 1.5 1.3 4.4-4.4z"/>',
   chest:
     '<path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v4H2V6a2 2 0 0 1 2-2zm-2 7.5h8.5v2h3v-2H22V20H2z"/>',
+  /** Para (lira simgeli sikke). */
+  coin: '<circle cx="12" cy="12" r="9.5" fill="currentColor"/><path d="M10 6.5v11c2.9 0 5.4-1.9 5.6-4.8M7.6 11.2l5.8-2.4M7.6 14.2l5.8-2.4" fill="none" stroke="#1b2a20" stroke-width="1.7" stroke-linecap="round"/>',
+  /** Tapu / dükkân (çatılı tezgâh). */
+  shop: '<path fill="currentColor" d="M3 4h18l1.5 5.5a2.6 2.6 0 0 1-5 1 2.6 2.6 0 0 1-5 0 2.6 2.6 0 0 1-5 0 2.6 2.6 0 0 1-5-1zm1.5 8.6c1 .5 2.2.6 3.3.2v5.7h8.4v-5.7c1.1.4 2.3.3 3.3-.2V21h-15z"/>',
 } as const;
 
 export type UiIcon = keyof typeof UI_ICONS;

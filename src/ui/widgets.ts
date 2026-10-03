@@ -1,3 +1,4 @@
+import { formatMoney } from '../economy/wallet';
 import type { Inventory, ItemStack } from '../items/Inventory';
 import { loadLevel } from './hudView';
 import { CATEGORY_ACCENT, itemIcon, uiIcon } from './icons';
@@ -54,4 +55,12 @@ export function closeButton(label: string, key: string, onClick: () => void): HT
   button.append(el('span', '', label), el('kbd', 'ui-key', key));
   button.addEventListener('click', onClick);
   return button;
+}
+
+/** Cüzdan rozeti: sikke simgesi ve "1.250 ₺". */
+export function moneyBadge(money: number): HTMLElement {
+  const badge = el('div', 'inv-money');
+  badge.title = 'Cüzdan';
+  badge.append(uiIcon('coin'), el('span', 'inv-money-text', formatMoney(money)));
+  return badge;
 }

@@ -6,7 +6,8 @@ import type { Random } from '../utils/random';
  * Herkes barışçıldır; Türkçe gündelik selamlaşma ve dualar kullanılır.
  */
 
-export const PERSON_ROLES = ['yolcu', 'coban', 'oduncu', 'yasli', 'dervis'] as const;
+/** `esnaf` yalnızca dükkân önündeki satıcılardır (`economy/vendors.ts`); gezgin olarak doğmaz. */
+export const PERSON_ROLES = ['yolcu', 'coban', 'oduncu', 'yasli', 'dervis', 'esnaf'] as const;
 export type PersonRole = (typeof PERSON_ROLES)[number];
 
 /** Takas: oyuncu `give` verir, `get` alır. `give` boşsa hediyedir (bir kez). */
@@ -99,6 +100,17 @@ export const ROLES: Readonly<Record<PersonRole, RoleDef>> = {
       'Göynük’te Akşemseddin’in türbesini ziyaret ettim. Sabır, her kapının anahtarıdır.',
     ],
     address: 'can',
+  },
+  esnaf: {
+    title: 'Esnaf',
+    titleFirst: true,
+    names: ['Hasan', 'Yusuf', 'Mehmet', 'Kemal'],
+    trades: [],
+    lore: [
+      'Kasaba boşaldı ama dükkânı kapatmadım. Gelen giden yolcu az da olsa bereket var.',
+      'Kapıları açık evlerin tapusu belediyede duruyor; parası olan alıyor, ev de sahipsiz kalmıyor.',
+    ],
+    address: 'hemşerim',
   },
 };
 

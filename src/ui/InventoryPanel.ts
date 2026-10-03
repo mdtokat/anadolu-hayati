@@ -25,7 +25,7 @@ import {
   type RecipeRow,
 } from './inventoryView';
 import { RECIPES } from '../items/recipes';
-import { closeButton, el, loadMeter, slotButton } from './widgets';
+import { closeButton, el, loadMeter, moneyBadge, slotButton } from './widgets';
 
 export interface InventoryPanelCallbacks {
   /** Seçili slottaki yiyeceği ye. */
@@ -50,6 +50,8 @@ export interface InventoryPanelCallbacks {
   suppressorState?(item: ItemId): SuppressorState | null;
   /** Susturucuyu tak/çıkar. */
   onToggleSuppressor?(item: ItemId): void;
+  /** Cüzdandaki para (₺); verilmezse gösterilmez. */
+  getMoney?(): number;
 }
 
 /** Susturucu düğmesi: takılı, takılabilir (envanterde var) ya da yok. */
@@ -129,6 +131,8 @@ export class InventoryPanel {
 
     const stats = el('div', 'inv-stats');
     stats.append(loadMeter(this.inventory), this.buildVitals(vitals));
+    const money = this.callbacks.getMoney?.();
+    if (money !== undefined) stats.append(moneyBadge(money));
 
     const body = el('div', 'inv-columns');
     body.append(

@@ -51,7 +51,7 @@ function v4(): Raw {
 
 describe('kayıt v4 → v5 göçü (Faz 11)', () => {
   it('sürüm 5; zincirin son adımı v4 → v5', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(7);
+    expect(SAVE_FORMAT_VERSION).toBe(8);
     expect(typeof MIGRATIONS[4]).toBe('function');
   });
 

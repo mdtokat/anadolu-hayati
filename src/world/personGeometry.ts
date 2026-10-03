@@ -124,6 +124,14 @@ const OUTFITS: Record<PersonRole, Outfit> = {
     robe: 0xd9d2c0,
     sleeves: 0xd9d2c0,
   },
+  esnaf: {
+    shirt: 0xd8d2c4,
+    vest: 0x3d4a5c,
+    trousers: 0x3a3632,
+    shoes: 0x2b2420,
+    robe: null,
+    sleeves: 0xd8d2c4,
+  },
 };
 
 export function buildPersonGeometry(role: PersonRole): PersonGeometry {
@@ -188,6 +196,11 @@ export function buildPersonGeometry(role: PersonRole): PersonGeometry {
         geometry: at(new CylinderGeometry(0.025, 0.025, 1.7, 4), shoulderX + 0.1, 0.85, 0.12),
         color: 0x5e4630,
       });
+      break;
+    case 'esnaf':
+      // Beyaz önlük (yelek üstünde, dizlere kadar) ve kasket.
+      parts.push(box(0.38, 0.9, 0.04, 0, 0.45, 0.15, 0xf2efe6));
+      parts.push(box(0.27, 0.06, 0.3, 0, shoulderY + 0.29, 0.03, 0x5a4a3a));
       break;
   }
   const leg = merge([
