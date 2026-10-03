@@ -9,8 +9,8 @@ export interface DeathSummary {
 }
 
 /**
- * Ölüm ekranı: neden, hayatta kalınan süre ve "Yeniden Doğ" düğmesi. Duraklatma menüsünün
- * üstünde görünür; düğme yeniden doğmayı ve fare kilidini ister.
+ * Ölüm ekranı: neden, hayatta kalınan süre ve "Yeniden Doğ" düğmesi. Açıkken duraklatma menüsü açılmaz
+ * (`Game` bastırır); düğme yeniden doğmayı ve fare kilidini ister.
  */
 export class DeathScreen {
   private readonly root = document.createElement('div');

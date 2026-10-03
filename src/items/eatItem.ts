@@ -1,6 +1,6 @@
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import type { VitalsState } from '../survival/vitals';
-import { canEat, edibleEffect } from './consume';
+import { canEat, edibleEffect, isDrink } from './consume';
 import type { Inventory } from './Inventory';
 import { ITEM_IDS, type ItemId } from './itemDefs';
 
@@ -27,12 +27,13 @@ export function eatItem(
   return id;
 }
 
-/** Hızlı yemek için seçim: envanterde olan ve şu an yenebilen yiyeceklerden tokluğu en çok artıran. */
+/** Hızlı yemek için seçim: envanterde olan ve şu an yenebilen yiyeceklerden (içecek hariç) tokluğu en çok artıran. */
 export function bestFood(inventory: Inventory, vitals: VitalsState): ItemId | null {
   let best: ItemId | null = null;
   let bestSatiety = -1;
   for (const id of ITEM_IDS) {
-    if (!inventory.has(id) || !canEat(vitals, id)) continue;
+    // İçecekler (demli çay) hızlı yemeğe girmez: tokluk vermez.
+    if (isDrink(id) || !inventory.has(id) || !canEat(vitals, id)) continue;
     const satiety = edibleEffect(id)?.satiety ?? 0;
     if (satiety > bestSatiety) {
       best = id;
@@ -56,6 +57,8 @@ export function quickEat(inventory: Inventory, survival: SurvivalSystem): QuickE
     const eaten = eatItem(inventory, survival, best);
     if (eaten !== null) return { ok: true, item: eaten };
   }
-  const hasFood = ITEM_IDS.some((id) => edibleEffect(id) !== null && inventory.has(id));
+  const hasFood = ITEM_IDS.some(
+    (id) => edibleEffect(id) !== null && !isDrink(id) && inventory.has(id),
+  );
   return { ok: false, reason: hasFood ? 'full' : 'no_food' };
 }

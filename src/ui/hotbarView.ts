@@ -1,4 +1,6 @@
 import { INPUT } from '../config';
+import { COOK_RECIPES } from '../combat/cooking';
+import { isBackpack } from '../items/backpack';
 import { isHoldable, type Hotbar } from '../items/hotbar';
 import type { Inventory } from '../items/Inventory';
 import { ITEMS, type ItemId } from '../items/itemDefs';
@@ -53,6 +55,23 @@ export function hotbarViews(hotbar: Hotbar, inventory: Inventory): HotbarSlotVie
       title: `${key}: ${name}${have === 0 ? ' (envanterde yok)' : ` — ${use}`}`,
     };
   });
+}
+
+/**
+ * Doğrudan kullanılamayan (`hotbarUse` → `none`) kısayol eşyasına basınca gösterilen açıklama: boş su kabı su
+ * kenarında dolar, sırt çantası envanterde durdukça işe yarar, çiğ erzak ateşte (gerekirse tencereyle) pişirilir.
+ */
+export function unusableHotbarText(id: ItemId): string {
+  const name = ITEMS[id].name;
+  if (id === 'water_container_empty') return `${name}: tatlı su kenarında E ile doldur`;
+  if (isBackpack(id)) return `${name}: sırtında taşınır, envanterde durması yeter`;
+  const cook = COOK_RECIPES.find((r) => r.from === id);
+  if (cook) {
+    const pot = cook.requires ? ` (${ITEMS[cook.requires].name} gerekir)` : '';
+    return `${name}: çiğ yenmez, yanan ateşin başında E ile pişir${pot}`;
+  }
+  if (ITEMS[id].category === 'food') return `${name}: çiğ yenmez`;
+  return `${name}: doğrudan kullanılamaz`;
 }
 
 /** Çubuğun üstünde gösterilen elde tutulan eşya ("Elde: Taş Mızrak"); el boşsa "". */

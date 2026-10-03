@@ -1,6 +1,6 @@
 import './ui.css';
 import { INPUT } from '../config';
-import { canEat } from '../items/consume';
+import { canEat, isDrink } from '../items/consume';
 import { NO_STATIONS, type CraftContext } from '../items/craft';
 import { isHotbarItem, type Hotbar } from '../items/hotbar';
 import type { Inventory } from '../items/Inventory';
@@ -217,7 +217,15 @@ export class InventoryPanel {
 
       const buttons = el('div', 'inv-detail-actions');
       if (view.edible) {
-        const eat = el('button', 'inv-eat', canEat(vitals, stack.id) ? 'Ye' : 'Tok');
+        const drink = isDrink(stack.id);
+        const label = canEat(vitals, stack.id)
+          ? drink
+            ? 'İç'
+            : 'Ye'
+          : drink
+            ? 'Gerek yok'
+            : 'Tok';
+        const eat = el('button', 'inv-eat', label);
         eat.type = 'button';
         eat.disabled = !canEat(vitals, stack.id);
         eat.addEventListener('click', () => this.callbacks.onEat(slot));

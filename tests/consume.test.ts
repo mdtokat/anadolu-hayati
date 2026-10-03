@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FOOD, SURVIVAL } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
-import { applyEdible, canEat, eat, edibleEffect } from '../src/items/consume';
+import { applyEdible, canEat, eat, edibleEffect, isDrink } from '../src/items/consume';
 import { Inventory } from '../src/items/Inventory';
 import { ITEM_IDS, ITEMS, type EdibleEffect } from '../src/items/itemDefs';
 import { SurvivalSystem } from '../src/survival/SurvivalSystem';
@@ -26,6 +26,18 @@ describe('edibleEffect / canEat', () => {
     expect(canEat(hungry(MAX), 'hazelnut')).toBe(false);
     expect(canEat(hungry(0), 'stick')).toBe(false);
     expect(canEat(hungry(0), 'stone_axe')).toBe(false);
+  });
+
+  it('içecek (demli çay) tokluğa bakmaz: tok ama susuz ya da yorgun oyuncu içer', () => {
+    expect(isDrink('brewed_tea')).toBe(true);
+    expect(isDrink('hazelnut')).toBe(false);
+    expect(isDrink('stick')).toBe(false);
+    const full = { ...initialVitals(), satiety: MAX, hydration: MAX, energy: MAX };
+    expect(canEat(full, 'brewed_tea')).toBe(false);
+    expect(canEat({ ...full, hydration: MAX - FOOD.eatMinDeficit }, 'brewed_tea')).toBe(true);
+    expect(canEat({ ...full, energy: 40 }, 'brewed_tea')).toBe(true);
+    // Aç ama susuz/yorgun değil: çay gerekmez.
+    expect(canEat({ ...full, satiety: 10 }, 'brewed_tea')).toBe(false);
   });
 });
 

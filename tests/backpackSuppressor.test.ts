@@ -53,6 +53,17 @@ describe('sırt çantaları', () => {
     expect(chest.count('backpack_large')).toBe(1);
   });
 
+  it('sandıktan "hepsini al": çanta önce alınır, açtığı yere diğer eşyalar da sığar', () => {
+    const chest = new Inventory({ slots: 16, maxWeightG: 60_000 });
+    chest.add('log', 10); // 30 kg: çantasız sınırı (25 kg) aşar, çantayla (50 kg) sığar
+    chest.add('backpack_large', 1);
+    const inv = new Inventory({ backpacks: true });
+    transferAll(chest, inv);
+    expect(inv.count('backpack_large')).toBe(1);
+    expect(inv.count('log')).toBe(10);
+    expect(chest.slots.every((s) => s === null)).toBe(true);
+  });
+
   it('eski 20 slotluk kayıt çantalı envantere yüklenir; kopya ayarları korur', () => {
     const old = new Inventory({ slots: INVENTORY.slots });
     old.add('stick', 5);

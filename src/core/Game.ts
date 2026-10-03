@@ -91,6 +91,7 @@ import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
 import { collectedToast, gatherPrompt } from '../interaction/promptText';
 import { craft } from '../items/craft';
+import { isDrink } from '../items/consume';
 import { eatItem, quickEat } from '../items/eatItem';
 import { clothingWarmth, torchLit } from '../items/equipment';
 import { Hotbar, hotbarUse } from '../items/hotbar';
@@ -155,7 +156,7 @@ import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { StoragePanel } from '../ui/StoragePanel';
-import { heldLabel, hotbarSignature, hotbarViews } from '../ui/hotbarView';
+import { heldLabel, hotbarSignature, hotbarViews, unusableHotbarText } from '../ui/hotbarView';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
@@ -583,7 +584,9 @@ export class Game {
       openSettings: () => this.settingsPanel.show(),
       openCredits: () => this.creditsPanel.show(),
       openControls: () => this.controlsPanel.show(),
-      isSuppressed: () => this.overlayOpen,
+      // Ölüm ekranı açıkken menü açılmaz: altında görünmez kalıp odağı "Yeniden Doğ"dan çalıyordu (Enter ölüyken
+      // oyunu sürdürüyordu).
+      isSuppressed: () => this.overlayOpen || this.deathScreen.visible,
       host: {
         resume: () => this.input.requestLock(),
         newGame: () => this.newGame(),
@@ -1883,7 +1886,7 @@ export class Game {
       return;
     }
     if (id !== null && hotbarUse(id) === 'none') {
-      this.hud.notify(`${ITEMS[id].name}: tatlı su kenarında E ile doldur`, INTERACT.toastMs);
+      this.hud.notify(unusableHotbarText(id), INTERACT.toastMs);
       return;
     }
     this.hotbar.select(this.hotbar.selected === slot ? null : slot);
@@ -1943,7 +1946,10 @@ export class Game {
       return;
     }
     const eaten = eatItem(this.inventory, this.survival, id);
-    this.hud.notify(eaten ? `Yedin: ${ITEMS[eaten].name}` : 'Tokluk dolu', INTERACT.toastMs);
+    const drink = isDrink(id);
+    const done = drink ? 'İçtin' : 'Yedin';
+    const refused = drink ? 'Şu an gerek yok' : 'Tokluk dolu';
+    this.hud.notify(eaten ? `${done}: ${ITEMS[eaten].name}` : refused, INTERACT.toastMs);
   }
 
   /** `F`: en çok tokluk veren yiyeceği ye; olmazsa nedenini bildir. */
@@ -1960,7 +1966,12 @@ export class Game {
 
   private eatFromSlot(slot: number): void {
     const item = eatItem(this.inventory, this.survival, slot);
-    if (item !== null) this.hud.notify(`Yedin: ${ITEMS[item].name}`, INTERACT.toastMs);
+    if (item !== null) {
+      this.hud.notify(
+        `${isDrink(item) ? 'İçtin' : 'Yedin'}: ${ITEMS[item].name}`,
+        INTERACT.toastMs,
+      );
+    }
     this.inventoryPanel.refresh();
   }
 
@@ -2208,7 +2219,10 @@ export class Game {
       bodyTempC: state.bodyTemp,
       isNight: clock.sun.altitudeDeg < HINTS.nightSunAltitudeDeg,
       fireBuilt: structures.some((s) => s.kind === 'campfire'),
-      shelterBuilt: structures.some((s) => s.kind === 'lean_to' || s.kind === 'wooden_hut'),
+      // Modüler parçalarla kurulan barınak (taban + duvar + çatı) ya da bina içi de barınak sayılır.
+      shelterBuilt:
+        this.exposure.sheltered ||
+        structures.some((s) => s.kind === 'lean_to' || s.kind === 'wooden_hut'),
       preyNearby: this.creatures
         .views()
         .some(

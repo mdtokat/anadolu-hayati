@@ -23,9 +23,25 @@ export function applyEdible(state: VitalsState, effect: EdibleEffect): VitalsSta
   return { ...next, health, energy };
 }
 
-/** Yenebilir mi ve tokluk eksiği yeterli mi? (Tok olan yemek yiyemez.) */
+/** Tokluk vermeyen yenebilir eşya (içecek: demli çay; su ve enerji verir) mi? */
+export function isDrink(id: ItemId): boolean {
+  const effect = edibleEffect(id);
+  return effect !== null && (effect.satiety ?? 0) <= 0;
+}
+
+/**
+ * Yenebilir mi ve eksik yeterli mi? Tok olan yemek yiyemez. İçecek (tokluk vermeyen: demli çay) tokluğa bakmaz:
+ * verdiği göstergelerden (su, enerji) birinde en az `FOOD.eatMinDeficit` eksik olmalı.
+ */
 export function canEat(state: VitalsState, id: ItemId): boolean {
-  return edibleEffect(id) !== null && SURVIVAL.maxValue - state.satiety >= FOOD.eatMinDeficit;
+  const effect = edibleEffect(id);
+  if (effect === null) return false;
+  const deficit = (value: number): boolean => SURVIVAL.maxValue - value >= FOOD.eatMinDeficit;
+  if (!isDrink(id)) return deficit(state.satiety);
+  return (
+    ((effect.hydration ?? 0) > 0 && deficit(state.hydration)) ||
+    ((effect.energy ?? 0) > 0 && deficit(state.energy))
+  );
 }
 
 /**

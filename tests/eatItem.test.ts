@@ -82,6 +82,12 @@ describe('bestFood', () => {
     expect(bestFood(inventory, hungry)).toBe('hazelnut');
     expect(bestFood(inventory, { ...hungry, satiety: SURVIVAL.maxValue })).toBeNull();
   });
+
+  it('içecek (demli çay) hızlı yemeğe girmez', () => {
+    const inventory = new Inventory();
+    inventory.add('brewed_tea', 2);
+    expect(bestFood(inventory, { ...hungry, hydration: 20 })).toBeNull();
+  });
 });
 
 describe('quickEat', () => {

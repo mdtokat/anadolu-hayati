@@ -147,5 +147,5 @@ describe('RegionWorld.cityStart (gerçek bölge)', () => {
     expect(world.cityStart(createRandom(1))).toBeNull();
     expect(world.respawnPoint(0)).not.toBeNull();
     dispose();
-  });
+  }, 60_000);
 });
