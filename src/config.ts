@@ -61,6 +61,48 @@ export const CAMERA = {
 export const RENDER = {
   /** Yüksek DPI ekranlarda piksel oranı üst sınırı (performans için). */
   maxPixelRatio: 2,
+  /**
+   * Yüklemede gölgelendirici ön derlemesi için en çok bekleme (ms). Derleme bu süreyi aşarsa oyun yine açılır; kalan
+   * programlar ilk kullanımda derlenir.
+   */
+  precompileTimeoutMs: 8000,
+} as const;
+
+/**
+ * Performans göstergesi (`ui/PerfOverlay.ts`, `core/perfStats.ts`; `F3` ya da Ayarlar → "Performans göstergesi";
+ * üretimde de çalışır): son `windowFrames` karenin istatistiği, `spikeMs`'ten uzun kare "takılma" sayılır ve o karenin
+ * en uzun `spikeSections` bölümü saklanır; `listSections` bölüm listelenir; görünüm `refreshMs`'te bir yenilenir.
+ */
+export const PERF_OVERLAY = {
+  windowFrames: 240,
+  spikeMs: 50,
+  spikeSections: 4,
+  listSections: 6,
+  refreshMs: 250,
+  /** Grafikte üst çizgi (ms): bunun üstü kırpılır. */
+  graphMaxMs: 66,
+} as const;
+
+/**
+ * Uyarlanır çözünürlük (`core/resolution.ts`; Ayarlar → "Otomatik çözünürlük", varsayılan açık). Kare süresinin pencere
+ * medyanı `1000 / targetFps · downRatio`'yu aşarsa çizim ölçeği bir kademe düşer (`scales`), `upRatio` altında
+ * `upHoldSeconds` kalırsa bir kademe yükseltme denenir; deneme `probeSeconds` içinde yavaşlarsa o kademenin beklemesi
+ * katlanır (en çok `maxUpHoldSeconds`). Piksel oranı = min(cihaz, kalite ön ayarı) × ölçek, en az `minPixelRatio`.
+ * Hedef 50 FPS: 60 Hz ekranda dikey eşitlemeyle 60 FPS (16,7 ms) "rahat" sayılır, 30 FPS'e düşmek (33 ms) düşürür.
+ */
+export const ADAPTIVE_RESOLUTION = {
+  targetFps: 50,
+  downRatio: 1.15,
+  upRatio: 0.9,
+  scales: [1, 0.85, 0.7, 0.6, 0.5],
+  minPixelRatio: 0.5,
+  windowSeconds: 1.5,
+  cooldownSeconds: 2,
+  upHoldSeconds: 6,
+  maxUpHoldSeconds: 120,
+  probeSeconds: 6,
+  /** Bundan uzun kareler (sekme arka planda, duraklama sonrası) bu değere kırpılır (ms). */
+  maxSampleMs: 250,
 } as const;
 
 /** Geliştirici araçları (yalnızca dev modunda görünür). */
@@ -159,6 +201,8 @@ export const INPUT = {
     /** F: oyuncu ↔ drone görüşü; drone'u eve döndürüp indir. */
     droneView: ['KeyQ'],
     droneHome: ['KeyH'],
+    /** Performans göstergesini aç/kapa (`PERF_OVERLAY`; ayar olarak saklanır). */
+    togglePerformance: ['F3'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -260,14 +304,35 @@ export const CHUNK = {
   skirtDepth: [1, 2, 4, 8],
   /** Bu uzaklıktan (oyun m) yakın chunk'lar yüklenir. Bölge ~4 km olduğundan hemen hepsi. */
   viewDistance: 4000,
-  /** Karede kurulan en fazla chunk (mesh/collider) sayısı: kare süresi sıçramasın. */
-  maxBuildsPerFrame: 2,
+  /**
+   * Karede kurulan en fazla chunk mesh'i (üst sınır; asıl sınır `STREAMING.frameBudgetMs` zaman bütçesidir, ilk mesh
+   * her durumda kurulur).
+   */
+  maxBuildsPerFrame: 3,
   /** Fizik: bu uzaklıktaki (oyun m) chunk'lar için Rapier heightfield collider'ı vardır. */
   physicsRadius: 160,
   /** Collider'lar `physicsRadius × bu` uzaklıktan sonra kaldırılır (histerezis). */
   physicsRemoveFactor: 1.6,
-  /** Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). */
-  maxColliderBuildsPerFrame: 1,
+  /**
+   * Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). Üst sınırdır; ilki her
+   * durumda, ikincisi `STREAMING.frameBudgetMs` süresi kaldıysa kurulur.
+   */
+  maxColliderBuildsPerFrame: 2,
+  /**
+   * Tünel ağzı delikli chunk'ın collider'ı bu kadar hücrelik kare bloklara bölünür: yalnızca delik içeren bloklar
+   * üçgen ağıdır (trimesh), gerisi heightfield. Tek parça 128×128 trimesh kurulumu ~70 ms sürüyordu (takılma);
+   * 16 hücrelik blokta ~1 ms. Chunk hücre sayısını (128) tam bölmeli.
+   */
+  holeBlockCells: 16,
+} as const;
+
+/**
+ * Akışlı işlerin kare başına ortak zaman bütçesi (`core/FrameBudget.ts`): arazi collider'ı ve mesh'i, nesne dağılımı,
+ * katman yenilemeleri (yapılar, köprüler, camlar) karede toplam bu kadar (ms) sürebilir; kritik ilk iş (oyuncunun
+ * altındaki collider, en yakın mesh) bütçe tükense de yapılır, dönemsel yenilemeler bir sonraki kareye ertelenir.
+ */
+export const STREAMING = {
+  frameBudgetMs: 4,
 } as const;
 
 /** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */
@@ -412,6 +477,21 @@ export const SCATTER = {
   refreshDistance: 24,
   /** Karede hesaplanabilecek en fazla chunk (`scatterChunk`): takılma olmasın. */
   maxChunkBuildsPerFrame: 2,
+  /**
+   * Bekleyen chunk'lar hesaplanırken örnek tamponları bu kadar `update`'te bir yeniden doldurulur (son chunk
+   * hesaplanınca hemen): her karede tam doldurma + GPU yüklemesi takılma yapıyordu.
+   */
+  pendingFillInterval: 8,
+  /**
+   * Kare bütçesi varken chunk dağılımı bu kadar aday satırlık dilimlerle ilerler (chunk 64 satır; tek chunk ~10 ms
+   * sürüyordu, dilim ~1 ms).
+   */
+  rowsPerSlice: 8,
+  /**
+   * Odağa bu uzaklıktaki (oyun m) nesne chunk'ları kare bütçesinden bağımsız hemen hesaplanır: oyuncunun yanındaki
+   * ağaçlar ve collider'ları (`PROP_SOLIDS.colliderRadius`) gecikmesin. Düşük kalitenin çizim yarıçapından küçük olmalı.
+   */
+  criticalRadius: 100,
   /** Hesaplanmış chunk sonuçlarının LRU önbellek kapasitesi. */
   chunkCacheSize: 64,
   /**
@@ -1154,6 +1234,10 @@ export const SETTINGS = {
   defaultHints: true,
   /** Eşkıyalar ve yankesiciler (Faz 11) varsayılan olarak açıktır; kapalıyken hiç oluşmazlar. */
   defaultBandits: true,
+  /** Uyarlanır çözünürlük (`ADAPTIVE_RESOLUTION`) varsayılan olarak açıktır. */
+  defaultAdaptiveResolution: true,
+  /** Performans göstergesi (`PERF_OVERLAY`, `F3`) varsayılan olarak kapalıdır. */
+  defaultPerfOverlay: false,
 } as const;
 
 /**

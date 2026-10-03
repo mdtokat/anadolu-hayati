@@ -12,6 +12,7 @@ import {
   REGION_SCENE,
   PROVINCE_PLACES,
   PILOT,
+  STREAMING,
   VERTICAL_SCALE,
 } from '../config';
 import { createRegionCreatureTerrain } from '../creatures/regionTerrain';
@@ -21,6 +22,8 @@ import { createBoundsWalls } from '../physics/bounds';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import type { Vec3 } from '../player/movement';
 import type { SkyPosition } from '../survival/astronomy';
+import { FrameBudget } from '../core/FrameBudget';
+import type { PerfProbe } from '../core/perfStats';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { tunnelHoles } from './roadTunnels';
@@ -100,6 +103,15 @@ export class RegionWorld implements GameWorld {
   private daylight = 1;
   /** Yağmur damlaları. */
   private readonly rain = new RainLayer();
+  /** Performans göstergesinin bölüm ölçümü (yoksa ölçülmez). */
+  private probe: PerfProbe | null = null;
+  /** Akışlı işlerin kare zaman bütçesi (performans göstergesi de okur). */
+  readonly budget = new FrameBudget();
+  /**
+   * Kare bütçesi (ms; varsayılan `STREAMING.frameBudgetMs`). Fizikli yürüyüş testleri `Infinity` verir: sonuç duvar
+   * saatine (makine hızına) bağlı olmasın.
+   */
+  frameBudgetMs: number = STREAMING.frameBudgetMs;
   private readonly settlementColliders: SettlementColliders | null;
   /** Ağaç, kaya ve çalı collider'ları (nesne katmanı yoksa null). */
   private readonly propColliders: PropColliders | null;
@@ -301,18 +313,30 @@ export class RegionWorld implements GameWorld {
   update(focusX: number, focusZ: number, timeSeconds: number): void {
     // Faz 11 (F): collider'lar oyuncuda, çizim görüş odağında (drone görüşü; yoksa oyuncu).
     const { visual } = viewCenters({ x: focusX, z: focusZ }, this.viewFocus);
-    this.colliders.update(focusX, focusZ);
+    // Akışlı işler ortak kare bütçesini paylaşır (öncelik sırasıyla): collider > mesh > nesne > katman yenilemeleri.
+    const budget = this.budget;
+    const p = this.probe;
+    budget.begin(this.frameBudgetMs);
+    p?.section('arazi collider');
+    this.colliders.update(focusX, focusZ, budget);
+    p?.section('yapı collider');
     this.settlementColliders?.update(focusX, focusZ);
     this.structureColliders?.update(focusX, focusZ);
-    this.chunks.update(visual.x, visual.z);
-    this.props?.update(visual.x, visual.z);
+    p?.section('arazi mesh');
+    this.chunks.update(visual.x, visual.z, undefined, budget);
+    p?.section('nesneler');
+    this.props?.update(visual.x, visual.z, undefined, budget);
     this.propColliders?.update(focusX, focusZ);
-    this.settlementLayer?.update(visual.x, visual.z);
-    this.glass?.update(visual.x, visual.z, timeSeconds);
+    p?.section('yerleşim');
+    this.settlementLayer?.update(visual.x, visual.z, budget);
+    this.glass?.update(visual.x, visual.z, timeSeconds, budget);
+    p?.section('çevre');
     this.birds.update(visual.x, visual.z, timeSeconds, this.daylight);
     this.rain.update(visual.x, this.source.heightAt(visual.x, visual.z), visual.z, timeSeconds);
     this.environment.setTime(timeSeconds);
-    this.structureLayer?.update(visual.x, visual.z);
+    p?.section('köprü/tünel');
+    this.structureLayer?.update(visual.x, visual.z, budget);
+    p?.section('çevre');
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
     this.environment.follow(visual.x, visual.z);
@@ -365,6 +389,10 @@ export class RegionWorld implements GameWorld {
         respawnRandom(deathIndex),
       ),
     );
+  }
+
+  setPerfProbe(probe: PerfProbe | null): void {
+    this.probe = probe;
   }
 
   walkBlocked(x0: number, z0: number, x1: number, z1: number, radius: number): boolean {

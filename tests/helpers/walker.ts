@@ -24,6 +24,8 @@ export function setupWorld(region: RegionData, withSettlements = false) {
     withSettlements ? region : { ...region, settlements: null },
     physics,
   );
+  // Kare zaman bütçesi sınırsız: yürüyüş sonucu makine hızına bağlı olmasın (bütçe kendi testlerinde sınanır).
+  world.frameBudgetMs = Number.POSITIVE_INFINITY;
   const player = new Player(physics, world.spawn, { maxSlopeDeg: world.maxSlopeDeg });
   const step = (intent: MoveIntent, yaw: number) => {
     player.update(DT, intent, yaw);

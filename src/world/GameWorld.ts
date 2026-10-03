@@ -1,4 +1,5 @@
 import type { WeatherState } from '../survival/weather';
+import type { PerfProbe } from '../core/perfStats';
 import type { GlassLayer } from './GlassLayer';
 import type { Scene } from 'three';
 import type { SettlementMap } from '../settlements/SettlementMap';
@@ -58,6 +59,8 @@ export interface GameWorld {
   prepare(x: number, z: number): void;
   /** Güneşin konumuna göre gökyüzü/ışık görünümünü günceller (destekleyen dünyalarda). */
   setSun?(sun: SkyPosition): void;
+  /** Performans göstergesi: `update` alt sistemlerinin süresini bu ölçüme bölüm bölüm yazar (null: ölçme). */
+  setPerfProbe?(probe: PerfProbe | null): void;
   /** Hava durumu (gökyüzü, sis, yağmur); `indoor`: oyuncu kapalı mekânda (yağmur damlası gösterilmez). */
   setWeather?(weather: WeatherState, indoor: boolean): void;
   /** (x, z) noktasına erişim mesafesindeki en yakın tatlı su (nehir, göl, kaynak); yoksa null. */

@@ -7,18 +7,24 @@ import {
   type BufferGeometry,
 } from 'three';
 import { SCATTER } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { chunkGridFor, chunkKey, chunksWithin, distanceToChunk, type ChunkGrid } from './chunks';
 import type { LandCoverMap } from './LandCoverMap';
 import { buildPropGeometry, type PropLod } from './propGeometry';
-import { PropIndex, propId } from './propIndex';
+import { PROP_ID_STRIDE } from './chunkKeys';
+import { commitInstances, markDynamic } from './instancing';
+import { PropIndex } from './propIndex';
 import { PROP_KINDS, type PropId, type PropKind, type PropRef } from './propKinds';
 import { MAX_PROP_SOLID_RADIUS, propSolid, type PropSolid } from './propSolids';
 import type { RegionHeightSource } from './RegionHeightSource';
-import { scatterChunk, type ChunkProps, type ScatterHeight } from './scatter';
+import { ScatterJob, type ChunkProps, type ScatterHeight } from './scatter';
 import type { FreshWaterIndex } from './waterIndex';
 
 /** Tür sırasına göre seyreltme oranı (`SCATTER.thinning`). */
 const THINNING = Float32Array.from(PROP_KINDS, (kind) => SCATTER.thinning[kind] ?? 0);
+/** Tür sırasına göre en uzak çizim uzaklığının karesi ve en uzak çizim uzaklığı (chunk elemesi). */
+const MAX_DIST2 = Float32Array.from(PROP_KINDS, (kind) => SCATTER.kinds[kind].maxDistance ** 2);
+const MAX_REACH = Math.max(...PROP_KINDS.map((kind) => SCATTER.kinds[kind].maxDistance));
 
 /** Nesnenin seyreltme zarı [0, 1): chunk anahtarı ve sıradan karma (oturumlar arası sabit). */
 export function thinningRoll(key: number, index: number): number {
@@ -68,8 +74,19 @@ export class PropLayer {
   private readonly geometries: BufferGeometry[] = [];
   private readonly tiers: TierMesh[] = [];
   private readonly depleted = new Set<PropId>();
-  /** Yapı/yol üstünde kalan nesneler (Faz 10): görünmez ve toplanamaz; kimlikler değişmez. */
-  private readonly blocked = new Set<PropId>();
+  /**
+   * Gizli nesneler, chunk anahtarı başına (1 = gizli): seyreltme ve yapı/yol üstünde kalanlar (Faz 10). Görünmez ve
+   * toplanamaz; kimlikler değişmez. Chunk önbellekten atılınca maskesi de atılır (yeniden yüklemede aynı hesaplanır).
+   */
+  private readonly hidden = new Map<number, Uint8Array>();
+  /** `türSırası · 2 + kademe` (0 yakın, 1 uzak) → `tiers` indeksi; uzak kademesi olmayan tür için −1. */
+  private readonly tierIndex = new Int16Array(PROP_KINDS.length * 2).fill(-1);
+  /** `fill` sayaçları (her doldurmada yeniden ayrılmasın). */
+  private readonly fillCounts: Int32Array;
+  /** Yarım kalmış dağılım işi (kare bütçesi bitti; aynı chunk sonraki karede sürer). */
+  private job: { key: number; job: ScatterJob } | null = null;
+  /** Bekleyen chunk varken son doldurmadan beri geçen `update` sayısı. */
+  private sinceFill = 0;
   /** Tür başına (ölçek 1'de) yakın geometrinin yatay yarıçapı (oyun m): eleme yarıçapı. */
   private readonly baseRadius = new Float32Array(PROP_KINDS.length);
   private readonly scatterHeight: ScatterHeight;
@@ -127,10 +144,13 @@ export class PropLayer {
           3,
         );
         mesh.frustumCulled = true;
+        markDynamic(mesh);
         this.group.add(mesh);
+        this.tierIndex[PROP_KINDS.indexOf(kind) * 2 + (lod === 'near' ? 0 : 1)] = this.tiers.length;
         this.tiers.push({ kind, lod, mesh, capacity: spec.maxInstances });
       }
     }
+    this.fillCounts = new Int32Array(this.tiers.length);
   }
 
   get stats(): PropLayerStats {
@@ -144,17 +164,35 @@ export class PropLayer {
     };
   }
 
-  /** Odak (oyuncu) çevresini günceller: önce eksik chunk'ları hesaplar, sonra gerekiyorsa tamponları yeniler. */
-  update(focusX: number, focusZ: number, maxBuilds: number = SCATTER.maxChunkBuildsPerFrame): void {
+  /**
+   * Odak (oyuncu) çevresini günceller: önce eksik chunk'ları hesaplar, sonra gerekiyorsa tamponları yeniler. `budget`:
+   * kare zaman bütçesi; uzak nesneler kritik değildir (süre kalmadıysa hesaplanmaz, yenileme sonraki kareye kalır), ama
+   * odağa `SCATTER.criticalRadius` içindeki chunk'lar bütçeden bağımsız hemen hesaplanır ve çizilir: oyuncunun yanındaki
+   * ağaçlar ve collider'ları gecikmesin (geç beliren ağaç oyuncunun üstünde oluşabilirdi).
+   */
+  update(
+    focusX: number,
+    focusZ: number,
+    maxBuilds: number = SCATTER.maxChunkBuildsPerFrame,
+    budget: FrameBudget | null = null,
+  ): void {
     // İlk çağrıda lastX NaN'dır: karşılaştırma yanlış olur ve yenileme zorlanır.
     const refresh = !(
       Math.hypot(focusX - this.lastX, focusZ - this.lastZ) < SCATTER.refreshDistance
     );
     if (!refresh && !this.dirty && this.pending === 0) return;
+    const starved = budget !== null && budget.exhausted;
+    if (starved && !this.missingNear(focusX, focusZ)) return; // sonraki karede
 
     if (refresh) this.selectActive(focusX, focusZ);
-    const built = this.computeMissing(maxBuilds);
-    if (refresh || this.dirty || built > 0) {
+    const { built, critical } = this.computeMissing(maxBuilds, budget, focusX, focusZ);
+    // Bekleyen chunk'lar hesaplanırken tamponlar her karede değil, `pendingFillInterval` adımda bir (son chunk ya da
+    // yakın chunk hesaplanınca hemen) yeniden doldurulur: art arda karelerde tam doldurma + yükleme takılma yapıyordu.
+    const settle =
+      built > 0 &&
+      (this.pending === 0 || critical || ++this.sinceFill >= SCATTER.pendingFillInterval);
+    if ((refresh && !starved) || this.dirty || settle) {
+      this.sinceFill = 0;
       this.lastX = focusX;
       this.lastZ = focusZ;
       this.fill(focusX, focusZ);
@@ -184,7 +222,7 @@ export class PropLayer {
   propsNear(x: number, z: number, radius: number): PropRef[] {
     return this.index
       .near(x, z, radius)
-      .filter((ref) => !this.depleted.has(ref.id) && !this.blocked.has(ref.id));
+      .filter((ref) => !this.depleted.has(ref.id) && !this.isHidden(ref.id));
   }
 
   /**
@@ -226,7 +264,7 @@ export class PropLayer {
         const reach = solid.radius + radius;
         const d1 = Math.hypot(px - x1, pz - z1);
         if (d1 >= reach) return false;
-        if (this.depleted.has(id) || this.blocked.has(id)) return false;
+        if (this.depleted.has(id) || this.isHidden(id)) return false;
         return d1 < Math.hypot(px - x0, pz - z0) - 1e-9 || Math.hypot(px - x0, pz - z0) >= reach;
       },
     );
@@ -237,7 +275,7 @@ export class PropLayer {
     return this.index.someNear(x, z, radius + MAX_PROP_SOLID_RADIUS, (id, kind, px, pz, scale) => {
       const solid = propSolid(kind, scale);
       if (!solid || Math.hypot(px - x, pz - z) >= solid.radius + radius) return false;
-      return !this.depleted.has(id) && !this.blocked.has(id);
+      return !this.depleted.has(id) && !this.isHidden(id);
     });
   }
 
@@ -254,6 +292,12 @@ export class PropLayer {
     return this.depleted.has(id);
   }
 
+  /** Nesne seyreltme ya da yapı/yol yüzünden gizli mi (yüklü olmayan chunk'ta false)? */
+  private isHidden(id: PropId): boolean {
+    const mask = this.hidden.get(Math.floor(id / PROP_ID_STRIDE));
+    return mask !== undefined && mask[id % PROP_ID_STRIDE] === 1;
+  }
+
   dispose(): void {
     for (const tier of this.tiers) {
       this.group.remove(tier.mesh);
@@ -262,6 +306,7 @@ export class PropLayer {
     for (const geometry of this.geometries) geometry.dispose();
     this.material.dispose();
     this.cache.clear();
+    this.hidden.clear();
     this.tiers.length = 0;
     this.geometries.length = 0;
     this.group.clear();
@@ -279,9 +324,19 @@ export class PropLayer {
       .sort((a, b) => a.distance - b.distance);
   }
 
-  /** Etkin chunk'lardan hesaplanmamışları (yakından uzağa) bütçe kadar hesaplar; hesaplananı döndürür. */
-  private computeMissing(budget: number): number {
+  /**
+   * Etkin chunk'lardan hesaplanmamışları (yakından uzağa) `budget` adede kadar (ve kare zaman bütçesi izin verdikçe)
+   * hesaplar; hesaplananı ve yakın (kritik) chunk hesaplanıp hesaplanmadığını döndürür. Odağa `criticalRadius`
+   * içindeki chunk'lar zaman bütçesi gözetmeden (adet sınırıyla), bölünmeden hesaplanır.
+   */
+  private computeMissing(
+    budget: number,
+    time: FrameBudget | null = null,
+    focusX = Number.NaN,
+    focusZ = Number.NaN,
+  ): { built: number; critical: boolean } {
     let built = 0;
+    let critical = false;
     this.pending = 0;
     for (const chunk of this.active) {
       const cached = this.cache.get(chunk.key);
@@ -290,44 +345,85 @@ export class PropLayer {
         this.cache.set(chunk.key, cached);
         continue;
       }
-      if (built >= budget) {
+      const near =
+        distanceToChunk(this.grid, chunk.cx, chunk.cy, focusX, focusZ) <= SCATTER.criticalRadius;
+      if (built >= budget || (!near && time !== null && !time.allows(built, 0))) {
         this.pending++;
         continue;
       }
-      const props = scatterChunk({
-        cx: chunk.cx,
-        cy: chunk.cy,
-        grid: this.grid,
-        seed: SCATTER.seed,
-        cover: this.cover,
-        height: this.scatterHeight,
-        isWater: (x, z, clearance) => this.water?.nearest(x, z, clearance) != null,
-      });
+      const props = this.scatter(chunk, near ? null : time);
+      critical ||= near;
+      if (props === null) {
+        // Süre bitti: iş sonraki karede kaldığı yerden sürer.
+        this.pending++;
+        continue;
+      }
       this.cache.set(chunk.key, props);
       this.index.set(props);
+      const mask = new Uint8Array(props.count);
+      this.hidden.set(chunk.key, mask);
       // Seyreltme: türün bir kısmı kimlik karmasıyla gizlenir (dağılım ve kimlikler değişmez).
       for (let i = 0; i < props.count; i++) {
         const fraction = THINNING[props.kind[i] as number] as number;
-        if (fraction > 0 && thinningRoll(chunk.key, i) < fraction) {
-          this.blocked.add(propId(chunk.key, i));
-        }
+        if (fraction > 0 && thinningRoll(chunk.key, i) < fraction) mask[i] = 1;
       }
       if (this.isBlocked) {
         for (let i = 0; i < props.count; i++) {
+          if (mask[i] === 1) continue;
           const radius =
             (this.baseRadius[props.kind[i] as number] as number) *
             (props.scale[i] as number) *
             SCATTER.blockRadiusFactor;
-          if (this.isBlocked(props.x[i] as number, props.z[i] as number, radius)) {
-            this.blocked.add(propId(chunk.key, i));
-          }
+          if (this.isBlocked(props.x[i] as number, props.z[i] as number, radius)) mask[i] = 1;
         }
       }
       built++;
     }
     if (built > 0) this.solidVer++;
     this.evict();
-    return built;
+    return { built, critical };
+  }
+
+  /** Odağa `criticalRadius` içinde hesaplanmamış chunk var mı? */
+  private missingNear(x: number, z: number): boolean {
+    return chunksWithin(this.grid, x, z, SCATTER.criticalRadius).some(
+      ({ cx, cy }) => !this.cache.has(chunkKey(cx, cy)),
+    );
+  }
+
+  /**
+   * Chunk'ın nesnelerini hesaplar. Kare bütçesi varsa iş `SCATTER.rowsPerSlice` satırlık dilimlerle, süre kaldıkça
+   * ilerler; bitmezse null döner ve yarım iş saklanır (aynı chunk sonraki karede sürer, başka chunk'a geçilirse atılır).
+   */
+  private scatter(
+    chunk: { cx: number; cy: number; key: number },
+    time: FrameBudget | null,
+  ): ChunkProps | null {
+    let job = this.job !== null && this.job.key === chunk.key ? this.job.job : null;
+    job ??= new ScatterJob({
+      cx: chunk.cx,
+      cy: chunk.cy,
+      grid: this.grid,
+      seed: SCATTER.seed,
+      cover: this.cover,
+      height: this.scatterHeight,
+      isWater: (x, z, clearance) => this.water?.nearest(x, z, clearance) != null,
+    });
+    if (time === null) {
+      job.step(Number.POSITIVE_INFINITY);
+    } else {
+      let slices = 0;
+      while (!job.done && time.allows(slices, 1)) {
+        job.step(SCATTER.rowsPerSlice);
+        slices++;
+      }
+    }
+    if (!job.done) {
+      this.job = { key: chunk.key, job };
+      return null;
+    }
+    this.job = null;
+    return job.result();
   }
 
   /** Önbellek kapasitesini aşınca en eski, etkin olmayan chunk'ları atar. */
@@ -339,6 +435,7 @@ export class PropLayer {
       if (activeKeys.has(key)) continue;
       const props = this.cache.get(key) as ChunkProps;
       this.cache.delete(key);
+      this.hidden.delete(key);
       this.index.delete(props.cx, props.cy);
     }
   }
@@ -346,46 +443,49 @@ export class PropLayer {
   /** Örnek tamponlarını etkin chunk'lardan (yakından uzağa) doldurur. */
   private fill(focusX: number, focusZ: number): void {
     const near2 = SCATTER.nearRadius ** 2;
-    const counts = new Map<TierMesh, number>();
-    const tierOf = new Map<string, TierMesh>();
-    for (const tier of this.tiers) {
-      counts.set(tier, 0);
-      tierOf.set(`${tier.kind}/${tier.lod}`, tier);
-    }
-    for (const kind of PROP_KINDS) this.countByKind[kind] = 0;
+    const counts = this.fillCounts;
+    counts.fill(0);
+    const byKind = new Int32Array(PROP_KINDS.length);
+    const tierIndex = this.tierIndex;
+    const tiers = this.tiers;
+    const depleted = this.depleted.size > 0 ? this.depleted : null;
 
-    for (const { key } of this.active) {
+    for (const { cx, cy, key } of this.active) {
       const props = this.cache.get(key);
       if (!props) continue;
+      // Hiçbir türün çizim uzaklığına girmeyen chunk tümden atlanır.
+      if (distanceToChunk(this.grid, cx, cy, focusX, focusZ) > MAX_REACH) continue;
+      const mask = this.hidden.get(key);
+      const base = key * PROP_ID_STRIDE;
       for (let i = 0; i < props.count; i++) {
-        const kind = PROP_KINDS[props.kind[i] as number] as PropKind;
-        const spec = SCATTER.kinds[kind];
+        const k = props.kind[i] as number;
         const dx = (props.x[i] as number) - focusX;
         const dz = (props.z[i] as number) - focusZ;
         const d2 = dx * dx + dz * dz;
-        if (d2 > spec.maxDistance * spec.maxDistance) continue;
-        const lod: PropLod = d2 < near2 ? 'near' : 'far';
-        const tier = tierOf.get(`${kind}/${lod}`);
-        if (!tier) continue; // uzak kademesi olmayan tür
-        if (this.depleted.size > 0 && this.depleted.has(propId(key, i))) continue;
-        if (this.blocked.size > 0 && this.blocked.has(propId(key, i))) continue;
-        const n = counts.get(tier) as number;
+        if (d2 > (MAX_DIST2[k] as number)) continue;
+        const t = tierIndex[k * 2 + (d2 < near2 ? 0 : 1)] as number;
+        if (t < 0) continue; // uzak kademesi olmayan tür
+        if (mask !== undefined && mask[i] === 1) continue;
+        if (depleted !== null && depleted.has(base + i)) continue;
+        const tier = tiers[t] as TierMesh;
+        const n = counts[t] as number;
         if (n >= tier.capacity) continue; // kapasite dolu: uzak chunk'lar sona kaldığından yakınlar önceliklidir
         writeInstance(tier.mesh, n, props, i);
-        counts.set(tier, n + 1);
-        this.countByKind[kind]++;
+        counts[t] = n + 1;
+        byKind[k] = (byKind[k] as number) + 1;
       }
     }
 
     let total = 0;
-    for (const tier of this.tiers) {
-      const n = counts.get(tier) as number;
-      tier.mesh.count = n;
-      tier.mesh.instanceMatrix.needsUpdate = true;
-      (tier.mesh.instanceColor as BufferAttribute).needsUpdate = true;
+    for (let t = 0; t < tiers.length; t++) {
+      const tier = tiers[t] as TierMesh;
+      const n = counts[t] as number;
+      // Yalnızca dolu kısım GPU'ya yüklenir (kapasitenin tamamı değil).
+      commitInstances(tier.mesh, n);
       tier.mesh.computeBoundingSphere(); // frustum culling için (sayım 0 ise boş küre)
       total += n;
     }
+    PROP_KINDS.forEach((kind, k) => (this.countByKind[kind] = byKind[k] as number));
     this.instanceTotal = total;
   }
 }

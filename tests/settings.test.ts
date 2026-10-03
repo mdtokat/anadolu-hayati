@@ -22,6 +22,8 @@ describe('varsayılan ayarlar', () => {
       hints: SETTINGS.defaultHints,
       testMode: TEST_MODE.defaultEnabled,
       bandits: SETTINGS.defaultBandits,
+      adaptiveResolution: SETTINGS.defaultAdaptiveResolution,
+      perfOverlay: SETTINGS.defaultPerfOverlay,
     });
     expect(parseSettings(d)).toEqual(d);
   });
@@ -70,6 +72,8 @@ describe('parseSettings: hoşgörülü okuma', () => {
       hints: SETTINGS.defaultHints,
       testMode: TEST_MODE.defaultEnabled,
       bandits: SETTINGS.defaultBandits,
+      adaptiveResolution: SETTINGS.defaultAdaptiveResolution,
+      perfOverlay: SETTINGS.defaultPerfOverlay,
     });
   });
 
@@ -90,6 +94,14 @@ describe('parseSettings: hoşgörülü okuma', () => {
     expect(parseSettings({}).bandits).toBe(true);
     expect(parseSettings({ bandits: false }).bandits).toBe(false);
     expect(parseSettings({ bandits: 'hayır' }).bandits).toBe(SETTINGS.defaultBandits);
+  });
+
+  it('otomatik çözünürlük: varsayılan açık; eski ayarda alan yok; yalnızca mantıksal değer okunur', () => {
+    expect(parseSettings({}).adaptiveResolution).toBe(true);
+    expect(parseSettings({ adaptiveResolution: false }).adaptiveResolution).toBe(false);
+    expect(parseSettings({ adaptiveResolution: 1 }).adaptiveResolution).toBe(
+      SETTINGS.defaultAdaptiveResolution,
+    );
   });
 
   it('bozuk alanları tek tek varsayılana düşürür, diğerlerini korur', () => {

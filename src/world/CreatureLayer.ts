@@ -9,6 +9,7 @@ import {
   type PartShape,
 } from './creatureGeometry';
 import { InstanceBuffer, phaseDelta, writeCreature, type PoseBuffers } from './creaturePose';
+import { commitInstances, markDynamic } from './instancing';
 
 /** Dev göstergesi / test için anlık sayımlar. */
 export interface CreatureLayerStats {
@@ -56,6 +57,7 @@ export class CreatureLayer {
       );
       mesh.count = 0;
       mesh.frustumCulled = false; // en çok `maxActive` canlı; sınır küresi hesabına değmez
+      markDynamic(mesh);
       this.meshes[shape] = mesh;
       this.group.add(mesh);
     }
@@ -93,9 +95,7 @@ export class CreatureLayer {
     for (const shape of CREATURE_SHAPES) {
       const mesh = this.meshes[shape];
       const buffer = this.buffers[shape];
-      mesh.count = buffer.count;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      commitInstances(mesh, buffer.count);
     }
     this.drawn = drawn;
     this.drawnParts = parts;

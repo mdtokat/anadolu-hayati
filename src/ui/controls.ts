@@ -72,6 +72,7 @@ export const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readon
       'Diğer',
       [
         [['B'], 'İl sınırları'],
+        [['F3'], 'Performans göstergesi (FPS, takılma dökümü)'],
         [['Esc'], 'Duraklat'],
       ],
     ],

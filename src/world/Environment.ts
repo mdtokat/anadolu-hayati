@@ -45,12 +45,12 @@ export class Environment {
     this.sun.position.set(sunDir.x, sunDir.y, sunDir.z).multiplyScalar(SKY.lightDistance);
     this.sun.intensity = look.sunIntensity;
     toColor(this.sun.color, look.sunColor);
-    this.sun.visible = look.sunIntensity > 0;
 
     this.moon.position.set(moonDir.x, moonDir.y, moonDir.z).multiplyScalar(SKY.lightDistance);
     this.moon.intensity = look.moonIntensity;
     toColor(this.moon.color, look.moonColor);
-    this.moon.visible = look.moonIntensity > 0;
+    // Işıklar hiç gizlenmez (yoğunluk 0 katkısızdır): görünür ışık sayısı değişince three tüm malzemelerin
+    // gölgelendiricisini yeniden derler; gün doğumu/batımında oyun saniyelerce takılıyordu.
 
     this.ambient.intensity = look.ambientIntensity;
     toColor(this.ambient.color, look.ambientColor);

@@ -1,5 +1,4 @@
 import {
-  BufferAttribute,
   CanvasTexture,
   Color,
   DoubleSide,
@@ -15,6 +14,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { BUILDING_LOOK } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import {
   BUILDING_SHAPES,
   GOVERNMENT_FLAG,
@@ -23,6 +23,7 @@ import {
 } from '../settlements/kinds';
 import type { Building } from '../settlements/layout';
 import type { SettlementMap, Stair } from '../settlements/SettlementMap';
+import { commitInstances } from './instancing';
 import {
   buildBuildingGeometry,
   buildFarGenericGeometry,
@@ -183,8 +184,10 @@ export class SettlementLayer {
     this.lastX = Number.NaN;
   }
 
-  update(x: number, z: number): void {
+  /** `budget`: kare zaman bütçesi tükenmişse yenileme sonraki kareye ertelenir. */
+  update(x: number, z: number, budget: FrameBudget | null = null): void {
     if (Math.hypot(x - this.lastX, z - this.lastZ) < BUILDING_LOOK.refreshDistance) return;
+    if (budget !== null && budget.exhausted) return;
     this.lastX = x;
     this.lastZ = z;
     this.fill(x, z);
@@ -298,9 +301,7 @@ function colorOf(tone: number): Color {
 }
 
 function commit(mesh: InstancedMesh, count: number): void {
-  mesh.count = count;
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) (mesh.instanceColor as BufferAttribute).needsUpdate = true;
+  commitInstances(mesh, count);
   mesh.computeBoundingSphere();
 }
 

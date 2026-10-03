@@ -413,6 +413,14 @@ _(Kullanıcı talimatı: envanter/üretim çakışmasını düzelt; envanter, ü
 
 Elle doğrulanacak: kılavuz bölüm 19.
 
+### Performans çalışması (kullanıcı talimatı)
+_(Kullanıcı talimatı: "hareket ederken kasıyor; şimdi ve sonrasında da etkili olacak performans iyileştirmeleri"; plan onaylandı. Ölçümler `docs/performans-olcumler.md`.)_
+
+- [x] **Takılma kaynakları:** tünelli chunk collider'ı bloklara bölündü (67–86 → ~3 ms); örnek tamponlarında kısmi GPU yüklemesi (~11 MB → dolu kısım); nesne doldurma hızlandı ve seyreltildi; köprü/tünel ve cam katmanı tamponları yeniden kullanılır; güneş/ay ışığı gizlenmez (gün doğumu/batımında yeniden derleme yok); yüklemede gölgelendirici ön derlemesi
+- [x] **Kalıcı altyapı:** kare zaman bütçesi (`core/FrameBudget.ts`), dilimli nesne dağılımı (`ScatterJob`), uyarlanır çözünürlük (`core/resolution.ts`, varsayılan açık), performans göstergesi (`F3`), `npm run perf` ölçüm betiği
+- [ ] Gerçek ekran kartında doğrulama (kılavuz bölüm 20)
+- Ölçülüp uygulanmayan: nesneleri yön dilimlerine bölmek (kazanç ~%2, draw call bütçesi riski). Ayrı iş adayı: Web Worker ile dağılım/arazi mesh'i.
+
 ---
 
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)

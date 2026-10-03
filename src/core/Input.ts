@@ -199,7 +199,8 @@ export class Input {
     const action = actionForKey(event.code);
     // Eylemler yalnızca oyun kontrolündeyken (pointer lock) tetiklenir.
     if (action && this.pointerLocked) {
-      if (action === 'toggleInventory') event.preventDefault?.(); // Tab odağı kaydırmasın
+      // Tab odağı kaydırmasın; F3 tarayıcının bul çubuğunu açmasın.
+      if (action === 'toggleInventory' || action === 'togglePerformance') event.preventDefault?.();
       this.events.emit('input:action', { action });
     }
   }

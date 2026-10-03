@@ -139,85 +139,139 @@ function jitterElevation(elevation: number, x: number, z: number, seed: number):
  * çeker (eleme sonucundan bağımsız): veri değişse bile komşu adayların dizileri kaymaz.
  */
 export function scatterChunk(input: ScatterInput): ChunkProps {
-  const { cx, cy, grid, cover, height, isWater } = input;
-  const spacing = SCATTER.candidateSpacing;
-  const rect = chunkRect(grid, cx, cy);
-  const cellsX = Math.round((rect.maxX - rect.minX) / spacing);
-  const cellsZ = Math.round((rect.maxZ - rect.minZ) / spacing);
-  const capacity = cellsX * cellsZ;
-  const chunkSeed = seedFrom(input.seed, cx, cy);
-  const noiseSeed = seedFrom(input.seed, 0x6e6f6973);
-  const areaFactor = (spacing * spacing) / 100;
+  const job = new ScatterJob(input);
+  job.step(Number.POSITIVE_INFINITY);
+  return job.result();
+}
 
-  const kind = new Uint8Array(capacity);
-  const xs = new Float32Array(capacity);
-  const ys = new Float32Array(capacity);
-  const zs = new Float32Array(capacity);
-  const yaws = new Float32Array(capacity);
-  const scales = new Float32Array(capacity);
-  const tones = new Float32Array(capacity);
-  const rowStart = new Uint32Array(cellsZ + 1);
-  let count = 0;
+/**
+ * Bölünebilir dağılım işi (performans): aday satırları `step` ile parça parça işlenir; kare bütçesi tek chunk'ın
+ * ~10 ms'lik hesabını birkaç kareye yayabilir. Adaylar birbirinden bağımsız seed'lidir, satırlar sırayla işlenir:
+ * sonuç `scatterChunk` ile birebir aynıdır (kimlikler değişmez).
+ */
+export class ScatterJob {
+  readonly cx: number;
+  readonly cy: number;
+  private readonly input: ScatterInput;
+  private readonly spacing = SCATTER.candidateSpacing;
+  private readonly minX: number;
+  private readonly minZ: number;
+  private readonly cellsX: number;
+  private readonly cellsZ: number;
+  private readonly chunkSeed: number;
+  private readonly noiseSeed: number;
+  private readonly areaFactor: number;
+  private readonly kind: Uint8Array;
+  private readonly xs: Float32Array;
+  private readonly ys: Float32Array;
+  private readonly zs: Float32Array;
+  private readonly yaws: Float32Array;
+  private readonly scales: Float32Array;
+  private readonly tones: Float32Array;
+  private readonly rowStart: Uint32Array;
+  private count = 0;
+  private row = 0;
 
-  for (let j = 0; j < cellsZ; j++) {
-    rowStart[j] = count;
-    for (let i = 0; i < cellsX; i++) {
-      const random = createRandom(seedFrom(chunkSeed, j * cellsX + i));
-      const roll = random.next();
-      const x = rect.minX + (i + random.next()) * spacing;
-      const z = rect.minZ + (j + random.next()) * spacing;
-      const yaw = random.next() * Math.PI * 2;
-      const scaleRoll = random.next();
-      const toneRoll = random.next();
-
-      const entries = CLASS_ENTRIES.get(cover.classAt(x, z));
-      if (!entries) continue;
-
-      // Deniz/kıyı: gürültüsüz gerçek rakım (kıyı çizgisi ve ağaç sınırı kaymasın).
-      const realElevation = height.elevationAt(x, z);
-      if (realElevation <= SCATTER.minElevation) continue;
-      const elevation = jitterElevation(realElevation, x, z, noiseSeed);
-      let cumulative = 0;
-      let chosen: ClassEntry | null = null;
-      for (const entry of entries) {
-        cumulative +=
-          entry.density * elevationFactor(entry.kind, elevation, realElevation) * areaFactor;
-        if (roll < cumulative) {
-          chosen = entry;
-          break;
-        }
-      }
-      if (!chosen) continue;
-
-      const spec = KINDS[chosen.kind];
-      if (height.slopeDegAt(x, z) > spec.maxSlopeDeg) continue;
-      if (isWater(x, z, spec.waterClearance)) continue;
-
-      kind[count] = chosen.index;
-      xs[count] = x;
-      ys[count] = height.heightAt(x, z);
-      zs[count] = z;
-      yaws[count] = yaw;
-      scales[count] = spec.scale[0] + scaleRoll * (spec.scale[1] - spec.scale[0]);
-      tones[count] = 0.85 + toneRoll * 0.3;
-      count++;
-    }
+  constructor(input: ScatterInput) {
+    this.input = input;
+    this.cx = input.cx;
+    this.cy = input.cy;
+    const rect = chunkRect(input.grid, input.cx, input.cy);
+    this.minX = rect.minX;
+    this.minZ = rect.minZ;
+    this.cellsX = Math.round((rect.maxX - rect.minX) / this.spacing);
+    this.cellsZ = Math.round((rect.maxZ - rect.minZ) / this.spacing);
+    const capacity = this.cellsX * this.cellsZ;
+    this.chunkSeed = seedFrom(input.seed, input.cx, input.cy);
+    this.noiseSeed = seedFrom(input.seed, 0x6e6f6973);
+    this.areaFactor = (this.spacing * this.spacing) / 100;
+    this.kind = new Uint8Array(capacity);
+    this.xs = new Float32Array(capacity);
+    this.ys = new Float32Array(capacity);
+    this.zs = new Float32Array(capacity);
+    this.yaws = new Float32Array(capacity);
+    this.scales = new Float32Array(capacity);
+    this.tones = new Float32Array(capacity);
+    this.rowStart = new Uint32Array(this.cellsZ + 1);
   }
-  rowStart[cellsZ] = count;
 
-  return {
-    cx,
-    cy,
-    count,
-    kind: kind.slice(0, count),
-    x: xs.slice(0, count),
-    y: ys.slice(0, count),
-    z: zs.slice(0, count),
-    yaw: yaws.slice(0, count),
-    scale: scales.slice(0, count),
-    tone: tones.slice(0, count),
-    rowStart,
-    minZ: rect.minZ,
-    spacing,
-  };
+  /** Bütün satırlar işlendi mi? */
+  get done(): boolean {
+    return this.row >= this.cellsZ;
+  }
+
+  /** En çok `rows` aday satırını işler. */
+  step(rows: number): void {
+    const { cover, height, isWater } = this.input;
+    const { spacing, cellsX, chunkSeed, noiseSeed, areaFactor } = this;
+    const end = Math.min(this.cellsZ, this.row + rows);
+    for (let j = this.row; j < end; j++) {
+      this.rowStart[j] = this.count;
+      for (let i = 0; i < cellsX; i++) {
+        const random = createRandom(seedFrom(chunkSeed, j * cellsX + i));
+        const roll = random.next();
+        const x = this.minX + (i + random.next()) * spacing;
+        const z = this.minZ + (j + random.next()) * spacing;
+        const yaw = random.next() * Math.PI * 2;
+        const scaleRoll = random.next();
+        const toneRoll = random.next();
+
+        const entries = CLASS_ENTRIES.get(cover.classAt(x, z));
+        if (!entries) continue;
+
+        // Deniz/kıyı: gürültüsüz gerçek rakım (kıyı çizgisi ve ağaç sınırı kaymasın).
+        const realElevation = height.elevationAt(x, z);
+        if (realElevation <= SCATTER.minElevation) continue;
+        const elevation = jitterElevation(realElevation, x, z, noiseSeed);
+        let cumulative = 0;
+        let chosen: ClassEntry | null = null;
+        for (const entry of entries) {
+          cumulative +=
+            entry.density * elevationFactor(entry.kind, elevation, realElevation) * areaFactor;
+          if (roll < cumulative) {
+            chosen = entry;
+            break;
+          }
+        }
+        if (!chosen) continue;
+
+        const spec = KINDS[chosen.kind];
+        if (height.slopeDegAt(x, z) > spec.maxSlopeDeg) continue;
+        if (isWater(x, z, spec.waterClearance)) continue;
+
+        const n = this.count;
+        this.kind[n] = chosen.index;
+        this.xs[n] = x;
+        this.ys[n] = height.heightAt(x, z);
+        this.zs[n] = z;
+        this.yaws[n] = yaw;
+        this.scales[n] = spec.scale[0] + scaleRoll * (spec.scale[1] - spec.scale[0]);
+        this.tones[n] = 0.85 + toneRoll * 0.3;
+        this.count++;
+      }
+    }
+    this.row = end;
+  }
+
+  /** Bitmiş işin sonucu (`done` değilse hata). */
+  result(): ChunkProps {
+    if (!this.done) throw new Error('Dağılım işi bitmedi');
+    const count = this.count;
+    this.rowStart[this.cellsZ] = count;
+    return {
+      cx: this.cx,
+      cy: this.cy,
+      count,
+      kind: this.kind.slice(0, count),
+      x: this.xs.slice(0, count),
+      y: this.ys.slice(0, count),
+      z: this.zs.slice(0, count),
+      yaw: this.yaws.slice(0, count),
+      scale: this.scales.slice(0, count),
+      tone: this.tones.slice(0, count),
+      rowStart: this.rowStart,
+      minZ: this.minZ,
+      spacing: this.spacing,
+    };
+  }
 }

@@ -23,6 +23,8 @@ export class SettingsPanel {
   private readonly hintButtons = new Map<boolean, HTMLButtonElement>();
   private readonly testModeButtons = new Map<boolean, HTMLButtonElement>();
   private readonly banditButtons = new Map<boolean, HTMLButtonElement>();
+  private readonly adaptiveButtons = new Map<boolean, HTMLButtonElement>();
+  private readonly perfButtons = new Map<boolean, HTMLButtonElement>();
   private readonly testModeHint = document.createElement('p');
   private readonly closeButton = document.createElement('button');
   private readonly offs: Array<() => void> = [];
@@ -65,6 +67,15 @@ export class SettingsPanel {
     }
     this.qualityHint.className = 'settings-hint';
     qualityGroup.append(qualityLabel, segmented);
+
+    // Uyarlanır çözünürlük: kare süresi uzarsa çözünürlük kademeli düşer, rahatlayınca geri çıkar.
+    const adaptiveGroup = this.toggleRow('Otomatik çözünürlük', this.adaptiveButtons, (enabled) =>
+      this.store.update({ adaptiveResolution: enabled }),
+    );
+    const adaptiveHint = document.createElement('p');
+    adaptiveHint.className = 'settings-hint';
+    adaptiveHint.textContent =
+      'FPS düşünce çözünürlük kademeli azalır, rahatlayınca geri çıkar (üst sınır grafik kalitesidir).';
 
     this.mouse = this.makeSlider('Fare hassasiyeti', SETTINGS.mouseSensitivity, (v) =>
       this.store.update({ mouseSensitivity: v }),
@@ -127,6 +138,11 @@ export class SettingsPanel {
       this.store.update({ bandits: enabled }),
     );
 
+    // Performans göstergesi (F3): FPS, kare süresi grafiği, takılma dökümü
+    const perfGroup = this.toggleRow('Performans göstergesi (F3)', this.perfButtons, (enabled) =>
+      this.store.update({ perfOverlay: enabled }),
+    );
+
     const actions = document.createElement('div');
     actions.className = 'settings-actions';
     const reset = document.createElement('button');
@@ -143,12 +159,15 @@ export class SettingsPanel {
       title,
       qualityGroup,
       this.qualityHint,
+      adaptiveGroup,
+      adaptiveHint,
       this.sliderRow('Fare hassasiyeti', this.mouse),
       this.sliderRow('Ses', this.volume),
       hintsGroup,
       testGroup,
       this.testModeHint,
       banditGroup,
+      perfGroup,
       actions,
     );
     this.root.append(panel);
@@ -199,7 +218,7 @@ export class SettingsPanel {
     return { input, value: document.createElement('span') };
   }
 
-  /** Açık/Kapalı iki düğmeli satır (Faz 11: eşkıyalar). */
+  /** Açık/Kapalı iki düğmeli satır (Faz 11: eşkıyalar; otomatik çözünürlük; performans göstergesi). */
   private toggleRow(
     label: string,
     buttons: Map<boolean, HTMLButtonElement>,
@@ -261,6 +280,16 @@ export class SettingsPanel {
     }
     for (const [enabled, button] of this.banditButtons) {
       const active = enabled === s.bandits;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-checked', String(active));
+    }
+    for (const [enabled, button] of this.adaptiveButtons) {
+      const active = enabled === s.adaptiveResolution;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-checked', String(active));
+    }
+    for (const [enabled, button] of this.perfButtons) {
+      const active = enabled === s.perfOverlay;
       button.classList.toggle('active', active);
       button.setAttribute('aria-checked', String(active));
     }

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MeshBasicMaterial } from 'three';
 import { CHUNK } from '../src/config';
+import { FrameBudget } from '../src/core/FrameBudget';
 import { ChunkManager } from '../src/world/ChunkManager';
 import { chunkIndexAt, distanceToChunk } from '../src/world/chunks';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
@@ -185,6 +186,23 @@ describe('ChunkManager.setLodScale', () => {
     manager.setLodScale(1);
     settle(manager, 0, 0);
     expect(manager.lodOf(far.cx, far.cy)).toBe(normal);
+    manager.dispose();
+  });
+});
+
+describe('ChunkManager — kare zaman bütçesi', () => {
+  it('bütçe tükenmişken yalnızca en yakın chunk kurulur; süre varken üst sınıra kadar', () => {
+    let t = 0;
+    const budget = new FrameBudget(() => t);
+    const manager = makeManager({ maxBuildsPerFrame: 3 });
+    budget.begin(4);
+    t = 10; // bütçe bitti
+    const tight = manager.update(0, 0, undefined, budget);
+    expect(tight.built).toBe(1);
+    const own = chunkIndexAt(manager.grid, 0, 0);
+    expect(manager.lodOf(own.cx, own.cy)).toBe(0);
+    budget.begin(4); // yeni kare, saat durağan: süre var
+    expect(manager.update(0, 0, undefined, budget).built).toBe(3);
     manager.dispose();
   });
 });

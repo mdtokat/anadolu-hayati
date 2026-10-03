@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, type Material } from 'three';
 import { CHUNK } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { buildChunkMesh } from './chunkGeometry';
 import { chunkGridFor, chunkKey, distanceToChunk, lodForDistance, type ChunkGrid } from './chunks';
 import type { RegionHeightSource } from './RegionHeightSource';
@@ -32,7 +33,8 @@ interface ChunkEntry {
 
 /**
  * Arazi chunk'larını oyuncuya uzaklığa göre yükler, LOD'unu değiştirir ve boşaltır.
- * Karede en fazla `maxBuildsPerFrame` mesh kurulur (yakınlar önce): takılma olmasın.
+ * Karede en fazla `maxBuildsPerFrame` mesh kurulur (yakınlar önce), kare bütçesi verilmişse ilkinden sonrası yalnızca
+ * süre kaldıysa: takılma olmasın.
  * Boşaltılan/yeniden kurulan her geometry `dispose()` edilir (kaynak temizliği kuralı).
  */
 export class ChunkManager {
@@ -77,9 +79,15 @@ export class ChunkManager {
 
   /**
    * Odak noktası (oyuncu X/Z) çevresindeki chunk'ları günceller. `maxBuilds` ile bu çağrının
-   * bütçesi değiştirilebilir (Infinity = hepsini hemen kur; başlangıç yüklemesi için).
+   * bütçesi değiştirilebilir (Infinity = hepsini hemen kur; başlangıç yüklemesi için). `budget`: kare zaman bütçesi
+   * (ilk mesh her durumda kurulur).
    */
-  update(focusX: number, focusZ: number, maxBuilds: number = this.maxBuilds): ChunkUpdateStats {
+  update(
+    focusX: number,
+    focusZ: number,
+    maxBuilds: number = this.maxBuilds,
+    budget: FrameBudget | null = null,
+  ): ChunkUpdateStats {
     const work: Array<{ cx: number; cy: number; lod: number; distance: number }> = [];
     let removed = 0;
 
@@ -105,10 +113,14 @@ export class ChunkManager {
 
     // En yakın chunk'lar önce kurulur.
     work.sort((a, b) => a.distance - b.distance);
-    const batch = work.slice(0, maxBuilds);
-    for (const item of batch) this.build(item.cx, item.cy, item.lod);
+    let built = 0;
+    for (const item of work) {
+      if (built >= maxBuilds || (budget !== null && !budget.allows(built))) break;
+      this.build(item.cx, item.cy, item.lod);
+      built++;
+    }
 
-    return { built: batch.length, removed, pending: work.length - batch.length };
+    return { built, removed, pending: work.length - built };
   }
 
   /** Tüm chunk'ları boşaltır ve kaynakları serbest bırakır. */

@@ -1,17 +1,17 @@
-import {
-  BufferGeometry,
-  DoubleSide,
-  Float32BufferAttribute,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-} from 'three';
+import { BufferGeometry, DoubleSide, Group, Mesh, MeshStandardMaterial } from 'three';
 import { BUILDING_LOOK, GLASS } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { localToWorld } from '../placement/structureShapes';
 import type { Building } from '../settlements/layout';
 import type { SettlementMap } from '../settlements/SettlementMap';
 import { paneId, windowPanes, type WindowPane } from '../settlements/windows';
 import { createRandom } from '../utils/random';
+import { flatNormals, GrowableGeometry } from './growableGeometry';
+
+const ATTRIBUTES = [
+  { name: 'position', itemSize: 3 },
+  { name: 'normal', itemSize: 3 },
+] as const;
 
 /** Düşen cam kırığı: konum, hız, kalan ömür (sn), boy ve dönüş. */
 interface Shard {
@@ -31,7 +31,8 @@ interface Shard {
  * Pencere camları (kullanıcı talimatı: "binaların içindeyken camdan dışarısı görünsün, ateş edince cam kırılsın").
  * Oyuncuya `BUILDING_LOOK.interiorRadius` içindeki girilebilir yapıların kırılmamış camları tek saydam mesh'tir
  * (yalnızca o kademede duvar delinir; `world/buildingGeometry.ts`). Kırık camlar `broken` kümesindedir (kayda girmez:
- * oturumluk); kırılan camdan düşen kırıklar kısa ömürlü üçgenlerdir. +2 draw call (cam, kırıklar).
+ * oturumluk); kırılan camdan düşen kırıklar kısa ömürlü üçgenlerdir. +2 draw call (cam, kırıklar). Tamponlar yeniden
+ * kullanılır (`GrowableGeometry`): yenilemede ve kırıklar düşerken her karede yeni GPU tamponu ayrılmaz.
  */
 export class GlassLayer {
   readonly group = new Group();
@@ -60,6 +61,8 @@ export class GlassLayer {
   private lastZ = NaN;
   private dirty = true;
   private readonly random = createRandom(GLASS.shardSeed);
+  private readonly paneBuffer = new GrowableGeometry(this.mesh, ATTRIBUTES, 6 * 64);
+  private readonly shardBuffer = new GrowableGeometry(this.shardMesh, ATTRIBUTES, 3 * 64);
 
   constructor(private readonly map: Pick<SettlementMap, 'buildingsNear'>) {
     this.mesh.name = 'window-glass';
@@ -86,15 +89,19 @@ export class GlassLayer {
 
   private lastTime = NaN;
 
-  /** Kare başına (`time`: saniye): cam mesh'i yer değiştirince/kırılınca yenilenir; kırıklar düşer. */
-  update(x: number, z: number, time: number): void {
+  /**
+   * Kare başına (`time`: saniye): cam mesh'i yer değiştirince/kırılınca yenilenir (kare bütçesi tükenmişse yer
+   * değiştirme yenilemesi sonraki kareye kalır; kırılma hemen); kırıklar düşer.
+   */
+  update(x: number, z: number, time: number, budget: FrameBudget | null = null): void {
     const dt = Number.isFinite(this.lastTime)
       ? Math.min(Math.max(time - this.lastTime, 0), 0.1)
       : 0;
     this.lastTime = time;
     if (
       this.dirty ||
-      !(Math.hypot(x - this.lastX, z - this.lastZ) < BUILDING_LOOK.refreshDistance / 2)
+      (!(Math.hypot(x - this.lastX, z - this.lastZ) < BUILDING_LOOK.refreshDistance / 2) &&
+        !(budget !== null && budget.exhausted))
     ) {
       this.lastX = x;
       this.lastZ = z;
@@ -113,7 +120,7 @@ export class GlassLayer {
 
   /** Görünen cam sayısı (test/hata ayıklama). */
   get paneCount(): number {
-    return (this.mesh.geometry.getAttribute('position')?.count ?? 0) / 6;
+    return this.paneBuffer.vertexCount / 6;
   }
 
   private rebuild(x: number, z: number): void {
@@ -125,11 +132,7 @@ export class GlassLayer {
         pushQuad(positions, paneCorners(b, pane));
       }
     }
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geometry.computeVertexNormals();
-    this.mesh.geometry.dispose();
-    this.mesh.geometry = geometry;
+    writeTriangles(this.paneBuffer, positions);
   }
 
   private findPane(
@@ -202,12 +205,7 @@ export class GlassLayer {
       alive.push(s);
     }
     this.shards = alive;
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geometry.computeVertexNormals();
-    this.shardMesh.geometry.dispose();
-    this.shardMesh.geometry = geometry;
-    this.shardMesh.visible = alive.length > 0;
+    writeTriangles(this.shardBuffer, positions);
   }
 }
 
@@ -240,4 +238,14 @@ export function paneCorners(b: Building, pane: WindowPane): number[][] {
 
 function pushQuad(out: number[], q: number[][]): void {
   for (const i of [0, 1, 2, 0, 2, 3]) out.push(...(q[i] as number[]));
+}
+
+/** Üçgen listesini (düz normallerle) yeniden kullanılan tampona yazar. */
+function writeTriangles(buffer: GrowableGeometry, positions: readonly number[]): void {
+  const count = positions.length / 3;
+  const arrays = buffer.reserve(count);
+  const position = arrays.position as Float32Array;
+  position.set(positions);
+  flatNormals(position, arrays.normal as Float32Array, count);
+  buffer.commit(count);
 }

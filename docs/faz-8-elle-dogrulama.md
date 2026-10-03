@@ -316,3 +316,15 @@ Ayrıntı `CLAUDE.md` "Katı nesneler, katlı bina içleri, sokak çeteleri…" 
 - [ ] **Sokak çeteleri:** il/ilçe merkezinde (gündüz, oyunun ilk ~15 dakikasından sonra) bazı günlerde caddede iki rakip çete görülüyor mu; birbirleriyle çatışıyorlar mı, "sokakta iki çete çatışıyor" bildirimi çıkıyor mu? Oyuncuyu görünce ona da saldırıyorlar mı; bina duvarı arkasından ateş ediyorlar mı (etmemeli)? Ayarlar'da eşkıya kapalıyken çıkmıyorlar mı? Çok mu sık/zor (olasılık `GANGS.presenceChance`, ısınma `GANGS.graceSeconds`)?
 - [ ] **Köprü ve yollar:** köprü güvertesi/korkuluğu araziye gömülü görünüyor mu (özellikle yamaçta, bina yanında)? Yolun ucundaki (kavşak) dere geçişlerinde ve göl/baraj kenarlarında köprü var mı, kavşakta iki köprünün birleştiği yer kötü görünüyor mu? Köprü altında yamaç oyuğu (basamaklı çukur) rahatsız ediyor mu?
 - Notlar: ____________________
+
+## 20. Performans: takılma, otomatik çözünürlük ve performans göstergesi
+
+Ayrıntı `CLAUDE.md` "Performans çalışması" ve [performans-olcumler.md](performans-olcumler.md).
+
+- [ ] **Hareket ederken takılma:** koşarken (`Shift`) ve test modunda uçarken düzenli aralıklı kısa donmalar azaldı mı? `F3` göstergesinde grafik çoğunlukla yeşil mi, "Son takılma" satırı neyi gösteriyor (bölüm adlarını not edin)? Ekran kartı / tarayıcı: ____________________
+- [ ] **Tünel yakını:** tünel ağzına doğru yürürken ve tünelden geçerken donma var mı?
+- [ ] **Gün doğumu / batımı:** `[` / `]` ile saati sararken (dev) ya da oyunda akşam olurken birkaç saniyelik donma kalktı mı?
+- [ ] **İlk kez görülenler:** eşkıya, cam kırığı, mermi izi, yağmur ilk göründüğünde donma var mı? Yükleme ekranında "Gölgelendiriciler hazırlanıyor…" çok mu uzun sürüyor?
+- [ ] **Otomatik çözünürlük:** zorlanan bir sahnede (kalabalık şehir, uzak manzara) `F3`'teki "Çözünürlük" yüzdesi düşüyor mu, görüntü bulanıklaşması rahatsız edici mi? Rahatlayınca geri yükseliyor mu? Ayarlar'da kapatınca eski davranış mı?
+- [ ] **Göstergede:** FPS, %1 en kötü, draw call değerleri (şehirde ve ormanda): ____________________
+- Notlar: ____________________
