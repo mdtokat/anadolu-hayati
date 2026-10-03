@@ -46,7 +46,15 @@ describe('ChunkManager', () => {
   it("yeterince güncellenince viewDistance içindeki tüm chunk'lar yüklenir", () => {
     const manager = makeManager({ maxBuildsPerFrame: 40 });
     settle(manager, 0, 0);
-    expect(manager.chunkCount).toBe(manager.grid.cols * manager.grid.rows);
+    let inView = 0;
+    for (let cy = manager.grid.cy0; cy < manager.grid.cy0 + manager.grid.rows; cy++) {
+      for (let cx = manager.grid.cx0; cx < manager.grid.cx0 + manager.grid.cols; cx++) {
+        const d = distanceToChunk(manager.grid, cx, cy, 0, 0);
+        if (d <= CHUNK.viewDistance) inView++;
+        expect(manager.lodOf(cx, cy) !== undefined).toBe(d <= CHUNK.viewDistance);
+      }
+    }
+    expect(manager.chunkCount).toBe(inView);
     manager.dispose();
   });
 
@@ -58,6 +66,7 @@ describe('ChunkManager', () => {
     for (let cy = manager.grid.cy0; cy < manager.grid.cy0 + manager.grid.rows; cy++) {
       for (let cx = manager.grid.cx0; cx < manager.grid.cx0 + manager.grid.cols; cx++) {
         const d = distanceToChunk(manager.grid, cx, cy, 0, 0);
+        if (d > CHUNK.viewDistance) continue; // görüş dışı (dünya Kastamonu–Çankırı ile büyüdü)
         const lod = manager.lodOf(cx, cy) as number;
         if (d < CHUNK.lodDistances[0] * (1 - CHUNK.lodHysteresis)) expect(lod).toBe(0);
         if (d > CHUNK.lodDistances[2] * (1 + CHUNK.lodHysteresis)) expect(lod).toBe(3);

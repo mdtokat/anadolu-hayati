@@ -4,7 +4,7 @@
 worlds:
   bati-karadeniz:
     # Yerleşim çizilen iller (provinces.geojson `inRegion=true` illerinin tamamı). Komşu illere yerleşim konmaz.
-    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu]
+    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı]
     # Köylerin ne kadarı çizilir (Overture `locality/village`): Batı Karadeniz köyleri dağınıktır; hepsi çizilirse
     # harita evle dolar. Seçim köy kimliğinin karmasıyla deterministiktir.
     village_fraction: 0.2
@@ -29,6 +29,10 @@ worlds:
       Bartın: osmanli
       Mudurnu: osmanli
       Göynük: osmanli
+      Kastamonu: osmanli
+      Tosya: osmanli
+      İnebolu: osmanli
+      Çankırı: osmanli
     # Elle seçilmiş simge yapılar. Konumlar Overture Places kayıtlarından alınmıştır (yaklaşık; oyunda en yakın boş
     # parsele oturur). `kind`: src/settlements/kinds.ts `LANDMARK_KINDS`. Yalnızca konumundan emin olunanlar listelenir.
     landmarks:
@@ -162,3 +166,50 @@ worlds:
           lon: 32.530421,
           lat: 40.943742,
         }
+      # Kastamonu (Faz 11 sonrası genişleme)
+      - {
+          settlement: Kastamonu,
+          kind: mosque_grand,
+          name: Nasrullah Camii,
+          lon: 33.775217,
+          lat: 41.37768,
+        }
+      - {
+          settlement: Kastamonu,
+          kind: castle,
+          name: Kastamonu Kalesi,
+          lon: 33.769395,
+          lat: 41.374953,
+        }
+      - {
+          settlement: Kastamonu,
+          kind: mosque,
+          name: İsmail Bey Külliyesi,
+          lon: 33.777404,
+          lat: 41.384188,
+        }
+      - {
+          settlement: Kastamonu,
+          kind: mosque,
+          name: Atabey Gazi Camii,
+          lon: 33.771075,
+          lat: 41.375724,
+        }
+      # Tosya, Taşköprü
+      - { settlement: Tosya, kind: mosque, name: Tosya Ulu Camii, lon: 34.035565, lat: 41.019122 }
+      - {
+          settlement: Taşköprü,
+          kind: mosque,
+          name: Taşköprü Taş Camii,
+          lon: 34.214485,
+          lat: 41.510338,
+        }
+      # Çankırı
+      - {
+          settlement: Çankırı,
+          kind: mosque_grand,
+          name: Sultan Süleyman Camii,
+          lon: 33.616966,
+          lat: 40.602478,
+        }
+      - { settlement: Çankırı, kind: castle, name: Çankırı Kalesi, lon: 33.615887, lat: 40.607444 }

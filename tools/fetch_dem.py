@@ -41,6 +41,13 @@ def main(argv: list[str]) -> int:
         url = regionlib.tile_url(name)
         dest = RAW_DEM / f"{name}.tif"
         size = fetchlib.remote_size(url)
+        if size is None and regionlib.may_be_open_sea(name):
+            # Copernicus açık deniz karolarını yayımlamaz: bu karo denizdir (yükseklik 0). İşaret dosyası bırakılır;
+            # build_world.py bunu eksik veri saymaz.
+            (RAW_DEM / f"{name}.sea").parent.mkdir(parents=True, exist_ok=True)
+            (RAW_DEM / f"{name}.sea").write_text("deniz karosu (Copernicus'ta yok)\n", encoding="utf-8")
+            print(f"  deniz     {name}  (Copernicus'ta yok; deniz sayılır)")
+            continue
         if size is None:
             raise SystemExit(f"Karo bulunamadı ya da erişilemedi: {url}")
         downloaded = fetchlib.download(url, dest, expected_size=size)

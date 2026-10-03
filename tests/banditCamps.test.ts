@@ -97,8 +97,8 @@ describe('kamp yerleri (gerçek dünya)', () => {
     w = await loadBanditWorld();
   }, 120_000);
 
-  it('40–48 kamp; hepsi ormanda, yürünebilir, yerleşimlerden ve yoldan kurala uygun uzaklıkta', () => {
-    expect(w.camps.length).toBeGreaterThanOrEqual(40);
+  it('60–72 kamp; hepsi ormanda, yürünebilir, yerleşimlerden ve yoldan kurala uygun uzaklıkta', () => {
+    expect(w.camps.length).toBeGreaterThanOrEqual(60);
     expect(w.camps.length).toBeLessThanOrEqual(BANDITS.campCount);
     for (const c of w.camps) {
       expect(w.terrain.coverAt(c.x, c.z)).toBe('forest');

@@ -217,10 +217,12 @@ describe('geniş dünyada eski alan yerinde kalır (kafes değişmezliği)', { t
  * aynıdır. Son satır (cy = 9) artık güneyinde arazi olduğu için değişir (beklenen). Plan §8 risk 5.
  */
 describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 120_000 }, () => {
-  const interior = (cy: number) => cy <= 8;
+  // Kastamonu–Çankırı genişlemesiyle eski alanın kuzeyine (deniz) ve doğusuna da komşu geldi: kenar chunk'ları
+  // (cx = 0, 12; cy = 0, 9) deniz tabanı/yumuşatma komşuluğu yüzünden değişebilir.
+  const interior = (cx: number, cy: number) => cx >= 1 && cx <= 11 && cy >= 1 && cy <= 8;
 
-  it('gerçek dünyanın ızgarası hedef kapsam: 18 × 16 chunk, ilk chunk (−5, 0)', () => {
-    expect(real.grid).toMatchObject({ cx0: -5, cy0: 0, cols: 18, rows: 16 });
+  it('gerçek dünyanın ızgarası hedef kapsam: 27 × 18 chunk, ilk chunk (−5, −2)', () => {
+    expect(real.grid).toMatchObject({ cx0: -5, cy0: -2, cols: 27, rows: 18 });
     expect(chunkRect(real.grid, 3, 2)).toEqual(chunkRect(legacy.grid, 3, 2));
   });
 
@@ -228,8 +230,8 @@ describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 1
     let legacyTotal = 0;
     let kept = 0;
     for (let cy = 0; cy < 10; cy++) {
-      if (!interior(cy)) continue;
       for (let cx = 0; cx < 13; cx++) {
+        if (!interior(cx, cy)) continue;
         const a = scatterOf(legacy, cx, cy);
         const b = scatterOf(real, cx, cy);
         const index = new Map<string, number>();
@@ -255,8 +257,8 @@ describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 1
   it('iç hücrelerde doğma adayları birebir aynı', () => {
     for (const epoch of EPOCHS) {
       for (let cy = 0; cy < 10; cy++) {
-        if (!interior(cy)) continue;
         for (let cx = 0; cx < 13; cx++) {
+          if (!interior(cx, cy)) continue;
           const a = hasher();
           const b = hasher();
           addCandidates(a, legacy, cx, cy, epoch);
@@ -272,22 +274,27 @@ describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 1
  * 7.10: eski `public/data/regions` kalktığından özetler, karolu dünyanın eski alana düşen penceresinden
  * (`loadLegacyRegion`) yeniden kaydedildi. Dünya geneli nicemleme (≤ 1 nicem ≈ 3,7 cm) eğim eşiğindeki 2 nesneyi
  * değiştirdi (9832 → 9830); yerleşim kuralı ve adaylar (`CANDIDATE_GOLDEN`) aynıdır.
+ *
+ * Kastamonu–Çankırı genişlemesi (Faz 11 sonrası): dünyanın en yükseği 2400 → 2600 m (Ilgaz) oldu, eski alan yeniden
+ * nicemlendi (≤ 1 nicem ≈ 4 cm). Tüm eski alanda (130 chunk, ~93 750 nesne) yalnızca ~10 nesne eğim/rakım eşiğinde
+ * eklendi/kalktı (16 chunk; 7.10'daki 2 nesneyle aynı tür kayma), kalanların türü ve yatay konumu aynı; özetler
+ * çoğunlukla yükseklik (`y`) yüzünden değişti, tamamı deniz olan (0, 0) aynı kaldı. Yeniden kaydedildi.
  */
 const SCATTER_GOLDEN = {
   total: 9830,
   digests: {
     '0,0': '4b95f515',
-    '12,9': 'd887ccbc',
-    '6,4': '44a06b3a',
-    '3,7': '584bc7ab',
-    '9,2': '959ed496',
-    '5,5': '1bddf8f9',
-    '11,6': '55c94b82',
-    '8,5': '1fa3d2d6',
-    '7,8': '307f3254',
-    '4,3': 'b496006f',
-    '10,0': 'ac2b6c5f',
-    '1,9': '812bef28',
+    '12,9': '2c57c212',
+    '6,4': '8c08adec',
+    '3,7': 'dfec87b1',
+    '9,2': 'bc7de200',
+    '5,5': '9e24099b',
+    '11,6': 'bae4b314',
+    '8,5': '3c9b4101',
+    '7,8': 'd4e9e3a6',
+    '4,3': '370898d1',
+    '10,0': '301050a5',
+    '1,9': '129f5498',
   },
 };
 /**

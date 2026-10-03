@@ -822,6 +822,31 @@ export const OTHER_PROVINCE_PLACES = {
     { name: 'Yeniçağa', lat: 40.7792, lon: 32.03 },
     { name: 'Kıbrıscık', lat: 40.4178, lon: 31.8528 },
   ],
+  // Faz 11 sonrası genişleme: Kastamonu ve Çankırı.
+  Kastamonu: [
+    { name: 'Kastamonu merkez', lat: 41.3767, lon: 33.7765 },
+    { name: 'Tosya', lat: 41.015, lon: 34.039 },
+    { name: 'Taşköprü', lat: 41.51, lon: 34.215 },
+    { name: 'İnebolu', lat: 41.975, lon: 33.76 },
+    { name: 'Cide', lat: 41.89, lon: 33.005 },
+    { name: 'Daday', lat: 41.473, lon: 33.465 },
+    { name: 'Araç', lat: 41.242, lon: 33.327 },
+    { name: 'Küre', lat: 41.806, lon: 33.711 },
+    { name: 'Abana', lat: 41.98, lon: 34.01 },
+    { name: 'Azdavay', lat: 41.642, lon: 33.299 },
+  ],
+  Çankırı: [
+    { name: 'Çankırı merkez', lat: 40.6013, lon: 33.6134 },
+    { name: 'Ilgaz', lat: 40.923, lon: 33.627 },
+    { name: 'Çerkeş', lat: 40.815, lon: 32.894 },
+    { name: 'Kurşunlu', lat: 40.842, lon: 33.262 },
+    { name: 'Eldivan', lat: 40.53, lon: 33.497 },
+    { name: 'Orta', lat: 40.626, lon: 33.107 },
+    { name: 'Şabanözü', lat: 40.483, lon: 33.283 },
+    { name: 'Atkaracalar', lat: 40.817, lon: 33.074 },
+    { name: 'Yapraklı', lat: 40.759, lon: 33.779 },
+    { name: 'Bayramören', lat: 40.943, lon: 33.203 },
+  ],
 } as const;
 
 /** Bir yer: ad ve yaklaşık enlem/boylam. */
@@ -2743,8 +2768,11 @@ export const AMMO = {
  * Uzaklıklar oyun metresidir (1 oyun m = 50 gerçek m).
  */
 export const BANDITS = {
-  /** Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). */
-  campCount: 48,
+  /**
+   * Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). Kastamonu–Çankırı genişlemesiyle 48 → 72 (kara alanı
+   * ve il/ilçe sayısı ~1,5–2 kat); seçim açgözlü ve seed'li olduğundan eski kamplar aynı kalır, yenileri eklenir.
+   */
+  campCount: 72,
   /**
    * Kamp yeri kuralları (`bandits/camps.ts`): il/ilçe merkezinin ayak izi kenarına en az `minSettlementDistance`,
    * köyün kenarına en az `minVillageDistance` (341 köy haritayı sık örttüğünden köylere ayrı, kısa uzaklık), en yakın

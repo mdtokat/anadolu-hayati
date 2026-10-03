@@ -6,6 +6,7 @@ grupları) indirmek için kullanılır. Yalnızca standart kütüphane.
 
 from __future__ import annotations
 
+import http.client
 import io
 import time
 import urllib.error
@@ -46,7 +47,13 @@ class HttpRangeFile(io.RawIOBase):
         for attempt in range(1, self.retries + 1):
             try:
                 return action()
-            except (urllib.error.URLError, TimeoutError, OSError, ConnectionError) as error:
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+                OSError,
+                ConnectionError,
+                http.client.HTTPException,  # IncompleteRead: vekil sunucu bağlantıyı yarıda kesti
+            ) as error:
                 last = error
                 if attempt < self.retries:
                     self._sleep(1.5 * attempt)

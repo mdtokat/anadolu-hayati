@@ -67,9 +67,12 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
         'Eskişehir',
         'Karabük',
         'Kastamonu',
+        'Kırıkkale',
         'Sakarya',
+        'Sinop',
         'Zonguldak',
         'Çankırı',
+        'Çorum',
       ].sort(),
     );
     const texts = region.provinces.map((p) =>
@@ -84,8 +87,11 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
     expect(texts).toContain("Sakarya'ya girdiniz");
     expect(texts).toContain("Bilecik'e girdiniz");
     expect(texts).toContain("Eskişehir'e girdiniz");
-    expect(texts).toContain("Çankırı'ya girdiniz");
-    expect(texts).toContain("Kastamonu'ya girdiniz");
+    expect(texts).toContain("Çankırı'ya hoş geldiniz");
+    expect(texts).toContain("Kastamonu'ya hoş geldiniz");
+    expect(texts).toContain("Sinop'a girdiniz");
+    expect(texts).toContain("Çorum'a girdiniz");
+    expect(texts).toContain("Kırıkkale'ye girdiniz");
   });
 
   it('ışınlanma noktaları: her biri bir ile düşer ya da denizdedir (izleyici çökmez)', () => {

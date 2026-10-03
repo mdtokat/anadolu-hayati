@@ -78,6 +78,20 @@ function tileFeatures(
     }
     return false;
   };
+  // Kaynak yalnızca eski alandaki sudur: yükleyici (`loadLegacyRegion`) tüm dünyanın özelliklerini taşır; eski alanın
+  // dışındaki su kaydırılınca kopyaların (ve eski alanın) içine düşerdi.
+  const legacyMinX = latticeX(0);
+  const legacyMaxX = latticeX(W - 1);
+  const legacyMinZ = latticeZ(0);
+  const legacyMaxZ = latticeZ(H - 1);
+  const inLegacy = (xz: Float64Array): boolean => {
+    for (let i = 0; i < xz.length; i += 2) {
+      const x = xz[i] as number;
+      const z = xz[i + 1] as number;
+      if (x >= legacyMinX && x <= legacyMaxX && z >= legacyMinZ && z <= legacyMaxZ) return true;
+    }
+    return false;
+  };
   const shift = (xz: Float64Array, dx: number, dz: number): Float64Array => {
     const out = new Float64Array(xz.length);
     for (let i = 0; i < xz.length; i += 2) {
@@ -93,14 +107,17 @@ function tileFeatures(
       const dx = kx * W * cell;
       const dz = ky * H * cell;
       for (const line of features.water.lines) {
+        if (!inLegacy(line.xz)) continue;
         const xz = shift(line.xz, dx, dz);
         if (overlaps(xz)) water.lines.push({ ...line, xz });
       }
       for (const polygon of features.water.polygons) {
+        if (!polygon.rings[0] || !inLegacy(polygon.rings[0])) continue;
         const rings = polygon.rings.map((ring) => shift(ring, dx, dz));
         if (rings[0] && overlaps(rings[0])) water.polygons.push({ ...polygon, rings });
       }
       for (const point of features.water.points) {
+        if (!inLegacy(Float64Array.of(point.x, point.z))) continue;
         const x = point.x + dx;
         const z = point.z + dz;
         if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) water.points.push({ ...point, x, z });

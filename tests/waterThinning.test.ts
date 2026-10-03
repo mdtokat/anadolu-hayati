@@ -53,9 +53,9 @@ describe('thinWaterLines (küçük derelerin ayıklanması)', () => {
     const lines = world.features!.water.lines;
     const streams = lines.filter((l) => l.kind === 'stream').length;
     const rivers = lines.filter((l) => l.kind === 'river').length;
-    // Ham veride 1 854 dere, 392 nehir parçası vardı.
-    expect(streams).toBeLessThan(700);
-    expect(streams).toBeGreaterThan(200);
-    expect(rivers).toBe(392);
+    // Ham veride (Kastamonu–Çankırı dahil) 3 021 dere, 767 nehir parçası var; ayıklanınca ~960 dere kalır.
+    expect(streams).toBeLessThan(1200);
+    expect(streams).toBeGreaterThan(400);
+    expect(rivers).toBe(767);
   });
 });

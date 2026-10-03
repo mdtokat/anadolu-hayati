@@ -368,7 +368,8 @@ _(Kullanıcı talimatı: "ana menüdeki tuş göstergeleri ayrı menüde; küç�
 - [x] **Susturucu** (`suppressor`, demirhane): tabanca/piyade/keskin nişancı tüfeğine envanterden takılır; gürültü ×0,22, ses boğuk, hasar ×0,92; kayıtta `weapons.suppressed` (**kayıt v7**)
 - [x] **Sırt çantaları** (küçük/orta/büyük; `BACKPACKS`): envanterdeki en büyük çanta +4/+8/+14 slot ve +8/+15/+25 kg; dolu çanta çıkarılamaz; eski 20 slotluk kayıtlar yüklenir
 - [x] **Değişken hava** (`survival/weather.ts`, `WEATHER`): oyun saatinin deterministik fonksiyonu (kayda girmez): açık, bulutlu, yağmurlu; bulut katmanı, kapalı gök ışığı, yağmurda sis, yağmur damlaları (`RainLayer`), yağmur sesi, ıslanınca üşüme (barınakta yok), HUD'da hava adı ve değişim bildirimi
-- [ ] **Çevre illeri (Ankara, Kastamonu, Çankırı…):** kapsam kararı bekliyor — bkz. aşağıdaki "Genişleme"
+- [x] **Kastamonu – Çankırı** (kullanıcı kararı: "önce Kastamonu–Çankırı", karo akışı olmadan, bütçeler bilinçli yükseltilerek): dünya 2228 × 1962 → **3452 × 2218 örnek** (27 × 18 = 486 chunk, **40 karo**; kafes `extent` −640, −256; en yüksek nokta Ilgaz, `max` 2400 → 2600 m), `tools/world.yaml` 7 hedef il; eski alan ≤ 1 nicem, örtü birebir (`PINNED_WINDOWS` iki pencere). Yerleşimler 376 → **705** (7 il, 60 ilçe, 638 köy; ~3 640 yapı, düzen ~4,1 sn), simge yapılar (Nasrullah Camii, Kastamonu Kalesi, İsmail Bey Külliyesi, Atabey Gazi Camii, Tosya Ulu Camii, Taşköprü Taş Camii, Sultan Süleyman Camii, Çankırı Kalesi), yer adları/ışınlanma (Kastamonu 10, Çankırı 10 yer; Shift + rakam), eşkıya kampı 48 → 72. Bütçe: veri 35 MB (sınır 40), tahmini ilk yükleme 13,9 sn (sınır 10 → 16 sn), en büyük dosya `features.json` 1,9 MB (sınır 2,56). Başsız ölçüm: en kötü **292 draw call** (İnebolu, denize bakarken; < 300), ~0,6 M üçgen, sayfa açılışı ~8 sn, JS yığını ~415 MB
+- [ ] **Ankara** (ve diğer çevre illeri): **karo akışı** gerekir (dünya ~3,4 katı; veri, bellek ve açılış bütçesi aşılır) — bkz. aşağıdaki "Genişleme"
 
 Elle doğrulanacak:
 - [ ] Yumuşatılmış dağların görünümü ve yürüme hissi; ağaç yoğunluğu
@@ -376,6 +377,7 @@ Elle doğrulanacak:
 - [ ] Hava geçişleri, yağmur görünümü/sesi ve üşüme dengesi
 - [ ] Yeni hayvanların sıklığı; sülünün uçuşu; kuş sürüleri
 - [ ] Çanta kapasiteleri ve susturucu dengesi
+- [ ] Kastamonu–Çankırı: gerçek GPU'da FPS (draw call sınırda), ilk yükleme süresi, Ilgaz/Çankırı bozkırında oyun hissi ve gece soğuğu
 
 ---
 
@@ -383,10 +385,13 @@ Elle doğrulanacak:
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
 > **Güncelleme (Faz 11 sonrası):** kullanıcı "çevre illeri ve içlerindeki yapıları da oluştur (Ankara, Kastamonu gibi)" dedi. Ankara il sınırı 38,6°K'ye iner: dünya alanı ~3,4 katına çıkar (veri ~55 MB, açılış bütçesi 10 sn ve bellek aşılır, yerleşim düzeni açılışta ~15 sn). Bu yüzden önce **karo akışı** gerekir; kapsam (önce Kastamonu–Çankırı mı, Ankara'nın kuzeyi mi, tamamı mı) kullanıcı kararı bekliyor.
 
+> **Güncelleme (kullanıcı kararı):** Kastamonu – Çankırı karo akışı olmadan eklendi (yukarıdaki "Faz 11 sonrası"; veri/açılış bütçesi bilinçli yükseltildi). Ankara karo akışını bekliyor.
+
 Her genişleme ayrı bir faz olarak planlanır. Olası sıra (komşuluğa göre):
 
-1. **Kastamonu – Çankırı** (doğuya; Ilgaz) — alan ~+%60: **karo akışı** (oyuncuya göre yükleme/boşaltma) bu fazdan önce gerekli olabilir
-2. **Sakarya – Kocaeli – Ankara** … (EPSG:32636 batıda ~28,5°D'ye kadar yeter; ötesi için ayrı karar)
+1. ~~**Kastamonu – Çankırı**~~ _(eklendi, Faz 11 sonrası)_
+2. **Ankara** (kuzeyi önce) — **karo akışı** (oyuncuya göre yükleme/boşaltma) önce gerekir
+3. **Sakarya – Kocaeli** … (EPSG:32636 batıda ~28,5°D'ye kadar yeter; ötesi için ayrı karar)
 
 Genişleme için teknik gereksinimler:
 - [x] Çoklu bölge desteği ve bölgeler arası kesintisiz geçiş _(Faz 7'de tek koordinat sistemi + karolarla çözülür; ayrı "bölge geçişi" gerekmez)_

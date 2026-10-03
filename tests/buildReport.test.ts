@@ -121,8 +121,9 @@ describe('BUILD_BUDGET', () => {
     );
     expect(BUILD_BUDGET.warnRatio).toBeGreaterThan(0);
     expect(BUILD_BUDGET.warnRatio).toBeLessThan(1);
-    // Performans bütçesi: ilk yükleme < 10 sn (CLAUDE.md).
-    expect(BUILD_BUDGET.load.maxSeconds).toBeLessThanOrEqual(10);
+    // Performans bütçesi: ilk yükleme < 10 sn (CLAUDE.md); Kastamonu–Çankırı genişlemesi karo akışı gelene kadar
+    // bilinçli olarak 16 sn'ye yükseltildi (kullanıcı kararı).
+    expect(BUILD_BUDGET.load.maxSeconds).toBeLessThanOrEqual(16);
   });
 });
 
