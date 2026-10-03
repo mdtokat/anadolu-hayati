@@ -38,9 +38,22 @@ export class GunshotAudio {
     return this.ctx !== null;
   }
 
-  /** `weapon`'ın atış sesi; `distance` dinleyiciye uzaklık (oyun m; eşkıya atışı). */
-  play(weapon: WeaponId, distance = 0): void {
-    const profile = RANGED.sound.profiles[weapon];
+  /**
+   * `weapon`'ın atış sesi; `distance` dinleyiciye uzaklık (oyun m; eşkıya atışı). `suppressed`: susturuculu atış —
+   * kısık, boğuk "püf" (alçak geçiren süzgeç daralır, gümleme yok).
+   */
+  play(weapon: WeaponId, distance = 0, suppressed = false): void {
+    const base = RANGED.sound.profiles[weapon];
+    const s = RANGED.suppressor;
+    const profile = suppressed
+      ? {
+          ...base,
+          gain: base.gain * s.soundGain,
+          lowpassHz: base.lowpassHz * s.lowpassFactor,
+          thumpHz: 0,
+          decay: base.decay * 0.45,
+        }
+      : base;
     const gain = shotGain(this.settings.current.volume, profile.gain, distance);
     if (gain <= 0) return;
     const ctx = this.context();

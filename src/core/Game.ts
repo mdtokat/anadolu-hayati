@@ -1,3 +1,12 @@
+import {
+  WEATHER_LABELS,
+  weatherAt,
+  weatherCoolingC,
+  weatherHours,
+  type WeatherKind,
+  type WeatherState,
+} from '../survival/weather';
+import { isBackpack } from '../items/backpack';
 import { PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
 import {
   BANDITS,
@@ -131,6 +140,7 @@ import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
 import { ControlsPanel } from '../ui/ControlsPanel';
+import type { SuppressorState } from '../ui/InventoryPanel';
 import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
@@ -194,7 +204,7 @@ import { CampColliders } from '../world/CampColliders';
 import { darknessOf } from '../creatures/perception';
 import type { ItemStack } from '../items/Inventory';
 import type { PersonRole } from '../people/roles';
-import { WEAPON_IDS, WeaponState } from '../items/weaponState';
+import { WEAPON_IDS, WeaponState, canSuppress, isWeaponId } from '../items/weaponState';
 import { resolveContextAction } from './inputMapping';
 // ── Faz 11: D (11.5 silahlar) ──
 import { CAMERA } from '../config';
@@ -261,6 +271,8 @@ const FAZ11_DEV_WEAPONS: ReadonlyArray<readonly [ItemId, number]> = [
   ['shotgun', 1],
   ['sniper_rifle', 1],
   ['slingshot', 1],
+  // Faz 11 sonrası: susturucu ve büyük sırt çantası (önce çanta: diğerleri sığsın).
+  ['suppressor', 2],
 ];
 const FAZ11_DEV_FARMING: ReadonlyArray<readonly [ItemId, number]> = [
   ['hoe', 1],
@@ -283,6 +295,9 @@ const RANGED_AMMO_NAMES: Partial<Record<string, string>> = Object.fromEntries(
 /** Söner bir ateş oyuncuya bu uzaklıkta (oyun m) ya da daha yakındaysa bildirilir. */
 const EXTINGUISH_NOTICE_RADIUS = 40;
 
+/** Dolu çanta çıkarılamaz: içindekiler çantasız sınıra sığmalı. */
+const BACKPACK_FULL_TOAST = 'Çanta dolu: önce içindeki eşyaları boşalt';
+
 /** Av ipucunu tetikleyen türler (eti yenen ya da yaygın av). */
 const PREY_KINDS: ReadonlySet<CreatureKind> = new Set([
   'roe_deer',
@@ -298,7 +313,7 @@ export class Game {
   /** Hayatta kalma durumu: saat, iklim, göstergeler (saf mantık; dev araçları da okur). */
   readonly survival = new SurvivalSystem(this.events);
   /** Oyuncunun envanteri (arayüzü 4.7'de; şimdilik toplama bildirimleri ve dev erişimi). */
-  readonly inventory = new Inventory();
+  readonly inventory = new Inventory({ backpacks: true });
   /** Bakılan nesneye `E` ile toplama (saf mantık). */
   readonly gather = new GatherSystem(this.events, this.inventory);
   /** Yerleştirilmiş yapılar (kamp ateşi, sundurma) ve ateş yakıtı (saf mantık). */
@@ -550,6 +565,8 @@ export class Game {
       getStations: () => this.stationsHere(),
       hotbar: this.hotbar,
       onAssignHotbar: (slot, item) => this.assignHotbar(slot, item),
+      suppressorState: (item) => this.suppressorState(item),
+      onToggleSuppressor: (item) => this.toggleSuppressor(item),
     });
     this.dialogPanel = new DialogPanel(container, () => this.closeDialog());
     this.storagePanel = new StoragePanel(container, this.inventory, {
@@ -741,7 +758,10 @@ export class Game {
     }
     // Faz 11 dev tuşları (11.0 verir; sahibi akış kendi davranışını ekler): J silah + mühimmat (D), Y tohum + çapa +
     // orak (C), M drone + pil (F). U (E): önüne eşkıya / yakın kampa ışınla — E yazar.
-    if (event.code === 'KeyJ') this.giveDev(FAZ11_DEV_WEAPONS);
+    if (event.code === 'KeyJ') {
+      this.giveDev([['backpack_large', 1]]);
+      this.giveDev(FAZ11_DEV_WEAPONS);
+    }
     if (event.code === 'KeyY') this.giveDev(FAZ11_DEV_FARMING);
     if (event.code === 'KeyM') this.giveDev(FAZ11_DEV_DRONE);
     // L: Faz 10 eşyaları (kiler erzakı, bakır tencere); N: önüne bir yolcu çıkar (konuşma/takas denemesi).
@@ -847,6 +867,8 @@ export class Game {
     this.provinceTracker.reset();
     this.lastPrayerHour = null; // yükleme saati atlatır: arada kalan vakitler bildirilmesin
     this.placeTracker.reset();
+    // Yükleme/yeni oyun: hava bildirimi yeni saatle sessizce başlar.
+    this.lastWeatherKind = null;
     this.hintTracker.restart();
   }
 
@@ -1191,6 +1213,12 @@ export class Game {
       shelter: this.exposure.shelter,
       // Faz 11 (11.2): döşeğin üstünde dinlenirken enerji/can dolumu artar.
       bed: bedAt(structures, feet.x, feet.y, feet.z),
+      // Hava durumu: yağmurda ıslanma (barınakta yok), kapalı gökte güneş kesilir.
+      weatherCoolingC: weatherCoolingC(
+        this.currentWeather(),
+        Math.min(Math.max(this.survival.clock.sun.altitudeDeg / 20, 0), 1),
+        this.exposure.sheltered,
+      ),
     });
     // Su kabı: susuzluk giderildikten sonra (içmiyorken) `E` basılı kalırsa boş kap dolar.
     this.filler.update(step, {
@@ -1409,7 +1437,9 @@ export class Game {
     const chest = this.openChest();
     if (!chest) return;
     if (transferSlot(this.inventory, slot, chest) === 0) {
-      this.hud.notify('Sandık dolu', INTERACT.toastMs);
+      const stack = this.inventory.slots[slot] ?? null;
+      const backpack = stack !== null && isBackpack(stack.id) && chest.capacityFor(stack.id) > 0;
+      this.hud.notify(backpack ? BACKPACK_FULL_TOAST : 'Sandık dolu', INTERACT.toastMs);
     }
     this.storagePanel.refresh();
   }
@@ -1480,6 +1510,33 @@ export class Game {
   }
 
   /** Envanter panelinden kısayol bağlama (Faz 9); seçili slottaki eşya değişirse yerleştirme biter. */
+  /** Seçili eşya için susturucu düğmesinin durumu (susturucu takılamayan eşyada null). */
+  private suppressorState(item: ItemId): SuppressorState | null {
+    if (!isWeaponId(item) || !canSuppress(item)) return null;
+    if (this.weapons.suppressed(item)) return 'attached';
+    return this.inventory.has('suppressor') ? 'available' : 'missing';
+  }
+
+  /** Susturucuyu takar (envanterden bir susturucu harcar) ya da çıkarır (envantere geri koyar). */
+  private toggleSuppressor(item: ItemId): void {
+    if (!isWeaponId(item) || !canSuppress(item)) return;
+    const name = ITEMS[item].name;
+    if (this.weapons.suppressed(item)) {
+      if (this.inventory.add('suppressor', 1) > 0) {
+        this.hud.notify('Envanter dolu: susturucu çıkarılamadı', INTERACT.toastMs);
+      } else {
+        this.weapons.setSuppressed(item, false);
+        this.hud.notify(`Susturucu çıkarıldı: ${name}`, INTERACT.toastMs);
+      }
+    } else if (this.inventory.remove('suppressor', 1)) {
+      this.weapons.setSuppressed(item, true);
+      this.hud.notify(`Susturucu takıldı: ${name}`, INTERACT.toastMs);
+    } else {
+      this.hud.notify('Susturucu yok (demirhanede üretilir)', INTERACT.toastMs);
+    }
+    this.inventoryPanel.refresh();
+  }
+
   private assignHotbar(slot: number, item: ItemId | null): void {
     if (!this.hotbar.assign(slot, item)) return;
     if (this.heldPlacement?.slot === slot && item !== this.heldPlacement.kind) {
@@ -1591,12 +1648,15 @@ export class Game {
 
   /** Seçili slottan eşya at (yok olur; dünyaya bırakılmaz): dolu envanteri boşaltmak için. */
   private dropFromSlot(slot: number, count: number): void {
+    const stack = this.inventory.slots[slot] ?? null;
     const dropped = this.inventory.removeFromSlot(slot, count);
     if (dropped) {
       this.hud.notify(
         `Atıldı: ${ITEMS[dropped.id].name}${dropped.count > 1 ? ` ×${dropped.count}` : ''}`,
         INTERACT.toastMs,
       );
+    } else if (stack && isBackpack(stack.id)) {
+      this.hud.notify(BACKPACK_FULL_TOAST, INTERACT.toastMs);
     }
     this.inventoryPanel.refresh();
   }
@@ -1643,6 +1703,11 @@ export class Game {
     const feet = this.player.renderPosition(alpha);
     const now = performance.now();
     this.world.update(feet.x, feet.z, now / 1000);
+    // Hava durumu: içeride (bina, cami, kulübe) yağmur damlası gösterilmez.
+    this.world.setWeather?.(
+      this.currentWeather(),
+      this.interior !== null || this.exposure.shelter === 'hut',
+    );
     this.world.setSun?.(this.survival.clock.sun);
     this.applyAimCamera(alpha);
     this.playerCamera.update(feet);
@@ -1728,8 +1793,33 @@ export class Game {
         cover: sample.cover,
         sunAltitudeDeg: this.survival.clock.sun.altitudeDeg,
         sheltered: this.exposure.sheltered,
+        rain: this.currentWeather().rain,
       }),
     );
+  }
+
+  /** Şu anki hava (oyun saatinin deterministik fonksiyonu; kayda girmez). */
+  private currentWeather(): WeatherState {
+    const { day, hour } = this.survival.clock;
+    return weatherAt(weatherHours(day, hour));
+  }
+
+  /** Hava değişince kısa bildirim (yağmur başladı/dindi). İlk gözlem sessizdir. */
+  private lastWeatherKind: WeatherKind | null = null;
+  private notifyWeather(): void {
+    const kind = this.currentWeather().kind;
+    if (this.lastWeatherKind !== null && kind !== this.lastWeatherKind) {
+      const text =
+        kind === 'rain'
+          ? 'Yağmur başladı: ıslanırsan üşürsün, barınağa sığın'
+          : this.lastWeatherKind === 'rain'
+            ? 'Yağmur dindi'
+            : kind === 'cloudy'
+              ? 'Hava bulutlandı'
+              : 'Hava açıldı';
+      this.hud.notify(text, INTERACT.toastMs);
+    }
+    this.lastWeatherKind = kind;
   }
 
   /** Göstergeler, saat ve su içme ipucu: saniyede birkaç kez güncellenir. */
@@ -1749,7 +1839,9 @@ export class Game {
       daylight: clock.sun.altitudeDeg > 0,
       date: formatGameDate(CLOCK.startYear, CLOCK.dayOfYear, clock.day),
       prayer: this.prayerLabel(clock.hour),
+      weather: WEATHER_LABELS[this.currentWeather().kind],
     });
+    this.notifyWeather();
     this.notifyPrayer(clock.hour);
     this.updateHints(now);
   }
@@ -2240,7 +2332,7 @@ export class Game {
     if (result.status === 'fired' && result.weapon) {
       this.playerCamera.kick(result.recoil);
       this.tracers?.add(result.weapon, result.shots, performance.now() / 1000);
-      this.gunAudio?.play(result.weapon);
+      this.gunAudio?.play(result.weapon, 0, result.suppressed);
     } else if (result.status === 'exhausted') {
       this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
     }

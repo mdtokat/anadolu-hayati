@@ -60,6 +60,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('club', 0.05),
     e('bow', 0.02),
     ammo('arrow', 0.04),
+    // ── Faz 11 sonrası: sırt çantaları ──
+    e('backpack_small', 0.06),
+    e('backpack_medium', 0.025),
   ],
   konak: [
     e('bulgur', 0.4, 1, 2),
@@ -77,6 +80,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11: D (11.5): konakta demir kama, av tüfeği fişeği ──
     e('iron_dagger', 0.08),
     ammo('shotgun_shell', 0.06),
+    // ── Faz 11 sonrası: sırt çantaları ──
+    e('backpack_medium', 0.05),
+    e('backpack_large', 0.02),
   ],
   apartment: [
     e('bulgur', 0.4, 1, 3),
@@ -94,6 +100,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('propeller', 0.05),
     e('pistol', 0.03),
     ammo('pistol_ammo', 0.08),
+    // ── Faz 11 sonrası: sırt çantaları ──
+    e('backpack_small', 0.05),
+    e('backpack_medium', 0.04),
   ],
   lojman: [
     e('peksimet', 0.4, 1, 3),
@@ -140,6 +149,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11: D (11.5): çok nadir keskin nişancı tüfeği, tabanca mermisi ──
     e('sniper_rifle', 0.01),
     ammo('pistol_ammo', 0.06),
+    // ── Faz 11 sonrası: susturucu ve büyük çanta ──
+    e('suppressor', 0.04),
+    e('backpack_large', 0.03),
   ],
   han: [
     e('wool_blanket', 0.5),

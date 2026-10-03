@@ -1,3 +1,4 @@
+import type { WeatherState } from '../survival/weather';
 import type { GlassLayer } from './GlassLayer';
 import type { Scene } from 'three';
 import type { SettlementMap } from '../settlements/SettlementMap';
@@ -57,6 +58,8 @@ export interface GameWorld {
   prepare(x: number, z: number): void;
   /** Güneşin konumuna göre gökyüzü/ışık görünümünü günceller (destekleyen dünyalarda). */
   setSun?(sun: SkyPosition): void;
+  /** Hava durumu (gökyüzü, sis, yağmur); `indoor`: oyuncu kapalı mekânda (yağmur damlası gösterilmez). */
+  setWeather?(weather: WeatherState, indoor: boolean): void;
   /** (x, z) noktasına erişim mesafesindeki en yakın tatlı su (nehir, göl, kaynak); yoksa null. */
   freshWaterNear?(x: number, z: number): WaterHit | null;
   /** n. ölümden sonra yeniden doğma noktası (ayak tabanı); dünya desteklemiyorsa tanımsız. */

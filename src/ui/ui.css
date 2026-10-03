@@ -1031,7 +1031,7 @@
   font-size: 13.5px;
 }
 /* Kontroller penceresi (ayarlar penceresinin kabuğunu kullanır; uzun olduğundan kaydırılır) */
-.controls-panel-body {
+.settings-panel-body.controls-panel-body {
   width: min(900px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
 }

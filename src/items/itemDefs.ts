@@ -115,6 +115,11 @@ export const ITEM_IDS = [
   'rifle_ammo',
   // ── Faz 11: F (11.8 drone) ──
   'drone',
+  // ── Faz 11 sonrası: susturucu ve sırt çantaları ──
+  'suppressor',
+  'backpack_small',
+  'backpack_medium',
+  'backpack_large',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -632,6 +637,36 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
   },
   // ── Faz 11: F (11.8) drone: kısayolda seçilip uçurulur; yere inmiş hâli `drone` yapısıdır ──
   drone: { id: 'drone', name: 'Drone', weightG: 1800, stackMax: 1, category: 'tool' },
+  // Susturucu: tabancaya ve tüfeklere takılır (envanter → silah seçili → "Susturucu tak"; `items/weaponState.ts`).
+  suppressor: {
+    id: 'suppressor',
+    name: 'Susturucu',
+    weightG: 450,
+    stackMax: 3,
+    category: 'material',
+  },
+  // Sırt çantaları: envanterdeki en büyük çanta slot ve ağırlık sınırını artırır (`BACKPACKS`, `Inventory`).
+  backpack_small: {
+    id: 'backpack_small',
+    name: 'Küçük Sırt Çantası',
+    weightG: 500,
+    stackMax: 1,
+    category: 'tool',
+  },
+  backpack_medium: {
+    id: 'backpack_medium',
+    name: 'Orta Sırt Çantası',
+    weightG: 1000,
+    stackMax: 1,
+    category: 'tool',
+  },
+  backpack_large: {
+    id: 'backpack_large',
+    name: 'Büyük Sırt Çantası',
+    weightG: 1800,
+    stackMax: 1,
+    category: 'tool',
+  },
 };
 
 export function isItemId(value: unknown): value is ItemId {

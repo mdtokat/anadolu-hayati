@@ -159,8 +159,8 @@ describe('migrateSave: sürüm göçü', () => {
   });
 
   it('gerçek zincir: v1 (Faz 7), v2 (Faz 9), v3 (Faz 10), v4 (Faz 11) ve v5 (iç mekân, namaz) adımları tanımlı (ayrıntı tests/saveMigration)', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(6);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3, 4, 5]);
+    expect(SAVE_FORMAT_VERSION).toBe(7);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('v3 → v4: aranmış yapı listesi boş eklenir; v4 listesi doğrulanır ve sıralanır', () => {

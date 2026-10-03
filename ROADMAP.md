@@ -356,8 +356,32 @@ Elle doğrulanacak (kılavuz bölüm 17, 11.9'da yazılır):
 
 ---
 
+## Faz 11 sonrası — Çevre ve Mekanikler (kullanıcı talimatı)
+_(Kullanıcı talimatı: "ana menüdeki tuş göstergeleri ayrı menüde; küçük ince akarsuları kaldır; ağaçlar seyrek olsun; dağlardaki sürekli girinti çıkıntıyı seyrekleştir; bina içinden camdan dışarısı görünsün, ateş edince cam kırılsın; farklı hayvanlar, kuşlar, daha az domuz; susturucu; farklı boyutlarda sırt çantası; değişken hava durumu; çevre illeri (Ankara, Kastamonu)". Branch `claude/game-environment-mechanics-j5wi88`.)_
+
+- [x] **Kontroller penceresi:** tuş listesi ana/duraklatma menüsünden ayrı "Kontroller" penceresine taşındı (`ui/ControlsPanel.ts`, liste `ui/controls.ts`)
+- [x] **Küçük dereler** (`data/waterThinning.ts`, `WATER_THINNING`): bağlı dere öbeğinin toplamı 400 oyun m'den kısaysa kalkar; il/ilçe merkezlerine ve yer adlarına 60 m'den yakın dereler kalır. 1 854 → 578 dere çizgisi (uzunluğun %61'i kalktı); nesne dağılımı kaldırılanları görmeye devam eder (`minorStreams`: `PropId` kaymaz)
+- [x] **Arazi yumuşatma** (`world/terrainSmoothing.ts`, `TERRAIN_SMOOTHING`): kara hücrelerine kıyıyı korumalı Gauss süzgeci (σ 1,3 hücre, güç 0,85); nesne dağılımı ham araziyi okur (`RegionHeightSource.scatterView`)
+- [x] **Ağaç seyreltme** (`SCATTER.thinning`): ağaçların %40'ı (kestane %20) kimlik karmasıyla gizlenir; kimlikler ve golden testleri değişmedi
+- [x] **Camlı pencereler** (`settlements/windows.ts`, `world/GlassLayer.ts`): iç kademede duvar pencerede delinir, saydam cam; mermi camdan geçer ve kırar (`BallisticWorld.panes`, `glass:broken`, kırık parçalar, ses); kırık camlar oturumluk
+- [x] **Yeni canlılar:** kızıl geyik, tilki, yabani tavşan, sülün (kaçarken uçar); yaban domuzu ~%60 az; gökyüzünde karga/martı/yırtıcı kuş sürüleri (`world/birdFlocks.ts`, `BirdLayer`; yalnız görsel)
+- [x] **Susturucu** (`suppressor`, demirhane): tabanca/piyade/keskin nişancı tüfeğine envanterden takılır; gürültü ×0,22, ses boğuk, hasar ×0,92; kayıtta `weapons.suppressed` (**kayıt v7**)
+- [x] **Sırt çantaları** (küçük/orta/büyük; `BACKPACKS`): envanterdeki en büyük çanta +4/+8/+14 slot ve +8/+15/+25 kg; dolu çanta çıkarılamaz; eski 20 slotluk kayıtlar yüklenir
+- [x] **Değişken hava** (`survival/weather.ts`, `WEATHER`): oyun saatinin deterministik fonksiyonu (kayda girmez): açık, bulutlu, yağmurlu; bulut katmanı, kapalı gök ışığı, yağmurda sis, yağmur damlaları (`RainLayer`), yağmur sesi, ıslanınca üşüme (barınakta yok), HUD'da hava adı ve değişim bildirimi
+- [ ] **Çevre illeri (Ankara, Kastamonu, Çankırı…):** kapsam kararı bekliyor — bkz. aşağıdaki "Genişleme"
+
+Elle doğrulanacak:
+- [ ] Yumuşatılmış dağların görünümü ve yürüme hissi; ağaç yoğunluğu
+- [ ] Camdan bakış ve cam kırılması (gerçek GPU'da saydamlık sıralaması)
+- [ ] Hava geçişleri, yağmur görünümü/sesi ve üşüme dengesi
+- [ ] Yeni hayvanların sıklığı; sülünün uçuşu; kuş sürüleri
+- [ ] Çanta kapasiteleri ve susturucu dengesi
+
+---
+
 ## Genişleme (DURDURULDU — kullanıcı talimatıyla)
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
+> **Güncelleme (Faz 11 sonrası):** kullanıcı "çevre illeri ve içlerindeki yapıları da oluştur (Ankara, Kastamonu gibi)" dedi. Ankara il sınırı 38,6°K'ye iner: dünya alanı ~3,4 katına çıkar (veri ~55 MB, açılış bütçesi 10 sn ve bellek aşılır, yerleşim düzeni açılışta ~15 sn). Bu yüzden önce **karo akışı** gerekir; kapsam (önce Kastamonu–Çankırı mı, Ankara'nın kuzeyi mi, tamamı mı) kullanıcı kararı bekliyor.
 
 Her genişleme ayrı bir faz olarak planlanır. Olası sıra (komşuluğa göre):
 

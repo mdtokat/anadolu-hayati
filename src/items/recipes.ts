@@ -74,6 +74,11 @@ export const RECIPE_IDS = [
   'gunpowder',
   // ── Faz 11: F (11.8 drone) ──
   'drone',
+  // ── Faz 11 sonrası: susturucu ve sırt çantaları ──
+  'suppressor',
+  'backpack_small',
+  'backpack_medium',
+  'backpack_large',
 ] as const;
 export type RecipeId = (typeof RECIPE_IDS)[number];
 
@@ -693,6 +698,50 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     ],
     station: 'workbench',
     output: { id: 'drone', count: 1 },
+  },
+  // Susturucu: demirhanede demir boru + hurda bölmeler.
+  suppressor: {
+    id: 'suppressor',
+    name: 'Susturucu',
+    inputs: [
+      { id: 'iron_ingot', count: 2 },
+      { id: 'scrap_metal', count: 2 },
+    ],
+    station: 'forge',
+    output: { id: 'suppressor', count: 1 },
+  },
+  // Sırt çantaları: deri ve kabuk (ip); büyükler tezgâhta, büyüğü kemik/demir çerçeveli.
+  backpack_small: {
+    id: 'backpack_small',
+    name: 'Küçük Sırt Çantası',
+    inputs: [
+      { id: 'hide', count: 2 },
+      { id: 'bark', count: 4 },
+    ],
+    output: { id: 'backpack_small', count: 1 },
+  },
+  backpack_medium: {
+    id: 'backpack_medium',
+    name: 'Orta Sırt Çantası',
+    inputs: [
+      { id: 'hide', count: 4 },
+      { id: 'bark', count: 6 },
+      { id: 'bone', count: 2 },
+    ],
+    station: 'workbench',
+    output: { id: 'backpack_medium', count: 1 },
+  },
+  backpack_large: {
+    id: 'backpack_large',
+    name: 'Büyük Sırt Çantası',
+    inputs: [
+      { id: 'hide', count: 6 },
+      { id: 'bark', count: 8 },
+      { id: 'iron_ingot', count: 1 },
+      { id: 'stick', count: 4 },
+    ],
+    station: 'workbench',
+    output: { id: 'backpack_large', count: 1 },
   },
 };
 

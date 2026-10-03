@@ -13,6 +13,8 @@ export interface AmbientLevels {
   birds: number;
   /** Gece sesleri (cırcır böceği, baykuş): gece, çok yüksek olmayan yerde. */
   night: number;
+  /** Yağmur (hava durumu): yağış şiddetiyle; içeride/barınakta boğuk. */
+  rain: number;
 }
 
 /** Seviyeleri belirleyen durum. */
@@ -27,6 +29,8 @@ export interface AmbientInput {
   sunAltitudeDeg: number;
   /** Sundurma altında mı? */
   sheltered: boolean;
+  /** Yağış şiddeti (0–1; hava durumu). Verilmezse 0. */
+  rain?: number;
 }
 
 export const SILENT: Readonly<AmbientLevels> = {
@@ -35,6 +39,7 @@ export const SILENT: Readonly<AmbientLevels> = {
   leaves: 0,
   birds: 0,
   night: 0,
+  rain: 0,
 };
 
 /** Arazi örtüsüne göre yaprak hışırtısı ağırlığı. */
@@ -128,12 +133,17 @@ export function ambientMix(input: Readonly<AmbientInput>): AmbientLevels {
   // Denizin içindeki oyuncu karasal sesleri (yaprak, kuş, böcek) duymaz.
   const onLand = seaDistance <= 0 ? 0 : 1;
 
+  // Yağmur: barınakta (çatı altında) boğuk; yağmurda kuşlar susar.
+  const rainfall = clamp01(input.rain ?? 0);
+  const rain = rainfall * (sheltered ? AMBIENT.rainShelterMuffle : 1);
+
   return {
     wind: clamp01(wind),
     sea: clamp01(sea),
     leaves: clamp01(leaves) * onLand,
-    birds: clamp01(bird) * onLand,
-    night: clamp01(insect) * onLand,
+    birds: clamp01(bird) * onLand * (1 - rainfall * 0.85),
+    night: clamp01(insect) * onLand * (1 - rainfall * 0.6),
+    rain,
   };
 }
 

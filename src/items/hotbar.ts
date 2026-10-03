@@ -1,3 +1,4 @@
+import { isBackpack } from './backpack';
 import { HOTBAR } from '../config';
 import { ITEMS, isItemId, type ItemId } from './itemDefs';
 
@@ -25,6 +26,7 @@ export function hotbarUse(id: ItemId): HotbarUse {
   if ((category === 'food' && ITEMS[id].edible) || id === 'water_container_full') return 'consume';
   if (category === 'food') return 'none'; // çiğ erzak (bulgur, tarhana…): pişirilir
   if (id === 'water_container_empty') return 'none';
+  if (isBackpack(id)) return 'none'; // sırtta taşınır, ele alınmaz
   return category === 'tool' ? 'hold' : 'none';
 }
 

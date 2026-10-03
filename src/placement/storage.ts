@@ -1,3 +1,4 @@
+import { isBackpack } from '../items/backpack';
 import type { Inventory } from '../items/Inventory';
 
 /**
@@ -18,6 +19,13 @@ export function transferSlot(from: Inventory, slot: number, to: Inventory): numb
 /** Kaynaktaki bütün yığınları sığdığı kadar hedefe taşır; toplam taşınan adedi döndürür. */
 export function transferAll(from: Inventory, to: Inventory): number {
   let total = 0;
-  for (let slot = 0; slot < from.slotCount; slot++) total += transferSlot(from, slot, to);
+  // Sırt çantaları en son taşınır: dolu çanta çıkarılamaz, önce içindekiler boşalsın.
+  for (const backpacks of [false, true]) {
+    for (let slot = 0; slot < from.slotCount; slot++) {
+      const stack = from.slots[slot] ?? null;
+      if (stack === null || isBackpack(stack.id) !== backpacks) continue;
+      total += transferSlot(from, slot, to);
+    }
+  }
   return total;
 }

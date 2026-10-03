@@ -59,10 +59,13 @@ export class RangedHud {
     else delete this.container.dataset.ranged;
     if (!show || !state) return;
 
-    if (this.lastWeapon !== state.weapon) {
-      this.lastWeapon = state.weapon;
+    const label = `${state.weapon}:${state.suppressed}`;
+    if (this.lastWeapon !== label) {
+      this.lastWeapon = label;
       this.icon.replaceChildren(itemIcon(state.weapon));
-      this.name.textContent = ITEMS[state.weapon].name;
+      this.name.textContent = state.suppressed
+        ? `${ITEMS[state.weapon].name} · susturuculu`
+        : ITEMS[state.weapon].name;
     }
     const kind = crosshairKind(state.weapon, state.scoped);
     this.root.dataset.kind = kind;

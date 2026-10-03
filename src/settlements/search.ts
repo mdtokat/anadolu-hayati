@@ -126,10 +126,7 @@ export function searchSeconds(target: SearchTarget): number {
 
 /** Ganimetin hepsi birlikte sığar mı (envanterin kopyasında denenir)? */
 function fitsAll(inventory: Inventory, items: ReadonlyArray<ItemStack>): boolean {
-  const trial = Inventory.fromJSON(inventory.toJSON(), {
-    slots: inventory.slotCount,
-    maxWeightG: inventory.maxWeightG,
-  });
+  const trial = inventory.clone();
   return items.every((s) => trial.add(s.id, s.count) === 0);
 }
 

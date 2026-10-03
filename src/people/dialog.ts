@@ -13,10 +13,7 @@ export type TradeResult = 'ok' | 'missing' | 'full' | 'used';
 export function executeTrade(inventory: Inventory, offer: TradeOffer, gifted = false): TradeResult {
   if (offer.give.length === 0 && gifted) return 'used';
   if (!inventory.canAfford(offer.give)) return 'missing';
-  const trial = Inventory.fromJSON(inventory.toJSON(), {
-    slots: inventory.slotCount,
-    maxWeightG: inventory.maxWeightG,
-  });
+  const trial = inventory.clone();
   trial.take(offer.give);
   if (!offer.get.every((s) => trial.add(s.id, s.count) === 0)) return 'full';
   inventory.take(offer.give);

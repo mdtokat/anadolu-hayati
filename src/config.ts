@@ -1056,6 +1056,8 @@ export const AMBIENT = {
   owlPerSecondAtFull: 0.06,
   /** Olay (kuş/baykuş) zamanlayıcı adımı (ms). */
   eventTickMs: 200,
+  /** Yağmur sesi barınakta/içeride bu çarpanla boğulur (çatıya vuran yağmur). */
+  rainShelterMuffle: 0.5,
 } as const;
 
 /** İl sınırı geçişi bildirimi (Faz 6.7): sınırda gidip gelmede bildirim yağmasın. */
@@ -1241,6 +1243,44 @@ export const WATER_THINNING = {
 } as const;
 
 /**
+ * Değişken hava durumu (`survival/weather.ts`, saf; oyun saatinin deterministik fonksiyonu, kayda girmez): açık,
+ * bulutlu, yağmurlu. Gökyüzü/ışık/sis (`Environment`), yağmur damlaları (`world/RainLayer.ts`), ortam sesi (yağmur
+ * katmanı) ve vücut ısısı (ıslanma) bunu okur.
+ */
+export const WEATHER = {
+  seed: 0x77ea7,
+  /** Hava cephesinin değişme aralığı (oyun saati): ~6 saatte bir yeni cephe. */
+  periodHours: 6,
+  /** Oyun başlangıcında (09:00) havanın açık başlaması için düğüm kayması (oyun saati). */
+  startOffsetHours: 3,
+  /** Ham bulutluluktan düşülen pay: açık hava biraz daha sık. */
+  bias: 0.12,
+  /** Bulutluluk bunun altında "açık", `rainAbove` üstünde yağmur. */
+  clearBelow: 0.38,
+  rainAbove: 0.72,
+  /** Yağmur ıslatır: tam sağanakta ortam sıcaklığından düşülen (°C; barınakta yok). */
+  rainCoolingC: 5,
+  /** Gündüz tam kapalı gökte güneşin kesilmesi (°C). */
+  cloudCoolingC: 2,
+  /** Görünüm: tam kapalı gökte güneş ışığı çarpanı, gökyüzü griye karışma oranı, gece biraz daha karanlık. */
+  look: {
+    sunDim: 0.72,
+    skyGray: 0.75,
+    grayDay: 0x8f979e,
+    grayNight: 0x0a0c10,
+    ambientBoost: 0.35,
+    /** Yağmurda sis yaklaşır (çarpan, tam sağanakta). */
+    rainFog: 0.45,
+    /** Bulut katmanı: bulut rengi gündüz ve gece. */
+    cloudDay: 0xe6e9ec,
+    cloudDark: 0x5c636b,
+    cloudNight: 0x1a1d22,
+  },
+  /** Yağmur damlaları: kameranın çevresindeki kutu (oyun m), damla sayısı, düşüş hızı (oyun m/sn), boy. */
+  rainDrops: { count: 3200, radius: 24, height: 20, speed: 16, length: 0.9, opacity: 0.55 },
+} as const;
+
+/**
  * Gökyüzü ve gün ışığı (güneş yüksekliğine bağlı). Yükseklikler derece; renkler 0xRRGGBB.
  * Gündüz/gece geçişi güneş yüksekliğine göre yumuşak yapılır; alacakaranlıkta ufuk turuncuya çalar.
  */
@@ -1317,10 +1357,20 @@ export const HUD_STYLE = {
 
 /** Envanter sınırları (Faz 4.4). Eşya içerikleri (ağırlık, yığın, etki) `items/itemDefs.ts` tablosundadır. */
 export const INVENTORY = {
-  /** Slot sayısı. */
+  /** Slot sayısı (çantasız). */
   slots: 20,
-  /** Taşınabilecek toplam ağırlık (gram; tam sayı, kayan nokta hatası olmasın). */
+  /** Taşınabilecek toplam ağırlık (gram; tam sayı, kayan nokta hatası olmasın; çantasız). */
   maxWeightG: 25_000,
+} as const;
+
+/**
+ * Sırt çantaları (`items/backpack.ts`, `Inventory`): oyuncu envanterindeki **en büyük** çanta slot ve ağırlık
+ * sınırını artırır (çantalar üst üste binmez). Çantadaki eşyalar sığmayacaksa çanta çıkarılamaz/atılamaz.
+ */
+export const BACKPACKS = {
+  backpack_small: { slots: 4, weightG: 8_000 },
+  backpack_medium: { slots: 8, weightG: 15_000 },
+  backpack_large: { slots: 14, weightG: 25_000 },
 } as const;
 
 /** Yemek yeme kuralları (Faz 4.4). */
@@ -2607,6 +2657,18 @@ export const RANGED = {
   minEnergyPrimitive: 1,
   /** Atış gürültüsünün yarıçapı (oyun m; `noise:made`: canlılar kaçar, eşkıyalar duyar). */
   noiseRadius: { slingshot: 10, bow: 8, shotgun: 140, pistol: 110, rifle: 170, sniper_rifle: 200 },
+  /**
+   * Susturucu (`items/weaponState.ts`): takılabilen silahlar; takılıyken atış gürültüsü (`noiseRadius`) ve sesi
+   * kısılır, mermi biraz yavaşlar (hasar hafif düşer).
+   */
+  suppressor: {
+    weapons: ['pistol', 'rifle', 'sniper_rifle'],
+    noiseFactor: 0.22,
+    damageFactor: 0.92,
+    /** Ses: kazanç çarpanı, alçak geçiren süzgeç çarpanı (boğuk "püf"), gümleme yok. */
+    soundGain: 0.28,
+    lowpassFactor: 0.35,
+  },
   /** Atanın tünelde olduğu sayılan derinlik (oyun m): tünel içinden atışta arazi engeli yok sayılır (tavan delik). */
   undergroundDepth: 1.5,
   /** İsabetin hedefe işlenmesi uçuş süresi kadar gecikir; en uzun gecikme (sn). */

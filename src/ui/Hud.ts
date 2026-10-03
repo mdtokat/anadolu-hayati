@@ -62,6 +62,8 @@ export interface SurvivalHudInfo {
   /** Faz 10: takvim ("22 Eylül 2026 · 9 Rebiülâhir 1448") ve sonraki vakit ("İkindi 15:21"). */
   date?: string;
   prayer?: string;
+  /** Hava durumu ("Yağmurlu"); sıcaklığın yanında gösterilir. */
+  weather?: string;
 }
 
 /**
@@ -248,7 +250,12 @@ export class Hud {
     setText(this.clockPrayer, info.prayer ?? '');
     this.clockDate.hidden = !info.date;
     this.clockPrayer.hidden = !info.prayer;
-    setText(this.clockTemp, formatTemperature(info.ambientC));
+    setText(
+      this.clockTemp,
+      info.weather
+        ? `${formatTemperature(info.ambientC)} · ${info.weather}`
+        : formatTemperature(info.ambientC),
+    );
 
     const list = warnings(vitals);
     const joined = list.join('\n');

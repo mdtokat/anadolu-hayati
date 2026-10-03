@@ -1,4 +1,6 @@
 import { BirdLayer } from './BirdLayer';
+import { RainLayer } from './RainLayer';
+import type { WeatherState } from '../survival/weather';
 import { GlassLayer } from './GlassLayer';
 import { scatterWaterOf } from '../data/waterThinning';
 import { viewCenters } from './viewFocus';
@@ -94,6 +96,8 @@ export class RegionWorld implements GameWorld {
   /** Gökyüzü kuşları (yalnız görsel). */
   private readonly birds: BirdLayer;
   private daylight = 1;
+  /** Yağmur damlaları. */
+  private readonly rain = new RainLayer();
   private readonly settlementColliders: SettlementColliders | null;
   /** Köprü/viyadük/tünel çizimi ve collider'ları (yol planından); yerleşim verisi yoksa null. */
   private readonly structureLayer: RoadStructureLayer | null;
@@ -181,6 +185,7 @@ export class RegionWorld implements GameWorld {
       (x, z) => this.source.elevationAt(x, z),
     );
     this.scene.add(this.birds.mesh);
+    this.scene.add(this.rain.object);
     this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
     const structures =
       settlements && settlements.plan.spans.length > 0
@@ -296,10 +301,17 @@ export class RegionWorld implements GameWorld {
     this.settlementLayer?.update(visual.x, visual.z);
     this.glass?.update(visual.x, visual.z, timeSeconds);
     this.birds.update(visual.x, visual.z, timeSeconds, this.daylight);
+    this.rain.update(visual.x, this.source.heightAt(visual.x, visual.z), visual.z, timeSeconds);
+    this.environment.setTime(timeSeconds);
     this.structureLayer?.update(visual.x, visual.z);
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
     this.environment.follow(visual.x, visual.z);
+  }
+
+  setWeather(weather: WeatherState, indoor: boolean): void {
+    this.environment.setWeather(weather);
+    this.rain.set(weather.rain, indoor);
   }
 
   setSun(sun: SkyPosition): void {
@@ -450,6 +462,7 @@ export class RegionWorld implements GameWorld {
     this.settlementLayer?.dispose();
     this.glass?.dispose();
     this.birds.dispose();
+    this.rain.dispose();
     this.props?.dispose();
     this.freshWaterMesh?.dispose();
     this.water.dispose();

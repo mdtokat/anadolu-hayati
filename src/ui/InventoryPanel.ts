@@ -46,7 +46,14 @@ export interface InventoryPanelCallbacks {
   hotbar?: Hotbar;
   /** `slot`'a `item` bağla (`null`: boşalt). */
   onAssignHotbar?(slot: number, item: ItemId | null): void;
+  /** Seçili silahın susturucu durumu (susturucu takılamayan eşyada null). */
+  suppressorState?(item: ItemId): SuppressorState | null;
+  /** Susturucuyu tak/çıkar. */
+  onToggleSuppressor?(item: ItemId): void;
 }
+
+/** Susturucu düğmesi: takılı, takılabilir (envanterde var) ya da yok. */
+export type SuppressorState = 'attached' | 'available' | 'missing';
 
 /**
  * Envanter ve üretim paneli (HTML overlay): slot ızgarası (tıkla-seç, tıkla-taşı), seçili yiyecek için
@@ -166,6 +173,8 @@ export class InventoryPanel {
     section.append(sectionTitle('Eşyalar', `${slotUsageText(this.inventory)} slot`));
     const grid = el('div', 'inv-slots');
     this.inventory.slots.forEach((stack, index) => {
+      // Çantasız kilitli slotlar gösterilmez (sırt çantası ekler).
+      if (index >= this.inventory.activeSlots) return;
       const slot = slotButton(stack);
       slot.dataset.selected = String(this.selected === index);
       const id = stack?.id ?? null;
@@ -217,6 +226,22 @@ export class InventoryPanel {
         drink.disabled = !ok;
         drink.addEventListener('click', () => this.callbacks.onDrink(slot));
         buttons.append(drink);
+      }
+      const suppressor = this.callbacks.suppressorState?.(stack.id) ?? null;
+      if (suppressor !== null) {
+        const toggle = el(
+          'button',
+          'inv-eat',
+          suppressor === 'attached' ? 'Susturucuyu çıkar' : 'Susturucu tak',
+        );
+        toggle.type = 'button';
+        toggle.disabled = suppressor === 'missing';
+        toggle.title =
+          suppressor === 'missing'
+            ? 'Envanterde susturucu yok (demirhanede üretilir)'
+            : 'Atış sesi ve gürültüsü azalır';
+        toggle.addEventListener('click', () => this.callbacks.onToggleSuppressor?.(stack.id));
+        buttons.append(toggle);
       }
       const drop = el('button', 'inv-drop', 'At');
       drop.type = 'button';

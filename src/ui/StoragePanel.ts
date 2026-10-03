@@ -125,6 +125,7 @@ export class StoragePanel {
 
     const grid = el('div', 'inv-slots');
     inventory.slots.forEach((stack, index) => {
+      if (index >= inventory.activeSlots) return;
       const slot = slotButton(stack);
       slot.disabled = stack === null;
       slot.addEventListener('click', () => onSlot(index));

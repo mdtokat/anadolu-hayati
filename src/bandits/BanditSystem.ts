@@ -724,10 +724,7 @@ export class BanditSystem implements TargetProvider {
 
 /** `items` envantere hep birlikte sığar mı (deneme kopyasında)? */
 export function fitsAll(inventory: Inventory, items: readonly ItemStack[]): boolean {
-  const trial = Inventory.fromJSON(inventory.toJSON(), {
-    slots: inventory.slotCount,
-    maxWeightG: inventory.maxWeightG,
-  });
+  const trial = inventory.clone();
   return items.every((s) => trial.add(s.id, s.count) === 0);
 }
 
