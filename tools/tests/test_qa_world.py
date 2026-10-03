@@ -17,8 +17,8 @@ def world():
 
 def test_tile_table_budget_and_land(world):
     rows = qa_world.tile_table(world)
-    # Sinop–Sakarya genişlemesi: 10 × 5 = 50 karo kafesinin hepsi kapsamla kesişir.
-    assert len(rows) == len(world["manifest"]["tiles"]) == 50
+    # Faz 12 genişlemesi: 14 × 7 = 98 karo kafesinin hepsi kapsamla kesişir.
+    assert len(rows) == len(world["manifest"]["tiles"]) == 98
     assert all(r["height_bytes"] <= 1024 * 1024 and r["cover_bytes"] <= 1024 * 1024 for r in rows)
     by_key = {(r["tx"], r["ty"]): r for r in rows}
     assert by_key[(-3, -1)]["land_pct"] == 0  # kuzeybatı köşe tamamen deniz

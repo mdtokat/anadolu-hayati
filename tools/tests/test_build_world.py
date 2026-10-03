@@ -231,9 +231,10 @@ def test_real_world_yaml_is_consistent_with_contract():
     assert lon0 < lon1 and lat0 < lat1
     # Üst sınır en azından Faz 11 sonrası dünyayı (7 boylam × 3 enlem = 21 DEM karosu) kapsar.
     assert len(regionlib.tiles_for_bbox(*world["bbox_max"])) >= 21
-    # Sabitlenmiş pencereler (eski alanlar) eski DEM mozaiğinde örneklenir: Faz 6/7 pencereleri 8, Kastamonu–Çankırı 15 karo.
+    # Sabitlenmiş pencereler (eski alanlar) eski DEM mozaiğinde örneklenir: Faz 6/7 pencereleri 8, Kastamonu–Çankırı 15,
+    # Sinop–Sakarya (Faz 12 öncesi dünya, dördüncü pencere) 21 karo.
     for _, window_bbox in build_world.PINNED_WINDOWS:
-        assert len(regionlib.tiles_for_bbox(*window_bbox)) in (8, 15)
+        assert len(regionlib.tiles_for_bbox(*window_bbox)) in (8, 15, 21)
 
 
 def test_missing_province_fails_loudly():
