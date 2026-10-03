@@ -12,6 +12,7 @@ import {
   REGION_SCENE,
   PROVINCE_PLACES,
   PILOT,
+  STREAMING,
   VERTICAL_SCALE,
 } from '../config';
 import { createRegionCreatureTerrain } from '../creatures/regionTerrain';
@@ -101,8 +102,13 @@ export class RegionWorld implements GameWorld {
   private daylight = 1;
   /** Yağmur damlaları. */
   private readonly rain = new RainLayer();
-  /** Akışlı işlerin kare zaman bütçesi (`STREAMING.frameBudgetMs`; performans göstergesi de okur). */
+  /** Akışlı işlerin kare zaman bütçesi (performans göstergesi de okur). */
   readonly budget = new FrameBudget();
+  /**
+   * Kare bütçesi (ms; varsayılan `STREAMING.frameBudgetMs`). Fizikli yürüyüş testleri `Infinity` verir: sonuç duvar
+   * saatine (makine hızına) bağlı olmasın.
+   */
+  frameBudgetMs: number = STREAMING.frameBudgetMs;
   private readonly settlementColliders: SettlementColliders | null;
   /** Ağaç, kaya ve çalı collider'ları (nesne katmanı yoksa null). */
   private readonly propColliders: PropColliders | null;
@@ -306,7 +312,7 @@ export class RegionWorld implements GameWorld {
     const { visual } = viewCenters({ x: focusX, z: focusZ }, this.viewFocus);
     // Akışlı işler ortak kare bütçesini paylaşır (öncelik sırasıyla): collider > mesh > nesne > katman yenilemeleri.
     const budget = this.budget;
-    budget.begin();
+    budget.begin(this.frameBudgetMs);
     this.colliders.update(focusX, focusZ, budget);
     this.settlementColliders?.update(focusX, focusZ);
     this.structureColliders?.update(focusX, focusZ);

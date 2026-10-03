@@ -7,6 +7,7 @@ import { latLonToGame } from '../src/world/geo';
 import { LandCoverMap } from '../src/world/LandCoverMap';
 import { FrameBudget } from '../src/core/FrameBudget';
 import { PropLayer } from '../src/world/PropLayer';
+import { chunksWithin } from '../src/world/chunks';
 import { PROP_KINDS } from '../src/world/propKinds';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { FreshWaterIndex } from '../src/world/waterIndex';
@@ -226,7 +227,11 @@ describe('PropLayer — GPU yüklemesi ve doldurma sıklığı (performans)', ()
 
   it('bekleyen chunk hesaplanırken tamponlar her karede değil, aralıkla doldurulur', () => {
     const layer = makeLayer();
-    layer.update(forest.x, forest.z); // ilk çağrı: yenileme (doldurur)
+    // Yakın (kritik) chunk'lar hesaplanınca hemen çizilir; aralıklı doldurma uzak chunk'lar içindir.
+    const near = chunksWithin(layer.grid, forest.x, forest.z, SCATTER.criticalRadius).length;
+    for (let i = 0; i * SCATTER.maxChunkBuildsPerFrame < near; i++) {
+      layer.update(forest.x, forest.z);
+    }
     expect(layer.stats.pendingChunks).toBeGreaterThan(SCATTER.maxChunkBuildsPerFrame * 3);
     const first = layer.stats.instances;
     // Sonraki birkaç kare chunk hesaplar ama yeniden doldurmaz.
@@ -239,18 +244,32 @@ describe('PropLayer — GPU yüklemesi ve doldurma sıklığı (performans)', ()
 });
 
 describe('PropLayer — kare zaman bütçesi', () => {
-  it('bütçe tükenmişse hiçbir şey yapmaz (sonraki kareye kalır); süre varken hesaplar', () => {
+  it('bütçe tükenmişse yalnızca yakın (kritik) chunklar hesaplanır ve çizilir; uzaklar sonraki karelere kalır', () => {
     let t = 0;
     const budget = new FrameBudget(() => t);
     const layer = makeLayer();
+    const near = chunksWithin(layer.grid, forest.x, forest.z, SCATTER.criticalRadius).length;
+    expect(near).toBeGreaterThan(SCATTER.maxChunkBuildsPerFrame);
+    // Bütçe her karede tükenmiş: yine de yakın chunk'lar adet sınırıyla kare kare hesaplanır.
+    for (let frame = 0; frame * SCATTER.maxChunkBuildsPerFrame < near; frame++) {
+      budget.begin(4);
+      t += 10;
+      layer.update(forest.x, forest.z, undefined, budget);
+      expect(layer.stats.loadedChunks).toBe(
+        Math.min(near, (frame + 1) * SCATTER.maxChunkBuildsPerFrame),
+      );
+    }
+    expect(layer.stats.pendingChunks).toBeGreaterThan(0);
+    expect(layer.stats.instances).toBeGreaterThan(0); // yakın ağaçlar hemen çizilir
+    expect(layer.propsNear(forest.x, forest.z, 30).length).toBeGreaterThan(0);
+    // Yakın chunk'lar hazırken bütçe tükenmişse hiçbir şey yapılmaz.
     budget.begin(4);
-    t = 10;
+    t = 30;
     layer.update(forest.x, forest.z, undefined, budget);
-    expect(layer.stats.loadedChunks).toBe(0);
-    expect(layer.stats.activeChunks).toBe(0);
+    expect(layer.stats.loadedChunks).toBe(near);
     budget.begin(4); // saat durağan: süre var
     layer.update(forest.x, forest.z, undefined, budget);
-    expect(layer.stats.loadedChunks).toBe(SCATTER.maxChunkBuildsPerFrame);
+    expect(layer.stats.loadedChunks).toBe(near + SCATTER.maxChunkBuildsPerFrame);
     layer.dispose();
   });
 });
@@ -261,9 +280,11 @@ describe('PropLayer — dilimli dağılım', () => {
     // Her saat okuması 1 ms ilerler: bütçe birkaç dilimde biter.
     const budget = new FrameBudget(() => (t += 1));
     const layer = makeLayer();
+    const near = chunksWithin(layer.grid, forest.x, forest.z, SCATTER.criticalRadius).length;
     budget.begin(4);
     layer.update(forest.x, forest.z, undefined, budget);
-    expect(layer.stats.loadedChunks).toBe(0); // ilk chunk bile bu karede bitmedi
+    // Yakın chunk'lar bölünmeden (adet sınırıyla) hesaplanır.
+    expect(layer.stats.loadedChunks).toBe(Math.min(near, SCATTER.maxChunkBuildsPerFrame));
     for (let i = 0; i < 2000 && (layer.stats.pendingChunks > 0 || i === 0); i++) {
       budget.begin(4);
       layer.update(forest.x, forest.z, undefined, budget);

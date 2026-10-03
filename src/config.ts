@@ -470,6 +470,11 @@ export const SCATTER = {
    * sürüyordu, dilim ~1 ms).
    */
   rowsPerSlice: 8,
+  /**
+   * Odağa bu uzaklıktaki (oyun m) nesne chunk'ları kare bütçesinden bağımsız hemen hesaplanır: oyuncunun yanındaki
+   * ağaçlar ve collider'ları (`PROP_SOLIDS.colliderRadius`) gecikmesin. Düşük kalitenin çizim yarıçapından küçük olmalı.
+   */
+  criticalRadius: 100,
   /** Hesaplanmış chunk sonuçlarının LRU önbellek kapasitesi. */
   chunkCacheSize: 64,
   /**

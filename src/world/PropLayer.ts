@@ -166,7 +166,9 @@ export class PropLayer {
 
   /**
    * Odak (oyuncu) çevresini günceller: önce eksik chunk'ları hesaplar, sonra gerekiyorsa tamponları yeniler. `budget`:
-   * kare zaman bütçesi; nesneler kritik değildir: süre kalmadıysa chunk hesaplanmaz, yenileme sonraki kareye kalır.
+   * kare zaman bütçesi; uzak nesneler kritik değildir (süre kalmadıysa hesaplanmaz, yenileme sonraki kareye kalır), ama
+   * odağa `SCATTER.criticalRadius` içindeki chunk'lar bütçeden bağımsız hemen hesaplanır ve çizilir: oyuncunun yanındaki
+   * ağaçlar ve collider'ları gecikmesin (geç beliren ağaç oyuncunun üstünde oluşabilirdi).
    */
   update(
     focusX: number,
@@ -179,15 +181,17 @@ export class PropLayer {
       Math.hypot(focusX - this.lastX, focusZ - this.lastZ) < SCATTER.refreshDistance
     );
     if (!refresh && !this.dirty && this.pending === 0) return;
-    if (budget !== null && budget.exhausted) return; // sonraki karede
+    const starved = budget !== null && budget.exhausted;
+    if (starved && !this.missingNear(focusX, focusZ)) return; // sonraki karede
 
     if (refresh) this.selectActive(focusX, focusZ);
-    const built = this.computeMissing(maxBuilds, budget);
-    // Bekleyen chunk'lar hesaplanırken tamponlar her karede değil, `pendingFillInterval` adımda bir (ve son chunk
-    // hesaplanınca) yeniden doldurulur: art arda karelerde tam doldurma + yükleme takılma yapıyordu.
+    const { built, critical } = this.computeMissing(maxBuilds, budget, focusX, focusZ);
+    // Bekleyen chunk'lar hesaplanırken tamponlar her karede değil, `pendingFillInterval` adımda bir (son chunk ya da
+    // yakın chunk hesaplanınca hemen) yeniden doldurulur: art arda karelerde tam doldurma + yükleme takılma yapıyordu.
     const settle =
-      built > 0 && (this.pending === 0 || ++this.sinceFill >= SCATTER.pendingFillInterval);
-    if (refresh || this.dirty || settle) {
+      built > 0 &&
+      (this.pending === 0 || critical || ++this.sinceFill >= SCATTER.pendingFillInterval);
+    if ((refresh && !starved) || this.dirty || settle) {
       this.sinceFill = 0;
       this.lastX = focusX;
       this.lastZ = focusZ;
@@ -322,10 +326,17 @@ export class PropLayer {
 
   /**
    * Etkin chunk'lardan hesaplanmamışları (yakından uzağa) `budget` adede kadar (ve kare zaman bütçesi izin verdikçe)
-   * hesaplar; hesaplananı döndürür.
+   * hesaplar; hesaplananı ve yakın (kritik) chunk hesaplanıp hesaplanmadığını döndürür. Odağa `criticalRadius`
+   * içindeki chunk'lar zaman bütçesi gözetmeden (adet sınırıyla), bölünmeden hesaplanır.
    */
-  private computeMissing(budget: number, time: FrameBudget | null = null): number {
+  private computeMissing(
+    budget: number,
+    time: FrameBudget | null = null,
+    focusX = Number.NaN,
+    focusZ = Number.NaN,
+  ): { built: number; critical: boolean } {
     let built = 0;
+    let critical = false;
     this.pending = 0;
     for (const chunk of this.active) {
       const cached = this.cache.get(chunk.key);
@@ -334,11 +345,14 @@ export class PropLayer {
         this.cache.set(chunk.key, cached);
         continue;
       }
-      if (built >= budget || (time !== null && !time.allows(built, 0))) {
+      const near =
+        distanceToChunk(this.grid, chunk.cx, chunk.cy, focusX, focusZ) <= SCATTER.criticalRadius;
+      if (built >= budget || (!near && time !== null && !time.allows(built, 0))) {
         this.pending++;
         continue;
       }
-      const props = this.scatter(chunk, time);
+      const props = this.scatter(chunk, near ? null : time);
+      critical ||= near;
       if (props === null) {
         // Süre bitti: iş sonraki karede kaldığı yerden sürer.
         this.pending++;
@@ -367,7 +381,14 @@ export class PropLayer {
     }
     if (built > 0) this.solidVer++;
     this.evict();
-    return built;
+    return { built, critical };
+  }
+
+  /** Odağa `criticalRadius` içinde hesaplanmamış chunk var mı? */
+  private missingNear(x: number, z: number): boolean {
+    return chunksWithin(this.grid, x, z, SCATTER.criticalRadius).some(
+      ({ cx, cy }) => !this.cache.has(chunkKey(cx, cy)),
+    );
   }
 
   /**
