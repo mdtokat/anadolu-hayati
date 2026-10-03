@@ -1,14 +1,63 @@
-# Grup: bati — Faz 12 (Batı: Kocaeli, Bilecik) için ayrıldı. Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
+# Grup: bati — Faz 12 (Batı: Kocaeli, Bilecik). Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
 # parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
 # grubun oturumu tarafından doldurulur (plan §2.2). Boş grup (`provinces: []`) geçerlidir ve hiçbir şeyi değiştirmez.
 #
 # `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen; akış dizisi olmalıdır.
-provinces: []
+provinces: [Kocaeli, Bilecik]
 display_names: {}
-styles: {}
-# {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar.
+# Yerleşim üslubu (liste dışı il/ilçe merkezi `kasaba`, köy `koy`). Kocaeli'nin körfez kuşağı (İzmit, Gebze, Dilovası, Körfez,
+# Derince, Gölcük, Darıca, Çayırova) sanayi/liman; Bilecik, Söğüt (Osmanlı'nın beşiği) ve Osmaneli tarihî doku.
+styles:
+  Kocaeli: sanayi
+  İzmit: sanayi
+  Gebze: sanayi
+  Dilovası: sanayi
+  Körfez: sanayi
+  Derince: sanayi
+  Gölcük: sanayi
+  Darıca: sanayi
+  Çayırova: sanayi
+  Bilecik: osmanli
+  Söğüt: osmanli
+  Osmaneli: osmanli
+# {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar (batıda gerekmedi).
 clip_bbox: {}
 # Cami sığmayan kıyı/sıkışık merkezler (bilinçli istisna; tests/settlementMap.test.ts). Akış dizisi.
 no_mosque_towns: []
 # Simge yapılar: `- { settlement: Ad, kind: mosque_grand, name: Ad, lon: 0.0, lat: 0.0 }` (bkz. cekirdek.yaml).
-landmarks: []
+# Konumlar Overture Places kayıtlarından (yaklaşık; oyunda en yakın boş parsele oturur). Places'te yanlış yerde olanlar
+# (Şeyh Edebali Türbesi Gebze'de, Gebze Saat Kulesi "İzmit Saat Kulesi" adıyla) doğru yerleşimin koordinatıyla yazılmıştır
+# (docs/faz-12-bati-rapor.md). Yalnızca konumundan emin olunanlar listelenir.
+landmarks:
+  # Kocaeli: İzmit (il merkezi ve İzmit ilçesi aynı kent), Gebze, Karamürsel
+  - {
+      settlement: Kocaeli,
+      kind: clock_tower,
+      name: İzmit Saat Kulesi,
+      lon: 29.91947,
+      lat: 40.76278,
+    }
+  - { settlement: Kocaeli, kind: mosque, name: Orhan Gazi Camii, lon: 29.9169, lat: 40.7669 }
+  - {
+      settlement: Gebze,
+      kind: mosque_grand,
+      name: Çoban Mustafa Paşa Camii,
+      lon: 29.43149,
+      lat: 40.79985,
+    }
+  - { settlement: Gebze, kind: clock_tower, name: Gebze Saat Kulesi, lon: 29.43983, lat: 40.79776 }
+  - { settlement: Gebze, kind: castle, name: Eskihisar Kalesi, lon: 29.43298, lat: 40.77517 }
+  - { settlement: Karamürsel, kind: mosque, name: Ulu Camii, lon: 29.60016, lat: 40.68946 }
+  # Bilecik: Şeyh Edebali ve Ertuğrul Gazi (Osmanlı'nın kuruluşu), Bozüyük, Osmaneli
+  - { settlement: Bilecik, kind: tomb, name: Şeyh Edebali Türbesi, lon: 29.98722, lat: 40.14393 }
+  - {
+      settlement: Bilecik,
+      kind: clock_tower,
+      name: Bilecik Saat Kulesi,
+      lon: 29.98307,
+      lat: 40.13771,
+    }
+  - { settlement: Bilecik, kind: castle, name: Bilecik Kalesi, lon: 29.99013, lat: 40.14412 }
+  - { settlement: Söğüt, kind: tomb, name: Ertuğrul Gazi Türbesi, lon: 30.18077, lat: 40.01824 }
+  - { settlement: Bozüyük, kind: mosque, name: Ulu Camii, lon: 30.04584, lat: 39.9062 }
+  - { settlement: Osmaneli, kind: castle, name: Lefke Kalesi, lon: 30.01671, lat: 40.36203 }
