@@ -16,6 +16,8 @@ export interface Settings {
   testMode: boolean;
   /** Eşkıyalar ve yankesiciler (Faz 11) açık mı? Kapalıyken hiç oluşmazlar (ayar sürümü değişmedi). */
   bandits: boolean;
+  /** Uyarlanır çözünürlük: kare süresi uzarsa piksel oranı kademeli düşer (`ADAPTIVE_RESOLUTION`). */
+  adaptiveResolution: boolean;
 }
 
 /** Kullanıcının değiştirebildiği alanlar. */
@@ -36,6 +38,7 @@ export function defaultSettings(): Settings {
     hints: SETTINGS.defaultHints,
     testMode: TEST_MODE.defaultEnabled,
     bandits: SETTINGS.defaultBandits,
+    adaptiveResolution: SETTINGS.defaultAdaptiveResolution,
   };
 }
 
@@ -68,6 +71,7 @@ export function parseSettings(raw: unknown): Settings {
   if (typeof o.hints === 'boolean') out.hints = o.hints;
   if (typeof o.testMode === 'boolean') out.testMode = o.testMode;
   if (typeof o.bandits === 'boolean') out.bandits = o.bandits;
+  if (typeof o.adaptiveResolution === 'boolean') out.adaptiveResolution = o.adaptiveResolution;
   return out;
 }
 
@@ -83,6 +87,7 @@ export function settingsEqual(a: Readonly<Settings>, b: Readonly<Settings>): boo
     a.volume === b.volume &&
     a.hints === b.hints &&
     a.testMode === b.testMode &&
-    a.bandits === b.bandits
+    a.bandits === b.bandits &&
+    a.adaptiveResolution === b.adaptiveResolution
   );
 }

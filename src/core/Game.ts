@@ -172,6 +172,7 @@ import { AmbientAudio } from '../audio/AmbientAudio';
 import { ambientMix } from '../audio/ambientMix';
 import { Autosaver } from '../save/Autosaver';
 import { createNewGameSave } from '../save/newGame';
+import { pixelRatioFor, ResolutionGovernor } from './resolution';
 import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
 import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
@@ -450,6 +451,13 @@ export class Game {
   private readonly player: Player;
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
+  /** Uyarlanır çözünürlük (Ayarlar → "Otomatik çözünürlük"): kare süresine göre piksel oranı ölçeği. */
+  private readonly resolution = new ResolutionGovernor();
+  private adaptiveResolution = true;
+  /** Kalite ön ayarının piksel oranı üst sınırı. */
+  private presetMaxPixelRatio: number = RENDER.maxPixelRatio;
+  /** Son çizim karesinin zamanı (ms; kare süresi ölçümü). */
+  private lastFrameAt: number | null = null;
   private readonly structureLayer: StructureLayer;
   /** Katı yapıların (sandık, tezgâh, kulübe duvarları) fizik collider'ları (Faz 9). */
   private readonly structureColliders: StructureColliders;
@@ -2096,6 +2104,7 @@ export class Game {
     this.drawDrone(now / 1000, feet);
 
     this.renderer.render(this.world.scene, this.activeCamera());
+    this.sampleFrame(now);
     this.fps?.frame();
     this.updateLocationHud(now, feet);
     this.updateAmbient(now, feet);
@@ -2539,8 +2548,16 @@ export class Game {
    */
   private applySettings(settings: Readonly<Settings>): void {
     const preset = QUALITY_PRESETS[settings.quality];
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, preset.maxPixelRatio));
-    this.resize(); // piksel oranı değişince çizim tamponu yeniden boyutlanmalı
+    // Kalite ya da otomatik çözünürlük değişince denetleyici tam çözünürlükten yeniden başlar.
+    if (
+      preset.maxPixelRatio !== this.presetMaxPixelRatio ||
+      settings.adaptiveResolution !== this.adaptiveResolution
+    ) {
+      this.resolution.reset();
+    }
+    this.presetMaxPixelRatio = preset.maxPixelRatio;
+    this.adaptiveResolution = settings.adaptiveResolution;
+    this.applyPixelRatio(true);
     this.world.setQuality?.(preset);
     this.playerCamera.setSensitivityScale(settings.mouseSensitivity);
     this.setTestMode(settings.testMode);
@@ -2570,6 +2587,27 @@ export class Game {
     this.hud.setModeBadge(
       this.testMode ? (this.player.isFlying ? 'Test modu · Uçuş' : 'Test modu') : null,
     );
+  }
+
+  /**
+   * Piksel oranını uygular: kalite ön ayarı üst sınır, otomatik çözünürlük açıksa denetleyicinin ölçeği. Değişince (ya
+   * da `force`) çizim tamponu yeniden boyutlanır.
+   */
+  private applyPixelRatio(force = false): void {
+    const scale = this.adaptiveResolution ? this.resolution.scale : 1;
+    const ratio = pixelRatioFor(window.devicePixelRatio, this.presetMaxPixelRatio, scale);
+    if (!force && ratio === this.renderer.getPixelRatio()) return;
+    this.renderer.setPixelRatio(ratio);
+    this.resize();
+  }
+
+  /** Kare süresini otomatik çözünürlük denetleyicisine verir (yalnızca oyun sürerken ve sekme görünürken). */
+  private sampleFrame(now: number): void {
+    const last = this.lastFrameAt;
+    this.lastFrameAt = now;
+    if (last === null || !this.adaptiveResolution || this.loop.paused) return;
+    if (document.visibilityState !== 'visible') return;
+    if (this.resolution.sample(now - last)) this.applyPixelRatio();
   }
 
   private resize(): void {

@@ -68,6 +68,28 @@ export const RENDER = {
   precompileTimeoutMs: 8000,
 } as const;
 
+/**
+ * Uyarlanır çözünürlük (`core/resolution.ts`; Ayarlar → "Otomatik çözünürlük", varsayılan açık). Kare süresinin pencere
+ * medyanı `1000 / targetFps · downRatio`'yu aşarsa çizim ölçeği bir kademe düşer (`scales`), `upRatio` altında
+ * `upHoldSeconds` kalırsa bir kademe yükseltme denenir; deneme `probeSeconds` içinde yavaşlarsa o kademenin beklemesi
+ * katlanır (en çok `maxUpHoldSeconds`). Piksel oranı = min(cihaz, kalite ön ayarı) × ölçek, en az `minPixelRatio`.
+ * Hedef 50 FPS: 60 Hz ekranda dikey eşitlemeyle 60 FPS (16,7 ms) "rahat" sayılır, 30 FPS'e düşmek (33 ms) düşürür.
+ */
+export const ADAPTIVE_RESOLUTION = {
+  targetFps: 50,
+  downRatio: 1.15,
+  upRatio: 0.9,
+  scales: [1, 0.85, 0.7, 0.6, 0.5],
+  minPixelRatio: 0.5,
+  windowSeconds: 1.5,
+  cooldownSeconds: 2,
+  upHoldSeconds: 6,
+  maxUpHoldSeconds: 120,
+  probeSeconds: 6,
+  /** Bundan uzun kareler (sekme arka planda, duraklama sonrası) bu değere kırpılır (ms). */
+  maxSampleMs: 250,
+} as const;
+
 /** Geliştirici araçları (yalnızca dev modunda görünür). */
 export const DEBUG = {
   /** FPS sayacının ortalama aldığı pencere (saniye). */
@@ -1170,6 +1192,8 @@ export const SETTINGS = {
   defaultHints: true,
   /** Eşkıyalar ve yankesiciler (Faz 11) varsayılan olarak açıktır; kapalıyken hiç oluşmazlar. */
   defaultBandits: true,
+  /** Uyarlanır çözünürlük (`ADAPTIVE_RESOLUTION`) varsayılan olarak açıktır. */
+  defaultAdaptiveResolution: true,
 } as const;
 
 /**
