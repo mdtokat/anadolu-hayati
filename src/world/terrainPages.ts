@@ -81,23 +81,23 @@ export function overviewSize(samples: number): number {
 }
 
 /** Dünya dizisinden, çekirdek dikdörtgeni `halo` örnek genişleterek (dünya kenarında kırparak) pencere keser. */
-export function cutWindow(
-  heights: Uint16Array,
+export function cutWindow<T extends Uint8Array | Uint16Array>(
+  data: T,
   width: number,
   height: number,
   core: { col0: number; row0: number; cols: number; rows: number },
   halo: number = TILE_HALO,
-): { col0: number; row0: number; cols: number; rows: number; raw: Uint16Array } {
+): { col0: number; row0: number; cols: number; rows: number; raw: T } {
   const col0 = Math.max(0, core.col0 - halo);
   const row0 = Math.max(0, core.row0 - halo);
   const col1 = Math.min(width, core.col0 + core.cols + halo);
   const row1 = Math.min(height, core.row0 + core.rows + halo);
   const cols = col1 - col0;
   const rows = row1 - row0;
-  const raw = new Uint16Array(cols * rows);
+  const raw = new (data.constructor as new (n: number) => T)(cols * rows);
   for (let r = 0; r < rows; r++) {
     const from = (row0 + r) * width + col0;
-    raw.set(heights.subarray(from, from + cols), r * cols);
+    raw.set(data.subarray(from, from + cols), r * cols);
   }
   return { col0, row0, cols, rows, raw };
 }

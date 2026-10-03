@@ -87,6 +87,8 @@ function pointInQuad(q: Float64Array, x: number, z: number, margin: number): boo
 
 export class FootprintRegistry {
   private readonly cells = new Map<number, Entry[]>();
+  /** Eklenen kutular (sahip, x, z, hx, hz, yaw) düz dizi: veri hattında serileştirilir (`dump`/`restore`). */
+  private readonly added: number[] = [];
 
   constructor(private readonly cellSize = 32) {}
 
@@ -109,8 +111,29 @@ export class FootprintRegistry {
     return { owner, corners, minX, maxX, minZ, maxZ };
   }
 
+  /** Kayıttaki tüm kutular: altışarlı `[sahip, x, z, hx, hz, yaw]` (ekleme sırasıyla). */
+  dump(): Float64Array {
+    return Float64Array.from(this.added);
+  }
+
+  /** `dump` çıktısından kayıt kurar (ekleme sırası ve sonuçlar aynıdır). */
+  static restore(dump: ArrayLike<number>, cellSize = 32): FootprintRegistry {
+    const registry = new FootprintRegistry(cellSize);
+    for (let i = 0; i + 5 < dump.length; i += 6) {
+      registry.add(dump[i] as number, {
+        x: dump[i + 1] as number,
+        z: dump[i + 2] as number,
+        hx: dump[i + 3] as number,
+        hz: dump[i + 4] as number,
+        yaw: dump[i + 5] as number,
+      });
+    }
+    return registry;
+  }
+
   /** Kutuyu `owner` (yapı kimliği) adına ekler. */
   add(owner: number, box: OrientedBox): void {
+    this.added.push(owner, box.x, box.z, box.hx, box.hz, box.yaw);
     const e = this.entry(owner, box);
     for (
       let cx = Math.floor(e.minX / this.cellSize);

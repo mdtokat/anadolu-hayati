@@ -26,8 +26,7 @@ import { FrameBudget } from '../core/FrameBudget';
 import type { PerfProbe } from '../core/perfStats';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
-import { tunnelHoles } from './roadTunnels';
-import { carveStreams } from './streamCarving';
+import { prepareDenseWorld } from './worldPrep';
 import { Environment } from './Environment';
 import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
 import {
@@ -45,8 +44,6 @@ import { RegionHeightSource } from './RegionHeightSource';
 import type { PlaceCenter } from './placeNotice';
 import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial, terrainUniforms, type TerrainUniforms } from './TerrainMaterial';
-import { levelPad, lockFootprint } from './buildingPads';
-import { applyRoadGrading } from './roadGrading';
 import { buildRoadOverlay, buildTerrainOverlay, landBorderSegments } from './terrainOverlay';
 import { LandCoverMap } from './LandCoverMap';
 import { PropLayer, type PropLayerStats } from './PropLayer';
@@ -127,32 +124,16 @@ export class RegionWorld implements GameWorld {
     readonly region: RegionData,
     private readonly physics: PhysicsWorld,
   ) {
-    this.source = RegionHeightSource.fromRegion(region);
-    this.terrain = this.source;
-
     this.freshWater = region.features
       ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
       : null;
 
-    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; ~1 sn). Arazi kaplamasından önce:
-    // yollar (sudan ayrılmış hâlleriyle) araziye boyanır.
-    // Akarsu yatakları oyulur (dere yamaçta değil, kendi yatağında akar); yollar oyulmuş araziye göre tasarlanır.
-    if (region.features) carveStreams(this.source, region.features.water.lines);
-    const freshWater = this.freshWater;
-    this.settlementMap = region.settlements
-      ? new SettlementMap(region.settlements, {
-          heightAt: (x, z) => this.source.heightAt(x, z),
-          elevationAt: (x, z) => this.source.elevationAt(x, z),
-          isWater: (x, z, clearance) => freshWater?.nearest(x, z, clearance) != null,
-          nearestWater: freshWater ? (x, z, r) => freshWater.nearest(x, z, r) : undefined,
-          waterLines: region.features?.water.lines,
-          bounds: this.source.bounds,
-          // Yol planı zemine uygulanır; yapı düzeni düzeltilmiş zeminin üstünde kurulur.
-          grade: (plan) => applyRoadGrading(this.source, plan, region.features?.water.lines),
-          level: (box, y) => levelPad(this.source, box, y),
-          lock: (box) => lockFootprint(this.source, box),
-        })
-      : null;
+    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; veri hattının bake adımıyla aynı işlev).
+    // Arazi kaplamasından önce: yollar (sudan ayrılmış hâlleriyle) araziye boyanır.
+    const prepared = prepareDenseWorld(region, this.freshWater);
+    this.source = prepared.source;
+    this.terrain = this.source;
+    this.settlementMap = prepared.settlementMap;
     const settlements = this.settlementMap;
 
     // Arazi: örtü renkleri + kaplama (yollar, akarsular, kıyı bantları, il sınırları shader'da boyanır).
@@ -180,7 +161,7 @@ export class RegionWorld implements GameWorld {
     });
 
     // Tünel ağızlarında arazi delinir (mesh + çarpışma); tünelin kendisi yol yapılarıyla çizilir.
-    const holes = settlements ? tunnelHoles(settlements.plan, this.source) : null;
+    const holes = prepared.holes;
     this.chunks = new ChunkManager(this.source, this.material, { holes });
     this.scene.add(this.chunks.group);
     this.colliders = new ChunkColliders(physics, this.source, undefined, holes);

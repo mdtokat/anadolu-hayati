@@ -13,6 +13,7 @@ import {
   type LayoutTerrain,
 } from './layout';
 import { RoadIndex } from './roadIndex';
+import { BAKED_MAP_VERSION, type BakedSettlementMap } from './bakedMap';
 import { groundRuns, planRoadProfiles, surfaceRuns, type RoadPlan } from './roadProfile';
 import {
   buildRoadNetwork,
@@ -305,6 +306,21 @@ const MAX_HALF_DIAGONAL = Math.max(
   ...Object.values(BUILDING_SHAPES).map((s) => Math.hypot(s.width, s.depth) / 2),
 );
 
+/** Yerleşim düzeninin okuduğu arazi ve isteğe bağlı araçlar (`RegionWorld`/`worldPrep` sağlar). */
+export type SettlementTerrain = LayoutTerrain & {
+  /** Varsa akarsuya paralel yollar sudan ayrılır (`roadRouting.ts`). */
+  nearestWater?: NearestWater;
+  /** Varsa akarsu çizgileri: köprüler yalnız yolun bunları kestiği yerde kurulur (`roadProfile.ts`). */
+  waterLines?: ReadonlyArray<{ kind: string; xz: ArrayLike<number> }>;
+  /**
+   * Varsa yol planı zemine uygulanır (`world/roadGrading.ts`): çağrıdan sonra `heightAt` düzeltilmiş zemini
+   * verir ve yapı düzeni onun üstünde kurulur. Yoksa zemin doğal kalır.
+   */
+  grade?: (plan: RoadPlan) => void;
+  /** Dünya kenarı (yol ağı düzeni: kenardaki çıkmazlar budanmaz); yoksa yolların sınır kutusu. */
+  bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
+};
+
 /**
  * Tüm yerleşimler (saf; Three.js'siz): açılışta her yerleşimin düzeni bir kez hesaplanır. Bina, yol, çeşme ve
  * yerleşim sorguları uzamsal ızgarayla yapılır. Görsel (`world/SettlementLayer`), collider
@@ -331,27 +347,60 @@ export class SettlementMap {
   private readonly cell = 64;
 
   /** Tüm yapıların görsel ayak izleri (taşma payı ve merdiven dahil): yerleşimler arası çakışma, sokak eleme. */
-  readonly footprints = new FootprintRegistry();
+  readonly footprints: FootprintRegistry;
+  /** Yol ağının (kentlerde kesilmiş) hâli: `toBaked` için saklanır; kurulumda dolar. */
+  private readonly networkRoads: RoadData[];
 
+  /** Veri hattında önceden hesaplanmış haritadan kurar (açılışta ~0,1 sn; hesap yok). */
+  constructor(baked: BakedSettlementMap);
   constructor(
     data: SettlementsData,
-    terrain: LayoutTerrain & {
-      /** Varsa akarsuya paralel yollar sudan ayrılır (`roadRouting.ts`). */
-      nearestWater?: NearestWater;
-      /** Varsa akarsu çizgileri: köprüler yalnız yolun bunları kestiği yerde kurulur (`roadProfile.ts`). */
-      waterLines?: ReadonlyArray<{ kind: string; xz: ArrayLike<number> }>;
-      /**
-       * Varsa yol planı zemine uygulanır (`world/roadGrading.ts`): çağrıdan sonra `heightAt` düzeltilmiş zemini
-       * verir ve yapı düzeni onun üstünde kurulur. Yoksa zemin doğal kalır.
-       */
-      grade?: (plan: RoadPlan) => void;
-      /** Dünya kenarı (yol ağı düzeni: kenardaki çıkmazlar budanmaz); yoksa yolların sınır kutusu. */
-      bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
-    },
-    seed: number = SETTLEMENT_LAYOUT.seed,
+    terrain: SettlementTerrain,
+    seed?: number,
     /** Ölçüm/test: yol ağı düzeninin sayımları doldurulur. */
     networkReport?: NetworkReport,
+  );
+  constructor(
+    input: SettlementsData | BakedSettlementMap,
+    terrainArg?: SettlementTerrain,
+    seed: number = SETTLEMENT_LAYOUT.seed,
+    networkReport?: NetworkReport,
   ) {
+    if ('settlements' in input && 'networkRoads' in input) {
+      // Önceden hesaplanmış harita: yalnızca kurulur ve dizinlenir.
+      const baked = input;
+      if (baked.version !== BAKED_MAP_VERSION) {
+        throw new Error(
+          `Baked yerleşim haritası sürümü ${baked.version}, beklenen ${BAKED_MAP_VERSION}`,
+        );
+      }
+      this.footprints = FootprintRegistry.restore(baked.footprints);
+      this.plan = baked.plan;
+      this.networkRoads = baked.networkRoads;
+      this.streetLines = baked.streetLines;
+      this.joinLines = baked.joinLines;
+      this.roadLines = [...baked.networkRoads, ...baked.joinLines, ...baked.streetLines];
+      this.paintLines = [...groundRuns(baked.plan), ...baked.joinLines, ...baked.streetLines];
+      this.roads = new RoadIndex([
+        ...surfaceRuns(baked.plan),
+        ...baked.joinLines,
+        ...baked.streetLines,
+      ]);
+      for (const s of baked.settlements) {
+        const view: SettlementView = {
+          data: { ...s.data, cells: new Int16Array(0) },
+          buildings: s.buildings,
+          radius: s.radius,
+        };
+        this.settlements.push(view);
+        for (const b of view.buildings) this.register(b);
+      }
+      this.stairs.push(...baked.stairs);
+      return;
+    }
+    const data = input;
+    const terrain = terrainArg as SettlementTerrain;
+    this.footprints = new FootprintRegistry();
     // Il/ilçe merkezlerinin içinde il-ilçe ve köy yolları çizilmez: kentin içi kendi sokak ızgarasıdır.
     const cuts = data.settlements
       .filter((s) => s.rank !== 'koy')
@@ -388,6 +437,7 @@ export class SettlementMap {
       ? separateRoadsFromWater(smoothed, terrain.nearestWater)
       : smoothed;
     const roads = cutRoads(shaped, cuts);
+    this.networkRoads = roads;
     // Yol profili: eğimi sınırlı, düzgün yatak; dere geçişleri köprü, derin vadiler viyadük, sırtlar tünel. Zemin yola
     // uydurulur.
     this.plan = planRoadProfiles(roads, {
@@ -446,12 +496,7 @@ export class SettlementMap {
       for (const b of view.buildings) {
         raiseFloor(b, terrain);
         b.base = settledBase(b, terrain);
-        this.buildings.push(b);
-        this.byId.set(b.id, b);
-        const key = this.key(Math.floor(b.x / this.cell), Math.floor(b.z / this.cell));
-        const list = this.grid.get(key) ?? [];
-        list.push(b);
-        this.grid.set(key, list);
+        this.register(b);
       }
     }
     // Kent içi: kesilen yol uçları sokaklara bağlanır, yalnızca kapıları kente bağlayan sokaklar kalır (`townNetwork.ts`).
@@ -475,6 +520,34 @@ export class SettlementMap {
       const stair = stairFor(b, terrain);
       if (stair) this.stairs.push(stair);
     }
+  }
+
+  /** Yapıyı listeye, kimlik haritasına ve uzamsal ızgaraya ekler. */
+  private register(b: Building): void {
+    this.buildings.push(b);
+    this.byId.set(b.id, b);
+    const key = this.key(Math.floor(b.x / this.cell), Math.floor(b.z / this.cell));
+    const list = this.grid.get(key) ?? [];
+    list.push(b);
+    this.grid.set(key, list);
+  }
+
+  /** Veri hattı için: haritanın tüm hesaplanmış durumu (`new SettlementMap(baked)` ile geri kurulur). */
+  toBaked(): BakedSettlementMap {
+    return {
+      version: BAKED_MAP_VERSION,
+      settlements: this.settlements.map((s) => {
+        const { cells: _cells, ...data } = s.data;
+        void _cells;
+        return { data, buildings: s.buildings, radius: s.radius };
+      }),
+      networkRoads: this.networkRoads,
+      joinLines: this.joinLines,
+      streetLines: this.streetLines,
+      plan: this.plan,
+      stairs: this.stairs,
+      footprints: this.footprints.dump(),
+    };
   }
 
   private key(cx: number, cz: number): string {
