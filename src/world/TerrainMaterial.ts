@@ -283,6 +283,8 @@ export interface TerrainOverlay {
   height: number;
   cell: number;
   origin: { x: number; z: number };
+  /** Kodlama ölçeği (bayt/m); verilmezse `TERRAIN_OVERLAY.scale` (genel bakış kaplaması daha kaba kodlar). */
+  scale?: number;
 }
 
 /** Materyalin çalışma zamanında değişen uniform'ları (zaman, il sınırı görünürlüğü). */
@@ -317,6 +319,8 @@ function weightTexture(data: Uint8Array, width: number, height: number): DataTex
 export function createTerrainMaterial(
   cover: TerrainCover | null = null,
   overlay: TerrainOverlay | null = null,
+  /** Verilirse bu uniform nesneleri paylaşılır (karo başına materyaller aynı zaman/sınır değerini görür). */
+  sharedUniforms: TerrainUniforms | null = null,
 ): MeshStandardMaterial {
   const material = new MeshStandardMaterial({ side: DoubleSide, roughness: 1, metalness: 0 });
   const look = TERRAIN_LOOK;
@@ -347,7 +351,7 @@ export function createTerrainMaterial(
   const overlayGrid = overlay
     ? [-overlay.origin.x / overlay.cell, -overlay.origin.z / overlay.cell, overlay.cell, 0]
     : [0, 0, 1, 0];
-  const live: TerrainUniforms = {
+  const live: TerrainUniforms = sharedUniforms ?? {
     uTime: { value: 0 },
     uBorderOn: { value: BORDERS.visibleByDefault ? 1 : 0 },
   };
@@ -395,7 +399,7 @@ export function createTerrainMaterial(
       uOverlay: { value: overlayTexture },
       uOverlayGrid: { value: overlayGrid },
       uOverlaySize: { value: [overlay?.width ?? 1, overlay?.height ?? 1] },
-      uOverlayScale: { value: o.scale },
+      uOverlayScale: { value: overlay?.scale ?? o.scale },
       uRoads: { value: roadTexture },
       uMainHalf: { value: (ROADS.width[0] as number) / 2 },
       uCenterLine: { value: toVec3(o.centerLine) },

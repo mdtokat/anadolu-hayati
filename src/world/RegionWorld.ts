@@ -11,6 +11,7 @@ import {
   REGION_PLAYER,
   REGION_SCENE,
   PROVINCE_PLACES,
+  BORDERS,
   PILOT,
   STREAMING,
   VERTICAL_SCALE,
@@ -27,6 +28,12 @@ import type { PerfProbe } from '../core/perfStats';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { prepareDenseWorld } from './worldPrep';
+import { isStreamedWorld, type StreamedWorldData } from '../data/worldStreamLoader';
+import type { TileBlob } from '../data/worldStream';
+import { TileStreamer } from './TileStreamer';
+import { TerrainTiles } from './terrainTiles';
+import { restoreHoles, type TerrainHoles } from './roadTunnels';
+import { chunkCol0, chunkGridFor, chunkRow0 } from './chunks';
 import { Environment } from './Environment';
 import { respawnRandom, pickRespawnPoint } from '../survival/respawn';
 import {
@@ -70,7 +77,8 @@ export class RegionWorld implements GameWorld {
   readonly scene = new Scene();
   readonly source: RegionHeightSource;
   readonly terrain: RegionHeightSource;
-  readonly spawn: Vec3;
+  /** Başlangıç noktası (akış kipinde genel bakıştan bulunur; `preload` sonrası `settlePoint` ile rafine edilebilir). */
+  spawn: Vec3;
   private placeCentersCache: readonly PlaceCenter[] | null = null;
   /** Faz 11 (E): ek nesne engelleyiciler (eşkıya kampları); nesne chunk'ı kurulurken sorulur. */
   private readonly propBlockers: Array<(x: number, z: number, radius: number) => boolean> = [];
@@ -81,6 +89,9 @@ export class RegionWorld implements GameWorld {
 
   private readonly environment: Environment;
   private readonly material: MeshStandardMaterial;
+  /** Karo akışı (Faz 12): akışlı dünyada karo yaşam döngüsü ve karo başına kaplama; yoğun kipte null. */
+  private readonly streamer: TileStreamer<TileBlob> | null = null;
+  private readonly tiles: TerrainTiles | null = null;
   private readonly chunks: ChunkManager;
   private readonly colliders: ChunkColliders;
   private readonly walls: RAPIER.Collider[];
@@ -121,39 +132,69 @@ export class RegionWorld implements GameWorld {
   readonly peopleWorld: PeopleWorld | null;
 
   constructor(
-    readonly region: RegionData,
+    readonly region: RegionData | StreamedWorldData,
     private readonly physics: PhysicsWorld,
   ) {
+    const streamed = isStreamedWorld(region) ? region : null;
     this.freshWater = region.features
       ? new FreshWaterIndex(region.features.water, FRESH_WATER.indexCellSize)
       : null;
 
-    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; veri hattının bake adımıyla aynı işlev).
-    // Arazi kaplamasından önce: yollar (sudan ayrılmış hâlleriyle) araziye boyanır.
-    const prepared = prepareDenseWorld(region, this.freshWater);
-    this.source = prepared.source;
+    // Yerleşimler, yollar (Faz 10): düzen açılışta bir kez hesaplanır (saf; veri hattının bake adımıyla aynı işlev) ya
+    // da (akış kipi) veri hattında hesaplanmış hâliyle kurulur. Arazi kaplamasından önce: yollar araziye boyanır.
+    let holes: TerrainHoles | null;
+    if (streamed) {
+      this.source = RegionHeightSource.streamed(streamed.meta, streamed.overview.heights);
+      this.settlementMap = streamed.settlements
+        ? new SettlementMap(streamed.settlements.map)
+        : null;
+      holes = streamed.settlements
+        ? restoreHoles(streamed.meta.gridWidth, streamed.settlements.holes)
+        : null;
+    } else {
+      const prepared = prepareDenseWorld(region as RegionData, this.freshWater);
+      this.source = prepared.source;
+      this.settlementMap = prepared.settlementMap;
+      holes = prepared.holes;
+    }
     this.terrain = this.source;
-    this.settlementMap = prepared.settlementMap;
     const settlements = this.settlementMap;
 
     // Arazi: örtü renkleri + kaplama (yollar, akarsular, kıyı bantları, il sınırları shader'da boyanır).
-    const grid = {
-      width: this.source.width,
-      height: this.source.height,
-      cell: this.source.cell,
-      origin: this.source.origin,
-    };
-    const overlay = buildTerrainOverlay(grid, {
-      roads: settlements?.paintLines ?? [],
-      water: region.features?.water ?? null,
-      borders: landBorderSegments(region.provinces),
-    });
-    // Anayol (orta şeritli) ve kent sokağı (parke) ayrı dokuda: dört yol tipi ayrı boyanır.
-    const roadOverlay = settlements ? buildRoadOverlay(grid, settlements.paintLines) : null;
-    this.material = createTerrainMaterial(
-      region.landcover && { classes: region.landcover, ...grid },
-      { data: overlay.data, ...(roadOverlay ? { roads: roadOverlay.data } : {}), ...grid },
-    );
+    const borders = landBorderSegments(region.provinces);
+    if (streamed) {
+      // Akış: LOD3 ve yüklü olmayan karolar tek genel bakış materyalini, yüklü karolar kendi dokularını kullanır.
+      const live = {
+        uTime: { value: 0 },
+        uBorderOn: { value: BORDERS.visibleByDefault ? 1 : 0 },
+      };
+      this.tiles = new TerrainTiles(
+        streamed.meta,
+        { roads: settlements?.paintLines ?? [], water: region.features?.water ?? null, borders },
+        streamed.overview.cover,
+        live,
+      );
+      this.material = this.tiles.overviewMaterial;
+    } else {
+      const dense = region as RegionData;
+      const grid = {
+        width: this.source.width,
+        height: this.source.height,
+        cell: this.source.cell,
+        origin: this.source.origin,
+      };
+      const overlay = buildTerrainOverlay(grid, {
+        roads: settlements?.paintLines ?? [],
+        water: region.features?.water ?? null,
+        borders,
+      });
+      // Anayol (orta şeritli) ve kent sokağı (parke) ayrı dokuda: dört yol tipi ayrı boyanır.
+      const roadOverlay = settlements ? buildRoadOverlay(grid, settlements.paintLines) : null;
+      this.material = createTerrainMaterial(
+        dense.landcover && { classes: dense.landcover, ...grid },
+        { data: overlay.data, ...(roadOverlay ? { roads: roadOverlay.data } : {}), ...grid },
+      );
+    }
     this.terrainUniforms = terrainUniforms(this.material);
     this.environment = new Environment(this.scene, {
       near: REGION_SCENE.fogNear,
@@ -161,8 +202,24 @@ export class RegionWorld implements GameWorld {
     });
 
     // Tünel ağızlarında arazi delinir (mesh + çarpışma); tünelin kendisi yol yapılarıyla çizilir.
-    const holes = prepared.holes;
-    this.chunks = new ChunkManager(this.source, this.material, { holes });
+    const chunkGrid = chunkGridFor(this.source);
+    const coarsest = CHUNK.lodStrides.length - 1;
+    this.chunks = new ChunkManager(this.source, this.material, {
+      holes,
+      ...(streamed
+        ? {
+            resident: (cx: number, cy: number) => this.chunkReady(chunkGrid, cx, cy),
+            materialFor: (cx: number, cy: number, lod: number) => {
+              if (lod >= coarsest) return this.material;
+              const { tx, ty } = this.source.tileOfSample(
+                chunkCol0(chunkGrid, cx),
+                chunkRow0(chunkGrid, cy),
+              );
+              return this.tiles?.materialOf(tx, ty) ?? this.material;
+            },
+          }
+        : {}),
+    });
     this.scene.add(this.chunks.group);
     this.colliders = new ChunkColliders(physics, this.source, undefined, holes);
     this.walls = createBoundsWalls(physics, this.source.bounds);
@@ -171,7 +228,11 @@ export class RegionWorld implements GameWorld {
 
     // Göl/gölet/baraj yüzeyleri (akarsular araziye boyanır).
     this.freshWaterMesh = region.features
-      ? new FreshWaterMesh(region.features.water, (x, z) => this.source.heightAt(x, z))
+      ? new FreshWaterMesh(
+          region.features.water,
+          (x, z) => this.source.heightAt(x, z),
+          streamed?.overview.lakeLevels,
+        )
       : null;
     if (this.freshWaterMesh) this.scene.add(this.freshWaterMesh.object);
 
@@ -207,7 +268,9 @@ export class RegionWorld implements GameWorld {
 
     // Nesneler (ağaç, kaya, çalı, yenebilir bitki): arazi örtüsü verisi yoksa yerleşim de yoktur.
     // Yapıların ve yolların üstündeki nesneler gizlenir (kimlikler değişmez).
-    const cover = LandCoverMap.fromRegion(region);
+    const cover = streamed
+      ? LandCoverMap.streamed(streamed.meta, streamed.overview.cover)
+      : LandCoverMap.fromRegion(region as RegionData);
     this.cover = cover;
     this.props = cover
       ? new PropLayer(
@@ -219,6 +282,7 @@ export class RegionWorld implements GameWorld {
           (x, z, r) =>
             (settlements?.blocksProp(x, z, r) ?? false) ||
             this.propBlockers.some((blocks) => blocks(x, z, r)),
+          streamed ? (cx, cy) => this.chunkReady(chunkGrid, cx, cy) : null,
         )
       : null;
     if (this.props) this.scene.add(this.props.group);
@@ -236,9 +300,114 @@ export class RegionWorld implements GameWorld {
     if (!start) throw new Error('Başlangıç için yürünebilir nokta bulunamadı');
     this.spawn = start;
 
+    // Karo akışı: karolar, odağa yaklaştıkça `update`te yüklenir (`preload` ilk karoları bekler).
+    if (streamed) {
+      const cell = this.source.cell;
+      const origin = this.source.origin;
+      const tiles = streamed.manifest.tiles.flatMap(({ tx, ty }) => {
+        const core = this.source.tileCore(tx, ty);
+        if (!core) return [];
+        return [
+          {
+            tx,
+            ty,
+            rect: {
+              minX: origin.x + core.col0 * cell,
+              maxX: origin.x + (core.col0 + core.cols - 1) * cell,
+              minZ: origin.z + core.row0 * cell,
+              maxZ: origin.z + (core.row0 + core.rows - 1) * cell,
+            },
+          },
+        ];
+      });
+      this.streamer = new TileStreamer<TileBlob>({
+        tiles,
+        steps: 3,
+        fetch: (tx, ty) => streamed.fetchTile(tx, ty),
+        activate: (tx, ty, blob, step) => this.activateTile(tx, ty, blob, step),
+        release: (tx, ty) => this.releaseTile(tx, ty),
+        onError: (tx, ty, error) => console.error(`Karo (${tx}, ${ty}) yüklenemedi`, error),
+      });
+      // İlk kare boş kalmasın: tüm arazi genel bakıştan kurulur (karolar sonradan inceleşir).
+      this.chunks.update(start.x, start.z, Infinity);
+      return;
+    }
+
     // İlk kare boş kalmasın: başlangıç çevresini önceden kur.
     this.prepare(start.x, start.z);
     this.chunks.update(start.x, start.z, Infinity);
+  }
+
+  // --- Karo akışı (Faz 12) ---------------------------------------------------------------------------------
+
+  /** Chunk'ın karosu tam çözünürlükte hazır mı (akışsız dünyada her zaman)? */
+  private chunkReady(grid: ReturnType<typeof chunkGridFor>, cx: number, cy: number): boolean {
+    if (!this.streamer) return true;
+    const { tx, ty } = this.source.tileOfSample(chunkCol0(grid, cx), chunkRow0(grid, cy));
+    return this.streamer.isTileReady(tx, ty);
+  }
+
+  /** Karo etkinleştirme aşamaları: 0 yükseklik/örtü, 1 kaplama rasteri, 2 materyal. */
+  private activateTile(tx: number, ty: number, blob: TileBlob, step: number): void {
+    if (step === 0) {
+      this.source.loadTile(tx, ty, { ...blob.window, raw: blob.raw });
+      this.source.patchTile(tx, ty, blob.patchIndices, blob.patchValues);
+      (this.cover as LandCoverMap).setTile(tx, ty, blob.window, blob.cover);
+    } else if (step === 1) {
+      this.tiles?.rasterize(blob);
+    } else {
+      this.tiles?.createMaterial(blob);
+      this.props?.invalidate();
+    }
+  }
+
+  private releaseTile(tx: number, ty: number): void {
+    this.tiles?.release(tx, ty);
+    this.cover?.removeTile(tx, ty);
+    this.source.unloadTile(tx, ty);
+    this.props?.invalidate();
+  }
+
+  /** (x, z) çevresindeki zemin tam çözünürlükte yüklü mü? Akışsız dünyada her zaman true. */
+  isReadyAt(x: number, z: number): boolean {
+    return this.streamer?.isReady(x, z, STREAMING.tiles.readyRadius) ?? true;
+  }
+
+  /**
+   * (x, z) çevresindeki karoları indirir ve etkinleştirir, sonra çevresine collider ve nesneleri kurar (ışınlanma,
+   * doğma, kayıt yükleme, ilk açılış). Akışsız dünyada hemen biter.
+   */
+  async preload(x: number, z: number, timeoutMs = 90_000): Promise<void> {
+    const streamer = this.streamer;
+    if (!streamer) {
+      this.prepare(x, z);
+      return;
+    }
+    const started = performance.now();
+    while (!streamer.isReady(x, z, STREAMING.tiles.readyRadius)) {
+      streamer.update([{ x, z }], null);
+      if (streamer.isReady(x, z, STREAMING.tiles.readyRadius)) break;
+      if (performance.now() - started > timeoutMs)
+        throw new Error('Karo yüklemesi zaman aşımına uğradı');
+      await new Promise((resolve) => setTimeout(resolve, 16));
+    }
+    this.prepare(x, z);
+    this.chunks.update(x, z, Infinity);
+  }
+
+  /** Yaklaşık noktayı (genel bakışa göre bulunmuş) gerçek zemine göre yeniden oturtur. */
+  settlePoint(point: Vec3): Vec3 {
+    return this.safePointAt(point.x, point.z) ?? point;
+  }
+
+  /** Karo akışı sayıları (performans göstergesi, testler). */
+  get tileStats(): { streaming: boolean; ready: number; resident: number; materials: number } {
+    return {
+      streaming: this.streamer !== null,
+      ready: this.streamer?.readyCount ?? 0,
+      resident: this.streamer?.residentCount ?? 0,
+      materials: this.tiles?.materialCount ?? 0,
+    };
   }
 
   /** Enlem/boylam için en yakın yürünebilir nokta (ayak tabanı, oyun koordinatı). */
@@ -298,6 +467,8 @@ export class RegionWorld implements GameWorld {
     const budget = this.budget;
     const p = this.probe;
     budget.begin(this.frameBudgetMs);
+    p?.section('karo akışı');
+    this.streamer?.update([{ x: focusX, z: focusZ }, visual], budget);
     p?.section('arazi collider');
     this.colliders.update(focusX, focusZ, budget);
     p?.section('yapı collider');
@@ -484,6 +655,8 @@ export class RegionWorld implements GameWorld {
   }
 
   dispose(): void {
+    this.streamer?.dispose();
+    this.tiles?.dispose();
     this.propColliders?.dispose();
     this.structureColliders?.dispose();
     this.structureLayer?.dispose();

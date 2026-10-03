@@ -1,4 +1,5 @@
 import { HORIZONTAL_SCALE, SEABED, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
+import { latticeCol, latticeRow, LATTICE_CELL } from './lattice';
 import { seabedDepth, seaDistanceToLand } from './seabed';
 import { smoothLand } from './terrainSmoothing';
 
@@ -100,4 +101,68 @@ export function cutWindow<T extends Uint8Array | Uint16Array>(
     raw.set(data.subarray(from, from + cols), r * cols);
   }
   return { col0, row0, cols, rows, raw };
+}
+
+/**
+ * Sayfa ızgarası: dünya dizisinin (c, r) örneği `((c + padCol) >> 9, (r + padRow) >> 9)` sayfasındadır. Dizi kafese
+ * hizalıysa sayfa = dünya karosu (`tileX0/tileY0` ilk sayfanın karo indeksi); değilse (sentetik ızgara) yereldir.
+ */
+export interface PageGrid {
+  tileX0: number;
+  tileY0: number;
+  padCol: number;
+  padRow: number;
+  pagesX: number;
+  pagesY: number;
+}
+
+export function pageGridOf(meta: {
+  gridWidth: number;
+  gridHeight: number;
+  cellSizeReal: number;
+  gridOrigin: { x: number; z: number };
+}): PageGrid {
+  const cell = meta.cellSizeReal / HORIZONTAL_SCALE;
+  const col0 = latticeCol(meta.gridOrigin.x);
+  const row0 = latticeRow(meta.gridOrigin.z);
+  const aligned =
+    Math.abs(cell - LATTICE_CELL) < 1e-9 &&
+    Math.abs(col0 - Math.round(col0)) < 1e-9 &&
+    Math.abs(row0 - Math.round(row0)) < 1e-9;
+  const tileX0 = aligned ? Math.floor(Math.round(col0) / PAGE_SIZE) : 0;
+  const tileY0 = aligned ? Math.floor(Math.round(row0) / PAGE_SIZE) : 0;
+  const padCol = aligned ? Math.round(col0) - tileX0 * PAGE_SIZE : 0;
+  const padRow = aligned ? Math.round(row0) - tileY0 * PAGE_SIZE : 0;
+  return {
+    tileX0,
+    tileY0,
+    padCol,
+    padRow,
+    pagesX: ((meta.gridWidth - 1 + padCol) >> PAGE_SHIFT) + 1,
+    pagesY: ((meta.gridHeight - 1 + padRow) >> PAGE_SHIFT) + 1,
+  };
+}
+
+/** Sayfanın dünya dizisi içindeki çekirdek dikdörtgeni (dizi indeksi); dünyayla kesişmiyorsa null. */
+export function pageCore(
+  grid: PageGrid,
+  width: number,
+  height: number,
+  tx: number,
+  ty: number,
+): { col0: number; row0: number; cols: number; rows: number } | null {
+  const px = tx - grid.tileX0;
+  const py = ty - grid.tileY0;
+  if (px < 0 || py < 0 || px >= grid.pagesX || py >= grid.pagesY) return null;
+  const c0 = Math.max(0, grid.padCol - px * PAGE_SIZE);
+  const c1 = Math.min(PAGE_SIZE, width + grid.padCol - px * PAGE_SIZE);
+  const r0 = Math.max(0, grid.padRow - py * PAGE_SIZE);
+  const r1 = Math.min(PAGE_SIZE, height + grid.padRow - py * PAGE_SIZE);
+  if (c1 <= c0 || r1 <= r0) return null;
+  return {
+    col0: px * PAGE_SIZE + c0 - grid.padCol,
+    row0: py * PAGE_SIZE + r0 - grid.padRow,
+    cols: c1 - c0,
+    rows: r1 - r0,
+  };
 }

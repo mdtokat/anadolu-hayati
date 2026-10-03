@@ -54,6 +54,8 @@ export interface OverviewBlob {
   rows: number;
   heights: Float32Array;
   cover: Uint8Array;
+  /** Göl/gölet çokgenlerinin yüzey yüksekliği (çokgen sırasıyla; `FreshWaterMesh` akış kipinde bunu okur). */
+  lakeLevels: Float32Array;
 }
 
 /** Yerleşim dosyasının içeriği. */

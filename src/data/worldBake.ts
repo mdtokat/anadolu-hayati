@@ -3,6 +3,7 @@ import { dumpHoles } from '../world/roadTunnels';
 import { cutWindow, OVERVIEW_STRIDE, TILE_HALO, overviewSize } from '../world/terrainPages';
 import { prepareDenseWorld } from '../world/worldPrep';
 import { FreshWaterIndex } from '../world/waterIndex';
+import { lakeLevels } from '../world/waterGeometry';
 import { packBlob } from './bakedBlob';
 import type { RegionData } from './region';
 import {
@@ -84,7 +85,16 @@ export async function bakeWorld(
       }
     }
   }
-  const overviewBlob: OverviewBlob = { cols, rows, heights: source.buildOverview(), cover };
+  const lakes = region.features
+    ? lakeLevels(region.features.water.polygons, (x, z) => source.heightAt(x, z))
+    : new Float32Array(0);
+  const overviewBlob: OverviewBlob = {
+    cols,
+    rows,
+    heights: source.buildOverview(),
+    cover,
+    lakeLevels: lakes,
+  };
   const overview = await add('stream/overview.bin', overviewBlob);
 
   let settlements: StreamManifest['settlements'] = null;

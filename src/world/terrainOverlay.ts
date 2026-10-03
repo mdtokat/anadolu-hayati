@@ -34,28 +34,38 @@ export interface OverlayGrid {
   origin: { x: number; z: number };
 }
 
-/** Kenar uzaklığı (oyun m) → bayt. */
-export function encodeOverlay(distance: number): number {
-  const v = Math.round(128 + distance * TERRAIN_OVERLAY.scale);
+/** Kenar uzaklığı (oyun m) → bayt. `scale`: bayt/m (varsayılan `TERRAIN_OVERLAY.scale`). */
+export function encodeOverlay(distance: number, scale: number = TERRAIN_OVERLAY.scale): number {
+  const v = Math.round(128 + distance * scale);
   return v < 0 ? 0 : v > 255 ? 255 : v;
 }
 
 /** Bayt → kenar uzaklığı (oyun m); 255 "uzak" demektir. */
-export function decodeOverlay(value: number): number {
-  return (value - 128) / TERRAIN_OVERLAY.scale;
+export function decodeOverlay(value: number, scale: number = TERRAIN_OVERLAY.scale): number {
+  return (value - 128) / scale;
 }
 
-/**
- * Rasterlemenin özellik kenarından dışarı taştığı uzaklık (oyun m): kodlanabilen aralık ile `rasterReach`'in küçüğü.
- * Ötesi "uzak" (255) kalır; shader'ın baktığı en geniş bant (kıyı) + bir hücre köşegeni yeterlidir.
- */
-const REACH = Math.min(127 / TERRAIN_OVERLAY.scale, TERRAIN_OVERLAY.rasterReach);
+/** Rasterleme seçenekleri: genel bakış (16 m hücre) kaplaması daha kaba kodlama ve geniş erişim kullanır. */
+export interface RasterOptions {
+  /** Bayt/m (kodlama ölçeği). */
+  scale?: number;
+  /** Özellik kenarından en çok bu kadar (oyun m) dışarı taşar. */
+  reach?: number;
+}
 
 export class OverlayRaster {
   /** RGBA, satır satır (satır 0 kuzeyde: en küçük z). */
   readonly data: Uint8Array;
+  /** Bu rasterin kodlama ölçeği (shader `uOverlayScale` ile aynı olmalı). */
+  readonly scale: number;
+  private readonly reach: number;
 
-  constructor(readonly grid: OverlayGrid) {
+  constructor(
+    readonly grid: OverlayGrid,
+    options: RasterOptions = {},
+  ) {
+    this.scale = options.scale ?? TERRAIN_OVERLAY.scale;
+    this.reach = Math.min(127 / this.scale, options.reach ?? TERRAIN_OVERLAY.rasterReach);
     this.data = new Uint8Array(grid.width * grid.height * 4).fill(255);
   }
 
@@ -69,7 +79,7 @@ export class OverlayRaster {
     half: number,
   ): void {
     const { width, height, cell, origin } = this.grid;
-    const pad = half + REACH;
+    const pad = half + this.reach;
     const pad2 = pad * pad;
     const c0 = Math.max(0, Math.ceil((Math.min(ax, bx) - pad - origin.x) / cell));
     const c1 = Math.min(width - 1, Math.floor((Math.max(ax, bx) + pad - origin.x) / cell));
@@ -91,7 +101,7 @@ export class OverlayRaster {
         if (d2 >= pad2) continue;
         const d = Math.sqrt(d2) - half;
         const i = (r * width + c) * 4 + channel;
-        const v = encodeOverlay(d);
+        const v = encodeOverlay(d, this.scale);
         if (v < (data[i] as number)) data[i] = v;
       }
     }
@@ -111,7 +121,7 @@ export class OverlayRaster {
     period: number,
   ): void {
     const { width, height, cell, origin } = this.grid;
-    const pad = half + REACH;
+    const pad = half + this.reach;
     const pad2 = pad * pad;
     const c0 = Math.max(0, Math.ceil((Math.min(ax, bx) - pad - origin.x) / cell));
     const c1 = Math.min(width - 1, Math.floor((Math.max(ax, bx) + pad - origin.x) / cell));
@@ -133,7 +143,7 @@ export class OverlayRaster {
         const d2 = px * px + pz * pz;
         if (d2 >= pad2) continue;
         const i = (r * width + c) * 4;
-        const v = encodeOverlay(Math.sqrt(d2) - half);
+        const v = encodeOverlay(Math.sqrt(d2) - half, this.scale);
         if (v >= (data[i + ROAD_CHANNEL.main] as number)) continue;
         data[i + ROAD_CHANNEL.main] = v;
         const phase = ((s0 + t * len) / period) * Math.PI * 2;
@@ -175,13 +185,13 @@ export class OverlayRaster {
     const fr = (z - origin.z) / cell;
     const c = Math.floor(fc);
     const r = Math.floor(fr);
-    if (c < 0 || r < 0 || c + 1 >= width || r + 1 >= height) return decodeOverlay(255);
+    if (c < 0 || r < 0 || c + 1 >= width || r + 1 >= height) return decodeOverlay(255, this.scale);
     const tx = fc - c;
     const tz = fr - r;
     const at = (cc: number, rr: number) => this.data[(rr * width + cc) * 4 + channel] as number;
     const top = at(c, r) * (1 - tx) + at(c + 1, r) * tx;
     const bottom = at(c, r + 1) * (1 - tx) + at(c + 1, r + 1) * tx;
-    return decodeOverlay(top * (1 - tz) + bottom * tz);
+    return decodeOverlay(top * (1 - tz) + bottom * tz, this.scale);
   }
 }
 
@@ -242,8 +252,12 @@ export interface OverlaySources {
  * Tüm katmanları rasterler (ana doku): köy yolu, dağ patikası, akarsular, il sınırı. Anayol ve kent sokağı ikinci
  * dokudadır (`buildRoadOverlay`).
  */
-export function buildTerrainOverlay(grid: OverlayGrid, sources: OverlaySources): OverlayRaster {
-  const raster = new OverlayRaster(grid);
+export function buildTerrainOverlay(
+  grid: OverlayGrid,
+  sources: OverlaySources,
+  options: RasterOptions = {},
+): OverlayRaster {
+  const raster = new OverlayRaster(grid, options);
   for (const road of sources.roads ?? []) {
     if (road.cls === 1) raster.polyline(OVERLAY_CHANNEL.paved, road.xz, roadHalfWidth(road));
     else if (road.cls === 2) raster.polyline(OVERLAY_CHANNEL.dirt, road.xz, roadHalfWidth(road));
@@ -275,8 +289,12 @@ export function buildTerrainOverlay(grid: OverlayGrid, sources: OverlaySources):
 /**
  * Yol dokusu: anayollar (R + kesik orta şerit evresi B/A) ve kent sokakları (G). Boş hücre 255 (uzak), evre 128 (sıfır).
  */
-export function buildRoadOverlay(grid: OverlayGrid, roads: readonly RoadData[]): OverlayRaster {
-  const raster = new OverlayRaster(grid);
+export function buildRoadOverlay(
+  grid: OverlayGrid,
+  roads: readonly RoadData[],
+  options: RasterOptions = {},
+): OverlayRaster {
+  const raster = new OverlayRaster(grid, options);
   const data = raster.data;
   for (let i = 0; i < data.length; i += 4) {
     data[i + ROAD_CHANNEL.cos] = 128;

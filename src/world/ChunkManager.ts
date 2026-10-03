@@ -13,6 +13,16 @@ export interface ChunkManagerOptions {
   maxBuildsPerFrame?: number;
   /** Tünel ağzı delikleri (yakın LOD'larda mesh'ten çıkarılır). */
   holes?: TerrainHoles | null;
+  /**
+   * Akış kipi (Faz 12): chunk'ın karosu tam çözünürlükte hazır mı? Hazır değilse chunk en kaba LOD'dan (genel bakışla
+   * bire bir aynı örnekler) çizilir; karo gelince kendiliğinden ince LOD'a döner. Yoksa hep hazırdır.
+   */
+  resident?: (cx: number, cy: number) => boolean;
+  /**
+   * Chunk'ın materyali (karo başına kaplama dokuları): LOD'a göre seçilir (kaba LOD genel bakış materyalini kullanır).
+   * Yoksa kurucudaki tek materyal.
+   */
+  materialFor?: (cx: number, cy: number, lod: number) => Material;
 }
 
 export interface ChunkUpdateStats {
@@ -44,7 +54,11 @@ export class ChunkManager {
   private readonly chunks = new Map<number, ChunkEntry>();
   private readonly viewDistance: number;
   private readonly maxBuilds: number;
+  /** En kaba LOD'un indeksi. */
+  private readonly coarsest = CHUNK.lodStrides.length - 1;
   private readonly holes: TerrainHoles | null;
+  private readonly resident: ((cx: number, cy: number) => boolean) | null;
+  private readonly materialFor: ((cx: number, cy: number, lod: number) => Material) | null;
   /** LOD geçiş uzaklıkları (oyun m); `setLodScale` ile `CHUNK.lodDistances` çarpanıyla yeniden hesaplanır. */
   private lodThresholds: readonly number[] = CHUNK.lodDistances;
 
@@ -57,6 +71,8 @@ export class ChunkManager {
     this.viewDistance = options.viewDistance ?? CHUNK.viewDistance;
     this.maxBuilds = options.maxBuildsPerFrame ?? CHUNK.maxBuildsPerFrame;
     this.holes = options.holes ?? null;
+    this.resident = options.resident ?? null;
+    this.materialFor = options.materialFor ?? null;
     this.group.name = 'terrain-chunks';
   }
 
@@ -106,8 +122,15 @@ export class ChunkManager {
           continue;
         }
 
-        const lod = lodForDistance(distance, entry?.lod ?? null, this.lodThresholds);
-        if (!entry || entry.lod !== lod) work.push({ cx, cy, lod, distance });
+        let lod = lodForDistance(distance, entry?.lod ?? null, this.lodThresholds);
+        // Karo hazır değilse en kaba LOD: genel bakış örnekleriyle bire bir aynı (çatlak yok), karo gelince döner.
+        if (lod < this.coarsest && this.resident !== null && !this.resident(cx, cy)) {
+          lod = this.coarsest;
+        }
+        const material = this.materialFor ? this.materialFor(cx, cy, lod) : this.material;
+        if (!entry || entry.lod !== lod || entry.mesh.material !== material) {
+          work.push({ cx, cy, lod, distance });
+        }
       }
     }
 
@@ -140,15 +163,17 @@ export class ChunkManager {
     geometry.computeBoundingSphere(); // frustum culling için
     geometry.computeBoundingBox();
 
+    const material = this.materialFor ? this.materialFor(cx, cy, lod) : this.material;
     const existing = this.chunks.get(key);
     if (existing) {
       existing.mesh.geometry.dispose();
       existing.mesh.geometry = geometry;
+      existing.mesh.material = material;
       existing.lod = lod;
       return;
     }
 
-    const mesh = new Mesh(geometry, this.material);
+    const mesh = new Mesh(geometry, material);
     mesh.name = `chunk-${cx}-${cy}`;
     this.group.add(mesh);
     this.chunks.set(key, { cx, cy, lod, mesh });

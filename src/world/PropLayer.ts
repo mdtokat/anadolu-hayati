@@ -116,6 +116,11 @@ export class PropLayer {
      * elenmez. Yarıçap görsel genişliktir (ağaçta taç): saçaklar ve taçlar birbirine girmesin.
      */
     private readonly isBlocked: ((x: number, z: number, radius: number) => boolean) | null = null,
+    /**
+     * Akış kipi (Faz 12): chunk'ın karosu hazır mı? Hazır olmayan chunk'ın nesneleri hesaplanmaz (yükseklik/eğim gerçek
+     * zemin değildir; yanlış sonuç önbelleğe girmesin). Yoksa hep hazırdır.
+     */
+    private readonly ready: ((cx: number, cy: number) => boolean) | null = null,
   ) {
     this.grid = chunkGridFor(source);
     // Dağılım ham araziye göre elenir (yumuşatma ve yol düzeltmesi nesne kimliklerini kaydırmasın); duruş yüksekliği
@@ -198,6 +203,12 @@ export class PropLayer {
       this.fill(focusX, focusZ);
       this.dirty = false;
     }
+  }
+
+  /** Karo durumu değişti (hazır oldu): etkin chunk kümesi bir sonraki `update`te yenilenir. */
+  invalidate(): void {
+    this.lastX = Number.NaN;
+    this.dirty = true;
   }
 
   /** Çizim yarıçapını değiştirir (grafik kalitesi); etkin chunk kümesi bir sonraki `update`te yenilenir. */
@@ -315,6 +326,7 @@ export class PropLayer {
   /** Çizim yarıçapı içindeki chunk'lar, yakından uzağa. */
   private selectActive(x: number, z: number): void {
     this.active = chunksWithin(this.grid, x, z, this.drawRadius)
+      .filter(({ cx, cy }) => this.ready === null || this.ready(cx, cy))
       .map(({ cx, cy }) => ({
         cx,
         cy,
@@ -387,7 +399,8 @@ export class PropLayer {
   /** Odağa `criticalRadius` içinde hesaplanmamış chunk var mı? */
   private missingNear(x: number, z: number): boolean {
     return chunksWithin(this.grid, x, z, SCATTER.criticalRadius).some(
-      ({ cx, cy }) => !this.cache.has(chunkKey(cx, cy)),
+      ({ cx, cy }) =>
+        !this.cache.has(chunkKey(cx, cy)) && (this.ready === null || this.ready(cx, cy)),
     );
   }
 

@@ -1,7 +1,6 @@
 import { HORIZONTAL_SCALE, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
 import type { RegionData, RegionMeta } from '../data/region';
 import type { HeightSource } from './HeightSource';
-import { latticeCol, latticeRow, LATTICE_CELL } from './lattice';
 import { seaDistanceToLand } from './seabed';
 import {
   OVERVIEW_STRIDE,
@@ -10,6 +9,7 @@ import {
   PAGE_SIZE,
   createPage,
   overviewSize,
+  pageGridOf,
   terrainFromRaw,
   type TerrainPage,
 } from './terrainPages';
@@ -102,19 +102,13 @@ export class RegionHeightSource implements HeightSource {
     };
     this.smooth = options.smooth === true && TERRAIN_SMOOTHING.sigmaCells > 0;
 
-    // Sayfa ızgarası kafese hizalıysa sayfa = dünya karosu (aksi: sentetik ızgara, yerel).
-    const col0 = latticeCol(this.origin.x);
-    const row0 = latticeRow(this.origin.z);
-    const aligned =
-      Math.abs(this.cell - LATTICE_CELL) < 1e-9 &&
-      Math.abs(col0 - Math.round(col0)) < 1e-9 &&
-      Math.abs(row0 - Math.round(row0)) < 1e-9;
-    this.tileX0 = aligned ? Math.floor(Math.round(col0) / PAGE_SIZE) : 0;
-    this.tileY0 = aligned ? Math.floor(Math.round(row0) / PAGE_SIZE) : 0;
-    this.padCol = aligned ? Math.round(col0) - this.tileX0 * PAGE_SIZE : 0;
-    this.padRow = aligned ? Math.round(row0) - this.tileY0 * PAGE_SIZE : 0;
-    this.pagesX = ((this.width - 1 + this.padCol) >> PAGE_SHIFT) + 1;
-    this.pagesY = ((this.height - 1 + this.padRow) >> PAGE_SHIFT) + 1;
+    const grid = pageGridOf(meta);
+    this.tileX0 = grid.tileX0;
+    this.tileY0 = grid.tileY0;
+    this.padCol = grid.padCol;
+    this.padRow = grid.padRow;
+    this.pagesX = grid.pagesX;
+    this.pagesY = grid.pagesY;
     this.pages = new Array<TerrainPage | undefined>(this.pagesX * this.pagesY).fill(undefined);
     this.overviewCols = overviewSize(this.width);
     this.overviewRows = overviewSize(this.height);
@@ -211,6 +205,31 @@ export class RegionHeightSource implements HeightSource {
     const py = ty - this.tileY0;
     if (px < 0 || py < 0 || px >= this.pagesX || py >= this.pagesY) return false;
     return this.pages[py * this.pagesX + px] !== undefined;
+  }
+
+  /** Dizi örneği (col, row) tam çözünürlüklü bir sayfada mı (dünya dışı sıkıştırılır)? */
+  hasPageAt(col: number, row: number): boolean {
+    const c = (col < 0 ? 0 : col >= this.width ? this.width - 1 : col) + this.padCol;
+    const r = (row < 0 ? 0 : row >= this.height ? this.height - 1 : row) + this.padRow;
+    return this.pages[(r >> PAGE_SHIFT) * this.pagesX + (c >> PAGE_SHIFT)] !== undefined;
+  }
+
+  /** Dizi örneğini (col, row) içeren karo. */
+  tileOfSample(col: number, row: number): { tx: number; ty: number } {
+    return {
+      tx: this.tileX0 + ((col + this.padCol) >> PAGE_SHIFT),
+      ty: this.tileY0 + ((row + this.padRow) >> PAGE_SHIFT),
+    };
+  }
+
+  /** Dünya X/Z'yi içeren karo (kafese hizalı dünyada dünya karosu; sentetik ızgarada yerel sayfa). */
+  tileAt(x: number, z: number): { tx: number; ty: number } {
+    const col = Math.min(Math.max(Math.round((x - this.origin.x) / this.cell), 0), this.width - 1);
+    const row = Math.min(Math.max(Math.round((z - this.origin.z) / this.cell), 0), this.height - 1);
+    return {
+      tx: this.tileX0 + ((col + this.padCol) >> PAGE_SHIFT),
+      ty: this.tileY0 + ((row + this.padRow) >> PAGE_SHIFT),
+    };
   }
 
   /** Yüklü sayfa sayısı. */

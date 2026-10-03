@@ -82,7 +82,10 @@ export class ChunkColliders {
     for (let cy = cy0; cy < cy0 + rows; cy++) {
       for (let cx = cx0; cx < cx0 + cols; cx++) {
         const distance = distanceToChunk(this.grid, cx, cy, x, z);
-        if (distance <= this.radius && !this.has(cx, cy)) list.push({ cx, cy, distance });
+        if (distance > this.radius || this.has(cx, cy)) continue;
+        // Akış kipinde karosu yüklü olmayan chunk'a collider kurulmaz (genel bakış yüksekliği gerçek zemin değildir).
+        if (!this.source.hasPageAt(chunkCol0(this.grid, cx), chunkRow0(this.grid, cy))) continue;
+        list.push({ cx, cy, distance });
       }
     }
     return list.sort((a, b) => a.distance - b.distance);
