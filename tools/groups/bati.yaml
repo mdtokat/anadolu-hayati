@@ -3,7 +3,7 @@
 # grubun oturumu tarafından doldurulur (plan §2.2). Boş grup (`provinces: []`) geçerlidir ve hiçbir şeyi değiştirmez.
 #
 # `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen; akış dizisi olmalıdır.
-provinces: []
+provinces: [Kocaeli, Bilecik]
 display_names: {}
 styles: {}
 # {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar.
