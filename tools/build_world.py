@@ -58,11 +58,14 @@ GAME_COORD_DECIMALS = 2
 #: Her pencere (kafes dikdörtgeni, DEM karolarını seçen eski bbox) çiftidir: genişlemede DEM mozaiği büyüse de eski alan
 #: eski mozaikte ve eski pencerede örneklenir. İkinci pencere Faz 7 dünyasının (Batı Karadeniz, 5 il) tamamıdır:
 #: Kastamonu–Çankırı genişlemesinde eski karolar (≤ 1 nicem yeniden nicemleme dışında) değişmesin. Üçüncü pencere
-#: Kastamonu–Çankırı dünyasının (7 il) tamamıdır: Sinop–Sakarya genişlemesinde bu alan da değişmesin.
+#: Kastamonu–Çankırı dünyasının (7 il) tamamıdır: Sinop–Sakarya genişlemesinde bu alan da değişmesin. Dördüncü pencere
+#: Sinop–Sakarya dünyasının (9 il, Faz 12 öncesi) tamamıdır: Faz 12 genişlemesinde (Kocaeli … Ankara) bu alan değişmesin;
+#: `bbox` o dünyanın `world.yaml` kutusudur (DEM karolarını seçer).
 PINNED_WINDOWS = (
     (wl.Extent(0, 0, 1588, 1176), (30.30, 40.00, 33.30, 41.95)),
     (wl.Extent(-640, 0, 2228, 1962), (30.30, 40.00, 33.30, 41.95)),
     (wl.Extent(-640, -256, 3452, 2218), (30.30, 40.00, 34.95, 42.10)),
+    (wl.Extent(-1152, -384, 4699, 2346), (29.80, 40.00, 35.55, 42.30)),
 )
 #: Karo başına dosya boyu bütçesi (bayt): yükseklik 512 KB + örtü 256 KB; sözleşme: her dosya ≤ 1 MB.
 MAX_TILE_FILE_BYTES = 1024 * 1024
