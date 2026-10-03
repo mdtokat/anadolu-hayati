@@ -1,14 +1,50 @@
-# Grup: guney — Faz 12 (Güney: Ankara, Kırıkkale) için ayrıldı. Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
-# parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
+# Grup: guney — Faz 12 (Güney: Ankara [kuzey şeridi], Kırıkkale). Veri hattının il listesi, üslupları, görünen adları ve simge yapıları
+# grup parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
 # grubun oturumu tarafından doldurulur (plan §2.2). Boş grup (`provinces: []`) geçerlidir ve hiçbir şeyi değiştirmez.
 #
 # `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen; akış dizisi olmalıdır.
-provinces: []
+provinces: [Ankara, Kırıkkale]
 display_names: {}
-styles: {}
-# {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar.
-clip_bbox: {}
+# Yerleşim üslubu (liste dışı il/ilçe merkezi `kasaba`, köy `koy`). Beypazarı ve Altındağ (Ulus/Hisar) tarihî doku; Kırıkkale (MKE,
+# Tüpraş) ve Sincan (OSB) sanayi.
+styles:
+  Altındağ: osmanli
+  Beypazarı: osmanli
+  Kırıkkale: sanayi
+  Sincan: sanayi
+# Ankara kapsamı (kullanıcı kararı, 12.C): yalnız kuzey şeridi. Kutu Ankara'nın kuzeyini (Çankırı sınırı, Kızılcahamam, Çamlıdere,
+# Nallıhan, Beypazarı, Çubuk, Kalecik … Ankara merkezi) kapsar. NOT: ızgara kapsamı (extent) tek dikdörtgendir ve Kırıkkale
+# 39,33°K'ye indiği için türetilen sınır kutusu bu kırpmadan bağımsızdır (ölçüldü: kırpmalı = kırpmasız Kırıkkale'li kutu);
+# Ankara'nın 39,33°K üstündeki güney parçası (Polatlı, Haymana kuzeyi) dikdörtgenin içinde kaldığı için yine haritaya girer.
+# Ayrıntı: docs/faz-12-guney-rapor.md.
+clip_bbox:
+  Ankara: [30.84, 39.70, 33.89, 40.75]
 # Cami sığmayan kıyı/sıkışık merkezler (bilinçli istisna; tests/settlementMap.test.ts). Akış dizisi.
 no_mosque_towns: []
 # Simge yapılar: `- { settlement: Ad, kind: mosque_grand, name: Ad, lon: 0.0, lat: 0.0 }` (bkz. cekirdek.yaml).
-landmarks: []
+# Konumlar Overture Places kayıtlarından (yaklaşık; oyunda en yakın boş parsele oturur); Places'te yanlış yerde olanlar (Kocatepe Camii)
+# bilinen koordinatlarla yazılmıştır (raporda belirtildi). Yalnızca konumundan emin olunanlar listelenir.
+landmarks:
+  # Ankara şehir merkezi (il merkezi Kızılay yakınındadır; simge yapılar 60 oyun m içinde parsele oturur)
+  - { settlement: Altındağ, kind: castle, name: Ankara Kalesi, lon: 32.8632, lat: 39.9385 }
+  - { settlement: Ankara, kind: mosque_grand, name: Kocatepe Camii, lon: 32.8611, lat: 39.9186 }
+  - { settlement: Ankara, kind: monument, name: Anıtkabir, lon: 32.83642, lat: 39.92556 }
+  - {
+      settlement: Altındağ,
+      kind: mosque_grand,
+      name: Hacı Bayram Veli Camii,
+      lon: 32.8643,
+      lat: 39.927,
+    }
+  # Beypazarı, Ayaş, Kalecik
+  - { settlement: Beypazarı, kind: tomb, name: Gazi Gündüzalp Türbesi, lon: 31.91573, lat: 40.1557 }
+  - { settlement: Ayaş, kind: tomb, name: Bünyamin Ayaşî Türbesi, lon: 32.33418, lat: 40.01576 }
+  - { settlement: Kalecik, kind: castle, name: Kalecik Kalesi, lon: 33.40549, lat: 40.09544 }
+  # Kırıkkale
+  - {
+      settlement: Kırıkkale,
+      kind: clock_tower,
+      name: Kırıkkale Saat Kulesi,
+      lon: 33.49976,
+      lat: 39.84399,
+    }
