@@ -10,6 +10,7 @@ import { isBackpack } from '../items/backpack';
 import { PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
 import {
   BANDITS,
+  GANGS,
   COMBAT,
   DRONE,
   COMBAT_HUD,
@@ -206,6 +207,7 @@ import {
 } from '../combat/targets';
 import { BanditSystem, fitsAll } from '../bandits/BanditSystem';
 import { campSiteQuery, placeCamps } from '../bandits/camps';
+import { placeGangSites } from '../bandits/gangs';
 import { SURRENDER_TEXT, WARNING_QUESTION, banditWarning, campAnswer } from '../bandits/dialog';
 import { banditInView, inView } from '../bandits/interact';
 import { PickpocketSystem, type PickpocketWorld } from '../bandits/pickpocket';
@@ -2756,11 +2758,34 @@ export class Game {
     if (import.meta.env.DEV) {
       console.info(`Eşkıya kampları: ${camps.length} (${(performance.now() - t0).toFixed(0)} ms)`);
     }
-    const bandits = new BanditSystem(this.events, camps, {
-      heightAt,
-      slopeDegAt: (x, z) => terrain.slopeDegAt(x, z),
-      isSea: (x, z) => terrain.isSea(x, z),
+    const gangSites = placeGangSites({
+      centers: map.settlements
+        .filter((s) => GANGS.ranks.includes(s.data.rank))
+        .map((s) => ({
+          id: s.data.id,
+          name: s.data.name,
+          x: s.data.x,
+          z: s.data.z,
+          radius: s.radius,
+        })),
+      onStreet: (x, z, distance) => map.roads.nearest(x, z, distance) !== null,
+      open: (x, z, margin) =>
+        map.buildingAt(x, z, margin) === null &&
+        !terrain.isSea(x, z) &&
+        terrain.slopeDegAt(x, z) <= 25,
     });
+    if (import.meta.env.DEV) console.info(`Sokak çetesi yerleri: ${gangSites.length}`);
+    const bandits = new BanditSystem(
+      this.events,
+      camps,
+      {
+        heightAt,
+        slopeDegAt: (x, z) => terrain.slopeDegAt(x, z),
+        isSea: (x, z) => terrain.isSea(x, z),
+      },
+      undefined,
+      gangSites,
+    );
     this.bandits = bandits;
     // Kamp alanında ağaç/çalı/kaya çizilmez (çadırlar ağaçların içinde kalmasın).
     const clearance = BANDITS.campRadius + 2;
@@ -2798,12 +2823,15 @@ export class Game {
       this.targets.register(bandits),
       this.targets.register(this.pickpockets),
       this.events.on('noise:made', ({ x, z, radius }) => bandits.hearNoise(x, z, radius)),
-      this.events.on('bandit:noticed', ({ name }) => {
+      this.events.on('bandit:noticed', ({ name, gang }) => {
         const now = performance.now();
         if (now - this.lastDangerToast < COMBAT_HUD.dangerToastCooldownMs) return;
         this.lastDangerToast = now;
-        toast(`Tehlike: Eşkıya! (${name})`);
+        toast(gang ? `Tehlike: Sokak çetesi! (${name})` : `Tehlike: Eşkıya! (${name})`);
       }),
+      this.events.on('gang:clash', ({ site }) =>
+        toast(`${site}: sokakta iki çete çatışıyor — silah sesleri!`),
+      ),
       this.events.on('bandit:damaged', ({ killed }) =>
         this.hud.showHitMarker(hitMarkerKind(killed)),
       ),
@@ -2875,6 +2903,8 @@ export class Game {
       targets: this.targets,
       // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser.
       ...(this.obstacles ? { obstacles: this.obstacles } : {}),
+      // Bina duvarları görüşü ve mermiyi keser (şehirdeki sokak çeteleri).
+      ...(this.shotSolidQuery ? { solids: this.shotSolidQuery } : {}),
       // Faz 11 (F): alçak uçan drone'a ateş ederler.
       drone: this.drone.state,
       prey: (x, z, r) =>

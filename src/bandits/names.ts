@@ -23,3 +23,21 @@ export function banditName(random: Random, role: BanditRole): string {
   const name = NAMES[Math.floor(random.next() * NAMES.length)]!;
   return role === 'leader' ? `Reis ${nick} ${name}` : `${nick} ${name}`;
 }
+
+const GANG_NICKNAMES = [
+  'Çelik',
+  'Kurt',
+  'Şimşek',
+  'Tilki',
+  'Karabaş',
+  'Demir',
+  'Fırtına',
+  'Gölge',
+] as const;
+
+/** Sokak çetesi üyesi adı (şehir lakabı + ad); reis "Abi" unvanıyla anılır. */
+export function gangName(random: Random, role: BanditRole): string {
+  const nick = GANG_NICKNAMES[Math.floor(random.next() * GANG_NICKNAMES.length)]!;
+  const name = NAMES[Math.floor(random.next() * NAMES.length)]!;
+  return role === 'leader' ? `${nick} ${name} Abi` : `${nick} ${name}`;
+}
