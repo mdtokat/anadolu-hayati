@@ -17,7 +17,7 @@ import {
   type WorldFileEntry,
   type WorldTileEntry,
 } from './worldTypes';
-import { parseSettlements, type SettlementsData } from './settlements';
+import { parseSettlements } from './settlements';
 import { thinFeatures } from './waterThinning';
 
 /** Dünya manifesti + karo verisi yükleyicisi: sözleşme docs/faz-7-paralel-plan.md §3.2–§3.3. */
@@ -236,7 +236,7 @@ function cacheTag(tile: WorldTileEntry): string {
   return `?v=${tile.sha256.slice(0, 8)}`;
 }
 
-async function sha256Hex(buffer: ArrayBuffer): Promise<string | null> {
+export async function sha256Hex(buffer: ArrayBuffer): Promise<string | null> {
   const subtle = globalThis.crypto?.subtle;
   // Güvenli olmayan bağlamda (http, localhost dışı) SubtleCrypto yoktur: bütünlük denetimi atlanır,
   // boyut denetimi yine yapılır.
@@ -268,6 +268,27 @@ function tileWindow(tile: WorldTileEntry, extent: WorldExtent) {
     /** Birleştirilmiş dizideki ilk sütun/satır. */
     dstCol: col0 - extent.col0,
     dstRow: row0 - extent.row0,
+  };
+}
+
+/** Manifestten bellek içi bölge üst verisi (dizi boyutu = `extent`). */
+export function regionMetaOf(manifest: WorldManifest): RegionMeta {
+  return {
+    id: manifest.id,
+    name: manifest.name,
+    crs: manifest.crs,
+    originUtm: manifest.originUtm,
+    gridWidth: manifest.extent.cols,
+    gridHeight: manifest.extent.rows,
+    cellSizeReal: manifest.cellSizeReal,
+    elevationMin: manifest.elevation.min,
+    elevationMax: manifest.elevation.max,
+    elevationEncoding: 'uint16',
+    horizontalScale: manifest.horizontalScale,
+    sources: manifest.sources,
+    features: manifest.features.layers,
+    landcover: { file: 'tiles/*.cover.bin', classes: manifest.landcover.classes },
+    gridOrigin: gridOriginOf(manifest.extent),
   };
 }
 
@@ -355,23 +376,7 @@ export async function loadWorld(
     manifest.settlements ? loadSettlements(manifest.settlements) : Promise.resolve(null),
   ]);
 
-  const meta: RegionMeta = {
-    id: manifest.id,
-    name: manifest.name,
-    crs: manifest.crs,
-    originUtm: manifest.originUtm,
-    gridWidth: width,
-    gridHeight: height,
-    cellSizeReal: manifest.cellSizeReal,
-    elevationMin: manifest.elevation.min,
-    elevationMax: manifest.elevation.max,
-    elevationEncoding: 'uint16',
-    horizontalScale: manifest.horizontalScale,
-    sources: manifest.sources,
-    features: manifest.features.layers,
-    landcover: { file: 'tiles/*.cover.bin', classes: manifest.landcover.classes },
-    gridOrigin: gridOriginOf(extent),
-  };
+  const meta = regionMetaOf(manifest);
 
   return {
     meta,
@@ -391,8 +396,8 @@ export async function loadWorld(
  * Küçük dere ayıklamasında korunacak noktalar: il/ilçe merkezleri ve oyunun yer adları / ışınlanma noktaları (yanından
  * geçen dere kısa olsa da kalır: oyuncunun başladığı ya da ışınlandığı yerde içme suyu olsun).
  */
-function waterAnchors(
-  settlements: SettlementsData | null,
+export function waterAnchors(
+  settlements: { settlements: ReadonlyArray<{ rank: string; x: number; z: number }> } | null,
   origin: readonly [number, number],
 ): Array<{ x: number; z: number }> {
   const out: Array<{ x: number; z: number }> = [];

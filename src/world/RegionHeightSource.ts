@@ -1,14 +1,57 @@
-import { HORIZONTAL_SCALE, SEABED, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
+import { HORIZONTAL_SCALE, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
 import type { RegionData, RegionMeta } from '../data/region';
 import type { HeightSource } from './HeightSource';
-import { seabedDepth, seaDistanceToLand } from './seabed';
-import { smoothLand } from './terrainSmoothing';
+import { seaDistanceToLand } from './seabed';
+import {
+  OVERVIEW_STRIDE,
+  PAGE_MASK,
+  PAGE_SHIFT,
+  PAGE_SIZE,
+  createPage,
+  overviewSize,
+  pageGridOf,
+  terrainFromRaw,
+  terrainFromRawSteps,
+  type TerrainPage,
+} from './terrainPages';
+
+// Sıcak yolda (sample/heightAt) içe aktarılan sabitlere her seferinde ad çözümlemesi yapılmasın: modül yerel kopyaları.
+const SHIFT = PAGE_SHIFT;
+const MASK = PAGE_MASK;
+const SIZE = PAGE_SIZE;
 
 export interface Bounds {
   minX: number;
   maxX: number;
   minZ: number;
   maxZ: number;
+}
+
+/**
+ * Bir karonun çekirdeği + komşu payı: dizi (extent-göreli) indekslerinde dikdörtgen ve ham örnekleri. Pay, çekirdeğin
+ * `TILE_HALO` örnek dışına taşar (dünya kenarında kırpılır).
+ */
+export interface TileWindow {
+  col0: number;
+  row0: number;
+  cols: number;
+  rows: number;
+  /** `cols × rows` ham (uint16) örnek, satır satır. */
+  raw: Uint16Array;
+}
+
+/** Düzeltme yamaları: sayfa içi indeks (`satır · 512 + sütun`) ve düzeltilmiş oyun yüksekliği. */
+export interface TilePatches {
+  indices: ArrayLike<number>;
+  values: ArrayLike<number>;
+}
+
+/** Karonun (dizi indeksinde) dünya içindeki çekirdek dikdörtgeni. */
+export interface TileCore {
+  col0: number;
+  row0: number;
+  cols: number;
+  rows: number;
 }
 
 /**
@@ -21,6 +64,11 @@ export interface Bounds {
  *
  * Deniz (heightmap'te 0'a kırpılı hücreler) çalışma zamanında kıyıdan uzaklığa göre çukurlaştırılır
  * (bkz. SEABED): su yüzeyi ile zemin çakışıp titremesin. Mesh, collider ve `heightAt` aynı diziyi okur.
+ *
+ * Depolama **sayfalıdır** (Faz 12, karo akışı): dizi `PAGE_SIZE²` örneklik sayfalara bölünür (kafese hizalı dünyada
+ * sayfa = dünya karosu). Yoğun kip (`new`, `fromRegion`) tüm sayfaları kurar; akış kipi (`streamed`) yalnız genel
+ * bakış dizisini (her 8. örnek) tutar ve sayfalar `loadTile`/`unloadTile` ile gelip gider. Yüklü olmayan sayfada
+ * örnekler genel bakıştan aradeğerlenir (LOD3 köşeleriyle bire bir aynı).
  */
 export class RegionHeightSource implements HeightSource {
   /** Izgara hücre boyu (oyun metresi). */
@@ -30,46 +78,33 @@ export class RegionHeightSource implements HeightSource {
   readonly bounds: Bounds;
   /** Dizinin (0, 0) örneğinin konumu (oyun m): `meta.gridOrigin`. */
   readonly origin: { x: number; z: number };
-  /** Oyun yüksekliği (y = metre / VERTICAL_SCALE), satır satır. */
-  private readonly game: Float32Array;
 
-  /**
-   * Yumuşatma uygulandıysa ham (uint16) örnekler: nesne dağılımı bunları okur (`scatterView`). Yumuşatılmamış
-   * kaynakta null (dağılım `natural()` ile aynıdır).
-   */
-  private readonly raw: Uint16Array | null;
+  /** Sayfa ızgarası: dizi (c, r) → sayfa `((c + padCol) >> 9, (r + padRow) >> 9)`. */
+  private readonly padCol: number;
+  private readonly padRow: number;
+  /** İlk sayfanın (dünya) karo indeksi: kafese hizalıysa `floor(col0 / 512)`, değilse 0. */
+  readonly tileX0: number;
+  readonly tileY0: number;
+  readonly pagesX: number;
+  readonly pagesY: number;
+  private readonly pages: Array<TerrainPage | undefined>;
+  /** Akış kipinde genel bakış (her 8. örnek, oyun yüksekliği); yoğun kipte null. */
+  private overview: Float32Array | null = null;
+  private readonly overviewCols: number;
+  private readonly overviewRows: number;
+  /** Yumuşatma uygulanır mı (sayfa pencereleri de aynı kuralı izler). */
+  private readonly smooth: boolean;
+  /** Herhangi bir örnek düzeltildi mi (yol/dere/teras)? */
+  private gradedFlag = false;
 
   constructor(
     readonly meta: RegionMeta,
-    heights: Uint16Array,
-    options: { smooth?: boolean } = {},
+    heights: Uint16Array | null,
+    options: { smooth?: boolean; overview?: Float32Array } = {},
   ) {
     this.width = meta.gridWidth;
     this.height = meta.gridHeight;
     this.cell = meta.cellSizeReal / HORIZONTAL_SCALE;
-
-    const range = meta.elevationMax - meta.elevationMin;
-    this.game = new Float32Array(heights.length);
-    for (let i = 0; i < heights.length; i++) {
-      this.game[i] =
-        (meta.elevationMin + ((heights[i] as number) / 65535) * range) / VERTICAL_SCALE;
-    }
-
-    // Küçük tümsekler (deve sırtı) düzlenir; deniz hücreleri ve kıyı çizgisi değişmez (TERRAIN_SMOOTHING).
-    const smooth = options.smooth === true && TERRAIN_SMOOTHING.sigmaCells > 0;
-    this.raw = smooth ? heights : null;
-    if (smooth) {
-      smoothLand(
-        this.game,
-        this.width,
-        this.height,
-        (i) => heights[i] !== 0,
-        TERRAIN_SMOOTHING.sigmaCells,
-        TERRAIN_SMOOTHING.strength,
-      );
-    }
-    this.applySeabed(heights);
-
     this.origin = { x: meta.gridOrigin.x, z: meta.gridOrigin.z };
     this.bounds = {
       minX: this.origin.x,
@@ -77,15 +112,65 @@ export class RegionHeightSource implements HeightSource {
       minZ: this.origin.z,
       maxZ: this.origin.z + (this.height - 1) * this.cell,
     };
+    this.smooth = options.smooth === true && TERRAIN_SMOOTHING.sigmaCells > 0;
+
+    const grid = pageGridOf(meta);
+    this.tileX0 = grid.tileX0;
+    this.tileY0 = grid.tileY0;
+    this.padCol = grid.padCol;
+    this.padRow = grid.padRow;
+    this.pagesX = grid.pagesX;
+    this.pagesY = grid.pagesY;
+    this.pages = new Array<TerrainPage | undefined>(this.pagesX * this.pagesY).fill(undefined);
+    this.overviewCols = overviewSize(this.width);
+    this.overviewRows = overviewSize(this.height);
+
+    if (options.overview) {
+      if (options.overview.length !== this.overviewCols * this.overviewRows) {
+        throw new Error(
+          `Genel bakış ${options.overview.length} örnek, beklenen ${this.overviewCols * this.overviewRows}`,
+        );
+      }
+      this.overview = options.overview;
+    }
+    if (heights !== null) this.loadDense(heights);
   }
 
-  /** Deniz hücrelerini (uint16 değeri 0) kıyıdan uzaklığa göre aşağı indirir. */
-  private applySeabed(heights: Uint16Array): void {
-    const distance = seaDistanceToLand(this.width, this.height, (i) => heights[i] === 0);
-    const depth = seabedDepth(distance, this.cell, SEABED.slopeDeg, SEABED.maxDepth);
-    for (let i = 0; i < depth.length; i++) {
-      if (heights[i] === 0) this.game[i] = -(depth[i] as number);
+  /** Yoğun kip: tüm diziyi bir kerede hesaplar ve sayfalara böler (eski davranışla bire bir aynı). */
+  private loadDense(heights: Uint16Array): void {
+    const game = terrainFromRaw(heights, this.width, this.height, this.meta, this.smooth);
+    for (let py = 0; py < this.pagesY; py++) {
+      for (let px = 0; px < this.pagesX; px++) {
+        const page = createPage();
+        const rows = this.pageRows(py);
+        const cols = this.pageCols(px);
+        if (this.smooth) page.raw = new Uint16Array(SIZE * SIZE);
+        for (let r = rows.from; r < rows.to; r++) {
+          const src =
+            (py * SIZE + r - this.padRow) * this.width + (px * SIZE + cols.from - this.padCol);
+          const dst = r * SIZE + cols.from;
+          const n = cols.to - cols.from;
+          page.game.set(game.subarray(src, src + n), dst);
+          page.raw?.set(heights.subarray(src, src + n), dst);
+        }
+        this.pages[py * this.pagesX + px] = page;
+      }
     }
+  }
+
+  /** Sayfa içi satır aralığı (dünya dizisinin içinde kalan kısım). */
+  private pageRows(py: number): { from: number; to: number } {
+    return {
+      from: Math.max(0, this.padRow - py * SIZE),
+      to: Math.min(SIZE, this.height + this.padRow - py * SIZE),
+    };
+  }
+
+  private pageCols(px: number): { from: number; to: number } {
+    return {
+      from: Math.max(0, this.padCol - px * SIZE),
+      to: Math.min(SIZE, this.width + this.padCol - px * SIZE),
+    };
   }
 
   /** Oyunun yükseklik kaynağı: yumuşatılmış (`TERRAIN_SMOOTHING`); `smooth: false` ham veriyi verir. */
@@ -94,6 +179,203 @@ export class RegionHeightSource implements HeightSource {
       smooth: options.smooth ?? true,
     });
   }
+
+  /**
+   * Akış kipi: yalnız genel bakış dizisiyle kurulur (`overview`: her 8. örnek, `buildOverview` çıktısı); sayfalar
+   * sonradan `loadTile` ile gelir. Yumuşatma açıktır (oyunun kaynağı).
+   */
+  static streamed(meta: RegionMeta, overview: Float32Array): RegionHeightSource {
+    return new RegionHeightSource(meta, null, { smooth: true, overview });
+  }
+
+  /** Akış kipinde mi (genel bakış dizisi var)? */
+  get streaming(): boolean {
+    return this.overview !== null;
+  }
+
+  // --- Sayfa yönetimi -------------------------------------------------------------------------------------
+
+  /** Karonun dünya dizisi içindeki çekirdek dikdörtgeni; dünyayla kesişmiyorsa null. */
+  tileCore(tx: number, ty: number): TileCore | null {
+    const px = tx - this.tileX0;
+    const py = ty - this.tileY0;
+    if (px < 0 || py < 0 || px >= this.pagesX || py >= this.pagesY) return null;
+    const cols = this.pageCols(px);
+    const rows = this.pageRows(py);
+    if (cols.to <= cols.from || rows.to <= rows.from) return null;
+    return {
+      col0: px * SIZE + cols.from - this.padCol,
+      row0: py * SIZE + rows.from - this.padRow,
+      cols: cols.to - cols.from,
+      rows: rows.to - rows.from,
+    };
+  }
+
+  hasTile(tx: number, ty: number): boolean {
+    const px = tx - this.tileX0;
+    const py = ty - this.tileY0;
+    if (px < 0 || py < 0 || px >= this.pagesX || py >= this.pagesY) return false;
+    return this.pages[py * this.pagesX + px] !== undefined;
+  }
+
+  /** Dizi örneği (col, row) tam çözünürlüklü bir sayfada mı (dünya dışı sıkıştırılır)? */
+  hasPageAt(col: number, row: number): boolean {
+    const c = (col < 0 ? 0 : col >= this.width ? this.width - 1 : col) + this.padCol;
+    const r = (row < 0 ? 0 : row >= this.height ? this.height - 1 : row) + this.padRow;
+    return this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)] !== undefined;
+  }
+
+  /** Dizi örneğini (col, row) içeren karo. */
+  tileOfSample(col: number, row: number): { tx: number; ty: number } {
+    return {
+      tx: this.tileX0 + ((col + this.padCol) >> SHIFT),
+      ty: this.tileY0 + ((row + this.padRow) >> SHIFT),
+    };
+  }
+
+  /** Dünya X/Z'yi içeren karo (kafese hizalı dünyada dünya karosu; sentetik ızgarada yerel sayfa). */
+  tileAt(x: number, z: number): { tx: number; ty: number } {
+    const col = Math.min(Math.max(Math.round((x - this.origin.x) / this.cell), 0), this.width - 1);
+    const row = Math.min(Math.max(Math.round((z - this.origin.z) / this.cell), 0), this.height - 1);
+    return {
+      tx: this.tileX0 + ((col + this.padCol) >> SHIFT),
+      ty: this.tileY0 + ((row + this.padRow) >> SHIFT),
+    };
+  }
+
+  /** Yüklü sayfa sayısı. */
+  get tileCount(): number {
+    let n = 0;
+    for (const page of this.pages) if (page !== undefined) n++;
+    return n;
+  }
+
+  /**
+   * Karoyu pencereden yükler: yumuşatma ve deniz tabanı pencerede hesaplanır, çekirdek sayfaya yazılır. Pencere
+   * çekirdeği ve (varsa) `TILE_HALO` payını kapsamalı; sonuç yoğun kipteki değerle bire bir aynıdır.
+   */
+  loadTile(tx: number, ty: number, window: TileWindow, patches?: TilePatches): void {
+    const steps = this.loadTileSteps(tx, ty, window, Infinity, patches);
+    while (!steps.next().done) {
+      // dilimler peş peşe
+    }
+  }
+
+  /**
+   * `loadTile`'ın dilimli hâli: her `next()` yaklaşık 1 ms'lik iş yapar (karo akışı dilimleri kare bütçesine yayar);
+   * bitince sayfa yüklüdür. Sonuç `loadTile` ile bire bir aynıdır.
+   */
+  *loadTileSteps(
+    tx: number,
+    ty: number,
+    window: TileWindow,
+    rowsPerStep = 32,
+    patches?: TilePatches,
+  ): Generator<void, void> {
+    const core = this.tileCore(tx, ty);
+    if (!core) throw new Error(`Karo (${tx}, ${ty}) dünyanın dışında`);
+    if (window.raw.length !== window.cols * window.rows) {
+      throw new Error(`Pencere ${window.raw.length} örnek, beklenen ${window.cols * window.rows}`);
+    }
+    if (
+      core.col0 < window.col0 ||
+      core.row0 < window.row0 ||
+      core.col0 + core.cols > window.col0 + window.cols ||
+      core.row0 + core.rows > window.row0 + window.rows
+    ) {
+      throw new Error(`Karo (${tx}, ${ty}) penceresi çekirdeği kapsamıyor`);
+    }
+    const game = yield* terrainFromRawSteps(
+      window.raw,
+      window.cols,
+      window.rows,
+      this.meta,
+      this.smooth,
+      rowsPerStep,
+    );
+    const page = createPage();
+    page.raw = new Uint16Array(SIZE * SIZE);
+    yield;
+    const px = tx - this.tileX0;
+    const py = ty - this.tileY0;
+    for (let r = 0; r < core.rows; r++) {
+      const src = (core.row0 - window.row0 + r) * window.cols + (core.col0 - window.col0);
+      const localRow = core.row0 + r + this.padRow - py * SIZE;
+      const dst = localRow * SIZE + (core.col0 + this.padCol - px * SIZE);
+      page.game.set(game.subarray(src, src + core.cols), dst);
+      page.raw.set(window.raw.subarray(src, src + core.cols), dst);
+    }
+    // Yamalar (yol/dere/teras düzeltmesi) sayfa yayımlanmadan uygulanır: collider/mesh hiç düzeltilmemiş zemini görmez.
+    if (patches && patches.indices.length > 0) {
+      page.base = new Float32Array(page.game);
+      for (let k = 0; k < patches.indices.length; k++) {
+        page.game[patches.indices[k] as number] = patches.values[k] as number;
+      }
+      this.gradedFlag = true;
+    }
+    this.pages[py * this.pagesX + px] = page;
+  }
+
+  /**
+   * Karoya düzeltme yamalarını uygular (yol/dere/teras; veri hattında hesaplanmış): `indices` sayfa içi indeks
+   * (`satır · 512 + sütun`), `values` düzeltilmiş oyun yüksekliği. Doğal yükseklikler saklanır.
+   */
+  patchTile(tx: number, ty: number, indices: ArrayLike<number>, values: ArrayLike<number>): void {
+    const page = this.pageAt(tx, ty);
+    if (!page) throw new Error(`Karo (${tx}, ${ty}) yüklü değil`);
+    if (indices.length === 0) return;
+    page.base ??= new Float32Array(page.game);
+    for (let k = 0; k < indices.length; k++) page.game[indices[k] as number] = values[k] as number;
+    this.gradedFlag = true;
+  }
+
+  /** Karonun düzeltilmiş hücreleri (doğala göre farklı): `[indeks…]` ve değerleri. Düzeltme yoksa boş. */
+  tilePatches(tx: number, ty: number): { indices: Uint32Array; values: Float32Array } {
+    const page = this.pageAt(tx, ty);
+    if (!page?.base) return { indices: new Uint32Array(0), values: new Float32Array(0) };
+    const idx: number[] = [];
+    for (let i = 0; i < page.game.length; i++) {
+      if (page.game[i] !== page.base[i]) idx.push(i);
+    }
+    const indices = Uint32Array.from(idx);
+    const values = new Float32Array(indices.length);
+    for (let k = 0; k < indices.length; k++) values[k] = page.game[indices[k] as number] as number;
+    return { indices, values };
+  }
+
+  unloadTile(tx: number, ty: number): void {
+    const px = tx - this.tileX0;
+    const py = ty - this.tileY0;
+    if (px < 0 || py < 0 || px >= this.pagesX || py >= this.pagesY) return;
+    this.pages[py * this.pagesX + px] = undefined;
+  }
+
+  private pageAt(tx: number, ty: number): TerrainPage | undefined {
+    const px = tx - this.tileX0;
+    const py = ty - this.tileY0;
+    if (px < 0 || py < 0 || px >= this.pagesX || py >= this.pagesY) return undefined;
+    return this.pages[py * this.pagesX + px];
+  }
+
+  /**
+   * Genel bakış dizisi: her 8. örnek (dizi sütun/satır 0, 8, 16, …; son örnek dahil değilse en yakın), oyun
+   * yüksekliği. Tüm sayfalar yüklü olmalı (veri hattı). Akış kipinde oyun bunu `overview` olarak alır.
+   */
+  buildOverview(): Float32Array {
+    const out = new Float32Array(this.overviewCols * this.overviewRows);
+    for (let j = 0; j < this.overviewRows; j++) {
+      const r = Math.min(j * OVERVIEW_STRIDE, this.height - 1);
+      for (let i = 0; i < this.overviewCols; i++) {
+        out[j * this.overviewCols + i] = this.sample(
+          Math.min(i * OVERVIEW_STRIDE, this.width - 1),
+          r,
+        );
+      }
+    }
+    return out;
+  }
+
+  // --- Sorgular -------------------------------------------------------------------------------------------
 
   /** Dünya X/Z'nin dünya içinde (heightmap kapsamında) olup olmadığı. */
   contains(x: number, z: number): boolean {
@@ -111,33 +393,54 @@ export class RegionHeightSource implements HeightSource {
     return this.origin.z + row * this.cell;
   }
 
-  /**
-   * Yol düzeltmesinden önceki (doğal) yükseklikler; düzeltme yoksa null. Nesne dağılımı (eğim/rakım elemesi)
-   * doğal araziye göre yapılır: yol düzeltmesi nesne kimliklerini kaydırmasın.
-   */
-  private base: Float32Array | null = null;
-
-  /** Izgara örneğini değiştirir (yol düzeltmesi). İlk değişiklikte doğal yükseklikler saklanır. */
-  setSample(col: number, row: number, value: number): void {
-    this.base ??= new Float32Array(this.game);
-    this.game[row * this.width + col] = value;
+  /** Genel bakıştan bilinear aradeğer (sayfa yüklü değilken). */
+  private overviewAt(col: number, row: number): number {
+    const ov = this.overview;
+    if (ov === null) return 0;
+    const fc = col / OVERVIEW_STRIDE;
+    const fr = row / OVERVIEW_STRIDE;
+    const c0 = Math.min(Math.floor(fc), this.overviewCols - 1);
+    const r0 = Math.min(Math.floor(fr), this.overviewRows - 1);
+    const c1 = Math.min(c0 + 1, this.overviewCols - 1);
+    const r1 = Math.min(r0 + 1, this.overviewRows - 1);
+    const tc = fc - c0;
+    const tr = fr - r0;
+    const w = this.overviewCols;
+    const top = (ov[r0 * w + c0] as number) * (1 - tc) + (ov[r0 * w + c1] as number) * tc;
+    const bottom = (ov[r1 * w + c0] as number) * (1 - tc) + (ov[r1 * w + c1] as number) * tc;
+    return top * (1 - tr) + bottom * tr;
   }
 
-  /** Sonraki düzeltmelerin (yapı terası) değiştirmeyeceği hücreler: yol yatağı, yapı ayak izi. Tembel açılır. */
-  private locked: Uint8Array | null = null;
+  /** Izgara örneğini değiştirir (yol düzeltmesi). İlk değişiklikte sayfanın doğal yükseklikleri saklanır. */
+  setSample(col: number, row: number, value: number): void {
+    const c = col + this.padCol;
+    const r = row + this.padRow;
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
+    if (!page) return;
+    page.base ??= new Float32Array(page.game);
+    page.game[(r & MASK) * SIZE + (c & MASK)] = value;
+    this.gradedFlag = true;
+  }
 
   lock(col: number, row: number): void {
-    this.locked ??= new Uint8Array(this.width * this.height);
-    this.locked[row * this.width + col] = 1;
+    const c = col + this.padCol;
+    const r = row + this.padRow;
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
+    if (!page) return;
+    page.locked ??= new Uint8Array(SIZE * SIZE);
+    page.locked[(r & MASK) * SIZE + (c & MASK)] = 1;
   }
 
   isLocked(col: number, row: number): boolean {
-    return this.locked !== null && this.locked[row * this.width + col] === 1;
+    const c = col + this.padCol;
+    const r = row + this.padRow;
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
+    return page?.locked?.[(r & MASK) * SIZE + (c & MASK)] === 1;
   }
 
   /** Yol düzeltmesi uygulandı mı? */
   get graded(): boolean {
-    return this.base !== null;
+    return this.gradedFlag;
   }
 
   /**
@@ -145,7 +448,15 @@ export class RegionHeightSource implements HeightSource {
    * kendisi gibi davranır. Yol planı doğal araziden tasarlanır; nesne dağılımı da doğal eğimi kullanır.
    */
   natural(): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
-    return this.view((i) => (this.base ?? this.game)[i] as number);
+    return this.view((c, r) => {
+      const cc = this.clampCol(c);
+      const rr = this.clampRow(r);
+      const pc = cc + this.padCol;
+      const pr = rr + this.padRow;
+      const page = this.pages[(pr >> SHIFT) * this.pagesX + (pc >> SHIFT)];
+      if (!page) return this.overviewAt(cc, rr);
+      return (page.base ?? page.game)[(pr & MASK) * SIZE + (pc & MASK)] as number;
+    });
   }
 
   /**
@@ -153,27 +464,36 @@ export class RegionHeightSource implements HeightSource {
    * (`PropId`) dağılıma bağlı olduğundan arazi yumuşatması onları kaydırmasın. Yumuşatılmamış kaynakta `natural()`.
    */
   scatterView(): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
-    const raw = this.raw;
-    if (raw === null) return this.natural();
+    if (!this.smooth) return this.natural();
     const { elevationMin, elevationMax } = this.meta;
     const range = elevationMax - elevationMin;
-    return this.view((i) => {
-      const v = raw[i] as number;
+    return this.view((c, r) => {
+      const cc = this.clampCol(c);
+      const rr = this.clampRow(r);
+      const pc = cc + this.padCol;
+      const pr = rr + this.padRow;
+      const page = this.pages[(pr >> SHIFT) * this.pagesX + (pc >> SHIFT)];
+      if (!page) return this.overviewAt(cc, rr);
+      const local = (pr & MASK) * SIZE + (pc & MASK);
+      const v = (page.raw as Uint16Array)[local] as number;
       // Deniz hücreleri yumuşatılmaz: çukurlaştırılmış taban olduğu gibi okunur.
-      if (v === 0) return (this.base ?? this.game)[i] as number;
+      if (v === 0) return (page.base ?? page.game)[local] as number;
       // Kaynakla aynı float32 yuvarlaması: dağılım (ve kimlikler) yumuşatmasız kaynakla bit-eşdeğer kalsın.
       return Math.fround((elevationMin + (v / 65535) * range) / VERTICAL_SCALE);
     });
   }
 
+  private clampCol(col: number): number {
+    return col < 0 ? 0 : col >= this.width ? this.width - 1 : col;
+  }
+
+  private clampRow(row: number): number {
+    return row < 0 ? 0 : row >= this.height ? this.height - 1 : row;
+  }
+
   private view(
-    sample: (index: number) => number,
+    sample: (col: number, row: number) => number,
   ): Pick<RegionHeightSource, 'heightAt' | 'elevationAt' | 'slopeDegAt'> {
-    const read = (col: number, row: number): number => {
-      const c = Math.min(Math.max(col, 0), this.width - 1);
-      const r = Math.min(Math.max(row, 0), this.height - 1);
-      return sample(r * this.width + c);
-    };
     const heightAt = (x: number, z: number): number => {
       const fc = Math.min(Math.max((x - this.origin.x) / this.cell, 0), this.width - 1);
       const fr = Math.min(Math.max((z - this.origin.z) / this.cell, 0), this.height - 1);
@@ -181,8 +501,8 @@ export class RegionHeightSource implements HeightSource {
       const r0 = Math.floor(fr);
       const tc = fc - c0;
       const tr = fr - r0;
-      const top = read(c0, r0) * (1 - tc) + read(c0 + 1, r0) * tc;
-      const bottom = read(c0, r0 + 1) * (1 - tc) + read(c0 + 1, r0 + 1) * tc;
+      const top = sample(c0, r0) * (1 - tc) + sample(c0 + 1, r0) * tc;
+      const bottom = sample(c0, r0 + 1) * (1 - tc) + sample(c0 + 1, r0 + 1) * tc;
       return top * (1 - tr) + bottom * tr;
     };
     return {
@@ -199,9 +519,11 @@ export class RegionHeightSource implements HeightSource {
 
   /** Tam sayı örnek (kenara sıkıştırılmış): oyun yüksekliği. */
   sample(col: number, row: number): number {
-    const c = Math.min(Math.max(col, 0), this.width - 1);
-    const r = Math.min(Math.max(row, 0), this.height - 1);
-    return this.game[r * this.width + c] as number;
+    const c = (col < 0 ? 0 : col >= this.width ? this.width - 1 : col) + this.padCol;
+    const r = (row < 0 ? 0 : row >= this.height ? this.height - 1 : row) + this.padRow;
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
+    if (page === undefined) return this.overviewAt(c - this.padCol, r - this.padRow);
+    return page.game[(r & MASK) * SIZE + (c & MASK)] as number;
   }
 
   heightAt(x: number, z: number): number {
@@ -219,25 +541,30 @@ export class RegionHeightSource implements HeightSource {
     return top * (1 - tr) + bottom * tr;
   }
 
-  /** Karadan en yakın deniz hücresine uzaklık (hücre cinsinden), tembel hesaplanır; deniz hücreleri 0. */
+  /**
+   * Karadan en yakın deniz hücresine uzaklık (hücre; yoğun kipte örnek, akış kipinde genel bakış hücresi),
+   * tembel hesaplanır; deniz hücreleri 0.
+   */
   private seaDistanceCells: Float32Array | null = null;
 
   /**
    * (x, z)'den en yakın denize uzaklık (oyun m); denizdeyse 0, ızgara dışında ya da hiç deniz yoksa çok büyük.
    * Deniz hücreleri taban çukurlaştırmasından (negatif yükseklik) bilinir. İlk çağrıda bir kez hesaplanır
-   * (iki geçişli mesafe dönüşümü, ~ızgara boyu); ortam sesleri bunu kullanır.
+   * (iki geçişli mesafe dönüşümü, ~ızgara boyu); ortam sesleri bunu kullanır. Akış kipinde dönüşüm genel bakış
+   * dizisi üzerindedir (en çok bir genel bakış hücresi ≈ 16 m hata).
    */
   distanceToSea(x: number, z: number): number {
-    this.seaDistanceCells ??= seaDistanceToLand(
-      this.width,
-      this.height,
-      (i) => (this.game[i] as number) >= 0,
-    );
-    const col = Math.round((x - this.origin.x) / this.cell);
-    const row = Math.round((z - this.origin.z) / this.cell);
-    if (col < 0 || row < 0 || col >= this.width || row >= this.height)
-      return Number.POSITIVE_INFINITY;
-    return (this.seaDistanceCells[row * this.width + col] as number) * this.cell;
+    const stride = this.overview !== null ? OVERVIEW_STRIDE : 1;
+    const cols = this.overview !== null ? this.overviewCols : this.width;
+    const rows = this.overview !== null ? this.overviewRows : this.height;
+    this.seaDistanceCells ??=
+      this.overview !== null
+        ? seaDistanceToLand(cols, rows, (i) => ((this.overview as Float32Array)[i] as number) >= 0)
+        : seaDistanceToLand(cols, rows, (i) => this.sample(i % cols, Math.floor(i / cols)) >= 0);
+    const col = Math.round((x - this.origin.x) / this.cell / stride);
+    const row = Math.round((z - this.origin.z) / this.cell / stride);
+    if (col < 0 || row < 0 || col >= cols || row >= rows) return Number.POSITIVE_INFINITY;
+    return (this.seaDistanceCells[row * cols + col] as number) * this.cell * stride;
   }
 
   /** Gerçek rakım (metre): oyun yüksekliği × VERTICAL_SCALE. */

@@ -69,6 +69,18 @@ export interface GameWorld {
   respawnPoint?(deathIndex: number): Vec3 | null;
   /** Rastgele il/ilçe merkezi başlangıcı (yeni oyun); desteklemeyen dünyada ya da uygun nokta yoksa tanımsız/null. */
   cityStart?(random: Random): CityStart | null;
+  /**
+   * Karo akışı (Faz 12): (x, z) çevresindeki zemin tam çözünürlükte yüklü mü? Akışsız dünyada her zaman true. Değilse
+   * oyun ilerlemez (oyuncu boşluğa düşmesin) ve yükleme gösterilir.
+   */
+  isReadyAt?(x: number, z: number): boolean;
+  /** Karo akışı: (x, z) çevresini yükler ve çevresine collider/nesneleri kurar (ışınlanma/doğma sonrası). */
+  preload?(x: number, z: number): Promise<void>;
+  /**
+   * Karo akışı: yaklaşık (genel bakış yüksekliğinden bulunmuş) noktayı karolar yüklendikten sonra gerçek zemine
+   * göre yeniden oturtur (en yakın yürünebilir, yapı dışı nokta); bulunamazsa girdiyi döner.
+   */
+  settlePoint?(point: Vec3): Vec3;
   /** Hedef illerin yer merkezleri (yer adı bildirimi, Faz 8.3); desteklemeyen dünyalarda tanımsız. */
   placeCenters?(): readonly PlaceCenter[];
   /** HUD için konum bilgisi; bu dünya desteklemiyorsa tanımsız. */

@@ -39,11 +39,13 @@ export function buildLakeMeshes(
   polygons: readonly WaterPolygon[],
   heightAt: HeightFn,
   lift: number,
+  /** Verilirse yüzey yüksekliği (ortanca, `lift` hariç) çokgen sırasıyla buradan okunur (akış kipi: veri hattında hesaplı). */
+  levels?: ArrayLike<number>,
 ): MeshData {
   const positions: number[] = [];
   const indices: number[] = [];
 
-  for (const polygon of polygons) {
+  for (const [index, polygon] of polygons.entries()) {
     const [outerRing, ...holeRings] = polygon.rings;
     if (!outerRing) continue;
     const contour = ringPoints(outerRing);
@@ -53,7 +55,8 @@ export function buildLakeMeshes(
     const triangles = ShapeUtils.triangulateShape(contour, holes);
     if (triangles.length === 0) continue;
 
-    const y = median(contour.map((p) => heightAt(p.x, p.y))) + lift;
+    const y =
+      (levels ? (levels[index] as number) : median(contour.map((p) => heightAt(p.x, p.y)))) + lift;
     const base = positions.length / 3;
     const all = contour.concat(...holes);
     for (const p of all) positions.push(p.x, y, p.y);
@@ -70,4 +73,17 @@ export function buildLakeMeshes(
   }
 
   return { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
+}
+
+/** Çokgen başına göl yüzeyi yüksekliği (dış halka zemin yüksekliklerinin ortancası; `buildLakeMeshes` ile aynı kural). */
+export function lakeLevels(polygons: readonly WaterPolygon[], heightAt: HeightFn): Float32Array {
+  const out = new Float32Array(polygons.length);
+  polygons.forEach((polygon, i) => {
+    const outer = polygon.rings[0];
+    if (!outer) return;
+    const contour = ringPoints(outer);
+    if (contour.length < 3) return;
+    out[i] = median(contour.map((p) => heightAt(p.x, p.y)));
+  });
+  return out;
 }

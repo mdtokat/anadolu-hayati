@@ -55,6 +55,32 @@ class HoleSet implements TerrainHoles {
   get count(): number {
     return this.cells.size;
   }
+
+  /** Hücreler `[col, row, …]` (veri hattı serileştirmesi). */
+  dump(): Int32Array {
+    const out = new Int32Array(this.cells.size * 2);
+    let i = 0;
+    for (const [row, cols] of this.rows) {
+      for (const col of cols) {
+        out[i++] = col;
+        out[i++] = row;
+      }
+    }
+    return out;
+  }
+}
+
+/** Delik kümesini `[col, row, …]` dizisine döker. */
+export function dumpHoles(holes: TerrainHoles): Int32Array {
+  return holes instanceof HoleSet ? holes.dump() : new Int32Array(0);
+}
+
+/** `dumpHoles` çıktısından delik kümesi kurar (`width`: dünya örnek sütun sayısı). */
+export function restoreHoles(width: number, cells: ArrayLike<number>): TerrainHoles {
+  const holes = new HoleSet(width);
+  for (let i = 0; i + 1 < cells.length; i += 2)
+    holes.add(cells[i] as number, cells[i + 1] as number);
+  return holes;
 }
 
 /** Ağız düzleminin bu kadar hücre dışındaki hücre merkezleri de delinebilir (düzlemi kesen hücre). */

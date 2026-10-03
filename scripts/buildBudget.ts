@@ -51,6 +51,12 @@ export const BUILD_BUDGET = {
   // Kastamonu–Çankırı genişlemesi: 10 → 16 sn (ölçülen tahmin ~14,5 sn). Karo akışı gelince yeniden 10 sn'ye inmeli.
   // Sinop–Sakarya genişlemesi: 16 → 20 sn (ölçülen tahmin ~17,2 sn; 50 karo). Karo akışı gelince yeniden 10 sn'ye inmeli.
   load: { referenceMbps: 20, maxSeconds: 20 },
+  /**
+   * Karo akışlı dünya (Faz 12, `stream.json` yayında): açılışta yalnızca küçük küresel dosyalar ve oyuncunun çevresindeki
+   * `startTiles` karo iner, kalan karolar yaklaştıkça akar; bu durumda ilk yükleme sınırı Performans Bütçesi'nin
+   * hedefi olan 10 sn'dir. (Akışlı veri depoya girene kadar yukarıdaki `load` geçerlidir.)
+   */
+  stream: { startTiles: 9, maxSeconds: 10 },
   /** Sınırın bu oranını aşan değerler uyarı (⚠️) olarak işaretlenir. */
   warnRatio: 0.9,
 } as const;

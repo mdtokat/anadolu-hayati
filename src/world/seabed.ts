@@ -8,10 +8,31 @@ export function seaDistanceToLand(
   height: number,
   isSea: (index: number) => boolean,
 ): Float32Array {
+  const steps = seaDistanceToLandSteps(width, height, isSea, Infinity);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+/** `seaDistanceToLand`'in dilimli hâli (aynı sonuç): her `rowsPerStep` satırda bir `yield` eder. */
+export function* seaDistanceToLandSteps(
+  width: number,
+  height: number,
+  isSea: (index: number) => boolean,
+  rowsPerStep = 64,
+): Generator<void, Float32Array> {
   const DIAGONAL = Math.SQRT2;
   const BIG = 1e9;
   const dist = new Float32Array(width * height);
-  for (let i = 0; i < dist.length; i++) dist[i] = isSea(i) ? BIG : 0;
+  const maskSlice = rowsPerStep * 2 * width;
+  let since = 0;
+  for (let i = 0; i < dist.length; i++) {
+    dist[i] = isSea(i) ? BIG : 0;
+    if (++since === maskSlice) {
+      since = 0;
+      yield;
+    }
+  }
 
   // İleri geçiş: sol-üst → sağ-alt
   for (let r = 0; r < height; r++) {
@@ -27,6 +48,7 @@ export function seaDistanceToLand(
       }
       dist[i] = d;
     }
+    if ((r + 1) % rowsPerStep === 0) yield;
   }
   // Geri geçiş: sağ-alt → sol-üst
   for (let r = height - 1; r >= 0; r--) {
@@ -42,6 +64,7 @@ export function seaDistanceToLand(
       }
       dist[i] = d;
     }
+    if ((height - r) % rowsPerStep === 0) yield;
   }
   return dist;
 }

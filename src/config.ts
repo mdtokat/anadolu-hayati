@@ -337,6 +337,22 @@ export const CHUNK = {
  */
 export const STREAMING = {
   frameBudgetMs: 4,
+  /**
+   * Dünya karosu akışı (Faz 12; `world/TileStreamer.ts`): tam çözünürlüklü karolar odağa `loadRadius` içinde yüklenir,
+   * `unloadRadius` ötesinde boşaltılır (histerezis); LOD0–2 (900 m'ye kadar) bu yarıçapın içindedir, ötesi hep bellekte
+   * duran genel bakıştan (her 8. örnek) çizilir. `maxResident`: bellek tavanı (aynı anda en çok bu kadar karo; ışınlanma
+   * sonrası eskiler en uzaktan boşaltılır). `maxFetches`: eşzamanlı indirme. `readyRadius`: oyuncunun çevresinde bu
+   * yarıçaptaki karolar hazır olmadan oyun ilerlemez (collider yarıçapı 160 m + pay).
+   */
+  tiles: {
+    loadRadius: 1400,
+    unloadRadius: 1900,
+    maxResident: 25,
+    maxFetches: 4,
+    readyRadius: 220,
+    /** Oyuncunun altındaki karo hazır değilken (yükleme ekranı) kare bütçesi (ms): yükleme hızlansın. */
+    loadingBudgetMs: 14,
+  },
 } as const;
 
 /** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */

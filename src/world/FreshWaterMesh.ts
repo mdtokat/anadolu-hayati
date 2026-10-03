@@ -43,9 +43,10 @@ export class FreshWaterMesh {
   });
   private readonly geometries: BufferGeometry[] = [];
 
-  constructor(water: WaterFeatures, heightAt: HeightFn) {
+  /** `levels`: çokgen başına önceden hesaplanmış yüzey yüksekliği (akış kipi); yoksa `heightAt`'ten. */
+  constructor(water: WaterFeatures, heightAt: HeightFn, levels?: ArrayLike<number>) {
     this.object.name = 'fresh-water';
-    const lakes = buildLakeMeshes(water.polygons, heightAt, FRESH_WATER.lift);
+    const lakes = buildLakeMeshes(water.polygons, heightAt, FRESH_WATER.lift, levels);
     for (const [name, data] of [['lakes', lakes]] as const) {
       if (data.indices.length === 0) continue;
       const geometry = toGeometry(data);
