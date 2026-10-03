@@ -2664,3 +2664,65 @@
 .inv-panel button.shop-buy {
   min-width: 52px;
 }
+
+/* ─────────────────────── Performans göstergesi (F3) ─────────────────────── */
+
+.perf-overlay {
+  position: absolute;
+  top: 40px;
+  left: 8px;
+  z-index: 900;
+  width: 270px;
+  padding: 8px 10px;
+  font: 11.5px/1.45 var(--ui-font-mono);
+  color: var(--ui-text);
+  background: rgba(8, 12, 10, 0.78);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-s);
+  pointer-events: none;
+}
+
+.perf-head {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ui-good);
+}
+
+.perf-graph {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin: 4px 0 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.perf-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 8px;
+  margin: 0;
+}
+
+.perf-rows dt {
+  color: var(--ui-text-muted);
+}
+
+.perf-rows dd {
+  margin: 0;
+  text-align: right;
+}
+
+.perf-sections,
+.perf-spike {
+  margin-top: 6px;
+  color: var(--ui-text-muted);
+  white-space: normal;
+}
+
+.perf-spike {
+  color: var(--ui-warn);
+}
+
+.hud-debug:empty {
+  display: none;
+}

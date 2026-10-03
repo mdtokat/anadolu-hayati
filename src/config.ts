@@ -69,6 +69,21 @@ export const RENDER = {
 } as const;
 
 /**
+ * Performans göstergesi (`ui/PerfOverlay.ts`, `core/perfStats.ts`; `F3` ya da Ayarlar → "Performans göstergesi";
+ * üretimde de çalışır): son `windowFrames` karenin istatistiği, `spikeMs`'ten uzun kare "takılma" sayılır ve o karenin
+ * en uzun `spikeSections` bölümü saklanır; `listSections` bölüm listelenir; görünüm `refreshMs`'te bir yenilenir.
+ */
+export const PERF_OVERLAY = {
+  windowFrames: 240,
+  spikeMs: 50,
+  spikeSections: 4,
+  listSections: 6,
+  refreshMs: 250,
+  /** Grafikte üst çizgi (ms): bunun üstü kırpılır. */
+  graphMaxMs: 66,
+} as const;
+
+/**
  * Uyarlanır çözünürlük (`core/resolution.ts`; Ayarlar → "Otomatik çözünürlük", varsayılan açık). Kare süresinin pencere
  * medyanı `1000 / targetFps · downRatio`'yu aşarsa çizim ölçeği bir kademe düşer (`scales`), `upRatio` altında
  * `upHoldSeconds` kalırsa bir kademe yükseltme denenir; deneme `probeSeconds` içinde yavaşlarsa o kademenin beklemesi
@@ -186,6 +201,8 @@ export const INPUT = {
     /** F: oyuncu ↔ drone görüşü; drone'u eve döndürüp indir. */
     droneView: ['KeyQ'],
     droneHome: ['KeyH'],
+    /** Performans göstergesini aç/kapa (`PERF_OVERLAY`; ayar olarak saklanır). */
+    togglePerformance: ['F3'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -1219,6 +1236,8 @@ export const SETTINGS = {
   defaultBandits: true,
   /** Uyarlanır çözünürlük (`ADAPTIVE_RESOLUTION`) varsayılan olarak açıktır. */
   defaultAdaptiveResolution: true,
+  /** Performans göstergesi (`PERF_OVERLAY`, `F3`) varsayılan olarak kapalıdır. */
+  defaultPerfOverlay: false,
 } as const;
 
 /**

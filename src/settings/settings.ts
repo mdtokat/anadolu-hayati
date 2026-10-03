@@ -18,6 +18,8 @@ export interface Settings {
   bandits: boolean;
   /** Uyarlanır çözünürlük: kare süresi uzarsa piksel oranı kademeli düşer (`ADAPTIVE_RESOLUTION`). */
   adaptiveResolution: boolean;
+  /** Performans göstergesi (`F3`) açık mı? */
+  perfOverlay: boolean;
 }
 
 /** Kullanıcının değiştirebildiği alanlar. */
@@ -39,6 +41,7 @@ export function defaultSettings(): Settings {
     testMode: TEST_MODE.defaultEnabled,
     bandits: SETTINGS.defaultBandits,
     adaptiveResolution: SETTINGS.defaultAdaptiveResolution,
+    perfOverlay: SETTINGS.defaultPerfOverlay,
   };
 }
 
@@ -72,6 +75,7 @@ export function parseSettings(raw: unknown): Settings {
   if (typeof o.testMode === 'boolean') out.testMode = o.testMode;
   if (typeof o.bandits === 'boolean') out.bandits = o.bandits;
   if (typeof o.adaptiveResolution === 'boolean') out.adaptiveResolution = o.adaptiveResolution;
+  if (typeof o.perfOverlay === 'boolean') out.perfOverlay = o.perfOverlay;
   return out;
 }
 
@@ -88,6 +92,7 @@ export function settingsEqual(a: Readonly<Settings>, b: Readonly<Settings>): boo
     a.hints === b.hints &&
     a.testMode === b.testMode &&
     a.bandits === b.bandits &&
-    a.adaptiveResolution === b.adaptiveResolution
+    a.adaptiveResolution === b.adaptiveResolution &&
+    a.perfOverlay === b.perfOverlay
   );
 }

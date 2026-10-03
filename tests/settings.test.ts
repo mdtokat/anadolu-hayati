@@ -23,6 +23,7 @@ describe('varsayılan ayarlar', () => {
       testMode: TEST_MODE.defaultEnabled,
       bandits: SETTINGS.defaultBandits,
       adaptiveResolution: SETTINGS.defaultAdaptiveResolution,
+      perfOverlay: SETTINGS.defaultPerfOverlay,
     });
     expect(parseSettings(d)).toEqual(d);
   });
@@ -72,6 +73,7 @@ describe('parseSettings: hoşgörülü okuma', () => {
       testMode: TEST_MODE.defaultEnabled,
       bandits: SETTINGS.defaultBandits,
       adaptiveResolution: SETTINGS.defaultAdaptiveResolution,
+      perfOverlay: SETTINGS.defaultPerfOverlay,
     });
   });
 

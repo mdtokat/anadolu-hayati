@@ -20,7 +20,9 @@ export type InputAction =
   /** F: oyuncu ↔ drone görüşü (`Q`). */
   | 'droneView'
   /** F: drone'u eve döndür ve indir (`H`). */
-  | 'droneHome';
+  | 'droneHome'
+  /** Performans göstergesini aç/kapa (`F3`). */
+  | 'togglePerformance';
 
 /** Tuş durumundan türetilen hareket niyeti. */
 export interface MoveIntent {
@@ -62,6 +64,7 @@ export function actionForKey(code: string): InputAction | null {
   if ((bindings.rotatePlacement as readonly string[]).includes(code)) return 'rotatePlacement';
   if ((bindings.droneView as readonly string[]).includes(code)) return 'droneView';
   if ((bindings.droneHome as readonly string[]).includes(code)) return 'droneHome';
+  if ((bindings.togglePerformance as readonly string[]).includes(code)) return 'togglePerformance';
   return null;
 }
 

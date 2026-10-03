@@ -173,6 +173,9 @@ import { ambientMix } from '../audio/ambientMix';
 import { Autosaver } from '../save/Autosaver';
 import { createNewGameSave } from '../save/newGame';
 import { pixelRatioFor, ResolutionGovernor } from './resolution';
+import { PerfStats } from './perfStats';
+import { PerfOverlay } from '../ui/PerfOverlay';
+import type { PerfViewInput } from '../ui/perfView';
 import { createBackend } from '../save/backends';
 import { applySave, captureSave, type SaveTargets } from '../save/gameState';
 import { SaveError, type SaveGame, type SaveSummary } from '../save/saveGame';
@@ -451,6 +454,9 @@ export class Game {
   private readonly player: Player;
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
+  /** Performans ölçümü (kare süreleri, bölümler, takılma dökümü) ve göstergesi (`F3`). */
+  private readonly perf = new PerfStats();
+  private readonly perfOverlay: PerfOverlay;
   /** Uyarlanır çözünürlük (Ayarlar → "Otomatik çözünürlük"): kare süresine göre piksel oranı ölçeği. */
   private readonly resolution = new ResolutionGovernor();
   private adaptiveResolution = true;
@@ -587,6 +593,7 @@ export class Game {
       devTeleportKeys: import.meta.env.DEV,
     });
     this.fps = import.meta.env.DEV ? new FpsCounter(container) : null;
+    this.perfOverlay = new PerfOverlay(container);
     this.hud = new Hud(container, import.meta.env.DEV);
     this.settingsPanel = new SettingsPanel(container, this.settings);
     this.ambient = new AmbientAudio(this.settings);
@@ -648,9 +655,16 @@ export class Game {
 
     // Başlangıçta duraklatılmış: ilk tıklamayla pointer lock alınınca oyun başlar.
     this.loop = new GameLoop({
-      update: (step) => this.update(step),
+      update: (step) => {
+        this.perf.section('simülasyon');
+        this.update(step);
+        this.perf.section(null);
+      },
       render: (alpha) => this.render(alpha),
+      // Kare başı: biten karenin süresi performans ölçümüne (takılma dökümü).
+      frame: (frameTime) => this.perf.endFrame(frameTime * 1000),
     });
+    this.world.setPerfProbe?.(this.perf);
     this.loop.setPaused(true);
 
     this.offs.push(
@@ -670,6 +684,9 @@ export class Game {
         // Faz 11: `R` hayalet açıkken döndürür, değilse doldurur (bağlam önceliği `resolveContextAction`).
         const action = resolveContextAction(raw, { placing: this.placement.aiming !== null });
         if (action === 'toggleCamera') this.playerCamera.toggleMode();
+        if (action === 'togglePerformance') {
+          this.settings.update({ perfOverlay: !this.settings.current.perfOverlay });
+        }
         if (action === 'toggleBorders') this.world.toggleBorders?.();
         if (action === 'placeCampfire') this.togglePlacement('campfire');
         if (action === 'placeShelter') this.togglePlacement('lean_to');
@@ -1115,6 +1132,7 @@ export class Game {
     this.deathScreen.dispose();
     this.hud.dispose();
     this.fps?.dispose();
+    this.perfOverlay.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.events.emit('game:disposed', undefined);
@@ -2081,7 +2099,8 @@ export class Game {
 
     const feet = this.player.renderPosition(alpha);
     const now = performance.now();
-    this.world.update(feet.x, feet.z, now / 1000);
+    this.world.update(feet.x, feet.z, now / 1000); // bölümlerini kendisi açar
+    this.perf.section('katmanlar');
     // Hava durumu: içeride (bina, cami, kulübe) yağmur damlası gösterilmez.
     this.world.setWeather?.(
       this.currentWeather(),
@@ -2103,7 +2122,9 @@ export class Game {
     this.drawBandits(now / 1000, feet);
     this.drawDrone(now / 1000, feet);
 
+    this.perf.section('çizim');
     this.renderer.render(this.world.scene, this.activeCamera());
+    this.perf.section('arayüz');
     this.sampleFrame(now);
     this.fps?.frame();
     this.updateLocationHud(now, feet);
@@ -2112,7 +2133,15 @@ export class Game {
     this.updateHotbarHud();
     this.hud.setHeading(this.playerCamera.yaw);
     this.updatePrompt();
-    if (import.meta.env.DEV) {
+    this.perfOverlay.update(
+      now,
+      () => this.perfInput(now),
+      () => this.perf.history(),
+    );
+    this.perf.section(null);
+    // Dev bilgisi performans göstergesiyle aynı köşededir: gösterge açıkken gizlenir.
+    if (import.meta.env.DEV && this.perfOverlay.visible) this.hud.setDebugText('');
+    else if (import.meta.env.DEV) {
       this.hud.setDebugText(
         formatDebugInfo({
           position: this.player.position,
@@ -2559,6 +2588,7 @@ export class Game {
     this.adaptiveResolution = settings.adaptiveResolution;
     this.applyPixelRatio(true);
     this.world.setQuality?.(preset);
+    this.perfOverlay.setVisible(settings.perfOverlay);
     this.playerCamera.setSensitivityScale(settings.mouseSensitivity);
     this.setTestMode(settings.testMode);
     this.banditsEnabled = settings.bandits;
@@ -2599,6 +2629,23 @@ export class Game {
     if (!force && ratio === this.renderer.getPixelRatio()) return;
     this.renderer.setPixelRatio(ratio);
     this.resize();
+  }
+
+  /** Performans göstergesinin girdisi (yalnızca gösterge yenilenirken hesaplanır). */
+  private perfInput(now: number): PerfViewInput {
+    const info = this.renderer.info.render;
+    const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+    return {
+      summary: this.perf.summary(),
+      spike: this.perf.spike,
+      now,
+      drawCalls: info.calls,
+      triangles: info.triangles,
+      pixelRatio: this.renderer.getPixelRatio(),
+      resolutionScale: this.adaptiveResolution ? this.resolution.scale : null,
+      heapMb: memory ? memory.usedJSHeapSize / 1048576 : null,
+      deferred: this.world instanceof RegionWorld ? this.world.budget.deferred : 0,
+    };
   }
 
   /** Kare süresini otomatik çözünürlük denetleyicisine verir (yalnızca oyun sürerken ve sekme görünürken). */

@@ -5,6 +5,8 @@ export interface GameLoopCallbacks {
   update: (step: number) => void;
   /** Her çizim karesinde çağrılır; `alpha` (0..1) son iki mantık durumu arası oran. */
   render: (alpha: number) => void;
+  /** Her karenin başında (adımlardan önce) çağrılır; `frameTime` önceki kareden beri geçen süre (sn, kırpılmamış). */
+  frame?: (frameTime: number) => void;
 }
 
 /**
@@ -47,6 +49,7 @@ export class GameLoop {
    * Ardından `render(alpha)` çağrılır.
    */
   advance(frameTime: number): number {
+    this.callbacks.frame?.(frameTime);
     if (this.isPaused) {
       this.callbacks.render(0);
       return 0;
