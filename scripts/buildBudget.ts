@@ -37,10 +37,16 @@ export const BUILD_BUDGET = {
      * `dist/data/` toplamı (ham). CLAUDE.md: karo akışı yok, açılışta hepsi iner. Kastamonu–Çankırı genişlemesi
      * (kullanıcı kararı: karo akışı yazmadan, bütçe bilinçli yükseltilerek): 24 → 40 MB (ölçülen ~35 MB; 40 karo).
      * Sinop–Sakarya genişlemesi (50 karo): 40 → 55 MB.
+     * Faz 12 (98 karo, 16 il, karo akışlı; 12.9): 55 → 160 MB (ölçülen 136,5 MB: eski `tiles/*.bin` 74 MB + bake 48 MB + küresel
+     * dosyalar ~14 MB). Karo akışlı yayında eski `tiles/*.bin` hiç inmez (yalnızca yoğun yol ve testler içindir); açılışta inen
+     * veri `stream` bütçesiyle (aşağıda) sınırlanır. Dağıtımdan çıkarma ayrı karar (ROADMAP).
      */
-    totalKB: 55_000,
-    /** Tek veri dosyası (ham). Karolar 512 kB; istisna `features.json` (genişlemeyle ≈ 1,9 MB; Sinop–Sakarya ile ≈ 2,5 MB): 1,5 → 3,5 MB. */
-    maxFileKB: 3_584,
+    totalKB: 160_000,
+    /**
+     * Tek veri dosyası (ham). Karolar 512 kB; istisna `features.json` (genişlemeyle ≈ 1,9 MB; Sinop–Sakarya ile ≈ 2,5 MB): 1,5 → 3,5 MB.
+     * Faz 12 (12.9): 4,90 MB ham (gzip ≈ 1,7 MB iner; açılışta tek seferde okunur) → 5,5 MB. Karo başına bölme ayrı iş (ROADMAP).
+     */
+    maxFileKB: 5_632,
   },
   /**
    * Performans bütçesi "ilk yükleme < 10 sn": açılışta inen her şeyin (JS + CSS + dünya verisi)
@@ -48,9 +54,9 @@ export const BUILD_BUDGET = {
    * ikili karolar (`.bin`) sıkıştırılmadan iner (GitHub Pages'in davranışına güvenmeyen üst sınır).
    * CPU hazırlığı (~0,7 sn, Faz 7 ölçümü) dahil değildir.
    */
-  // Kastamonu–Çankırı genişlemesi: 10 → 16 sn (ölçülen tahmin ~14,5 sn). Karo akışı gelince yeniden 10 sn'ye inmeli.
-  // Sinop–Sakarya genişlemesi: 16 → 20 sn (ölçülen tahmin ~17,2 sn; 50 karo). Karo akışı gelince yeniden 10 sn'ye inmeli.
-  load: { referenceMbps: 20, maxSeconds: 20 },
+  // Kastamonu–Çankırı genişlemesi: 10 → 16 sn, Sinop–Sakarya: 16 → 20 sn (karo akışı yokken tüm dünya iniyordu).
+  // Faz 12 (12.0a karo akışı + 12.9): yeniden 10 sn. Bu sınır yalnızca `stream.json` olmayan (tam bellek) yayında geçerlidir.
+  load: { referenceMbps: 20, maxSeconds: 10 },
   /**
    * Karo akışlı dünya (Faz 12, `stream.json` yayında): açılışta yalnızca küçük küresel dosyalar ve oyuncunun çevresindeki
    * `startTiles` karo iner, kalan karolar yaklaştıkça akar; bu durumda ilk yükleme sınırı Performans Bütçesi'nin
