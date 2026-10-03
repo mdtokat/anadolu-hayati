@@ -166,7 +166,12 @@ describe('migrateSave: sürüm göçü', () => {
   it('v3 → v4: aranmış yapı listesi boş eklenir; v4 listesi doğrulanır ve sıralanır', () => {
     const v3 = { ...JSON.parse(JSON.stringify(sample())), version: 3 } as Record<string, unknown>;
     delete v3.settlements;
-    expect(parseSave(v3).settlements).toEqual({ searched: [], containers: [], lastPrayer: -1 });
+    expect(parseSave(v3).settlements).toEqual({
+      searched: [],
+      containers: [],
+      lastPrayer: -1,
+      leftovers: [],
+    });
     const v4 = {
       ...JSON.parse(JSON.stringify(sample())),
       version: 4,
@@ -177,7 +182,12 @@ describe('migrateSave: sürüm göçü', () => {
       ...JSON.parse(JSON.stringify(sample())),
       settlements: { searched: [], containers: [8, 2, 2], lastPrayer: 7 },
     };
-    expect(parseSave(v6).settlements).toEqual({ searched: [], containers: [2, 8], lastPrayer: 7 });
+    expect(parseSave(v6).settlements).toEqual({
+      searched: [],
+      containers: [2, 8],
+      lastPrayer: 7,
+      leftovers: [],
+    });
     expect(codeOf(() => parseSave({ ...sample(), settlements: { searched: [-1] } }))).toBe(
       'invalid',
     );

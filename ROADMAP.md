@@ -449,6 +449,22 @@ Genişleme için teknik gereksinimler:
 - [x] Karo akışı (oyuncuya göre karo yükleme/boşaltma; bellek tavanı) _(Faz 12, 12.0a)_
 - [ ] Karo başına özellik dosyaları (su/örtü vektörleri) — `features.json` büyüdüğünde
 
+## Faz 11 sonrası — Savaş görünümü, çeteler, envanter ve ganimet (kullanıcı talimatı)
+_(Kullanıcı talimatı: "elle alınan eşyalar/silahlar elde de görünsün; şehirde çıkan haydutlar hep aynı sayıda olmasın ve hep 2 grup birlikte çıkmasın; eşkıya/haydut çeşitleri olsun; ateş ve yakın dövüş efektleri ayırt edilsin, ateş edildiği anlaşılsın; envanterde sürükle-bırak, dışarı bırakınca at; lootta tüm eşyalar alınmasın, ganimet ekranı: çift tıkla al / hepsini al")_
+
+- [x] **Envanter sürükle-bırak** (`ui/slotDrag.ts`, işaretçi tabanlı — Firefox `<button>` HTML5 sürüklemesini desteklemez): slota bırak → taşı/birleştir/yer değiştir (`Inventory.moveSlot`), panel dışına bırak → yığın atılır; tıkla-taşı korunur
+- [x] **Ganimet paneli** (`ui/LootPanel.ts`, `items/lootTransfer.ts`): ölü eşkıya, kamp sandığı ve bina kapları aramadan sonra otomatik alınmaz; eşyaya **çift tık** alır, **"Hepsini al"** sığanı alır, sığmayanlar kaynakta kalır (ceset: `BanditSystem.corpseLoot/commitCorpse`; sandık: `chestLoot/commitChest`; bina: `BuildingSearch.onLoot`, kalanlar kayıtta `settlements.leftovers` — eklemeli alan, kayıt sürümü v8 kaldı)
+- [x] **Elde eşya görünümü** (`player/HeldItem.ts`, `world/heldItemGeometry.ts`, `player/heldKinds.ts`, `player/heldPose.ts`, `HELD_ITEM`): kısayoldaki (el boşsa vuruşta kullanılacak) eşya birinci şahısta kameranın sağ altında (yumruk + ön kol), üçüncü şahısta oyuncu modelinin sağ kolunda; tüm `hold` eşyaları için model (silahlar, aletler, meşale, lamba, kap, giysi, drone)
+- [x] **Silah efektleri** (`world/CombatEffects.ts`, `COMBAT_FX`): ateşli silah = ağız alevi + kıvılcım + duman + tepme (silaha göre boyut; susturucuda alev yok); yakın dövüş = biçime göre savurma yayı/saplama çizgisi (`slash`, `chop`, `smash`, `thrust`, `punch`) + vınlama sesi + isabet kıvılcımı; **eşkıya atışı ve savurması artık görünür/duyulur** (`bandit:fired`, `bandit:swung`; daha önce eşkıya ateşi sessiz ve izsizdi)
+- [x] **Değişken çete sayısı ve boyu** (`GANGS.gangCountWeights`, `memberWeights`, `bandits/gangs.ts` `gangFactionsPresent`): bir yerde gün ve yere göre 1–3 çete (hep iki değil), çete başına 1–6 üye; üçüncü çete (yeşil) ve üçüncü cadde noktası; tek çete rakipsizdir
+- [x] **Eşkıya çeşitleri** (`bandits/styles.ts`): kamp — dağ eşkıyası, yol kesen, kaçakçı, nişancı, kavgacı; sokak — deri ceket, kapüşonlu, takım elbise, atlet; kimlik/silahtan deterministik, model `world/banditGeometry.ts`
+
+Elle doğrulanacak:
+- [ ] Viewmodel ölçüsü/konumu ve duvara yakınken görünüm; silahların tepmesi ve savurma hissi (gerçek GPU'da)
+- [ ] Ağız alevi/duman ve savurma izlerinin okunurluğu; eşkıya ateşi sesi ve uzaklık sönümü
+- [ ] Sürükle-bırak (Chrome/Firefox/Edge), ganimet panelinde çift tık ve kısmi alma; kayıt/yükleme sonrası kalan ganimet
+- [ ] Çete sayısı ve boyu dengesi (tek çete oyuncuya karşı, üç çete çatışması)
+
 ---
 
 ## Fikir Havuzu

@@ -56,8 +56,8 @@ export class BanditLayer {
       const key = `b${b.id}`;
       present.add(key);
       const faction = b.faction ?? -1;
-      const node = this.node(key, `${b.role}:${b.weapon}:${faction}`, () =>
-        buildBanditGeometry(b.role, b.weapon, faction),
+      const node = this.node(key, `${b.role}:${b.weapon}:${faction}:${b.style ?? ''}`, () =>
+        buildBanditGeometry(b.role, b.weapon, faction, b.style),
       );
       this.pose(node, b.x, b.y, b.z, b.yaw, b.state, b.speed > 0.05, b.stride);
     }

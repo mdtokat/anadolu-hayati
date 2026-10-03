@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GANGS } from '../src/config';
 import { BanditSystem, type BanditContext, type BanditWorld } from '../src/bandits/BanditSystem';
-import { gangPresent, type GangSite } from '../src/bandits/gangs';
+import { gangFactionsPresent, gangPresent, type GangSite } from '../src/bandits/gangs';
 import type { BanditPlayer } from '../src/bandits/perception';
 import { TargetRegistry, playerTargetProvider } from '../src/combat/targets';
 import { EventBus } from '../src/core/EventBus';
@@ -21,8 +21,13 @@ const site: GangSite = {
   b: { x: 15, z: 0 },
 };
 
-/** Çetenin bulunduğu ilk gün (deterministik). */
-const PRESENT_DAY = Array.from({ length: 50 }, (_, d) => d + 10).find((d) => gangPresent(site, d))!;
+/** Üç noktalı yer (üç çete sığar). */
+const site3: GangSite = { ...site, id: 6, c: { x: 0, z: 25 } };
+
+/** Çetenin bulunduğu ve iki çetenin birlikte çıktığı ilk gün (deterministik). */
+const PRESENT_DAY = Array.from({ length: 200 }, (_, d) => d + 10).find(
+  (d) => gangPresent(site, d) && gangFactionsPresent(site, d).length === 2,
+)!;
 const ABSENT_DAY = Array.from({ length: 50 }, (_, d) => d + 10).find((d) => !gangPresent(site, d))!;
 
 function setup(sites: readonly GangSite[] = [site]) {
@@ -86,6 +91,39 @@ function warm(t: ReturnType<typeof setup>) {
   t.run(GANGS.graceSeconds + 5);
 }
 
+/** `s` yerinde `n` çetenin çıktığı ve çetenin bulunduğu ilk gün. */
+function dayWithGangs(s: GangSite, n: number): number {
+  return Array.from({ length: 400 }, (_, d) => d + 10).find(
+    (d) => gangPresent(s, d) && gangFactionsPresent(s, d).length === n,
+  )!;
+}
+
+describe('BanditSystem: değişken çete sayısı', () => {
+  it.each([1, 2, 3])('%i çetelik gün: o kadar çete ve reis canlanır', (n) => {
+    const day = dayWithGangs(site3, n);
+    expect(day).toBeDefined();
+    const t = setup([site3]);
+    t.setNow(day * DAY + 12 * 3600);
+    warm(t);
+    const views = t.system.views();
+    expect(new Set(views.map((v) => v.faction)).size).toBe(n);
+    expect(views.filter((v) => v.role === 'leader')).toHaveLength(n);
+    expect(views.length).toBeGreaterThanOrEqual(n * GANGS.members[0]);
+    expect(views.length).toBeLessThanOrEqual(n * GANGS.members[1]);
+  });
+
+  it('tek çete rakipsizdir: kendi aralarında çatışmaz, oyuncuya hasar verebilir', () => {
+    const day = dayWithGangs(site3, 1);
+    const t = setup([site3]);
+    t.setNow(day * DAY + 12 * 3600);
+    warm(t);
+    t.player.z = 180;
+    t.run(60);
+    expect(t.log.some((e) => e.name === 'gang:clash')).toBe(false);
+    expect(t.system.views().every((v) => v.state !== 'dead')).toBe(true);
+  });
+});
+
 describe('BanditSystem: sokak çeteleri', () => {
   it('çete olan günde, saatte ve ısınmadan sonra iki rakip çete caddede canlanır', () => {
     const t = setup();
@@ -93,6 +131,8 @@ describe('BanditSystem: sokak çeteleri', () => {
     const views = t.system.views();
     expect(views.length).toBeGreaterThanOrEqual(2 * GANGS.members[0]);
     expect(new Set(views.map((v) => v.faction))).toEqual(new Set([0, 1]));
+    // Her çeşit kıyafet tanımlıdır (çete çeşitleri).
+    expect(views.every((v) => v.style !== undefined)).toBe(true);
     expect(views.every((v) => v.camp === -1)).toBe(true);
     expect(views.filter((v) => v.role === 'leader')).toHaveLength(2);
   });

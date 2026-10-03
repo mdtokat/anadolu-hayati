@@ -49,6 +49,7 @@ export function sampleSave(): SaveGame {
       searched: [5 * 1024 + 2, 7 * 1024],
       containers: [9 * 1024 * 8 + 1],
       lastPrayer: 44,
+      leftovers: [{ key: -1 - 5 * 1024, items: [{ id: 'peksimet', count: 2 }] }],
     },
     // Faz 11 (v5): her bölüm dolu.
     farm: {

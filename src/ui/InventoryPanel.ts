@@ -25,6 +25,7 @@ import {
   type RecipeRow,
 } from './inventoryView';
 import { RECIPES } from '../items/recipes';
+import { attachSlotDrag } from './slotDrag';
 import { closeButton, el, loadMeter, moneyBadge, slotButton } from './widgets';
 
 export interface InventoryPanelCallbacks {
@@ -220,6 +221,10 @@ export class InventoryPanel {
         slot.append(el('span', 'inv-slot-key', keyLabel(INPUT.bindings.hotbar[bound] ?? '')));
       }
       slot.addEventListener('click', () => this.onSlotClick(index));
+      attachSlotDrag(slot, index, this.panel, {
+        onMove: (from, to) => this.onSlotDrag(from, to),
+        onDrop: (from) => this.onSlotDragOut(from),
+      });
       grid.append(slot);
     });
     scroller.append(grid);
@@ -229,7 +234,13 @@ export class InventoryPanel {
     const stack = this.selected === null ? null : (this.inventory.slots[this.selected] ?? null);
     if (stack === null) {
       actions.dataset.empty = 'true';
-      actions.append(el('span', 'inv-hint', 'Bir eşyaya tıkla; başka bir slota tıklayarak taşı.'));
+      actions.append(
+        el(
+          'span',
+          'inv-hint',
+          'Bir eşyaya tıkla ya da sürükle: başka slota bırak (taşı/birleştir), panelin dışına bırak (at).',
+        ),
+      );
     } else {
       const view = slotView(stack);
       const slot = this.selected as number;
@@ -565,6 +576,23 @@ export class InventoryPanel {
     if (row.reason) card.append(el('div', 'inv-reason', row.reason));
     card.append(controls);
     return card;
+  }
+
+  /** Sürükle-bırak: `from` slotundaki yığın `to` slotuna taşınır (birleştirir ya da yer değiştirir). */
+  private onSlotDrag(from: number, to: number): void {
+    this.confirmDropAll = false;
+    this.inventory.moveSlot(from, to);
+    this.selected = null;
+    this.refresh();
+  }
+
+  /** Sürükle-bırak: yığın panelin dışına bırakıldı, tamamı atılır. */
+  private onSlotDragOut(from: number): void {
+    this.confirmDropAll = false;
+    const stack = this.inventory.slots[from] ?? null;
+    this.selected = null;
+    if (stack !== null) this.callbacks.onDrop(from, stack.count);
+    this.refresh();
   }
 
   private onSlotClick(index: number): void {

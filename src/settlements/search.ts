@@ -30,6 +30,18 @@ export type SearchTarget =
       container: InteriorContainer;
     };
 
+/** Ganimet paneline verilen: değiştirilebilir liste ve her alıştan sonra çağrılan `settle` (boşaldıysa hedef biter). */
+export interface BuildingLoot {
+  title: string;
+  items: ItemStack[];
+  settle(): void;
+}
+
+/** Hedefin kalan-ganimet anahtarı (kapı için eksi, kap için kap kimliği: kimlik uzayları çakışmasın). */
+function leftoverKey(target: SearchTarget): number {
+  return target.type === 'door' ? -1 - target.id : target.id;
+}
+
 /** Aranabilecek hedef ve durumu (HUD ipucu). */
 export interface SearchOffer {
   /** `ready`: aranabilir; `searched`: çoktan arandı; `full`: ganimet envantere sığmıyor. */
@@ -141,6 +153,13 @@ function fitsAll(inventory: Inventory, items: ReadonlyArray<ItemStack>): boolean
 export class BuildingSearch {
   private readonly searched = new Set<number>();
   private readonly containers = new Set<number>();
+  /** Açılmış ama tamamen alınmamış hedeflerin kalan ganimeti (hedef anahtarı → liste; yalnızca panel kipinde). */
+  private readonly leftovers = new Map<number, ItemStack[]>();
+  /**
+   * Verilirse arama bitince ganimet **otomatik alınmaz**: bu geri çağrı ganimet panelini açar (Game). Verilmezse
+   * (testler) ganimet eskisi gibi atomik olarak envantere eklenir.
+   */
+  onLoot: ((loot: BuildingLoot) => void) | null = null;
   private currentId: number | null = null;
   private elapsed = 0;
   private currentOffer: SearchOffer | null = null;
@@ -184,11 +203,28 @@ export class BuildingSearch {
     return [...this.containers].sort((a, b) => a - b);
   }
 
-  loadSave(ids: readonly number[], containers: readonly number[] = []): void {
+  /** Kayıt: açılmış ama boşaltılmamış hedefler (`key`: kapı için −1 − yapı kimliği, kap için kap kimliği). */
+  leftoversToSave(): Array<{ key: number; items: ItemStack[] }> {
+    return [...this.leftovers]
+      .sort((a, b) => a[0] - b[0])
+      .map(([key, items]) => ({ key, items: items.map((s) => ({ ...s })) }));
+  }
+
+  loadSave(
+    ids: readonly number[],
+    containers: readonly number[] = [],
+    leftovers: ReadonlyArray<{ key: number; items: ItemStack[] }> = [],
+  ): void {
     this.searched.clear();
     this.containers.clear();
+    this.leftovers.clear();
     for (const id of ids) this.searched.add(id);
     for (const id of containers) this.containers.add(id);
+    for (const l of leftovers)
+      this.leftovers.set(
+        l.key,
+        l.items.map((s) => ({ ...s })),
+      );
     this.currentId = null;
     this.elapsed = 0;
     this.currentOffer = null;
@@ -202,9 +238,10 @@ export class BuildingSearch {
       this.elapsed = 0;
       return;
     }
+    // Panel kipinde sığmayan ganimet de açılır (sığan alınır); eski kipte hepsi sığmalı.
     const status: SearchOffer['status'] = this.isTargetSearched(target)
       ? 'searched'
-      : fitsAll(this.inventory, lootOf(target))
+      : this.onLoot !== null || fitsAll(this.inventory, lootOf(target))
         ? 'ready'
         : 'full';
     const seconds = searchSeconds(target);
@@ -227,7 +264,51 @@ export class BuildingSearch {
     }
   }
 
+  /** Hedef boşaltıldı (ya da boş çıktı): bir daha aranmaz. */
+  private markDone(target: SearchTarget): void {
+    if (target.type === 'door') this.searched.add(target.id);
+    else this.containers.add(target.id);
+    this.leftovers.delete(leftoverKey(target));
+  }
+
+  /** Panel kipi: ganimeti ilk açılışta zarlar (para da o an ödenir), kalanı saklar ve paneli açtırır. */
+  private open(target: SearchTarget, onLoot: (loot: BuildingLoot) => void): void {
+    const key = leftoverKey(target);
+    let list = this.leftovers.get(key);
+    if (!list) {
+      list = lootOf(target);
+      this.leftovers.set(key, list);
+      const b = target.building;
+      const money = this.wallet ? searchMoney(target.type, target.id, b) : 0;
+      if (money > 0) this.wallet?.add(money);
+      this.events.emit('building:searched', {
+        id: b.id,
+        kind: b.kind,
+        items: list.map((s) => ({ ...s })),
+        container: target.type === 'container' ? target.container.kind : null,
+        money,
+      });
+    }
+    if (list.length === 0) {
+      this.markDone(target);
+      return;
+    }
+    const name =
+      target.type === 'container'
+        ? CONTAINER_NAMES[target.container.kind]
+        : BUILDING_NAMES[target.building.kind];
+    onLoot({ title: name, items: list, settle: () => this.settle(target, list) });
+  }
+
+  private settle(target: SearchTarget, list: readonly ItemStack[]): void {
+    if (list.length === 0) this.markDone(target);
+  }
+
   private complete(target: SearchTarget): void {
+    if (this.onLoot) {
+      this.open(target, this.onLoot);
+      return;
+    }
     const items = lootOf(target);
     if (!fitsAll(this.inventory, items)) return;
     for (const s of items) this.inventory.add(s.id, s.count);

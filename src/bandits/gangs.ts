@@ -31,7 +31,7 @@ export interface GangSpot {
   z: number;
 }
 
-/** Bir merkezdeki çete yeri: iki rakip çetenin başlangıç noktaları (`a`, `b`). */
+/** Bir merkezdeki çete yeri: çetelerin başlangıç noktaları (`a`, `b`; bulunabilirse `c`). */
 export interface GangSite {
   /** Kalıcı kimlik (yerleşim kimliği). */
   id: number;
@@ -42,6 +42,8 @@ export interface GangSite {
   radius: number;
   a: GangSpot;
   b: GangSpot;
+  /** Üçüncü çete noktası (cadde üzerinde yer bulunabildiyse). */
+  c?: GangSpot;
 }
 
 /** Bir çete üyesi: rol, silah ve başlangıç noktası (merkez noktasının çevresine dağılmış). */
@@ -52,8 +54,8 @@ export interface GangMember {
   z: number;
 }
 
-/** İki rakip çete (faction 0 ve 1). */
-export const GANG_FACTIONS = [0, 1] as const;
+/** Çeteler (faction 0, 1, 2): bir yerde 1–3 tanesi birlikte bulunur (`gangFactionsPresent`). */
+export const GANG_FACTIONS = [0, 1, 2] as const;
 export type GangFaction = (typeof GANG_FACTIONS)[number];
 
 function randomInRing(random: Random, cx: number, cz: number, rMax: number): GangSpot {
@@ -86,6 +88,16 @@ export function placeGangSites(q: GangSiteQuery, seed: number = GANGS.seed): Gan
         b = p;
     }
     if (!b) continue;
+    // Üçüncü nokta: a'ya pair uzaklığında, b'den de en az `minPair` uzakta (bulunamazsa site en çok iki çeteye hizmet eder).
+    let c: GangSpot | null = null;
+    for (let i = 0; i < GANGS.searchTries && !c; i++) {
+      const angle = random.next() * Math.PI * 2;
+      const r = minPair + random.next() * (maxPair - minPair);
+      const p = { x: a.x + Math.cos(angle) * r, z: a.z + Math.sin(angle) * r };
+      if (Math.hypot(p.x - b.x, p.z - b.z) < minPair) continue;
+      if (q.onStreet(p.x, p.z, GANGS.streetDistance) && q.open(p.x, p.z, GANGS.buildingClearance))
+        c = p;
+    }
     sites.push({
       id: center.id,
       name: center.name,
@@ -94,6 +106,7 @@ export function placeGangSites(q: GangSiteQuery, seed: number = GANGS.seed): Gan
       radius: center.radius,
       a,
       b,
+      ...(c ? { c } : {}),
     });
   }
   return sites;
@@ -110,7 +123,34 @@ export function gangHours(hour: number): boolean {
   return hour >= from && hour < to;
 }
 
-/** Çetenin üyeleri (reis ilk): sayı, roller ve silahlar `site`, gün ve çeteye göre deterministiktir. */
+/** Çetenin başlangıç noktası (bu yerde o çete için nokta yoksa null). */
+export function gangSpot(site: GangSite, faction: GangFaction): GangSpot | null {
+  return faction === 0 ? site.a : faction === 1 ? site.b : (site.c ?? null);
+}
+
+/**
+ * O gün bu yerde bulunan çeteler (artan sırada): sayı `GANGS.gangCountWeights`'e göre 1–3 (noktası olan çetelerle
+ * sınırlı), hangi çeteler olduğu da gün ve yere göre deterministiktir. Hep iki çete çıkmaz.
+ */
+export function gangFactionsPresent(
+  site: GangSite,
+  day: number,
+  seed: number = GANGS.seed,
+): GangFaction[] {
+  const random = createRandom(seedFrom(seed, site.id, day, 7));
+  const available = GANG_FACTIONS.filter((f) => gangSpot(site, f) !== null);
+  const wanted = Number(pickWeighted(random, GANGS.gangCountWeights));
+  const count = Math.max(1, Math.min(wanted, GANGS.maxGangs, available.length));
+  // Karıştır (Fisher–Yates), ilk `count` taneyi al.
+  const pool = [...available];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = random.int(0, i);
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  return pool.slice(0, count).sort((x, y) => x - y);
+}
+
+/** Çetenin üyeleri (reis ilk): sayı (1–6, ağırlıklı), roller ve silahlar `site`, gün ve çeteye göre deterministiktir. */
 export function gangRoster(
   site: GangSite,
   day: number,
@@ -118,9 +158,8 @@ export function gangRoster(
   seed: number = GANGS.seed,
 ): GangMember[] {
   const random = createRandom(seedFrom(seed, site.id, day, 3 + faction));
-  const spot = faction === 0 ? site.a : site.b;
-  const [lo, hi] = GANGS.members;
-  const count = random.int(lo, hi);
+  const spot = gangSpot(site, faction) ?? site.a;
+  const count = Number(pickWeighted(random, GANGS.memberWeights));
   const members: GangMember[] = [];
   for (let i = 0; i < count; i++) {
     const role: BanditRole = i === 0 ? 'leader' : 'member';
@@ -136,7 +175,7 @@ export function gangRoster(
 
 /** Çete üyesinin kalıcı kimliği (kamp üyelerinden ve serbest eşkıyalardan ayrı aralık). */
 export const GANG_ID_BASE = 2 ** 41;
-const GANG_STRIDE = 16;
+const GANG_STRIDE = 32;
 const GANG_FACTION_STRIDE = 8;
 
 export function gangMemberId(siteIndex: number, faction: GangFaction, index: number): number {
