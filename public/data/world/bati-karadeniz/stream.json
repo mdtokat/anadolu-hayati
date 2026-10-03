@@ -8,13 +8,13 @@
   "halo": 12,
   "overview": {
     "file": "stream/overview.bin",
-    "bytes": 955466,
-    "sha256": "37390c158534d74b614fe368b4708907ed71c5b1f07404b583cec7deb6b8def5"
+    "bytes": 955469,
+    "sha256": "f462b0b342e5efd8a6df39a66ec4224dee54761fe120b8c433e7728b24894ebb"
   },
   "settlements": {
     "file": "stream/settlements.bin",
-    "bytes": 3580426,
-    "sha256": "90c68af2557c424c5e86bc7c68d46521dfe48ed6ecbd023e450e12bf26d4c92f"
+    "bytes": 3580364,
+    "sha256": "e8f9db196c095c6aa68b755682a7a7d9dd083e35fa3d7d97969bd7aa271cbbbc"
   },
   "tiles": [
     {
@@ -364,8 +364,8 @@
       "tx": 3,
       "ty": 2,
       "file": "stream/t_3_2.bin",
-      "bytes": 785214,
-      "sha256": "6cda8626ead6329ab43b697ad9f570bc1e1b7f3ad994ec478ab686a201e9deff"
+      "bytes": 785749,
+      "sha256": "0eaf5ce8371c51f539a82b406b7406000f233705e06931ea366eb9adb0a5ec19"
     },
     {
       "tx": 4,
@@ -448,8 +448,8 @@
       "tx": 1,
       "ty": 3,
       "file": "stream/t_1_3.bin",
-      "bytes": 780987,
-      "sha256": "1288f2a7023ccc679d976e42eff586cc5cfd506474802fa4e1f09dde1782c4d1"
+      "bytes": 781535,
+      "sha256": "08a84fee6cb993a012f07cf3f8617b8bdfabc7b21dc63d6e0dfb9f40ff264a86"
     },
     {
       "tx": 2,
