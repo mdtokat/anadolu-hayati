@@ -1,14 +1,115 @@
-# Grup: dogu — Faz 12 (Doğu: Samsun, Çorum, Amasya) için ayrıldı. Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
+# Grup: dogu — Faz 12 (Doğu: Samsun, Çorum, Amasya). Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
 # parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
 # grubun oturumu tarafından doldurulur (plan §2.2). Boş grup (`provinces: []`) geçerlidir ve hiçbir şeyi değiştirmez.
 #
 # `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen; akış dizisi olmalıdır.
-provinces: []
+provinces: [Samsun, Çorum, Amasya]
 display_names: {}
-styles: {}
-# {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar.
+# Yerleşim üslubu (liste dışı il/ilçe merkezi `kasaba`, köy `koy`). Tarihî Osmanlı dokusu: Amasya (Yalıboyu), Merzifon (Kara Mustafa
+# Paşa Külliyesi, Bedesten), Osmancık, İskilip, Vezirköprü (Köprülü). Çorum, Samsun ve diğer ilçeler kasaba.
+styles:
+  Amasya: osmanli
+  Merzifon: osmanli
+  Osmancık: osmanli
+  İskilip: osmanli
+  Vezirköprü: osmanli
+# İl kapsamını bir kutuyla sınırlama: bu grupta kullanılmaz (üç il de tam).
 clip_bbox: {}
 # Cami sığmayan kıyı/sıkışık merkezler (bilinçli istisna; tests/settlementMap.test.ts). Akış dizisi.
 no_mosque_towns: []
-# Simge yapılar: `- { settlement: Ad, kind: mosque_grand, name: Ad, lon: 0.0, lat: 0.0 }` (bkz. cekirdek.yaml).
-landmarks: []
+# Simge yapılar: konumlar Overture Places kayıtlarından (yaklaşık; oyunda en yakın boş parsele oturur); yalnızca konumundan emin olunanlar
+# listelenir. Hattuşa Places'te yoktur: bilinen koordinatla yazıldı (raporda belirtildi).
+landmarks:
+  # Amasya (il merkezi; Yalıboyu Evleri ve Hazeranlar Konağı için uygun simge türü yok: LANDMARK_KINDS). II. Bayezid Camii ile Gökmedrese
+  # Camii il merkezinde parsel bulamadığı için çıkarıldı (ilçe → il düzen sırası; raporda).
+  - { settlement: Amasya, kind: castle, name: Amasya Kalesi, lon: 35.826886, lat: 40.655485 }
+  - {
+      settlement: Amasya,
+      kind: clock_tower,
+      name: Amasya Saat Kulesi,
+      lon: 35.833564,
+      lat: 40.65228,
+    }
+  - {
+      settlement: Amasya,
+      kind: monument,
+      name: Kral Kaya Mezarları,
+      lon: 35.830415,
+      lat: 40.653601,
+    }
+  # Merzifon
+  - {
+      settlement: Merzifon,
+      kind: mosque_grand,
+      name: Kara Mustafa Paşa Camii,
+      lon: 35.463243,
+      lat: 40.872998,
+    }
+  - {
+      settlement: Merzifon,
+      kind: shop_row,
+      name: Merzifon Bedesteni,
+      lon: 35.46185,
+      lat: 40.873987,
+    }
+  # Samsun (il merkezi yalnız 13 parsel alır: Büyük Cami yerleşemediği için çıkarıldı; raporda)
+  - {
+      settlement: Samsun,
+      kind: clock_tower,
+      name: Samsun Saat Kulesi,
+      lon: 36.332124,
+      lat: 41.295022,
+    }
+  # Bafra, Vezirköprü, Ladik, Havza
+  - { settlement: Bafra, kind: mosque, name: Bafra Büyük Cami, lon: 35.901879, lat: 41.570196 }
+  - { settlement: Bafra, kind: hamam, name: Bafra Belediye Hamamı, lon: 35.902264, lat: 41.56851 }
+  - {
+      settlement: Vezirköprü,
+      kind: mosque_grand,
+      name: Köprülü Mehmet Paşa Camii,
+      lon: 35.459848,
+      lat: 41.140741,
+    }
+  - {
+      settlement: Ladik,
+      kind: clock_tower,
+      name: Ladik Saat Kulesi,
+      lon: 35.895623,
+      lat: 40.909118,
+    }
+  - { settlement: Havza, kind: monument, name: Havza Atatürk Evi, lon: 35.658757, lat: 40.970659 }
+  # Çorum
+  - { settlement: Çorum, kind: mosque_grand, name: Ulu Cami, lon: 34.952434, lat: 40.551212 }
+  - { settlement: Çorum, kind: castle, name: Çorum Kalesi, lon: 34.95697, lat: 40.546149 }
+  - {
+      settlement: Çorum,
+      kind: clock_tower,
+      name: Çorum Saat Kulesi,
+      lon: 34.953048,
+      lat: 40.547838,
+    }
+  # Osmancık, İskilip, Sungurlu, Alaca, Boğazkale (Hattuşa)
+  - {
+      settlement: Osmancık,
+      kind: mosque_grand,
+      name: Koca Mehmet Paşa Camii,
+      lon: 34.80618,
+      lat: 40.97216,
+    }
+  - { settlement: Osmancık, kind: castle, name: Kandiber Kalesi, lon: 34.800547, lat: 40.972319 }
+  - { settlement: İskilip, kind: mosque, name: İskilip Ulu Camii, lon: 34.474117, lat: 40.733236 }
+  - {
+      settlement: Sungurlu,
+      kind: clock_tower,
+      name: Sungurlu Saat Kulesi,
+      lon: 34.374151,
+      lat: 40.162526,
+    }
+  - {
+      settlement: Alaca,
+      kind: clock_tower,
+      name: Alaca Saat Kulesi,
+      lon: 34.841256,
+      lat: 40.169112,
+    }
+  - { settlement: Boğazkale, kind: monument, name: Hattuşa, lon: 34.6161, lat: 40.0164 }
