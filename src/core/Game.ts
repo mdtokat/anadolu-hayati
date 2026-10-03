@@ -538,7 +538,9 @@ export class Game {
       openSettings: () => this.settingsPanel.show(),
       openCredits: () => this.creditsPanel.show(),
       openControls: () => this.controlsPanel.show(),
-      isSuppressed: () => this.overlayOpen,
+      // Ölüm ekranı açıkken menü açılmaz: altında görünmez kalıp odağı "Yeniden Doğ"dan çalıyordu (Enter ölüyken
+      // oyunu sürdürüyordu).
+      isSuppressed: () => this.overlayOpen || this.deathScreen.visible,
       host: {
         resume: () => this.input.requestLock(),
         newGame: () => this.newGame(),
