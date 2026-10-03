@@ -377,6 +377,8 @@ Elle doğrulanacak:
 - [ ] Hava geçişleri, yağmur görünümü/sesi ve üşüme dengesi
 - [ ] Yeni hayvanların sıklığı; sülünün uçuşu; kuş sürüleri
 - [ ] Çanta kapasiteleri ve susturucu dengesi
+- [x] **Sinop – Sakarya** (kullanıcı kararı: "Sinop ve Sakarya illerini ekle", karo akışı olmadan, bütçeler bilinçli yükseltilerek): dünya 3452 × 2218 → **4699 × 2346 örnek** (37 × 19 = 703 chunk, **50 karo**; kafes `extent` −1152, −384; en yüksek nokta değişmedi, 2600 m), `tools/world.yaml` 9 hedef il; mevcut alan aynı (`PINNED_WINDOWS` üçüncü pencere). Yerleşimler 705 → **915** (9 il, 84 ilçe, 822 köy), simge yapılar (Sinop, Boyabat, Adapazarı, Geyve, Hendek), yer adları (Sinop 8, Sakarya 10), eşkıya kampı 72 → 96; yol ağında ağdan kopuk kısa kent sokağı öbekleri silinir. Bütçe: veri 44,4 MB (sınır 40 → 55), tahmini ilk yükleme 17,2 sn (sınır 16 → 20 sn), en büyük dosya `features.json` 2,55 MB (sınır 3,5). Başsız ölçüm: en kötü **281 draw call** (Tosya; bütçe < 300), ~0,59 M üçgen, JS yığını ~490 MB.
+- [ ] Sinop–Sakarya: gerçek GPU'da FPS (draw call sınırda), ilk yükleme süresi (tahmin 17 sn), Sinop yarımadası ve Sakarya'da oyun hissi
 - [ ] Kastamonu–Çankırı: gerçek GPU'da FPS (draw call sınırda), ilk yükleme süresi, Ilgaz/Çankırı bozkırında oyun hissi ve gece soğuğu
 
 ### Alışveriş, satıcılar ve tapu (kullanıcı talimatı)

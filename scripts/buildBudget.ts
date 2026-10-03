@@ -49,7 +49,8 @@ export const BUILD_BUDGET = {
    * CPU hazırlığı (~0,7 sn, Faz 7 ölçümü) dahil değildir.
    */
   // Kastamonu–Çankırı genişlemesi: 10 → 16 sn (ölçülen tahmin ~14,5 sn). Karo akışı gelince yeniden 10 sn'ye inmeli.
-  load: { referenceMbps: 20, maxSeconds: 16 },
+  // Sinop–Sakarya genişlemesi: 16 → 20 sn (ölçülen tahmin ~17,2 sn; 50 karo). Karo akışı gelince yeniden 10 sn'ye inmeli.
+  load: { referenceMbps: 20, maxSeconds: 20 },
   /** Sınırın bu oranını aşan değerler uyarı (⚠️) olarak işaretlenir. */
   warnRatio: 0.9,
 } as const;
