@@ -84,12 +84,12 @@ def test_heightmap_bytes_are_little_endian_row_major():
 def test_tiles_for_world_bbox_cover_the_expanded_world():
     world = yaml.safe_load(WORLD_YAML.read_text(encoding="utf-8"))["worlds"]["bati-karadeniz"]
     tiles = rl.tiles_for_bbox(*world["bbox"])
-    # Kastamonu–Çankırı genişlemesi: 40–42°K × 30–34°D (Kastamonu kıyısı 42°K'nin hemen üstüne çıkar).
-    assert len(tiles) == 15
+    # Sinop–Sakarya genişlemesi: 40–42°K × 29–35°D (Sinop yarımadası 42°K'nin hemen üstüne çıkar).
+    assert len(tiles) == 21
     assert set(tiles) == {
         f"Copernicus_DSM_COG_10_N{lat}_00_E{lon}_00_DEM"
         for lat in ("40", "41", "42")
-        for lon in ("030", "031", "032", "033", "034")
+        for lon in ("029", "030", "031", "032", "033", "034", "035")
     }
 
 
@@ -112,7 +112,7 @@ def test_lfs_pointer_detection():
 
 def test_world_yaml_is_well_formed():
     world = yaml.safe_load(WORLD_YAML.read_text(encoding="utf-8"))["worlds"]["bati-karadeniz"]
-    assert world["provinces"] == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı"]
+    assert world["provinces"] == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı", "Sinop", "Sakarya"]
     lon_min, lat_min, lon_max, lat_max = world["bbox"]
     assert lon_min < lon_max and lat_min < lat_max
     assert world["cell_size"] > 0 and math.isfinite(world["margin_m"])

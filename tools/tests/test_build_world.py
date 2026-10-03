@@ -213,16 +213,16 @@ def test_unknown_world_id_and_cell_size_are_rejected():
 
 def test_real_world_yaml_is_consistent_with_contract():
     config = build_world.load_world_config("bati-karadeniz")
-    assert config["provinces"] == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı"]
+    assert config["provinces"] == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı", "Sinop", "Sakarya"]
     assert config["neighbors"] == "auto"
     assert config["cell_size"] == wl.CELL_SIZE_REAL
-    assert config["bbox"] == [30.30, 40.00, 34.95, 42.10]
+    assert config["bbox"] == [29.80, 40.00, 35.55, 42.30]
     import regionlib
 
-    assert len(regionlib.tiles_for_bbox(*config["bbox"])) == 15
-    # Sabitlenmiş pencereler (eski alanlar) eski DEM mozaiğinde örneklenir.
+    assert len(regionlib.tiles_for_bbox(*config["bbox"])) == 21  # 7 boylam × 3 enlem (Sinop–Sakarya genişlemesi)
+    # Sabitlenmiş pencereler (eski alanlar) eski DEM mozaiğinde örneklenir: Faz 6/7 pencereleri 8, Kastamonu–Çankırı 15 karo.
     for _, window_bbox in build_world.PINNED_WINDOWS:
-        assert len(regionlib.tiles_for_bbox(*window_bbox)) == 8
+        assert len(regionlib.tiles_for_bbox(*window_bbox)) in (8, 15)
 
 
 def test_missing_province_fails_loudly():
