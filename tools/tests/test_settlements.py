@@ -111,3 +111,28 @@ def test_fetch_records():
     assert fs.place_record({"geometry": point, "confidence": 0.9, "taxonomy": {"primary": "dentist"}}) is None
     b = fs.building_record({"bbox": {"xmin": 31.0, "xmax": 31.002, "ymin": 41.0, "ymax": 41.002}, "class": "mosque", "names": {"primary": "Cami"}})
     assert b[:3] == [31.001, 41.001, "mosque"] and b[4] == "Cami"
+
+
+def test_colliding_stable_ids_are_resolved_deterministically_and_non_colliding_ids_are_unchanged():
+    # İki gerçek çakışma (Faz 12.B dünyası): 20 bitlik CRC aynı kimliği verir.
+    a = "e578543d-51c5-4774-81c8-2394b12de99d"  # Selahiye (Sakarya)
+    b = "acfe110e-a767-41d3-9b11-81286fc5655e"  # Çanakçı (Samsun)
+    assert bs.stable_id(a) == bs.stable_id(b)
+    order = ["Sakarya", "Samsun"]
+
+    def run(entries, provinces):
+        items = [(oid, province, {"id": 0}) for oid, province in entries]
+        bs.assign_unique_ids(items, provinces)
+        return {oid: item["id"] for oid, _, item in items}
+
+    ids = run([(b, "Samsun"), (a, "Sakarya")], order)
+    assert ids[a] == bs.stable_id(a)  # önceki (çekirdek) il kimliğini korur
+    assert ids[b] != ids[a] and ids[b] == bs.stable_id(b + "#1")
+    # Girdi sırasından bağımsız ve tekrarlanabilir.
+    assert run([(a, "Sakarya"), (b, "Samsun")], order) == ids
+    # Çakışmayan kimlikler stable_id ile aynı kalır.
+    c = "9cb7dea9-9c5c-422b-abef-5f661716b6a4"
+    assert run([(c, "Sinop")], ["Sinop"])[c] == bs.stable_id(c)
+    # Aynı ilde çakışırsa Overture kimliği küçük olan kalır.
+    same = run([(b, "Samsun"), (a, "Samsun")], ["Samsun"])
+    assert same[b] == bs.stable_id(b) and same[a] == bs.stable_id(a + "#1")
