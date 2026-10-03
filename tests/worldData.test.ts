@@ -16,8 +16,11 @@ import { publicFsFetch } from './helpers/fsFetch';
  */
 const WORLD_DIR = resolve(__dirname, '../public/data/world', WORLD.id);
 
-/** Plan §1.4'te hesaplanan kapsam (5 hedef il + 2 km pay; batı kenarı chunk'a hizalı). */
-const EXPECTED_EXTENT = { col0: -640, row0: 0, cols: 2228, rows: 1962 };
+/**
+ * Kapsam: 7 hedef il (Faz 7 planının 5 ili + Kastamonu–Çankırı genişlemesi) + 2 km pay; batı ve kuzey kenarı chunk'a
+ * hizalı. Faz 7 kapsamı (−640, 0, 2228 × 1962) bunun içinde aynen durur.
+ */
+const EXPECTED_EXTENT = { col0: -640, row0: -256, cols: 3452, rows: 2218 };
 /** Eski bölgenin kafesteki alanı (7.2: extent 0,0,1588,1176). */
 const LEGACY = { col0: 0, row0: 0, cols: 1588, rows: 1176 };
 
@@ -53,12 +56,12 @@ describe('manifest ve karo dosyaları', () => {
     expect(Math.abs(manifest.extent.col0 % CHUNK_CELLS)).toBe(0);
     expect(Math.abs(manifest.extent.row0 % CHUNK_CELLS)).toBe(0);
     const range = tileRangeOf(manifest.extent);
-    expect(range).toEqual({ tx0: -2, tx1: 3, ty0: 0, ty1: 3 });
-    expect(manifest.tiles).toHaveLength(24);
+    expect(range).toEqual({ tx0: -2, tx1: 5, ty0: -1, ty1: 3 });
+    expect(manifest.tiles).toHaveLength(40);
     expect(manifest.overtureRelease).toBe('2026-09-23.1');
     expect(world.meta.gridWidth).toBe(EXPECTED_EXTENT.cols);
     expect(world.meta.gridHeight).toBe(EXPECTED_EXTENT.rows);
-    expect(world.meta.gridOrigin).toEqual({ x: -2867, z: -1175 });
+    expect(world.meta.gridOrigin).toEqual({ x: -2867, z: -1687 });
   });
 
   it('dünya geneli yükseklik aralığı: max yukarı 100e yuvarlı ve en yüksek noktayı kapsar', () => {
@@ -86,11 +89,13 @@ describe('manifest ve karo dosyaları', () => {
 });
 
 describe('iller', () => {
-  it('beş hedef il inRegion=true; komşular false', () => {
+  it('yedi hedef il inRegion=true; komşular false', () => {
     const targets = world.provinces.filter((p) => p.inRegion).map((p) => p.name);
-    expect(targets.sort()).toEqual(['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak'].sort());
+    expect(targets.sort()).toEqual(
+      ['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak', 'Kastamonu', 'Çankırı'].sort(),
+    );
     const neighbors = world.provinces.filter((p) => !p.inRegion).map((p) => p.name);
-    for (const name of ['Kastamonu', 'Çankırı', 'Ankara', 'Sakarya', 'Bilecik']) {
+    for (const name of ['Ankara', 'Sakarya', 'Bilecik', 'Sinop', 'Çorum']) {
       expect(neighbors, name).toContain(name);
     }
   });
@@ -122,7 +127,7 @@ describe('yükseklikler', () => {
     expect(Math.abs(elevationAt(-1587, 1610) - 1300)).toBeLessThan(200); // Abant Gölü
   });
 
-  it('Köroğlu yöresinde 2000 m üstü zirve var ve Bolu sınırları içinde', () => {
+  it('en yüksek zirve Ilgaz Dağı (≥ 2400 m; Kastamonu–Çankırı sınırı)', () => {
     let best = 0;
     for (let i = 1; i < world.heights.length; i++) {
       if ((world.heights[i] as number) > (world.heights[best] as number)) best = i;
@@ -135,8 +140,8 @@ describe('yükseklikler', () => {
     const z = origin.z + row * LATTICE_CELL;
     expect(col + col0).toBeGreaterThanOrEqual(manifest.extent.col0);
     expect(row + row0).toBeGreaterThanOrEqual(0);
-    expect(elevationAtSample(col + col0, row + row0)).toBeGreaterThan(2000);
-    expect(provinceAt(world.provinces, x, z)?.name).toBe('Bolu');
+    expect(elevationAtSample(col + col0, row + row0)).toBeGreaterThan(2400);
+    expect(['Kastamonu', 'Çankırı']).toContain(provinceAt(world.provinces, x, z)?.name);
   });
 });
 
@@ -170,7 +175,8 @@ describe('göller', () => {
 
   it('özellik dosyası eski ve yeni alanda su içerir (sınırdan geçen akarsular var)', () => {
     const lines = water()?.lines ?? [];
-    expect(lines.length).toBeGreaterThan(1000);
+    // Küçük dereler yüklemede ayıklanır (WATER_THINNING; ham veride ~2 340 çizgi).
+    expect(lines.length).toBeGreaterThan(800);
     const seamX = gridOriginOf({ col0: LEGACY.col0, row0: LEGACY.row0 }).x - LATTICE_CELL / 2;
     const crossing = lines.filter((l) => {
       let min = Infinity;

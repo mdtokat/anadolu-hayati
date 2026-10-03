@@ -19,7 +19,15 @@ export interface AmbientGraph {
 }
 
 /** Her katmanın nihai karışımdaki göreli kazancı (katmanlar birbirini ezmesin). */
-const MIX = { wind: 0.9, sea: 0.8, leaves: 0.35, birds: 0.22, night: 0.2, owl: 0.3 } as const;
+const MIX = {
+  wind: 0.9,
+  sea: 0.8,
+  leaves: 0.35,
+  birds: 0.22,
+  night: 0.2,
+  owl: 0.3,
+  rain: 0.55,
+} as const;
 
 /** Tek bir ortam grafiği kurar ve `destination`'a bağlar (genelde ana kazanç düğümü). */
 export function buildAmbientGraph(
@@ -141,6 +149,26 @@ export function buildAmbientGraph(
     sources.push(carrier);
   }
 
+  // ── Yağmur: geniş bantlı hışırtı + yüksek bantlı damla tıpırtısı (hızlı dalgalanma) ─────
+  const rainLevel = levelGain(MIX.rain);
+  {
+    const wash = track(ctx.createBiquadFilter());
+    wash.type = 'bandpass';
+    wash.frequency.value = 1500;
+    wash.Q.value = 0.35;
+    const washGain = track(ctx.createGain());
+    washGain.gain.value = 0.7;
+    noiseSource().connect(wash).connect(washGain).connect(rainLevel);
+    const patter = track(ctx.createBiquadFilter());
+    patter.type = 'highpass';
+    patter.frequency.value = 5200;
+    const patterGain = track(ctx.createGain());
+    patterGain.gain.value = 0.35;
+    lfo(7.3, 0.18, patterGain.gain);
+    lfo(13.1, 0.1, patterGain.gain);
+    noiseSource().connect(patter).connect(patterGain).connect(rainLevel);
+  }
+
   // Kuş ve baykuş olayları kendi veri yollarına (seviye düğümü) bağlanır.
   const birdsLevel = levelGain(MIX.birds);
   const owlBus = levelGain(MIX.owl);
@@ -183,6 +211,7 @@ export function buildAmbientGraph(
       apply(birdsLevel, levels.birds);
       apply(nightLevel, levels.night);
       apply(owlBus, levels.night);
+      apply(rainLevel, levels.rain);
     },
 
     chirp(time) {

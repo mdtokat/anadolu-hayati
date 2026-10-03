@@ -229,6 +229,14 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
     '<g fill="#d9a83a"><rect x="6" y="9" width="3.4" height="11" rx=".5"/><rect x="10.3" y="9" width="3.4" height="11" rx=".5"/><rect x="14.6" y="9" width="3.4" height="11" rx=".5"/></g><g fill="#b07a46"><path d="M6 9l1.7-5L9.4 9z"/><path d="M10.3 9 12 4l1.7 5z"/><path d="M14.6 9l1.7-5L18 9z"/></g>',
   // ── Faz 11: F ──
   drone: PLACEHOLDER_ICON.tool,
+  suppressor:
+    '<rect x="3" y="9" width="15" height="6" rx="1.6" fill="#33383d"/><rect x="18" y="10" width="3.5" height="4" rx=".8" fill="#4b5157"/><path d="M6 9v6M9.5 9v6M13 9v6" stroke="#55606a" stroke-width="1"/><circle cx="21.5" cy="12" r=".9" fill="#111"/>',
+  backpack_small:
+    '<rect x="6" y="7" width="12" height="13" rx="3" fill="#8a5a32"/><path d="M9 7V5.5a3 3 0 0 1 6 0V7" fill="none" stroke="#5e3c20" stroke-width="1.5"/><rect x="8.5" y="13" width="7" height="4.5" rx="1.2" fill="#6e4524"/>',
+  backpack_medium:
+    '<rect x="5" y="5.5" width="14" height="15.5" rx="3.2" fill="#6c7a3a"/><path d="M9 5.5V4a3 3 0 0 1 6 0v1.5" fill="none" stroke="#3f4a1e" stroke-width="1.5"/><rect x="7.5" y="12.5" width="9" height="6" rx="1.4" fill="#556226"/><path d="M5 10h14" stroke="#3f4a1e" stroke-width="1.2"/>',
+  backpack_large:
+    '<rect x="4" y="3.5" width="16" height="18" rx="3.4" fill="#3f5a6e"/><path d="M8.5 3.5V2.4h7v1.1" stroke="#25384a" stroke-width="1.5" fill="none"/><rect x="6.5" y="12" width="11" height="7.5" rx="1.5" fill="#304759"/><path d="M4 9h16M12 3.5v5.5" stroke="#25384a" stroke-width="1.2"/><rect x="2.5" y="8" width="2" height="9" rx="1" fill="#7a5a3a"/>',
 };
 
 /** Eşya kategorisinin vurgu rengi (slot kenarı ve çip rengi için CSS değişkeni). */

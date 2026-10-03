@@ -88,7 +88,7 @@ describe('CookingSystem', () => {
     // 2 çiğ et + 19 slot kav: biri çıkınca slot boşalmaz, pişmiş ete yer yok.
     inventory.add('raw_meat', 2);
     inventory.add('tinder', 19 * 30);
-    expect(inventory.slots.every((s) => s !== null)).toBe(true);
+    expect(inventory.slots.slice(0, inventory.activeSlots).every((s) => s !== null)).toBe(true);
     expect(inventory.canExchange('raw_meat', 'cooked_meat')).toBe(false);
     hold(cooking, COOKING.seconds * 2);
     expect(cooking.offer?.status).toBe('full');
@@ -101,7 +101,7 @@ describe('CookingSystem', () => {
     const { cooking, inventory } = setup();
     inventory.add('raw_meat', 1);
     inventory.add('tinder', 19 * 30);
-    expect(inventory.slots.every((s) => s !== null)).toBe(true);
+    expect(inventory.slots.slice(0, inventory.activeSlots).every((s) => s !== null)).toBe(true);
     cooking.update(DT, false, { x: 1, z: 0 });
     expect(cooking.offer?.status).toBe('ready');
     hold(cooking, COOKING.seconds + 0.1);

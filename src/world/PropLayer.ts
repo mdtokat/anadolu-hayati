@@ -16,6 +16,19 @@ import type { RegionHeightSource } from './RegionHeightSource';
 import { scatterChunk, type ChunkProps, type ScatterHeight } from './scatter';
 import type { FreshWaterIndex } from './waterIndex';
 
+/** Tür sırasına göre seyreltme oranı (`SCATTER.thinning`). */
+const THINNING = Float32Array.from(PROP_KINDS, (kind) => SCATTER.thinning[kind] ?? 0);
+
+/** Nesnenin seyreltme zarı [0, 1): chunk anahtarı ve sıradan karma (oturumlar arası sabit). */
+export function thinningRoll(key: number, index: number): number {
+  let h = Math.imul(key ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(index + 0x632be5ab, 0xc2b2ae35);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d);
+  h ^= h >>> 12;
+  h = Math.imul(h, 0x297a2d39);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
 /** Dev göstergesi / test için anlık sayımlar. */
 export interface PropLayerStats {
   /** Çizim yarıçapı içindeki chunk sayısı ve bunlardan hesaplanmış olanlar. */
@@ -75,6 +88,9 @@ export class PropLayer {
   constructor(
     source: RegionHeightSource,
     private readonly cover: LandCoverMap,
+    /**
+     * Dağılımın tatlı su elemesi: ayıklanan küçük dereler dahil (`scatterWaterOf`; nesne kimlikleri kaymasın).
+     */
     private readonly water: FreshWaterIndex | null,
     /**
      * `radius` yarıçaplı nesne (x, z)'de bir yapıya ya da yola değiyor mu (Faz 10 yerleşimleri)? Yoksa hiçbir nesne
@@ -83,8 +99,9 @@ export class PropLayer {
     private readonly isBlocked: ((x: number, z: number, radius: number) => boolean) | null = null,
   ) {
     this.grid = chunkGridFor(source);
-    // Dağılım doğal araziye göre elenir (yol düzeltmesi nesne kimliklerini kaydırmasın); duruş yüksekliği düzeltilmiş zemindir.
-    const natural = source.natural();
+    // Dağılım ham araziye göre elenir (yumuşatma ve yol düzeltmesi nesne kimliklerini kaydırmasın); duruş yüksekliği
+    // düzeltilmiş zemindir.
+    const natural = source.scatterView();
     this.scatterHeight = {
       heightAt: (x, z) => source.heightAt(x, z),
       elevationAt: natural.elevationAt,
@@ -231,6 +248,13 @@ export class PropLayer {
       });
       this.cache.set(chunk.key, props);
       this.index.set(props);
+      // Seyreltme: türün bir kısmı kimlik karmasıyla gizlenir (dağılım ve kimlikler değişmez).
+      for (let i = 0; i < props.count; i++) {
+        const fraction = THINNING[props.kind[i] as number] as number;
+        if (fraction > 0 && thinningRoll(chunk.key, i) < fraction) {
+          this.blocked.add(propId(chunk.key, i));
+        }
+      }
       if (this.isBlocked) {
         for (let i = 0; i < props.count; i++) {
           const radius =

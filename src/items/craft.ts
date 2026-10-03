@@ -54,10 +54,7 @@ const NO_SPACE: CraftFailure = { ok: false, reason: 'no_space', missing: [] };
  * dene); `takesInputs` false (test modu) ise malzeme çıkmaz.
  */
 function outputFits(inventory: Inventory, recipe: Recipe, takesInputs: boolean): boolean {
-  const trial = Inventory.fromJSON(inventory.toJSON(), {
-    slots: inventory.slotCount,
-    maxWeightG: inventory.maxWeightG,
-  });
+  const trial = inventory.clone();
   if (takesInputs) trial.take(recipe.inputs);
   return trial.add(recipe.output.id, recipe.output.count) === 0;
 }

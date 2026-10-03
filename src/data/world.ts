@@ -1,4 +1,5 @@
-import { HORIZONTAL_SCALE, WORLD } from '../config';
+import { HORIZONTAL_SCALE, PROVINCE_PLACES, TELEPORTS, WORLD } from '../config';
+import { latLonToGame } from '../world/geo';
 import { gridOriginOf, LATTICE_CELL, tileRangeOf } from '../world/lattice';
 import { classesMatch } from './landcover';
 import {
@@ -16,7 +17,8 @@ import {
   type WorldFileEntry,
   type WorldTileEntry,
 } from './worldTypes';
-import { parseSettlements } from './settlements';
+import { parseSettlements, type SettlementsData } from './settlements';
+import { thinFeatures } from './waterThinning';
 
 /** Dünya manifesti + karo verisi yükleyicisi: sözleşme docs/faz-7-paralel-plan.md §3.2–§3.3. */
 
@@ -375,10 +377,29 @@ export async function loadWorld(
     meta,
     heights,
     provinces: parseProvinces(provinces),
-    features: features === null ? null : parseFeatures(features),
+    // Küçük dereler ayıklanır (`WATER_THINNING`): oyun ve testler aynı su ağını görür.
+    features:
+      features === null
+        ? null
+        : thinFeatures(parseFeatures(features), waterAnchors(settlements, manifest.originUtm)),
     landcover,
     settlements,
   };
+}
+
+/**
+ * Küçük dere ayıklamasında korunacak noktalar: il/ilçe merkezleri ve oyunun yer adları / ışınlanma noktaları (yanından
+ * geçen dere kısa olsa da kalır: oyuncunun başladığı ya da ışınlandığı yerde içme suyu olsun).
+ */
+function waterAnchors(
+  settlements: SettlementsData | null,
+  origin: readonly [number, number],
+): Array<{ x: number; z: number }> {
+  const out: Array<{ x: number; z: number }> = [];
+  for (const s of settlements?.settlements ?? []) if (s.rank !== 'koy') out.push(s);
+  const places = [...Object.values(PROVINCE_PLACES).flat(), ...TELEPORTS];
+  for (const p of places) out.push(latLonToGame(p.lat, p.lon, origin));
+  return out;
 }
 
 function readLittleEndian(buffer: ArrayBuffer): Uint16Array {

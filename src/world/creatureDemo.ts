@@ -32,6 +32,10 @@ const SIZES: Record<CreatureKind, { radius: number; height: number; health: numb
   wild_boar: { radius: 0.45, height: 0.9, health: 90 },
   wolf: { radius: 0.4, height: 0.85, health: 70 },
   brown_bear: { radius: 0.7, height: 1.3, health: 250 },
+  red_deer: { radius: 0.6, height: 1.4, health: 120 },
+  red_fox: { radius: 0.25, height: 0.45, health: 25 },
+  hare: { radius: 0.2, height: 0.35, health: 12 },
+  pheasant: { radius: 0.25, height: 0.5, health: 8 },
 };
 
 /** Döngünün başından `t` saniyede (döngü içi) alınan yol (oyun m). */

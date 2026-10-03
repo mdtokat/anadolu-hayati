@@ -66,7 +66,7 @@ export function sampleSave(): SaveGame {
         { id: 2, x: 16, z: -50, crop: null, plantedAt: 0, wateredAt: 0, stage: 0, dead: false },
       ],
     },
-    weapons: { loaded: { pistol: 5, shotgun: 1 } },
+    weapons: { loaded: { pistol: 5, shotgun: 1 }, suppressed: ['pistol'] },
     bandits: {
       cleared: [{ camp: 3, at: 3600 * 70 }],
       chests: [{ camp: 3, items: [{ id: 'rifle_ammo', count: 4 }] }],

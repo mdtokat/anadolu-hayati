@@ -62,12 +62,10 @@ export function walk(
   minutes = 10,
 ): WalkResult {
   const rng = createRandom(seed);
-  const seen: Record<CreatureKind, Set<number>> = {
-    roe_deer: new Set(),
-    wild_boar: new Set(),
-    wolf: new Set(),
-    brown_bear: new Set(),
-  };
+  const seen = Object.fromEntries(CREATURE_KINDS.map((k) => [k, new Set<number>()])) as Record<
+    CreatureKind,
+    Set<number>
+  >;
   let peak = 0;
   let totalMs = 0;
   let steps = 0;

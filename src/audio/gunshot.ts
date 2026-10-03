@@ -1,4 +1,4 @@
-import { RANGED } from '../config';
+import { GLASS, RANGED } from '../config';
 import type { WeaponId } from '../items/weaponState';
 import type { SettingsStore } from '../settings/SettingsStore';
 import type { AudioContextFactory } from './AmbientAudio';
@@ -38,9 +38,22 @@ export class GunshotAudio {
     return this.ctx !== null;
   }
 
-  /** `weapon`'ın atış sesi; `distance` dinleyiciye uzaklık (oyun m; eşkıya atışı). */
-  play(weapon: WeaponId, distance = 0): void {
-    const profile = RANGED.sound.profiles[weapon];
+  /**
+   * `weapon`'ın atış sesi; `distance` dinleyiciye uzaklık (oyun m; eşkıya atışı). `suppressed`: susturuculu atış —
+   * kısık, boğuk "püf" (alçak geçiren süzgeç daralır, gümleme yok).
+   */
+  play(weapon: WeaponId, distance = 0, suppressed = false): void {
+    const base = RANGED.sound.profiles[weapon];
+    const s = RANGED.suppressor;
+    const profile = suppressed
+      ? {
+          ...base,
+          gain: base.gain * s.soundGain,
+          lowpassHz: base.lowpassHz * s.lowpassFactor,
+          thumpHz: 0,
+          decay: base.decay * 0.45,
+        }
+      : base;
     const gain = shotGain(this.settings.current.volume, profile.gain, distance);
     if (gain <= 0) return;
     const ctx = this.context();
@@ -72,6 +85,39 @@ export class GunshotAudio {
         this.tone(ctx, out, 'sine', profile.thumpHz, 0.8, profile.decay * 0.6, t);
       if (profile.twangHz > 0)
         this.tone(ctx, out, 'triangle', profile.twangHz, 0.6, profile.decay, t);
+      source.onended = () => out.disconnect();
+    } catch (error) {
+      this.disable(error);
+    }
+  }
+
+  /** Cam kırılması: yüksek geçiren gürültü şıkırtısı + birkaç kısa, tiz çınlama (kırıkların düşüşü). */
+  glass(): void {
+    const g = GLASS.sound;
+    const gain = shotGain(this.settings.current.volume, g.gain);
+    if (gain <= 0) return;
+    const ctx = this.context();
+    if (!ctx) return;
+    try {
+      const t = ctx.currentTime + 0.01;
+      const out = ctx.createGain();
+      out.gain.value = gain;
+      out.connect(ctx.destination);
+      const source = ctx.createBufferSource();
+      source.buffer = this.noiseBuffer(ctx);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 3200;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.9, t + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.001, t + g.decay);
+      source.connect(filter).connect(env).connect(out);
+      source.start(t);
+      source.stop(t + g.decay + 0.05);
+      // Çınlamalar: kırıklar sırayla yere düşer.
+      const tinkles = [5200, 6900, 4400, 7800, 6100];
+      tinkles.forEach((hz, i) => this.tone(ctx, out, 'sine', hz, 0.18, 0.09, t + 0.04 + i * 0.07));
       source.onended = () => out.disconnect();
     } catch (error) {
       this.disable(error);

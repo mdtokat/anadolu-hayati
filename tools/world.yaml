@@ -5,14 +5,15 @@ worlds:
   bati-karadeniz:
     name: 'Batı Karadeniz'
     # Hedef iller (geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen): provinces.geojson'da inRegion=true.
-    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu]
+    # Faz 11 sonrası genişleme (kullanıcı talimatı): Kastamonu ve Çankırı doğuya eklendi (Ilgaz).
+    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı]
     # Komşu iller: oyuncunun yürüyebildiği ama hedef olmayan iller (inRegion=false). 'auto' = ızgara + pay ile kesişen
     # (alanı `neighbor_min_area_km2` üstündeki) tüm iller; açık liste de verilebilir (örn. [Kastamonu, Çankırı]).
     neighbors: auto
     neighbor_min_area_km2: 1
     # Sınır kutusu [boylam_min, enlem_min, boylam_max, enlem_max] (derece): DEM karolarını seçer, ızgaranın
     # kutu içinde kaldığını doğrular. 30°D'nin doğusu: EPSG:32636 yeter (bkz. docs/faz-7-paralel-plan.md §1.3).
-    bbox: [30.30, 40.00, 33.30, 41.95]
+    bbox: [30.30, 40.00, 34.95, 42.10]
     # Hedef illerin UTM sınır kutusuna eklenen pay (metre).
     margin_m: 2000
     # Izgara hücre boyu (gerçek metre); kafesle (WORLD) aynı olmalı (100).

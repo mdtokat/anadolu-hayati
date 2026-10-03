@@ -22,14 +22,42 @@ export function isWeaponId(value: unknown): value is WeaponId {
   return typeof value === 'string' && (WEAPON_IDS as readonly string[]).includes(value);
 }
 
-/** Kayıt biçimi: yalnızca dolu şarjörler yazılır. */
+/** Susturucu takılabilen silahlar (`RANGED.suppressor.weapons`). */
+export function canSuppress(id: WeaponId): boolean {
+  return (RANGED.suppressor.weapons as readonly WeaponId[]).includes(id);
+}
+
+/** Kayıt biçimi: yalnızca dolu şarjörler yazılır; `suppressed` susturucu takılı silahlar (v7). */
 export interface WeaponStateSave {
   loaded: Partial<Record<WeaponId, number>>;
+  suppressed: WeaponId[];
 }
 
 export class WeaponState {
   private readonly rounds = new Map<WeaponId, number>();
+  private readonly suppressors = new Set<WeaponId>();
   private loads = 0;
+  private changes = 0;
+
+  /** Susturucu tak/çıkar sayacı (arayüz yenilensin). */
+  get attachmentRevision(): number {
+    return this.changes;
+  }
+
+  /** Silahta susturucu takılı mı? */
+  suppressed(id: WeaponId): boolean {
+    return this.suppressors.has(id);
+  }
+
+  /** Susturucuyu takar/çıkarır (takılamayan silahta false; envanter işini çağıran yapar). */
+  setSuppressed(id: WeaponId, on: boolean): boolean {
+    if (on && !canSuppress(id)) return false;
+    if (on === this.suppressors.has(id)) return true;
+    if (on) this.suppressors.add(id);
+    else this.suppressors.delete(id);
+    this.changes += 1;
+    return true;
+  }
 
   /** Kayıt yükleme/temizleme sayacı (11.5): `RangedSystem` geçici durumunu (doldurma, uçuştaki isabet) sıfırlar. */
   get revision(): number {
@@ -64,7 +92,9 @@ export class WeaponState {
 
   clear(): void {
     this.rounds.clear();
+    this.suppressors.clear();
     this.loads += 1;
+    this.changes += 1;
   }
 
   toSave(): WeaponStateSave {
@@ -73,16 +103,19 @@ export class WeaponState {
       const n = this.loaded(id);
       if (n > 0) loaded[id] = n;
     }
-    return { loaded };
+    return { loaded, suppressed: WEAPON_IDS.filter((id) => this.suppressors.has(id)) };
   }
 
   /** Kayıttan yükler (doğrulanmış kayıt: `parseSave`); bilinmeyen alanlar yok sayılır. */
-  loadSave(save: WeaponStateSave): void {
+  loadSave(save: Pick<WeaponStateSave, 'loaded'> & Partial<WeaponStateSave>): void {
     this.rounds.clear();
+    this.suppressors.clear();
     this.loads += 1;
+    this.changes += 1;
     for (const id of WEAPON_IDS) {
       const n = save.loaded[id];
       if (n !== undefined) this.set(id, n);
     }
+    for (const id of save.suppressed ?? []) if (canSuppress(id)) this.suppressors.add(id);
   }
 }

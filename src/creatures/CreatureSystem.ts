@@ -79,6 +79,8 @@ interface Entry {
   noiseX: number;
   noiseZ: number;
   noiseTime: number;
+  /** Kuş: zeminden yükseklik (oyun m; kaçarken havalanır, konunca 0). */
+  lift: number;
   view: CreatureView;
 }
 
@@ -426,6 +428,7 @@ export class CreatureSystem {
       noiseX: 0,
       noiseZ: 0,
       noiseTime: 0,
+      lift: 0,
       view: {
         id: candidate.id,
         kind: candidate.kind,
@@ -491,7 +494,19 @@ export class CreatureSystem {
 
     if (brain.state === 'dead') {
       rec.deadSeconds += dt;
+      // Vurulan kuş düşer.
+      if (rec.lift > 0) rec.lift = Math.max(0, rec.lift - CREATURES.flight.fallSpeed * dt);
       return;
+    }
+    // Kuş: kaçarken havalanır, kaçış bitince konar.
+    const flightHeight = SPECIES[brain.kind].flightHeight ?? 0;
+    if (flightHeight > 0 || rec.lift > 0) {
+      const target = brain.state === 'flee' ? flightHeight : 0;
+      const rate = target > rec.lift ? CREATURES.flight.climbSpeed : CREATURES.flight.landSpeed;
+      rec.lift =
+        target > rec.lift
+          ? Math.min(target, rec.lift + rate * dt)
+          : Math.max(target, rec.lift - rate * dt);
     }
 
     // Geri tepme: zemin uygunsa kaydır, hızı sönümle.
@@ -832,7 +847,7 @@ export class CreatureSystem {
       const b = rec.brain;
       const v = rec.view;
       v.x = b.x;
-      v.y = rec.y;
+      v.y = rec.y + rec.lift;
       v.z = b.z;
       v.yaw = b.yaw;
       v.speed = b.speed;

@@ -223,17 +223,18 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
     expect(min).toBe(0);
     // Dünya geneli aralık yukarı 100'e yuvarlıdır (7.4: en yüksek ≈ 2368 m, max 2400 m)
     expect(max).toBeGreaterThan(64000);
-    expect(region.meta.elevationMax).toBeGreaterThan(2300);
-    expect(region.meta.elevationMax).toBeLessThan(2500);
+    // Ilgaz Dağı (2 587 m, Kastamonu–Çankırı genişlemesi) dünyanın en yükseğidir.
+    expect(region.meta.elevationMax).toBeGreaterThan(2500);
+    expect(region.meta.elevationMax).toBeLessThan(2700);
   });
 
-  it('dünya boyutu oyunda ~4,45 × 3,92 km (Faz 7: Düzce–Bolu dahil)', () => {
+  it('dünya boyutu oyunda ~6,90 × 4,43 km (Kastamonu–Çankırı dahil)', () => {
     const width = source.bounds.maxX - source.bounds.minX;
     const depth = source.bounds.maxZ - source.bounds.minZ;
-    expect(width).toBeGreaterThan(4400);
-    expect(width).toBeLessThan(4500);
-    expect(depth).toBeGreaterThan(3850);
-    expect(depth).toBeLessThan(4000);
+    expect(width).toBeGreaterThan(6850);
+    expect(width).toBeLessThan(6950);
+    expect(depth).toBeGreaterThan(4400);
+    expect(depth).toBeLessThan(4480);
   });
 
   // Python veri hattı + TS koordinat dönüşümü + heightmap okuma birlikte doğrulanır.
@@ -269,9 +270,9 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
 
   it('komşu iller inRegion=false, hedef iller true', () => {
     const byName = new Map(region.provinces.map((p) => [p.name, p]));
-    for (const name of ['Zonguldak', 'Bartın', 'Karabük', 'Düzce', 'Bolu'])
+    for (const name of ['Zonguldak', 'Bartın', 'Karabük', 'Düzce', 'Bolu', 'Kastamonu', 'Çankırı'])
       expect(byName.get(name)?.inRegion).toBe(true);
-    for (const name of ['Kastamonu', 'Çankırı', 'Ankara', 'Sakarya', 'Bilecik', 'Eskişehir'])
+    for (const name of ['Ankara', 'Sakarya', 'Bilecik', 'Eskişehir', 'Sinop', 'Çorum'])
       expect(byName.get(name)?.inRegion).toBe(false);
   });
 

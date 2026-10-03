@@ -22,12 +22,38 @@ uniform vec3 uMoonDir;
 uniform float uMoonCos;
 uniform float uMoonAlpha;
 uniform float uStarAlpha;
+uniform float uCloud;
+uniform vec3 uCloudColor;
+uniform vec3 uCloudShade;
+uniform float uTime;
 
 // Yönden sözde rastgele sayı (yıldız yerleşimi için)
 float hash(vec3 p) {
   p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
   p *= 17.0;
   return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+// Değer gürültüsü + fbm (bulutlar)
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(vec3(i, 1.0));
+  float b = hash(vec3(i + vec2(1.0, 0.0), 1.0));
+  float c = hash(vec3(i + vec2(0.0, 1.0), 1.0));
+  float d = hash(vec3(i + vec2(1.0, 1.0), 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int k = 0; k < 5; k++) {
+    v += a * vnoise(p);
+    p = p * 2.03 + vec2(13.1, 7.7);
+    a *= 0.5;
+  }
+  return v;
 }
 
 void main() {
@@ -58,6 +84,17 @@ void main() {
   color = mix(color, vec3(0.92, 0.94, 1.0), moonDisc * uMoonAlpha);
   color += vec3(0.25, 0.3, 0.45) * pow(max(moonDot, 0.0), 96.0) * 0.5 * uMoonAlpha;
 
+  // Bulutlar: gök düzlemine izdüşüm, rüzgârla kayar; örtü uCloud ile artar (açıkta seyrek pamuk bulutlar).
+  if (up > 0.0 && uCloud > 0.0) {
+    vec2 uv = dir.xz / (up + 0.12) * 1.6 + vec2(uTime * 0.004, uTime * 0.0015);
+    float n = fbm(uv);
+    float cover = mix(0.78, 0.02, uCloud);
+    float density = smoothstep(cover, cover + 0.22, n) * smoothstep(0.0, 0.18, up);
+    float shade = smoothstep(cover, cover + 0.5, fbm(uv * 1.7 + 4.0));
+    vec3 cloud = mix(uCloudColor, uCloudShade, shade * 0.8);
+    color = mix(color, cloud, density * 0.92);
+  }
+
   gl_FragColor = vec4(color, 1.0);
 }
 `;
@@ -80,6 +117,10 @@ export class SkyDome {
     uMoonCos: { value: Math.cos((SKY.moonDiscRadiusDeg * Math.PI) / 180) },
     uMoonAlpha: { value: 0 },
     uStarAlpha: { value: 0 },
+    uCloud: { value: 0 },
+    uCloudColor: { value: new Color(1, 1, 1) },
+    uCloudShade: { value: new Color(0.5, 0.5, 0.5) },
+    uTime: { value: 0 },
   };
 
   constructor() {

@@ -7,85 +7,6 @@ import { icon } from './icons';
 import { SlotPicker } from './SlotPicker';
 import { formatSummary } from './slotFormat';
 
-/** Kontrol listesi: tuşlar (her biri ayrı tuş simgesi) ve eylem; menünün sağ sütununda gruplanır. */
-type ControlRow = readonly [keys: readonly string[], action: string];
-
-const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readonly ControlRow[]]> = [
-  [
-    'Hareket',
-    [
-      [['W', 'A', 'S', 'D'], 'Yürü'],
-      [['Shift'], 'Koş'],
-      [['Boşluk'], 'Zıpla'],
-      [['Boşluk ×2', 'Z'], 'Uçuş aç/kapa · aşağı in (Ayarlar → Test modu)'],
-      [['Fare'], 'Etrafa bak'],
-      [['V'], '1. / 3. şahıs kamera'],
-    ],
-  ],
-  [
-    'Hayatta kalma',
-    [
-      [
-        ['E'],
-        'Topla, leş kes, pişir, yakıt at, sandık/dolap ara, camide namaz kıl, su iç (basılı tut)',
-      ],
-      [['E'], 'Sandık aç, kapı ve çit kapısı aç/kapat, rafa et as/al, insanlarla konuş (bas)'],
-      [['Sol tık'], 'Saldır · hayalet varken kur'],
-      [['F'], 'Hızlı yemek'],
-      [['I', 'Tab'], 'Envanter ve üretim'],
-      [['1–8', 'Tekerlek'], 'Kısayol çubuğu'],
-    ],
-  ],
-  [
-    'İnşa',
-    [
-      [['C', 'G'], 'Ateş / sundurma hayaleti'],
-      [['1–8'], 'Taban, duvar, kapı, çatı… parçayı seç; sol tık monte eder (art arda)'],
-      [['R'], 'Hayaleti döndür · duvar/kapı yüzünü çevir · çit hattını bakışa paralel yap'],
-      [['X'], 'Yapıyı sök (basılı tut)'],
-    ],
-  ],
-  [
-    'Silahlar',
-    [
-      [['Sol tık'], 'Ateş et (elde menzilli silah)'],
-      [['Sağ tık'], 'Nişan al · dürbün'],
-      [['R'], 'Doldur'],
-      [['Shift'], 'Nişanda nefes tut (dürbün sallanmaz)'],
-    ],
-  ],
-  [
-    'Drone',
-    [
-      [['Sol tık'], 'Kısayolda seçiliyken kaldır · görüşte işaretle'],
-      [['Q'], 'Oyuncu ↔ drone görüşü'],
-      [['W', 'A', 'S', 'D'], 'Drone görüşünde uç (Shift hızlı)'],
-      [['Boşluk', 'Z'], 'Yüksel / alçal'],
-      [['Tekerlek'], 'Yakınlaştır'],
-      [['H'], 'Eve dön ve in'],
-    ],
-  ],
-  [
-    'Diğer',
-    [
-      [['B'], 'İl sınırları'],
-      [['Esc'], 'Duraklat'],
-    ],
-  ],
-];
-
-/** Yalnızca geliştirme modunda gösterilen ek kontroller. */
-const DEV_CONTROLS: readonly ControlRow[] = [
-  [['T', '1–0'], 'Işınlan'],
-  [['Shift', '1–0'], 'İldeki yerlere ışınlan'],
-  [['P', 'O'], 'Malzeme / inşa eşyası ver'],
-  [['L', 'N'], 'Erzak ver / önüne bir yolcu çıkar'],
-  [['J'], 'Silah ve mühimmat ver'],
-  [['M'], 'Drone ve pil ver'],
-  [['[', ']'], 'Saati ±1 saat'],
-  [['K'], 'Canı sıfırla'],
-];
-
 /** Menünün oyundan istedikleri; mantık `Game`'dedir, menü yalnızca arayüzdür. */
 export interface GameMenuHost {
   /** Oyuna döner (fare kilidi ister). */
@@ -108,6 +29,8 @@ export interface GameMenuOptions {
   store: SaveStore;
   openSettings: () => void;
   openCredits: () => void;
+  /** Tuş göstergelerini (kontroller penceresi) açar. */
+  openControls: () => void;
   /** Menü şu an gösterilmemeli mi (ör. envanter paneli açıkken oyun duraklıdır ama menü çıkmaz)? */
   isSuppressed?: () => boolean;
 }
@@ -118,7 +41,7 @@ type Confirm = 'newGame';
 /**
  * Ana menü ve duraklatma menüsü. Oyun açılınca ana menü (Devam / Yeni Oyun / Yükle / Ayarlar), oyun
  * sürerken duraklayınca (pointer lock kaybı, örn. Esc) duraklatma menüsü (Devam Et / Kaydet / Yükle /
- * Ayarlar / Ana Menüye Dön) görünür. Mevcut ilerlemeyi silebilecek eylemler (Yeni Oyun) iki adımlıdır.
+ * Kontroller / Ayarlar / Ana Menüye Dön) görünür. Mevcut ilerlemeyi silebilecek eylemler (Yeni Oyun) iki adımlıdır.
  */
 export class GameMenu {
   private readonly root = document.createElement('div');
@@ -131,6 +54,7 @@ export class GameMenu {
   private readonly store: SaveStore;
   private readonly openSettings: () => void;
   private readonly openCredits: () => void;
+  private readonly openControls: () => void;
   private readonly isSuppressed: () => boolean;
   private readonly offs: Array<() => void> = [];
 
@@ -147,6 +71,7 @@ export class GameMenu {
     this.store = options.store;
     this.openSettings = options.openSettings;
     this.openCredits = options.openCredits;
+    this.openControls = options.openControls;
     this.isSuppressed = options.isSuppressed ?? (() => false);
 
     this.root.className = 'pause-menu';
@@ -178,14 +103,7 @@ export class GameMenu {
     main.className = 'pause-menu-main';
     main.append(brand, this.subtitle, this.latest, this.buttons, this.hint);
 
-    const controls = document.createElement('div');
-    controls.className = 'pause-menu-controls';
-    const groups = import.meta.env.DEV
-      ? [...CONTROL_GROUPS, ['Geliştirici', DEV_CONTROLS] as const]
-      : CONTROL_GROUPS;
-    for (const [heading, rows] of groups) controls.append(controlGroup(heading, rows));
-
-    panel.append(main, controls);
+    panel.append(main);
     this.root.append(panel);
     // Dış alana tık: yalnızca duraklatma menüsünde oyuna döner (ana menüde yanlışlıkla başlamasın).
     this.root.addEventListener('click', () => {
@@ -308,6 +226,7 @@ export class GameMenu {
           () => this.onNewGame(),
         ),
         this.button('Yükle', !hasSave, false, () => this.picker.open('load')),
+        this.button('Kontroller', false, false, this.openControls),
         this.button('Ayarlar', false, false, this.openSettings),
         this.button('Krediler', false, false, this.openCredits),
       );
@@ -316,6 +235,7 @@ export class GameMenu {
         this.button('Devam Et', false, true, () => this.host.resume()),
         this.button('Kaydet', !this.host.canSave(), false, () => this.picker.open('save')),
         this.button('Yükle', !hasSave, false, () => this.picker.open('load')),
+        this.button('Kontroller', false, false, this.openControls),
         this.button('Ayarlar', false, false, this.openSettings),
         this.button('Krediler', false, false, this.openCredits),
         this.button('Ana Menüye Dön', false, false, () =>
@@ -397,29 +317,6 @@ export class GameMenu {
 /** Menü logosu: favicon'daki dağ ve güneş (sabit SVG). */
 const LOGO =
   '<rect width="24" height="24" rx="5" fill="#1d3b2a"/><path d="M2.2 19 9 8.4l3.8 5.3 3-3.8 6 9.1z" fill="#6fae5c"/><path d="M9 8.4l1.9 2.6-1.9 1.4-1.6-1.6z" fill="#cfe8c2"/><circle cx="17.3" cy="6" r="2.3" fill="#ffd23f"/>';
-
-/** Kontrol grubu: başlık ve "tuş simgeleri — eylem" satırları. */
-function controlGroup(heading: string, rows: readonly ControlRow[]): HTMLElement {
-  const section = document.createElement('section');
-  section.className = 'controls-group';
-  const h3 = document.createElement('h3');
-  h3.textContent = heading;
-  const list = document.createElement('dl');
-  for (const [keys, action] of rows) {
-    const dt = document.createElement('dt');
-    for (const key of keys) {
-      const kbd = document.createElement('kbd');
-      kbd.className = 'ui-key';
-      kbd.textContent = key;
-      dt.append(kbd);
-    }
-    const dd = document.createElement('dd');
-    dd.textContent = action;
-    list.append(dt, dd);
-  }
-  section.append(h3, list);
-  return section;
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof SaveError ? error.message : 'Beklenmeyen bir hata oluştu.';

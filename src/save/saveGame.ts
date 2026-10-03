@@ -24,8 +24,10 @@ import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkK
  *   (`drone`); yeni eşya/yapı kimlikleri. Alanlar v5 içinde sabittir (docs/faz-11-paralel-plan.md §2.4, §3.5).
  * - v6: bina içi kaplar (`settlements.containers`: aranmış sandık/dolap kimlikleri) ve camide kılınan son vakit
  *   (`settlements.lastPrayer`: mutlak vakit sırası, yoksa −1).
+ * - v7: susturucu takılı silahlar (`weapons.suppressed`); yeni eşyalar (susturucu, sırt çantaları). Oyuncu envanteri
+ *   çanta slotlarıyla daha uzundur (eski 20 slotluk envanter okunur, eksik slotlar boş).
  */
-export const SAVE_FORMAT_VERSION = 6;
+export const SAVE_FORMAT_VERSION = 7;
 
 /** Oyuncunun dünyadaki yeri: konum oyun metresidir, yaw/pitch radyandır. */
 export interface PlayerSave {
@@ -115,6 +117,8 @@ export interface FarmSave {
 
 export interface WeaponsSave {
   loaded: Partial<Record<WeaponId, number>>;
+  /** Susturucu takılı silahlar (v7). */
+  suppressed: WeaponId[];
 }
 
 export interface BanditsSave {
@@ -141,7 +145,7 @@ export interface DroneSave {
 export function emptyFaz11Save(): Pick<SaveGame, 'farm' | 'weapons' | 'bandits' | 'drone'> {
   return {
     farm: { plots: [] },
-    weapons: { loaded: {} },
+    weapons: { loaded: {}, suppressed: [] },
     bandits: { cleared: [], chests: [], stolen: [] },
     drone: { state: 'stowed', x: 0, y: 0, z: 0, battery: 1, marks: [] },
   };
@@ -291,12 +295,18 @@ function migrateV5toV6(raw: RawSave): RawSave {
  * Adım yalnızca yapıyı çevirir (taşınamayan kayıtta `SaveError` fırlatabilir); değerleri doğrulamak
  * `parseSave`'in işidir.
  */
+function migrateV6toV7(raw: RawSave): RawSave {
+  const weapons = isRecord(raw.weapons) ? raw.weapons : { loaded: {} };
+  return { ...raw, weapons: { ...weapons, suppressed: [] } };
+}
+
 export const MIGRATIONS: Readonly<Record<number, (raw: RawSave) => RawSave>> = {
   1: migrateV1toV2,
   2: migrateV2toV3,
   3: migrateV3toV4,
   4: migrateV4toV5,
   5: migrateV5toV6,
+  6: migrateV6toV7,
 };
 
 /**
@@ -355,7 +365,13 @@ export function parseSave(raw: unknown): SaveGame {
   let inventory: InventorySave;
   let structures: StructureSave;
   try {
-    inventory = Inventory.fromJSON(save.inventory, { slots: INVENTORY.slots }).toJSON();
+    const json = Inventory.fromJSON(save.inventory, {
+      slots: INVENTORY.slots,
+      backpacks: true,
+    }).toJSON();
+    // Kayıttaki slot sayısı korunur (eski 20 slotluk envanter çantalı envantere yüklenirken doldurulur).
+    const length = (save.inventory as { slots: unknown[] }).slots.length;
+    inventory = { ...json, slots: json.slots.slice(0, Math.max(length, INVENTORY.slots)) };
   } catch (error) {
     throw invalid(`envanter: ${messageOf(error)}`, error);
   }
@@ -430,7 +446,17 @@ function parseWeapons(raw: unknown): WeaponsSave {
     }
     out[key as WeaponId] = nonNegativeInt(value, `weapons.loaded.${key}`);
   }
-  return { loaded: out };
+  if (!Array.isArray(o.suppressed)) throw invalid('weapons.suppressed dizi değil');
+  const suppressed = o.suppressed.map((id: unknown, index) => {
+    if (!(WEAPON_IDS as readonly unknown[]).includes(id)) {
+      throw invalid(`weapons.suppressed[${index}] tanınmayan silah`);
+    }
+    return id as WeaponId;
+  });
+  if (new Set(suppressed).size !== suppressed.length) {
+    throw invalid('weapons.suppressed yinelenen silah içeriyor');
+  }
+  return { loaded: out, suppressed };
 }
 
 function parseBandits(raw: unknown): BanditsSave {

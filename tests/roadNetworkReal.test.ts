@@ -44,7 +44,14 @@ describe('yol ağı — bağlantı ve seyreklik', () => {
   });
 
   it('her yerleşime yol varır', () => {
-    for (const t of towns()) {
+    const all = towns();
+    // İl/ilçe ayak izinin içinde kalan köy (ör. Demirli, Atkaracalar'a 62 m) kentin sokaklarıyla örtüşür: köy yolu
+    // kent içinde kesilir (`innerRoadCut`), oraya kentin sokak ağı hizmet eder.
+    const insideTown = (t: (typeof all)[number]) =>
+      t.rank === 'koy' &&
+      all.some((o) => o.rank !== 'koy' && Math.hypot(o.x - t.x, o.z - t.z) < o.r);
+    for (const t of all) {
+      if (insideTown(t)) continue;
       const hit = sw.map.roads.nearest(t.x, t.z, t.r + 25);
       expect(hit, `${t.x.toFixed(0)},${t.z.toFixed(0)}`).not.toBeNull();
     }

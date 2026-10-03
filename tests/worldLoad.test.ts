@@ -70,7 +70,10 @@ describe('loadWorld (sentetik karolarla)', () => {
     const world = await loadWorld(fx.id, FIXTURE_BASE, fx.fetch);
     expect(world.provinces.map((p) => p.name)).toEqual(['Test']);
     expect(world.provinces[0]?.inRegion).toBe(true);
-    expect(world.features?.water.lines).toHaveLength(1);
+    // Fikstürdeki tek kısa dere yüklemede ayıklanır (WATER_THINNING); yalnızca nesne dağılımı onu görür.
+    const lines = world.features?.water.lines ?? [];
+    const minor = world.features?.minorStreams ?? [];
+    expect(lines.length + minor.length).toBe(1);
   });
 
   it('özellik katmanı yoksa features null olur', async () => {

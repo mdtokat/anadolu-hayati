@@ -56,6 +56,9 @@ export const CAMP_CHEST: readonly LootEntry[] = [
   e('rifle', 0.07),
   e('pala', 0.15),
   e('scope', 0.08),
+  // Faz 11 sonrası: eşkıya zulasında susturucu ve sırt çantası.
+  e('suppressor', 0.12),
+  e('backpack_medium', 0.1),
 ];
 
 /** Silahın üstten çıkma olasılığı (kalanında kırık/kaybolmuş sayılır). */

@@ -6,7 +6,7 @@ import type { ItemId } from '../items/itemDefs';
 import type { WeaponId, WeaponState } from '../items/weaponState';
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import { isRangedWeapon, loadRounds, reloadCheck, reserveAmmo } from './ammo';
-import { damageAt, type SolidQuery, type Vec3Like } from './ballistics';
+import { damageAt, type PaneQuery, type SolidQuery, type Vec3Like } from './ballistics';
 import { fireVolley, type ShotResult } from './ranged';
 import { PLAYER_TARGET_ID, type TargetProvider } from './targets';
 
@@ -45,6 +45,8 @@ export interface RangedWorld {
   heightAt(x: number, z: number): number;
   targets: TargetProvider;
   solids?: SolidQuery;
+  /** Kırılabilir camlar: kırılanlar `glass:broken` ile yayınlanır. */
+  panes?: PaneQuery;
 }
 
 export type FireStatus =
@@ -59,6 +61,8 @@ export interface FireResult {
   recoil: number;
   /** Boş şarjörle tetiğe basınca doldurma kendiliğinden başladı mı? */
   reloadStarted: boolean;
+  /** Atış susturuculu muydu (ses kısık, gürültü yarıçapı küçük)? */
+  suppressed: boolean;
 }
 
 export type ReloadStatus = 'started' | 'full' | 'no_ammo' | 'no_weapon' | 'busy';
@@ -80,6 +84,8 @@ export interface RangedHudState {
   breathExhausted: boolean;
   /** Şu anki saçılma (derece; nişangâh açıklığı). */
   spreadDeg: number;
+  /** Susturucu takılı mı? */
+  suppressed: boolean;
 }
 
 interface PendingHit {
@@ -122,7 +128,7 @@ export class RangedSystem {
     private readonly inventory: Inventory,
     private readonly weapons: Pick<
       WeaponState,
-      'loaded' | 'capacity' | 'set' | 'consume' | 'revision'
+      'loaded' | 'capacity' | 'set' | 'consume' | 'revision' | 'suppressed'
     >,
     private readonly survival: Pick<SurvivalSystem, 'alive' | 'state' | 'spendEnergy'>,
     private readonly random: () => number = Math.random,
@@ -226,6 +232,7 @@ export class RangedSystem {
       breath: this.breathLeft / RANGED.steadySeconds,
       breathExhausted: this.breathOut,
       spreadDeg: RANGED.weapons[weapon].spreadDeg * this.spreadScale(weapon),
+      suppressed: this.weapons.suppressed(weapon),
     };
   }
 
@@ -322,6 +329,7 @@ export class RangedSystem {
       shots: [],
       recoil: 0,
       reloadStarted,
+      suppressed: false,
     });
     if (!this.survival.alive) return result('dead');
     if (!weapon) return result('no_weapon');
@@ -339,6 +347,7 @@ export class RangedSystem {
     }
 
     this.weapons.consume(weapon);
+    const suppressed = this.weapons.suppressed(weapon);
     if (stats.energyCost > 0) this.survival.spendEnergy(stats.energyCost);
     this.cooldownLeft = stats.cooldownSeconds;
 
@@ -353,6 +362,7 @@ export class RangedSystem {
       targets: world.targets,
       ignore: PLAYER_TARGET_ID,
       solids: world.solids,
+      panes: world.panes,
       random: this.random,
       spreadScale: this.spreadScale(weapon),
       sighted: true,
@@ -362,7 +372,9 @@ export class RangedSystem {
     const byTarget = new Map<string, { damage: number; time: number }>();
     for (const shot of shots) {
       if (!shot.hit) continue;
-      const damage = damageAt(stats.damage, shot.distance, stats.range);
+      const damage =
+        damageAt(stats.damage, shot.distance, stats.range) *
+        (suppressed ? RANGED.suppressor.damageFactor : 1);
       const prev = byTarget.get(shot.hit.id);
       byTarget.set(shot.hit.id, {
         damage: (prev?.damage ?? 0) + damage,
@@ -380,11 +392,13 @@ export class RangedSystem {
       });
     }
 
-    this.events.emit('weapon:fired', { weapon, ...origin, hits: byTarget.size });
+    const panes = [...new Set(shots.flatMap((shot) => shot.panes ?? []))];
+    if (panes.length > 0) this.events.emit('glass:broken', { ids: panes, ...origin });
+    this.events.emit('weapon:fired', { weapon, ...origin, hits: byTarget.size, suppressed });
     this.events.emit('noise:made', {
       x: pose.x,
       z: pose.z,
-      radius: RANGED.noiseRadius[weapon],
+      radius: RANGED.noiseRadius[weapon] * (suppressed ? RANGED.suppressor.noiseFactor : 1),
       source: 'player',
     });
     // Yay ve sapan tek atımlık: mühimmat varsa kendiliğinden yeniden gerilir.
@@ -396,6 +410,7 @@ export class RangedSystem {
       shots,
       recoil: stats.recoilDeg * DEG * aimed,
       reloadStarted: false,
+      suppressed,
     };
   }
 

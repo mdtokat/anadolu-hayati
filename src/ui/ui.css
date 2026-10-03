@@ -945,25 +945,11 @@
 }
 .pause-menu-panel {
   display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
-  gap: 32px;
-  width: min(980px, calc(100vw - 32px));
+  width: min(360px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   padding: 32px 36px;
   overflow-y: auto;
   cursor: default;
-}
-@media (max-width: 780px) {
-  .pause-menu-panel {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-  .pause-menu-controls {
-    padding-left: 0 !important;
-    padding-top: 20px;
-    border-left: 0 !important;
-    border-top: 1px solid var(--ui-border);
-  }
 }
 .pause-menu-main {
   display: flex;
@@ -1044,11 +1030,14 @@
   color: var(--ui-accent-hi);
   font-size: 13.5px;
 }
-.pause-menu-controls {
-  columns: 2 230px;
+/* Kontroller penceresi (ayarlar penceresinin kabuğunu kullanır; uzun olduğundan kaydırılır) */
+.settings-panel-body.controls-panel-body {
+  width: min(900px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+}
+.controls-list {
+  columns: 2 300px;
   column-gap: 28px;
-  padding-left: 32px;
-  border-left: 1px solid var(--ui-border);
 }
 .controls-group {
   break-inside: avoid;

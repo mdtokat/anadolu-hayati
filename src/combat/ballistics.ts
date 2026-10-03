@@ -37,6 +37,16 @@ export interface SolidQuery {
   boxesNear(x: number, z: number, r: number): readonly SolidBox[];
 }
 
+/** Kırılabilir cam: mermiyi durdurmaz, geçerken kırılır (`id`: `settlements/windows.ts` `paneId`). */
+export interface PaneBox extends SolidBox {
+  id: number;
+}
+
+/** Yoldaki (kırılmamış) camlar (`combat/shotSolids.ts` `shotPanes`). */
+export interface PaneQuery {
+  panesNear(x: number, z: number, r: number): readonly PaneBox[];
+}
+
 /** Bir uçuşun dünyadan istedikleri. */
 export interface BallisticWorld {
   heightAt(x: number, z: number): number;
@@ -44,6 +54,8 @@ export interface BallisticWorld {
   /** Vurulmayacak hedef (atanın kendisi). */
   ignore?: string;
   solids?: SolidQuery;
+  /** Kırılabilir camlar: mermi içlerinden geçer, kırdıkları `Flight.panes`'e yazılır. */
+  panes?: PaneQuery;
 }
 
 /** Fırlatılan mermi: başlangıç, hız vektörü (oyun m/sn), yerçekimi ivmesi (m/sn²) ve en uzun yol (oyun m). */
@@ -67,6 +79,8 @@ export interface Flight {
   solid: boolean;
   /** Yolun köşe noktaları (iz çizimi için; ilk = başlangıç, son = `point`). */
   path: Vec3Like[];
+  /** Merminin durmadan önce içinden geçip kırdığı camlar (kimlikler; sırayla). */
+  panes: number[];
 }
 
 /** Arazi kesişimi ikiye bölme tur sayısı (adım/2¹⁰ hassasiyet). */
@@ -94,6 +108,16 @@ export function traceProjectile(p: Projectile, world: BallisticWorld): Flight {
     .targetsNear(cx, cz, radius)
     .filter((target) => target.id !== world.ignore);
   const boxes = world.solids?.boxesNear(cx, cz, radius) ?? [];
+  const glass = world.panes?.panesNear(cx, cz, radius) ?? [];
+  const broken: number[] = [];
+  // Parçadaki engelden (`limit`) önce mermi yolunun içinden geçtiği camlar kırılır.
+  const breakPanes = (from: Vec3Like, dir: Vec3Like, limit: number): void => {
+    for (const pane of glass) {
+      if (broken.includes(pane.id)) continue;
+      const t = rayBox(from, dir, pane, limit);
+      if (t !== null && t <= limit) broken.push(pane.id);
+    }
+  };
   // Tünelin içinden atış: arazi tavanı delik olduğundan arazi engeli yok sayılır (yüzeye çıkınca yeniden sayılır).
   let underground = p.origin.y < world.heightAt(p.origin.x, p.origin.z) - RANGED.undergroundDepth;
 
@@ -150,6 +174,7 @@ export function traceProjectile(p: Projectile, world: BallisticWorld): Flight {
     }
 
     const segmentTime = (dt * bestT) / segment;
+    if (glass.length > 0) breakPanes(pos, dir, bestT);
     if (kind !== 'none') {
       const point = along(pos, dir, bestT);
       path.push(point);
@@ -161,12 +186,13 @@ export function traceProjectile(p: Projectile, world: BallisticWorld): Flight {
         terrain: kind === 'terrain',
         solid: kind === 'solid',
         path,
+        panes: broken,
       };
     }
     if (last) {
       const point = along(pos, dir, length);
       path.push(point);
-      return miss(point, p.maxDistance, time + segmentTime, path);
+      return miss(point, p.maxDistance, time + segmentTime, path, broken);
     }
     travelled += length;
     time += dt;
@@ -174,11 +200,17 @@ export function traceProjectile(p: Projectile, world: BallisticWorld): Flight {
     vel = { x: vel.x, y: vel.y - p.gravity * dt, z: vel.z };
     path.push(pos);
   }
-  return miss(pos, travelled, time, path);
+  return miss(pos, travelled, time, path, broken);
 }
 
-function miss(point: Vec3Like, distance: number, time: number, path: Vec3Like[]): Flight {
-  return { hit: null, point, distance, time, terrain: false, solid: false, path };
+function miss(
+  point: Vec3Like,
+  distance: number,
+  time: number,
+  path: Vec3Like[],
+  panes: number[] = [],
+): Flight {
+  return { hit: null, point, distance, time, terrain: false, solid: false, path, panes };
 }
 
 function along(o: Vec3Like, d: Vec3Like, t: number): Vec3Like {

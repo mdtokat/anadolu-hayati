@@ -26,14 +26,22 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('SettlementMap — gerçek dünya (Faz 10)', () => {
-  it('veri yüklü: 5 il merkezi, 30 ilçe merkezi, seçilmiş köyler', () => {
+  it('veri yüklü: 7 il merkezi, 60 ilçe merkezi, seçilmiş köyler', () => {
     const ranks = { il: 0, ilce: 0, koy: 0 };
     for (const s of map.settlements) ranks[s.data.rank]++;
-    expect(ranks.il).toBe(5);
-    expect(ranks.ilce).toBe(30);
+    expect(ranks.il).toBe(7);
+    expect(ranks.ilce).toBe(60);
     expect(ranks.koy).toBeGreaterThan(200);
     const names = map.settlements.filter((s) => s.data.rank === 'il').map((s) => s.data.name);
-    expect(names.sort()).toEqual(['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak']);
+    expect(names.sort()).toEqual([
+      'Bartın',
+      'Bolu',
+      'Düzce',
+      'Karabük',
+      'Kastamonu',
+      'Zonguldak',
+      'Çankırı',
+    ]);
   });
 
   it('il merkezleri kalabalık, ilçeler orta, köyler küçük; harita evle dolmaz', () => {
@@ -57,11 +65,22 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     expect(map.buildings.length).toBeLessThan(4000);
   });
 
-  it('her il ve ilçe merkezinde cami var (ayak izi çoğunlukla deniz olan Amasra/Kurucaşile hariç), camiler kıbleye döner', () => {
+  it('her il ve ilçe merkezinde cami var (ayak izi çoğunlukla deniz/dik kıyı olan kıyı kasabaları hariç), camiler kıbleye döner', () => {
     const without = map.settlements
       .filter((s) => s.data.rank !== 'koy' && !s.buildings.some((b) => isMosque(b.kind)))
       .map((s) => s.data.name);
-    expect(without.filter((n) => n !== 'Amasra' && n !== 'Kurucaşile')).toEqual([]);
+    // Ayak izi çoğunlukla deniz (Amasra, Kurucaşile) ya da denize inen dik yamaçta dar şerit olan Kastamonu kıyı
+    // kasabaları: en küçük (ahşap) cami bile sığmaz (bilinçli istisna).
+    const coastal = new Set([
+      'Amasra',
+      'Kurucaşile',
+      'İnebolu',
+      'Abana',
+      'Bozkurt',
+      'Doğanyurt',
+      'Çatalzeytin',
+    ]);
+    expect(without.filter((n) => !coastal.has(n))).toEqual([]);
     const yaws = new Set(
       map.buildings.filter((b) => isMosque(b.kind)).map((b) => b.yaw.toFixed(6)),
     );
@@ -175,16 +194,16 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     }
   });
 
-  it('deterministik ve hızlı (yol ağı + zemin düzeltme + düzen açılışta < 6 sn)', () => {
+  it('deterministik ve hızlı (yol ağı + zemin düzeltme + düzen açılışta < 10 sn)', () => {
     const again = buildSettlementWorld(world).map;
     expect(again.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`)).toEqual(
       map.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`),
     );
     if (process.env.SETTLEMENT_REPORT) console.log(`düzen ${buildMs.toFixed(0)} ms`);
-    expect(buildMs).toBeLessThan(6000);
+    expect(buildMs).toBeLessThan(10_000);
     const ids = new Set(map.buildings.map((b) => b.id));
     expect(ids.size).toBe(map.buildings.length);
-  });
+  }, 30_000);
 
   it('kent içinde il yolu yok, sokak ızgarası var; nesne eleme yolda ve yapıda', () => {
     const zonguldak = map.settlements.find((s) => s.data.name === 'Zonguldak')!;

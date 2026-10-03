@@ -6,9 +6,9 @@ import type { ItemStack } from '../items/Inventory';
  * tür tablosunu (`creatures/species.ts`, Hesap A) import etmez. Miktarlar sabittir (rastgelelik yok); denge
  * elle ayarlanır.
  *
- * Faz 10 — helal/haram (İslami yeme kuralları, Hanefî): yalnızca karacanın eti yenir. Domuz eti haramdır ve
+ * Faz 10 — helal/haram (İslami yeme kuralları, Hanefî): karaca, kızıl geyik, yabani tavşan ve sülünün eti yenir. Domuz eti haramdır ve
  * domuz necistir (derisi tabaklansa da temizlenmez): yaban domuzu leşi kesilmez (boş tablo). Kurt ve ayı yırtıcıdır,
- * etleri haramdır; derileri tabaklanınca kullanılır, kemikleri alınır.
+ * etleri haramdır; derileri tabaklanınca kullanılır, kemikleri alınır. Tilki de yırtıcıdır: yalnız postu alınır.
  */
 export const LOOT_TABLE: Readonly<Record<CreatureKind, ReadonlyArray<ItemStack>>> = {
   roe_deer: [
@@ -24,6 +24,15 @@ export const LOOT_TABLE: Readonly<Record<CreatureKind, ReadonlyArray<ItemStack>>
     { id: 'hide', count: 2 },
     { id: 'bone', count: 2 },
   ],
+  // Geyik, tavşan ve sülün helaldir (eti yenir); tilki yırtıcıdır, yalnız postu alınır.
+  red_deer: [
+    { id: 'raw_meat', count: 5 },
+    { id: 'hide', count: 2 },
+    { id: 'bone', count: 1 },
+  ],
+  red_fox: [{ id: 'hide', count: 1 }],
+  hare: [{ id: 'raw_meat', count: 1 }],
+  pheasant: [{ id: 'raw_meat', count: 1 }],
 };
 
 /** Leşi kesilebilir mi (helal kesim ya da kullanılabilir derisi var mı)? Yaban domuzu kesilmez. */

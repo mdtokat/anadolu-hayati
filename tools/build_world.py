@@ -52,7 +52,13 @@ GAME_COORD_DECIMALS = 2
 #: metre mertebesinde (en çok ~5 m, ortalama < 0,05 m) farklı yükseklik verir. Eski alanı eski bölgeyle ≤ 1 nicem
 #: tutmak (plan §3.2 "ara dönem") için bu pencere **eskiyle aynı pencerede** yeniden hesaplanıp dünya dizisine
 #: yerleştirilir. Yeni genişlemelerde (Faz 8+) bu liste büyür; böylece eski karolar hiçbir zaman değişmez.
-PINNED_WINDOWS = (wl.Extent(0, 0, 1588, 1176),)
+#: Her pencere (kafes dikdörtgeni, DEM karolarını seçen eski bbox) çiftidir: genişlemede DEM mozaiği büyüse de eski alan
+#: eski mozaikte ve eski pencerede örneklenir. İkinci pencere Faz 7 dünyasının (Batı Karadeniz, 5 il) tamamıdır:
+#: Kastamonu–Çankırı genişlemesinde eski karolar (≤ 1 nicem yeniden nicemleme dışında) değişmesin.
+PINNED_WINDOWS = (
+    (wl.Extent(0, 0, 1588, 1176), (30.30, 40.00, 33.30, 41.95)),
+    (wl.Extent(-640, 0, 2228, 1962), (30.30, 40.00, 33.30, 41.95)),
+)
 #: Karo başına dosya boyu bütçesi (bayt): yükseklik 512 KB + örtü 256 KB; sözleşme: her dosya ≤ 1 MB.
 MAX_TILE_FILE_BYTES = 1024 * 1024
 
@@ -130,7 +136,8 @@ def resample_world_dem(dem_paths: list[Path], grid: wl.LatticeGrid) -> np.ndarra
     """DEM'i ızgaraya örnekler (metre, float32); `PINNED_WINDOWS` eskiyle aynı pencerede hesaplanıp yerleştirilir."""
     elevation = resample_dem(dem_paths, grid)
     extent = grid.extent
-    for window in PINNED_WINDOWS:
+    # Büyük pencere önce: küçük (daha eski) pencere en son yazılır ve kendi alanında geçerli kalır.
+    for window, window_bbox in sorted(PINNED_WINDOWS, key=lambda w: -w[0].cols * w[0].rows):
         inside = (
             window.col0 >= extent.col0
             and window.row0 >= extent.row0
@@ -139,7 +146,8 @@ def resample_world_dem(dem_paths: list[Path], grid: wl.LatticeGrid) -> np.ndarra
         )
         if not inside:
             continue
-        pinned = resample_dem(dem_paths, wl.LatticeGrid(window))
+        window_dem = [p for p in dem_paths if p.stem in set(regionlib.tiles_for_bbox(*window_bbox))]
+        pinned = resample_dem(window_dem, wl.LatticeGrid(window))
         r0, c0 = window.row0 - extent.row0, window.col0 - extent.col0
         elevation[r0 : r0 + window.rows, c0 : c0 + window.cols] = pinned
     return elevation
@@ -285,7 +293,11 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     config = load_world_config(args.world_id)
-    dem_paths = [TOOLS / "raw" / "dem" / f"{name}.tif" for name in regionlib.tiles_for_bbox(*config["bbox"])]
+    dem_dir = TOOLS / "raw" / "dem"
+    tile_names = regionlib.tiles_for_bbox(*config["bbox"])
+    # Açık deniz karoları Copernicus'ta yoktur (fetch_dem.py `.sea` işareti bırakır): mozaiğe girmez, deniz (0) kalır.
+    sea_tiles = {name for name in tile_names if (dem_dir / f"{name}.sea").exists()}
+    dem_paths = [dem_dir / f"{name}.tif" for name in tile_names if name not in sea_tiles]
     boundaries_path = TOOLS / "raw" / "boundaries" / "geoBoundaries-TUR-ADM1.geojson"
     water_path = TOOLS / "raw" / "water" / f"{args.world_id}.geojson"
     landcover_path = TOOLS / "raw" / "landcover" / f"{args.world_id}.parquet"

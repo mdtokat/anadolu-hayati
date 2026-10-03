@@ -1,5 +1,6 @@
-import { SKY } from '../config';
+import { SKY, WEATHER } from '../config';
 import type { SkyPosition } from '../survival/astronomy';
+import type { WeatherState } from '../survival/weather';
 
 /** [r, g, b], her biri 0–1. */
 export type Rgb = readonly [number, number, number];
@@ -65,5 +66,42 @@ export function skyLook(sun: SkyPosition): SkyLook {
     ambientColor: mixRgb(hexToRgb(SKY.ambientColorNight), hexToRgb(SKY.ambientColorDay), day),
     ambientIntensity: SKY.ambientNight + (SKY.ambientDay - SKY.ambientNight) * day,
     starAlpha: smoothstep(SKY.starsFadeStart, SKY.starsFadeEnd, alt),
+  };
+}
+
+/** Havaya göre uyarlanmış görünüm: bulut örtüsü, bulut renkleri ve sis ölçeği eklenir. */
+export interface WeatherLook extends SkyLook {
+  /** Bulut örtüsü (0–1; açık havada da birkaç pamuk bulut). */
+  cloudCover: number;
+  cloudColor: Rgb;
+  cloudShade: Rgb;
+  /** Sis uzaklıklarının çarpanı (yağmurda < 1). */
+  fogScale: number;
+}
+
+/**
+ * Hava durumunu gökyüzü görünümüne uygular (saf): kapalı gökte güneş zayıflar, gök griye çalar, ortam ışığı biraz
+ * artar (dağınık ışık); yağmurda sis yaklaşır. Gece bulutlar koyu.
+ */
+export function weatherLook(look: SkyLook, weather: WeatherState): WeatherLook {
+  const L = WEATHER.look;
+  const c = weather.cloudiness;
+  const gray = mixRgb(hexToRgb(L.grayNight), hexToRgb(L.grayDay), look.dayFactor);
+  const mix = c * L.skyGray;
+  const cloudLit = mixRgb(hexToRgb(L.cloudNight), hexToRgb(L.cloudDay), look.dayFactor);
+  const cloudDark = mixRgb(hexToRgb(L.cloudNight), hexToRgb(L.cloudDark), look.dayFactor);
+  return {
+    ...look,
+    zenith: mixRgb(look.zenith, gray, mix),
+    horizon: mixRgb(look.horizon, gray, mix * 0.85),
+    sunIntensity: look.sunIntensity * (1 - c * L.sunDim),
+    moonIntensity: look.moonIntensity * (1 - c * 0.8),
+    ambientIntensity: look.ambientIntensity * (1 + c * L.ambientBoost * look.dayFactor),
+    starAlpha: look.starAlpha * (1 - c),
+    // Yağmurda gök tamamen kapanır.
+    cloudCover: Math.min(1, 0.15 + c * 0.85 + weather.rain * 0.6),
+    cloudColor: mixRgb(cloudLit, cloudDark, weather.rain),
+    cloudShade: mixRgb(cloudDark, gray, 0.3),
+    fogScale: 1 - weather.rain * L.rainFog,
   };
 }

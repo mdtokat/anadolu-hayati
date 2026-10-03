@@ -51,7 +51,7 @@ function v4(): Raw {
 
 describe('kayıt v4 → v5 göçü (Faz 11)', () => {
   it('sürüm 5; zincirin son adımı v4 → v5', () => {
-    expect(SAVE_FORMAT_VERSION).toBe(6);
+    expect(SAVE_FORMAT_VERSION).toBe(7);
     expect(typeof MIGRATIONS[4]).toBe('function');
   });
 
@@ -172,7 +172,7 @@ describe('v5 bölümleri capture/apply ile', () => {
       loadSave: (s) => (farm = s),
     };
     const save = captureSave(targets({ weapons, farm: farmSection }));
-    expect(save.weapons).toEqual({ loaded: { rifle: 3 } });
+    expect(save.weapons).toEqual({ loaded: { rifle: 3 }, suppressed: [] });
     expect(save.bandits).toEqual(emptyFaz11Save().bandits);
 
     const loadedWeapons = new WeaponState();

@@ -1,8 +1,9 @@
 import { AmbientLight, Color, DirectionalLight, Fog, type Scene } from 'three';
 import { SCENE, SKY } from '../config';
 import { skyDirection, moonPosition, type SkyPosition } from '../survival/astronomy';
+import type { WeatherState } from '../survival/weather';
 import { SkyDome } from './SkyDome';
-import { skyLook, type Rgb } from './skyModel';
+import { skyLook, weatherLook, type Rgb } from './skyModel';
 
 /** Öğle güneşi: saat verilmeden önce ve test arenasında kullanılan varsayılan görünüm. */
 const NOON_SUN: SkyPosition = { altitudeDeg: 60, azimuthDeg: 180 };
@@ -20,11 +21,14 @@ export class Environment {
   private readonly ambient = new AmbientLight(0xffffff, 0);
   private readonly fog: Fog;
   private readonly background = new Color();
+  private readonly fogRange: { near: number; far: number };
+  private weather: WeatherState = { kind: 'clear', cloudiness: 0, rain: 0 };
 
   constructor(
     private readonly scene: Scene,
     fog: { near: number; far: number } = { near: SCENE.fogNear, far: SCENE.fogFar },
   ) {
+    this.fogRange = { ...fog };
     this.fog = new Fog(this.background, fog.near, fog.far);
     scene.background = this.background;
     scene.fog = this.fog;
@@ -34,7 +38,7 @@ export class Environment {
 
   /** Güneşin konumuna göre gökyüzü, sis ve ışıkları günceller (moon konumu güneşin karşısıdır). */
   setSun(sun: SkyPosition): void {
-    const look = skyLook(sun);
+    const look = weatherLook(skyLook(sun), this.weather);
     const sunDir = skyDirection(sun);
     const moonDir = skyDirection(moonPosition(sun));
 
@@ -62,6 +66,24 @@ export class Environment {
     u.uMoonDir.value.set(moonDir.x, moonDir.y, moonDir.z);
     u.uMoonAlpha.value = look.moonIntensity > 0 ? 1 : 0;
     u.uStarAlpha.value = look.starAlpha;
+    u.uSunAlpha.value *= 1 - this.weather.cloudiness * 0.9;
+    u.uMoonAlpha.value *= 1 - this.weather.cloudiness * 0.85;
+    u.uCloud.value = look.cloudCover;
+    toColor(u.uCloudColor.value, look.cloudColor);
+    toColor(u.uCloudShade.value, look.cloudShade);
+    // Yağmurda sis yaklaşır (görüş kısalır).
+    this.fog.near = this.fogRange.near * look.fogScale;
+    this.fog.far = this.fogRange.far * look.fogScale;
+  }
+
+  /** Hava durumunu saklar; bir sonraki `setSun` (her kare) gökyüzü, ışık, sis ve bulutlara uygular. */
+  setWeather(weather: WeatherState): void {
+    this.weather = weather;
+  }
+
+  /** Bulutların kayması için zaman (sn). */
+  setTime(seconds: number): void {
+    this.dome.uniforms.uTime.value = seconds;
   }
 
   /** Kubbeyi odağa taşır. */

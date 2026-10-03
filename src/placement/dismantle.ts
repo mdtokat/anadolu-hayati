@@ -105,9 +105,6 @@ export class Dismantler {
 
 /** Eşyaların hepsi birlikte sığar mı (envanterin kopyasında denenir; asıl envanter değişmez)? */
 function fits(inventory: Inventory, items: ReadonlyArray<ItemStack>): boolean {
-  const trial = Inventory.fromJSON(inventory.toJSON(), {
-    slots: inventory.slotCount,
-    maxWeightG: inventory.maxWeightG,
-  });
+  const trial = inventory.clone();
   return items.every((stack) => trial.add(stack.id, stack.count) === 0);
 }

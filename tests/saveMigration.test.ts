@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -98,7 +99,7 @@ describe('kayıt v1 → v2 göçü (yapı)', () => {
   it('fixture gerçekten v1 ve geçerli sürüm 6 (v1 → … → v5 → v6 zinciri)', () => {
     expect(V1.version).toBe(1);
     expect(V1.regionId).toBe(WORLD.legacyRegionId);
-    expect(SAVE_FORMAT_VERSION).toBe(6);
+    expect(SAVE_FORMAT_VERSION).toBe(7);
   });
 
   it('bölge kimliği dünya kimliğine, nesne ve hücre kimlikleri mutlak anahtara çevrilir', () => {
@@ -210,7 +211,7 @@ describe(
       region = await loadRealRegion();
       source = RegionHeightSource.fromRegion(region);
       cover = LandCoverMap.fromRegion(region)!;
-      water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+      water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
     }, 60_000);
 
     /** Göç edilen kimliğin yeni kodda gösterdiği nesne. */
@@ -227,7 +228,7 @@ describe(
           grid,
           seed: SCATTER.seed,
           cover: c,
-          height: s,
+          height: s.scatterView(),
           isWater: (x, z, clearance) => water.nearest(x, z, clearance) !== null,
         }),
       );

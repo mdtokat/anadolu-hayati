@@ -1,3 +1,8 @@
+import { BirdLayer } from './BirdLayer';
+import { RainLayer } from './RainLayer';
+import type { WeatherState } from '../survival/weather';
+import { GlassLayer } from './GlassLayer';
+import { scatterWaterOf } from '../data/waterThinning';
 import { viewCenters } from './viewFocus';
 import { Scene, type MeshStandardMaterial } from 'three';
 import {
@@ -86,6 +91,13 @@ export class RegionWorld implements GameWorld {
   /** Yerleşimler (Faz 10): veri yoksa null. */
   readonly settlementMap: SettlementMap | null;
   private readonly settlementLayer: SettlementLayer | null;
+  /** Pencere camları (kırılabilir; yerleşim verisi yoksa null). */
+  readonly glass: GlassLayer | null;
+  /** Gökyüzü kuşları (yalnız görsel). */
+  private readonly birds: BirdLayer;
+  private daylight = 1;
+  /** Yağmur damlaları. */
+  private readonly rain = new RainLayer();
   private readonly settlementColliders: SettlementColliders | null;
   /** Köprü/viyadük/tünel çizimi ve collider'ları (yol planından); yerleşim verisi yoksa null. */
   private readonly structureLayer: RoadStructureLayer | null;
@@ -166,6 +178,14 @@ export class RegionWorld implements GameWorld {
 
     this.settlementLayer = settlements ? new SettlementLayer(settlements) : null;
     if (this.settlementLayer) this.scene.add(this.settlementLayer.group);
+    this.glass = settlements ? new GlassLayer(settlements) : null;
+    if (this.glass) this.scene.add(this.glass.group);
+    this.birds = new BirdLayer(
+      (x, z) => this.source.heightAt(x, z),
+      (x, z) => this.source.elevationAt(x, z),
+    );
+    this.scene.add(this.birds.mesh);
+    this.scene.add(this.rain.object);
     this.settlementColliders = settlements ? new SettlementColliders(physics, settlements) : null;
     const structures =
       settlements && settlements.plan.spans.length > 0
@@ -193,7 +213,9 @@ export class RegionWorld implements GameWorld {
       ? new PropLayer(
           this.source,
           cover,
-          this.freshWater,
+          region.features?.minorStreams?.length
+            ? new FreshWaterIndex(scatterWaterOf(region.features), FRESH_WATER.indexCellSize)
+            : this.freshWater,
           (x, z, r) =>
             (settlements?.blocksProp(x, z, r) ?? false) ||
             this.propBlockers.some((blocks) => blocks(x, z, r)),
@@ -277,14 +299,24 @@ export class RegionWorld implements GameWorld {
     this.chunks.update(visual.x, visual.z);
     this.props?.update(visual.x, visual.z);
     this.settlementLayer?.update(visual.x, visual.z);
+    this.glass?.update(visual.x, visual.z, timeSeconds);
+    this.birds.update(visual.x, visual.z, timeSeconds, this.daylight);
+    this.rain.update(visual.x, this.source.heightAt(visual.x, visual.z), visual.z, timeSeconds);
+    this.environment.setTime(timeSeconds);
     this.structureLayer?.update(visual.x, visual.z);
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
     this.environment.follow(visual.x, visual.z);
   }
 
+  setWeather(weather: WeatherState, indoor: boolean): void {
+    this.environment.setWeather(weather);
+    this.rain.set(weather.rain, indoor);
+  }
+
   setSun(sun: SkyPosition): void {
     this.environment.setSun(sun);
+    this.daylight = Math.min(Math.max((sun.altitudeDeg + 4) / 14, 0), 1);
   }
 
   freshWaterNear(x: number, z: number): WaterHit | null {
@@ -428,6 +460,9 @@ export class RegionWorld implements GameWorld {
     this.structureLayer?.dispose();
     this.settlementColliders?.dispose();
     this.settlementLayer?.dispose();
+    this.glass?.dispose();
+    this.birds.dispose();
+    this.rain.dispose();
     this.props?.dispose();
     this.freshWaterMesh?.dispose();
     this.water.dispose();

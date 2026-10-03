@@ -50,6 +50,10 @@ const BASE_COLORS: Record<CreatureKind, Color> = {
   wild_boar: new Color(CREATURE_LOOK.colors.wild_boar),
   wolf: new Color(CREATURE_LOOK.colors.wolf),
   brown_bear: new Color(CREATURE_LOOK.colors.brown_bear),
+  red_deer: new Color(CREATURE_LOOK.colors.red_deer),
+  red_fox: new Color(CREATURE_LOOK.colors.red_fox),
+  hare: new Color(CREATURE_LOOK.colors.hare),
+  pheasant: new Color(CREATURE_LOOK.colors.pheasant),
 };
 
 /** Yürüme fazının bu karedeki artışı (radyan): bir adım döngüsü = `strideLength` yer değiştirme. */
@@ -87,6 +91,11 @@ function motionAngle(part: PartSpec, view: CreatureView, phase: number, amplitud
         : amplitude * Math.sin(phase + (part.phase ?? 0));
     case 'head':
       return headPitch(view);
+    case 'wing':
+      // Kanat: havadayken (kaçış) hızlı çırpar; yerde katlı.
+      return view.dead || view.state !== 'flee'
+        ? 0
+        : (part.phase ?? 1) * CREATURE_LOOK.wingFlap * Math.sin(phase * 3);
     case 'tail':
       return view.dead
         ? 0
@@ -148,6 +157,7 @@ export function writeCreature(view: CreatureView, phase: number, buffers: PoseBu
       pivotMatrix.makeTranslation(px, py, pz);
       unpivotMatrix.makeTranslation(-px, -py, -pz);
       if (part.motion === 'tail') swingMatrix.makeRotationY(angle);
+      else if (part.motion === 'wing') swingMatrix.makeRotationZ(angle);
       else swingMatrix.makeRotationX(angle);
       motionMatrix.copy(pivotMatrix).multiply(swingMatrix).multiply(unpivotMatrix);
     } else {

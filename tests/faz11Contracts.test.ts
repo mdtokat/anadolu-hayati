@@ -167,12 +167,15 @@ describe('WeaponState', () => {
     expect(state.loaded('pistol')).toBe(RANGED.weapons.pistol.magazine - 1);
     expect(state.consume('rifle')).toBe(false);
     const save = state.toSave();
-    expect(save).toEqual({ loaded: { pistol: RANGED.weapons.pistol.magazine - 1 } });
+    expect(save).toEqual({
+      loaded: { pistol: RANGED.weapons.pistol.magazine - 1 },
+      suppressed: [],
+    });
     const other = new WeaponState();
     other.loadSave(save);
     expect(other.loaded('pistol')).toBe(RANGED.weapons.pistol.magazine - 1);
     other.loadSave({ loaded: {} });
-    expect(other.toSave()).toEqual({ loaded: {} });
+    expect(other.toSave()).toEqual({ loaded: {}, suppressed: [] });
   });
 });
 

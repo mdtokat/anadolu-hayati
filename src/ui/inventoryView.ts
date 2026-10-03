@@ -21,7 +21,7 @@ export function formatWeight(grams: number): string {
 /** Başlık satırı: "Ağırlık 4,2 / 25,0 kg · Slot 7/20". */
 export function capacityText(inventory: Inventory): string {
   const used = inventory.slots.filter((stack) => stack !== null).length;
-  return `Ağırlık ${formatWeight(inventory.totalWeightG)} / ${formatWeight(inventory.maxWeightG)} · Slot ${used}/${inventory.slotCount}`;
+  return `Ağırlık ${formatWeight(inventory.totalWeightG)} / ${formatWeight(inventory.maxWeightG)} · Slot ${used}/${inventory.activeSlots}`;
 }
 
 /** Ağırlık satırı (envanter başlığındaki yük göstergesi): "4,2 / 25,0 kg". */
@@ -32,7 +32,7 @@ export function weightText(inventory: Inventory): string {
 /** Dolu slot sayısı: "7/20". */
 export function slotUsageText(inventory: Inventory): string {
   const used = inventory.slots.filter((stack) => stack !== null).length;
-  return `${used}/${inventory.slotCount}`;
+  return `${used}/${inventory.activeSlots}`;
 }
 
 /** Eşya kategorisinin görünen adı (seçili eşya kartında). */
@@ -197,6 +197,7 @@ const WEAPON_OUTPUTS: ReadonlySet<ItemId> = new Set<ItemId>([
   ...(Object.keys(RANGED.weapons) as ItemId[]),
   ...(Object.keys(AMMO.lootCount) as ItemId[]),
   'gunpowder',
+  'suppressor',
 ]);
 
 /** Gıda zincirinin ara ürünleri (malzeme kategorisinde ama yalnızca yemek yapımına gider). */
@@ -258,10 +259,7 @@ export function maxCraftable(
       bound = Math.min(bound, Math.floor(inventory.count(id) / count));
     }
   }
-  const trial = Inventory.fromJSON(inventory.toJSON(), {
-    slots: inventory.slotCount,
-    maxWeightG: inventory.maxWeightG,
-  });
+  const trial = inventory.clone();
   let made = 0;
   while (made < bound && craft(trial, recipe, context).ok) made += 1;
   return made;

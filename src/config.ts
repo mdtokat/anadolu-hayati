@@ -419,6 +419,13 @@ export const SCATTER = {
    * değebilirse nesne gizlenir (1 = hiç taşmaz; biraz taşan dal doğal görünür).
    */
   blockRadiusFactor: 0.85,
+  /**
+   * Seyreltme (kullanıcı talimatı: "ağaçlar çok sık"): bu türlerin bu oranı (kimlik karmasıyla, deterministik) gizlenir.
+   * Dağılım (ve `PropId`'ler) değişmez; gizlenen nesne görünmez ve toplanamaz (yapı/yol elemesi gibi).
+   */
+  thinning: { tree_broadleaf: 0.4, tree_conifer: 0.4, chestnut: 0.2 } as Partial<
+    Record<string, number>
+  >,
   /** Bu gerçek rakımın (m) altında (deniz/kıyı) nesne yok. */
   minElevation: 3,
   /** Tatlı suya bu uzaklıktan (oyun m) yakın yere ağaç/çalı dikilmez (kıyıda kaya/taş serbest). */
@@ -686,6 +693,8 @@ export const CREATURES = {
   attackLungeSpeedFactor: 0.8,
   /** Yaralı canlının kaçış hızı: sağlık oranı 0'da tam hızın bu kadarı, 1'de tam hız (yaralı hayvan yakalanabilir). */
   woundedSpeedFloor: 0.45,
+  /** Kuşların (sülün) havalanma/konma ve vurulunca düşme hızları (oyun m/sn). */
+  flight: { climbSpeed: 4, landSpeed: 2.5, fallSpeed: 7 },
 } as const;
 
 /** Gerçek bölgedeki oyuncu ayarları: dikleşen (×3,3) gerçek yamaçlar için daha yüksek eğim sınırı. */
@@ -813,6 +822,31 @@ export const OTHER_PROVINCE_PLACES = {
     { name: 'Yeniçağa', lat: 40.7792, lon: 32.03 },
     { name: 'Kıbrıscık', lat: 40.4178, lon: 31.8528 },
   ],
+  // Faz 11 sonrası genişleme: Kastamonu ve Çankırı.
+  Kastamonu: [
+    { name: 'Kastamonu merkez', lat: 41.3767, lon: 33.7765 },
+    { name: 'Tosya', lat: 41.015, lon: 34.039 },
+    { name: 'Taşköprü', lat: 41.51, lon: 34.215 },
+    { name: 'İnebolu', lat: 41.975, lon: 33.76 },
+    { name: 'Cide', lat: 41.89, lon: 33.005 },
+    { name: 'Daday', lat: 41.473, lon: 33.465 },
+    { name: 'Araç', lat: 41.242, lon: 33.327 },
+    { name: 'Küre', lat: 41.806, lon: 33.711 },
+    { name: 'Abana', lat: 41.98, lon: 34.01 },
+    { name: 'Azdavay', lat: 41.642, lon: 33.299 },
+  ],
+  Çankırı: [
+    { name: 'Çankırı merkez', lat: 40.6013, lon: 33.6134 },
+    { name: 'Ilgaz', lat: 40.923, lon: 33.627 },
+    { name: 'Çerkeş', lat: 40.815, lon: 32.894 },
+    { name: 'Kurşunlu', lat: 40.842, lon: 33.262 },
+    { name: 'Eldivan', lat: 40.53, lon: 33.497 },
+    { name: 'Orta', lat: 40.626, lon: 33.107 },
+    { name: 'Şabanözü', lat: 40.483, lon: 33.283 },
+    { name: 'Atkaracalar', lat: 40.817, lon: 33.074 },
+    { name: 'Yapraklı', lat: 40.759, lon: 33.779 },
+    { name: 'Bayramören', lat: 40.943, lon: 33.203 },
+  ],
 } as const;
 
 /** Bir yer: ad ve yaklaşık enlem/boylam. */
@@ -856,6 +890,20 @@ export const SEABED = {
   slopeDeg: 12,
   /** En büyük derinlik (oyun m; gerçekte × VERTICAL_SCALE). */
   maxDepth: 4,
+} as const;
+
+/**
+ * Arazi yumuşatma (`world/terrainSmoothing.ts`; `RegionHeightSource.fromRegion`'da bir kez, kara hücrelerine): 100 m'lik
+ * DSM'deki küçük tümsekler (ağaç/bina izleri, kısa sırt dalgaları) dikey ölçekle ×3,3 dikleşip dağları "deve sırtı"
+ * gibi sürekli girintili çıkıntılı gösteriyordu. Kara hücreleri (deniz komşuları hesaba katılmadan) Gauss süzgeciyle
+ * düzlenir; büyük dağ biçimleri kalır, kısa dalgalar seyrekleşir. Deniz hücreleri ve kıyı çizgisi değişmez. Nesne
+ * dağılımı (eğim/rakım elemesi) yumuşatılmamış veriyi okur (`scatterView`): nesne kimlikleri kaymasın.
+ */
+export const TERRAIN_SMOOTHING = {
+  /** Gauss sapması (ızgara hücresi; 1 hücre = 100 gerçek m). 0 = kapalı. */
+  sigmaCells: 1.3,
+  /** Doğal yükseklikle karışım (0–1): 1 = tamamen yumuşatılmış. */
+  strength: 0.85,
 } as const;
 
 /** Deniz yüzeyi (Karadeniz) ayarları. */
@@ -1033,6 +1081,8 @@ export const AMBIENT = {
   owlPerSecondAtFull: 0.06,
   /** Olay (kuş/baykuş) zamanlayıcı adımı (ms). */
   eventTickMs: 200,
+  /** Yağmur sesi barınakta/içeride bu çarpanla boğulur (çatıya vuran yağmur). */
+  rainShelterMuffle: 0.5,
 } as const;
 
 /** İl sınırı geçişi bildirimi (Faz 6.7): sınırda gidip gelmede bildirim yağmasın. */
@@ -1201,6 +1251,61 @@ export const FRESH_WATER = {
 } as const;
 
 /**
+ * Küçük derelerin ayıklanması (`data/waterThinning.ts`; yüklemede bir kez): veri her kısa dere kolunu taşıdığından
+ * arazide çok sayıda ince akarsu görünüyordu. Uç noktalarıyla bağlı dereler öbeklenir; öbeğin toplam uzunluğu
+ * (oyun m) eşikten kısaysa öbek kaldırılır. Nehir, kanal, göl ve kaynaklar etkilenmez. Kaldırılan dereler yalnızca
+ * nesne dağılımında hesaba katılmaya devam eder (`RegionFeatures.minorStreams`): nesne kimlikleri kaymasın.
+ */
+export const WATER_THINNING = {
+  /** Bu toplam uzunluktan (oyun m; 400 = 20 gerçek km) kısa dere öbekleri kaldırılır. */
+  minNetworkLength: 400,
+  /** Tamamı mevsimlik (kuruyabilen) dere öbekleri için eşik (oyun m). */
+  minIntermittentLength: 600,
+  /** Uç noktaları bu uzaklıktan (oyun m) yakın dereler bağlı sayılır. */
+  joinTolerance: 1.5,
+  /** İl/ilçe merkezine ya da oyunun yer adlarına bu uzaklıktan (oyun m) yakın geçen dere öbeği kalır (içme suyu). */
+  anchorReach: 60,
+} as const;
+
+/**
+ * Değişken hava durumu (`survival/weather.ts`, saf; oyun saatinin deterministik fonksiyonu, kayda girmez): açık,
+ * bulutlu, yağmurlu. Gökyüzü/ışık/sis (`Environment`), yağmur damlaları (`world/RainLayer.ts`), ortam sesi (yağmur
+ * katmanı) ve vücut ısısı (ıslanma) bunu okur.
+ */
+export const WEATHER = {
+  seed: 0x77ea7,
+  /** Hava cephesinin değişme aralığı (oyun saati): ~6 saatte bir yeni cephe. */
+  periodHours: 6,
+  /** Oyun başlangıcında (09:00) havanın açık başlaması için düğüm kayması (oyun saati). */
+  startOffsetHours: 3,
+  /** Ham bulutluluktan düşülen pay: açık hava biraz daha sık. */
+  bias: 0.12,
+  /** Bulutluluk bunun altında "açık", `rainAbove` üstünde yağmur. */
+  clearBelow: 0.38,
+  rainAbove: 0.72,
+  /** Yağmur ıslatır: tam sağanakta ortam sıcaklığından düşülen (°C; barınakta yok). */
+  rainCoolingC: 5,
+  /** Gündüz tam kapalı gökte güneşin kesilmesi (°C). */
+  cloudCoolingC: 2,
+  /** Görünüm: tam kapalı gökte güneş ışığı çarpanı, gökyüzü griye karışma oranı, gece biraz daha karanlık. */
+  look: {
+    sunDim: 0.72,
+    skyGray: 0.75,
+    grayDay: 0x8f979e,
+    grayNight: 0x0a0c10,
+    ambientBoost: 0.35,
+    /** Yağmurda sis yaklaşır (çarpan, tam sağanakta). */
+    rainFog: 0.45,
+    /** Bulut katmanı: bulut rengi gündüz ve gece. */
+    cloudDay: 0xe6e9ec,
+    cloudDark: 0x5c636b,
+    cloudNight: 0x1a1d22,
+  },
+  /** Yağmur damlaları: kameranın çevresindeki kutu (oyun m), damla sayısı, düşüş hızı (oyun m/sn), boy. */
+  rainDrops: { count: 3200, radius: 24, height: 20, speed: 16, length: 0.9, opacity: 0.55 },
+} as const;
+
+/**
  * Gökyüzü ve gün ışığı (güneş yüksekliğine bağlı). Yükseklikler derece; renkler 0xRRGGBB.
  * Gündüz/gece geçişi güneş yüksekliğine göre yumuşak yapılır; alacakaranlıkta ufuk turuncuya çalar.
  */
@@ -1277,10 +1382,20 @@ export const HUD_STYLE = {
 
 /** Envanter sınırları (Faz 4.4). Eşya içerikleri (ağırlık, yığın, etki) `items/itemDefs.ts` tablosundadır. */
 export const INVENTORY = {
-  /** Slot sayısı. */
+  /** Slot sayısı (çantasız). */
   slots: 20,
-  /** Taşınabilecek toplam ağırlık (gram; tam sayı, kayan nokta hatası olmasın). */
+  /** Taşınabilecek toplam ağırlık (gram; tam sayı, kayan nokta hatası olmasın; çantasız). */
   maxWeightG: 25_000,
+} as const;
+
+/**
+ * Sırt çantaları (`items/backpack.ts`, `Inventory`): oyuncu envanterindeki **en büyük** çanta slot ve ağırlık
+ * sınırını artırır (çantalar üst üste binmez). Çantadaki eşyalar sığmayacaksa çanta çıkarılamaz/atılamaz.
+ */
+export const BACKPACKS = {
+  backpack_small: { slots: 4, weightG: 8_000 },
+  backpack_medium: { slots: 8, weightG: 15_000 },
+  backpack_large: { slots: 14, weightG: 25_000 },
 } as const;
 
 /** Yemek yeme kuralları (Faz 4.4). */
@@ -1655,7 +1770,7 @@ export const COMBAT_HUD = {
   /** "Tehlike" bildirimi gösterilen durumlar (yalnızca sinsi yaklaşma ve kovalama). */
   dangerStates: ['stalk', 'chase'],
   /** Bildirimi tetiklemeyen zararsız türler. */
-  harmlessKinds: ['roe_deer'],
+  harmlessKinds: ['roe_deer', 'red_deer', 'red_fox', 'hare', 'pheasant'],
 } as const;
 
 /** Av ürünleri (Faz 5, Hesap B'nin bloğu): leş kesme süreleri. Tür başına yük tablosu `combat/loot.ts`'tedir. */
@@ -1686,7 +1801,13 @@ export const CREATURE_LOOK = {
     wild_boar: 0x4a3a30,
     wolf: 0x6f6f6a,
     brown_bear: 0x5a3b22,
+    red_deer: 0x8a4e2c,
+    red_fox: 0xc2622a,
+    hare: 0x9a8668,
+    pheasant: 0x8f4a22,
   },
+  /** Kuş kanadı çırpma genliği (radyan). */
+  wingFlap: 0.9,
   /** Vurulma parlamasında karıştırılan renk. */
   hitColor: 0xff3b30,
   /** Leş (yan yatık) karardıkça: renk bu oranda koyulaşır (0–1). */
@@ -1710,6 +1831,62 @@ export const CREATURE_LOOK = {
   lunge: 0.3,
   /** Karelerarası zaman sıçramasını sınırlar: animasyon fazı bu süreden (sn) fazla ilerlemez. */
   maxFrameSeconds: 0.1,
+} as const;
+
+/**
+ * Gökyüzü kuşları (`world/birdFlocks.ts`, `BirdLayer`; yalnız görsel): hücrelerin bir kısmında daire çizen sürüler.
+ * Uzaklıklar oyun m, hızlar oyun m/sn, rakım gerçek m.
+ */
+export const BIRDS = {
+  seed: 0xb1d5,
+  /** Sürü hücresi boyu ve hücrede sürü olma olasılığı. */
+  cellSize: 450,
+  flockChance: 0.4,
+  /** Oyuncuya bu uzaklıktaki sürüler çizilir. */
+  drawRadius: 800,
+  /** En çok çizilen kuş (örnek tamponu). */
+  maxBirds: 160,
+  /** Gün ışığı (0–1) bunun altındaysa kuş yok. */
+  minDaylight: 0.25,
+  /** Bu gerçek rakımın (m) altındaki hücrelerde martı (kıyı); karada karga ya da yırtıcı. */
+  gullMaxElevation: 40,
+  /** Karadaki sürülerin yırtıcı (tek kuş) olma payı. */
+  raptorShare: 0.3,
+  kinds: {
+    crow: {
+      count: [5, 10],
+      altitude: [14, 30],
+      radius: [25, 60],
+      speed: [7, 10],
+      spread: 8,
+      span: 0.9,
+      flapHz: 3,
+      glide: 0,
+      color: 0x1d1d22,
+    },
+    gull: {
+      count: [3, 7],
+      altitude: [10, 24],
+      radius: [30, 70],
+      speed: [6, 9],
+      spread: 10,
+      span: 1.2,
+      flapHz: 1.8,
+      glide: 0.4,
+      color: 0xeceff0,
+    },
+    raptor: {
+      count: [1, 2],
+      altitude: [45, 90],
+      radius: [50, 110],
+      speed: [6, 8],
+      spread: 15,
+      span: 1.9,
+      flapHz: 1.2,
+      glide: 0.85,
+      color: 0x5a4330,
+    },
+  },
 } as const;
 
 /**
@@ -2505,6 +2682,18 @@ export const RANGED = {
   minEnergyPrimitive: 1,
   /** Atış gürültüsünün yarıçapı (oyun m; `noise:made`: canlılar kaçar, eşkıyalar duyar). */
   noiseRadius: { slingshot: 10, bow: 8, shotgun: 140, pistol: 110, rifle: 170, sniper_rifle: 200 },
+  /**
+   * Susturucu (`items/weaponState.ts`): takılabilen silahlar; takılıyken atış gürültüsü (`noiseRadius`) ve sesi
+   * kısılır, mermi biraz yavaşlar (hasar hafif düşer).
+   */
+  suppressor: {
+    weapons: ['pistol', 'rifle', 'sniper_rifle'],
+    noiseFactor: 0.22,
+    damageFactor: 0.92,
+    /** Ses: kazanç çarpanı, alçak geçiren süzgeç çarpanı (boğuk "püf"), gümleme yok. */
+    soundGain: 0.28,
+    lowpassFactor: 0.35,
+  },
   /** Atanın tünelde olduğu sayılan derinlik (oyun m): tünel içinden atışta arazi engeli yok sayılır (tavan delik). */
   undergroundDepth: 1.5,
   /** İsabetin hedefe işlenmesi uçuş süresi kadar gecikir; en uzun gecikme (sn). */
@@ -2541,6 +2730,26 @@ export const RANGED = {
 } as const;
 
 /**
+ * Pencere camları (`world/GlassLayer.ts`, `settlements/windows.ts`): girilebilir yapıların camlı pencerelerinden
+ * içeriden dışarısı görünür; mermi camdan geçer ve camı kırar (kırık camlar oturumluktur, kayda girmez).
+ */
+export const GLASS = {
+  /** Cam rengi ve saydamlığı (0 görünmez – 1 opak). */
+  color: 0xbfdbe6,
+  opacity: 0.18,
+  /** Kırılan camdan düşen kırık sayısı, ömrü (sn), yerçekimi (oyun m/sn²). */
+  shardCount: 14,
+  shardSeconds: 2.2,
+  gravity: 9.8,
+  /** Kırık camın yapısını ararken atış noktasına en çok uzaklık (oyun m; tüfek menzili). */
+  searchRadius: 420,
+  /** Kırık saçılımı tohumu. */
+  shardSeed: 0x61a55,
+  /** Cam kırılma sesi: tepe kazancı ve sönme süresi (sn). */
+  sound: { gain: 0.45, decay: 0.5 },
+} as const;
+
+/**
  * ── Faz 11: D (11.5) ── Mühimmat: ganimette bulunan aralık (min–max; `settlements/loot.ts` satırları okur). Tarif
  * başına üretim adedi tariflerin `output`'undadır (`items/recipes.ts`). Mühimmat kıt tutulur (denge riski: plan §7).
  */
@@ -2559,8 +2768,11 @@ export const AMMO = {
  * Uzaklıklar oyun metresidir (1 oyun m = 50 gerçek m).
  */
 export const BANDITS = {
-  /** Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). */
-  campCount: 48,
+  /**
+   * Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). Kastamonu–Çankırı genişlemesiyle 48 → 72 (kara alanı
+   * ve il/ilçe sayısı ~1,5–2 kat); seçim açgözlü ve seed'li olduğundan eski kamplar aynı kalır, yenileri eklenir.
+   */
+  campCount: 72,
   /**
    * Kamp yeri kuralları (`bandits/camps.ts`): il/ilçe merkezinin ayak izi kenarına en az `minSettlementDistance`,
    * köyün kenarına en az `minVillageDistance` (341 köy haritayı sık örttüğünden köylere ayrı, kısa uzaklık), en yakın

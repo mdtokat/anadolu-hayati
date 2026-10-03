@@ -303,6 +303,9 @@ describe('CreatureSystem: hasar, ölüm ve leş', () => {
     }
     expect(deer).toBeTruthy();
     expect(boar).toBeTruthy();
+    // Oyuncu domuzun yanında (kovalama bırakma uzaklığının içinde) vurur.
+    ctx.player.x = boar!.x + 8;
+    ctx.player.z = boar!.z;
     const from = { x: ctx.player.x, z: ctx.player.z };
     system.damage(deer!.id, 1, from);
     system.damage(boar!.id, 1, from);

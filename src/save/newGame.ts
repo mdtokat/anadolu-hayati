@@ -34,7 +34,7 @@ export function createNewGameSave(
       clockHour: CLOCK.startHour,
       clockDay: 0,
     },
-    inventory: new Inventory({ slots: INVENTORY.slots }).toJSON(),
+    inventory: new Inventory({ slots: INVENTORY.slots, backpacks: true }).toJSON(),
     structures: new StructureSet().toJSON(),
     world: { handDone: [], axeDone: [], removed: [] },
     creatures: { killed: [] },

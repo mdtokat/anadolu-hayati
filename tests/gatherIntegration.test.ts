@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FRESH_WATER, INTERACT, PLAYER } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
@@ -25,7 +26,7 @@ beforeAll(async () => {
   region = await loadRealRegion();
   source = RegionHeightSource.fromRegion(region);
   const cover = LandCoverMap.fromRegion(region)!;
-  const water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+  const water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
   layer = new PropLayer(source, cover, water);
   forest = latLonToGame(41.2, 32.34, region.meta.originUtm);
   layer.prepare(forest.x, forest.z);

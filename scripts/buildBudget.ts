@@ -31,10 +31,13 @@ export const BUILD_BUDGET = {
   /** index.html'in açılışta çektiği tüm JS + CSS (gzip). */
   initialGzipKB: 2300,
   data: {
-    /** `dist/data/` toplamı (ham). CLAUDE.md: karo akışı yok, açılışta hepsi iner. */
-    totalKB: 24_000,
-    /** Tek veri dosyası (ham). Karolar 512 kB; tek istisna `features.json` ≈ 1,1 MB. */
-    maxFileKB: 1_536,
+    /**
+     * `dist/data/` toplamı (ham). CLAUDE.md: karo akışı yok, açılışta hepsi iner. Kastamonu–Çankırı genişlemesi
+     * (kullanıcı kararı: karo akışı yazmadan, bütçe bilinçli yükseltilerek): 24 → 40 MB (ölçülen ~35 MB; 40 karo).
+     */
+    totalKB: 40_000,
+    /** Tek veri dosyası (ham). Karolar 512 kB; istisna `features.json` (genişlemeyle ≈ 1,9 MB): 1,5 → 2,5 MB. */
+    maxFileKB: 2_560,
   },
   /**
    * Performans bütçesi "ilk yükleme < 10 sn": açılışta inen her şeyin (JS + CSS + dünya verisi)
@@ -42,7 +45,8 @@ export const BUILD_BUDGET = {
    * ikili karolar (`.bin`) sıkıştırılmadan iner (GitHub Pages'in davranışına güvenmeyen üst sınır).
    * CPU hazırlığı (~0,7 sn, Faz 7 ölçümü) dahil değildir.
    */
-  load: { referenceMbps: 20, maxSeconds: 10 },
+  // Kastamonu–Çankırı genişlemesi: 10 → 16 sn (ölçülen tahmin ~14,5 sn). Karo akışı gelince yeniden 10 sn'ye inmeli.
+  load: { referenceMbps: 20, maxSeconds: 16 },
   /** Sınırın bu oranını aşan değerler uyarı (⚠️) olarak işaretlenir. */
   warnRatio: 0.9,
 } as const;

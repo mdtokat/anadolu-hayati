@@ -102,6 +102,13 @@ def dequantize_elevation(values: np.ndarray, elevation_min: float, elevation_max
     return elevation_min + values.astype(np.float64) / UINT16_MAX * (elevation_max - elevation_min)
 
 
+def may_be_open_sea(name: str) -> bool:
+    """Karo açık deniz olabilir mi (Copernicus yalnızca kara içeren karoları yayımlar)? Dünyanın kuzeyi Karadeniz'dir:
+    42°K ve kuzeyindeki karolar eksikse deniz sayılır; daha güneydeki eksik karo gerçek hatadır."""
+    lat = int(name.split("_")[4][1:])
+    return lat >= 42
+
+
 def tiles_for_bbox(lon_min: float, lat_min: float, lon_max: float, lat_max: float) -> list[str]:
     """Kutuyu kaplayan Copernicus GLO-30 karo adları (her karo 1°×1°, adı güneybatı köşesidir)."""
     names: list[str] = []

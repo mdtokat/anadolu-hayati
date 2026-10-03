@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CLIMATE, CLOCK, FRESH_WATER, HORIZONTAL_SCALE, SCATTER, SURVIVAL } from '../src/config';
 import type { ProvinceShape, RegionData } from '../src/data/region';
@@ -54,7 +55,7 @@ let province: ProvinceShape;
 beforeAll(async () => {
   region = await loadRealWorld();
   source = RegionHeightSource.fromRegion(region);
-  water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+  water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
   grid = chunkGridFor(source);
 }, 120_000);
 
@@ -158,7 +159,7 @@ describe.each(PROVINCES)('$name ekolojisi (8.4)', (expected) => {
           grid,
           seed: SCATTER.seed,
           cover,
-          height: source,
+          height: source.scatterView(),
           isWater: (x, z, clearance) => water.nearest(x, z, clearance) !== null,
         });
         for (let i = 0; i < props.count; i++) {

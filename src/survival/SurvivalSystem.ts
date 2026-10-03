@@ -31,6 +31,8 @@ export interface SurvivalContext {
   shelter?: ShelterKind | null;
   /** Faz 11 (11.2): döşeğin üstünde mi? */
   bed?: boolean;
+  /** Hava kaynaklı serinleme (°C; yağmurda ıslanma, kapalı gök): ortam sıcaklığından düşülür. Yoksa 0. */
+  weatherCoolingC?: number;
 }
 
 /** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */
@@ -103,7 +105,7 @@ export class SurvivalSystem {
     if (this.death) return;
 
     this.clock.advance(dt);
-    this.ambient = this.ambientAt(context.elevationM);
+    this.ambient = this.ambientAt(context.elevationM) - (context.weatherCoolingC ?? 0);
     this.aliveSeconds += dt;
     this.trackDrinking(context.drinking && this.canKeepDrinking());
 

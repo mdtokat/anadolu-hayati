@@ -1,3 +1,4 @@
+import { scatterWaterOf } from '../src/data/waterThinning';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { BufferGeometry, InstancedMesh, Material } from 'three';
 import { FRESH_WATER, SCATTER, TELEPORTS } from '../src/config';
@@ -31,7 +32,7 @@ beforeAll(async () => {
   region = await loadRealRegion();
   source = RegionHeightSource.fromRegion(region);
   cover = LandCoverMap.fromRegion(region)!;
-  water = new FreshWaterIndex(region.features!.water, FRESH_WATER.indexCellSize);
+  water = new FreshWaterIndex(scatterWaterOf(region.features!), FRESH_WATER.indexCellSize);
   forest = latLonToGame(41.2, 32.34, region.meta.originUtm);
   coast = latLonToGame(TELEPORTS[0].lat, TELEPORTS[0].lon, region.meta.originUtm);
 }, 60_000);
