@@ -1890,7 +1890,10 @@ export class Game {
       bodyTempC: state.bodyTemp,
       isNight: clock.sun.altitudeDeg < HINTS.nightSunAltitudeDeg,
       fireBuilt: structures.some((s) => s.kind === 'campfire'),
-      shelterBuilt: structures.some((s) => s.kind === 'lean_to' || s.kind === 'wooden_hut'),
+      // Modüler parçalarla kurulan barınak (taban + duvar + çatı) ya da bina içi de barınak sayılır.
+      shelterBuilt:
+        this.exposure.sheltered ||
+        structures.some((s) => s.kind === 'lean_to' || s.kind === 'wooden_hut'),
       preyNearby: this.creatures
         .views()
         .some(
