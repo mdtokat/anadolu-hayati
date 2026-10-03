@@ -106,6 +106,30 @@ describe('applyRoadGrading', () => {
     expect(g.at(-56, 0)).toBe(0);
   });
 
+  it('köprü altında zemin güvertenin altında kalır (yüksek doğal zemin ve dolgu şevi oyulur), koridor kilitlenir', () => {
+    // 15…25 köprü noktaları (ayaklar 14 ve 26); doğal zemin güverteden (9) yüksek: 12.
+    const kinds = Array.from({ length: 41 }, (_, i) => (i >= 15 && i <= 25 ? SPAN_KIND.bridge : 0));
+    const plan = straightPlan(9, kinds);
+    plan.spans.push({
+      road: 0,
+      i0: 14,
+      i1: 26,
+      kind: SPAN_KIND.bridge,
+      viaduct: false,
+      type: 'beam',
+    });
+    const g = new Grid(() => 12);
+    applyRoadGrading(g, plan);
+    // Köprünün ortasında (x = −60 + 20·3 = 0) eksen ve yan hücreler yatağın 0,9 m altına iner.
+    const limit = 9 - ROADS.bridgeClearance;
+    for (const z of [0, 2, 4]) expect(g.at(0, z)).toBeLessThanOrEqual(limit + 1e-6);
+    // Ayak noktasında (x = −60 + 14·3 = −18) tavan yatak yüksekliğidir (yaklaşım yolu yatakta kalır).
+    expect(g.at(-18, 0)).toBeLessThanOrEqual(9 + 1e-6);
+    expect(g.isLocked(30, 30)).toBe(true);
+    // Koridorun hemen dışı (6 m yanda) bu kuralla oyulmaz.
+    expect(g.at(0, 14)).toBeGreaterThan(limit + 1);
+  });
+
   it('yol yatağı hücreleri kilitlenir', () => {
     const g = new Grid(() => 5);
     applyRoadGrading(g, straightPlan(6));

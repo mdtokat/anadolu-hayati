@@ -2147,6 +2147,8 @@ export const ROADS = {
   minBlend: 2.6,
   /** Yol gövdesinin dışındaki bir hücrede zeminin doğal yüksekliğinden en çok değişimi (oyun m). */
   maxEdgeChange: 8,
+  /** Köprü güvertesinin (yatak) altında zeminin kalacağı en çok yükseklik: yatak − bu değer (oyun m; güverte kalınlığı + boşluk). */
+  bridgeClearance: 0.9,
   maxBlend: 11,
   /**
    * Dağ patikası istisnası: patikada (sınıf 2) arazinin eğimi `mountainSlopeDeg`'in üstündeyse zemin düzeltilmez;
