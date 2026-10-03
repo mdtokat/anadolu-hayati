@@ -222,6 +222,8 @@ import { BUILDING_NAMES, BUILDING_SHAPES } from '../settlements/kinds';
 import type { BuildingInterior } from '../settlements/SettlementMap';
 import { CREATURE_NAMES } from '../combat/promptText';
 import { CampColliders } from '../world/CampColliders';
+import { campSolidBoxes } from '../world/campGeometry';
+import { walkBoxBlocks, yawBox, type WalkBox } from '../world/walkSolids';
 import { darknessOf } from '../creatures/perception';
 import type { ItemStack } from '../items/Inventory';
 import type { PersonRole } from '../people/roles';
@@ -2564,9 +2566,34 @@ export class Game {
     this.obstacles = new StructureObstacles(this.structureSystem.structures, {
       heightAt: (x, z) => this.world.terrain.heightAt(x, z),
       ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
+      // Ağaç, kaya, çalı, köprü/tünel kutuları ve kamp çadırları canlıları, insanları ve eşkıyaları da keser.
+      solidBlocks: (x0, z0, x1, z1, r) =>
+        (this.world.walkBlocked?.(x0, z0, x1, z1, r) ?? false) ||
+        this.campBlocksWalk(x0, z0, x1, z1, r),
+      solidContains: (x, z, r) => this.world.walkContains?.(x, z, r) ?? false,
     });
   }
   private updateStations(_dt: number): void {}
+
+  /** Kamp çadırı/sandığı (x0, z0)→(x1, z1) yürüyüşünü keser mi? Kamp kutuları kamp başına bir kez hesaplanır. */
+  private campBlocksWalk(x0: number, z0: number, x1: number, z1: number, radius: number): boolean {
+    const bandits = this.bandits;
+    if (!bandits) return false;
+    for (const camp of bandits.camps) {
+      if (Math.abs(camp.x - x1) > 20 || Math.abs(camp.z - z1) > 20) continue;
+      let boxes = this.campWalkBoxes.get(camp.id);
+      if (!boxes) {
+        const layout = bandits.layoutOf(camp.id);
+        boxes = layout
+          ? campSolidBoxes(layout, (x, z) => this.world.terrain.heightAt(x, z)).map(yawBox)
+          : [];
+        this.campWalkBoxes.set(camp.id, boxes);
+      }
+      const ground = this.world.terrain.heightAt(x1, z1);
+      if (boxes.some((box) => walkBoxBlocks(box, x0, z0, x1, z1, radius, ground))) return true;
+    }
+    return false;
+  }
   private drawStations(_time: number, _feet: { x: number; y: number; z: number }): void {}
 
   // ── Faz 11: C (11.4 ekme biçme) ──
@@ -2693,6 +2720,8 @@ export class Game {
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici) ──
   /** Eşkıya kampları (yerleşim verisi olan gerçek dünyada; yoksa null). */
   private bandits: BanditSystem | null = null;
+  /** Kamp çadırı/sandığı yürüyüş kutuları (kamp kimliği → kutular). */
+  private readonly campWalkBoxes = new Map<number, WalkBox[]>();
   /** Şehirlerde yankesiciler. */
   private readonly pickpockets = new PickpocketSystem(this.events);
   private pickpocketWorld: PickpocketWorld | null = null;

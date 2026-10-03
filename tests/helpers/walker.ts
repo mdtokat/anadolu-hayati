@@ -79,6 +79,7 @@ export function walkPath(region: RegionData, path: Point[], maxSeconds: number):
   let stuck = 0;
   let slowSteps = 0;
   let jumpFor = 0;
+  let steerSign = 1;
   let last = { ...player.position };
   let steps = 0;
 
@@ -97,15 +98,32 @@ export function walkPath(region: RegionData, path: Point[], maxSeconds: number):
     // Takılırsa kısa süre zıpla
     const speed = Math.hypot(player.currentVelocity.x, player.currentVelocity.z);
     slowSteps = speed < 0.6 ? slowSteps + 1 : 0;
-    if (slowSteps > 90) {
+    // Ağaç/kaya/çalı katıdır (A* bilmez): oyuncu gibi, önü kapalıysa yönü yana kırar (önceki tarafı tercih eder).
+    let heading = yawToward(dx, dz);
+    if (world.walkBlocked) {
+      const px = player.position.x;
+      const pz = player.position.z;
+      for (const offset of [0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4]) {
+        const o = offset * steerSign;
+        const yaw = heading + o;
+        const reach = 3;
+        if (
+          !world.walkBlocked(px, pz, px - Math.sin(yaw) * reach, pz - Math.cos(yaw) * reach, 0.55)
+        ) {
+          if (offset !== 0) steerSign = Math.sign(o) || steerSign;
+          heading = yaw;
+          break;
+        }
+      }
+    }
+    if (slowSteps > 240) {
       jumpFor = 20;
       slowSteps = 0;
       stuck++;
     }
     const jump = jumpFor > 0;
     if (jump) jumpFor--;
-
-    step({ forward: 1, strafe: 0, run: true, jump }, yawToward(dx, dz));
+    step({ forward: 1, strafe: 0, run: true, jump }, heading);
 
     const pos = player.position;
     maxJump = Math.max(maxJump, Math.hypot(pos.x - last.x, pos.y - last.y, pos.z - last.z));

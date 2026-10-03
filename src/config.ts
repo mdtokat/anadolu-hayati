@@ -2484,6 +2484,31 @@ export const STRUCTURE_OBSTACLES = {
   minTop: 0.4,
 } as const;
 
+/**
+ * Katı nesneler (kullanıcı talimatı: "hiçbir nesnenin içinden ne oyuncu ne canlılar geçemesin"): ağaç, kaya ve çalılar
+ * silindir collider'dır (yerdeki dal/taş/mantar geçilir). Tür başına `radius` (ölçek 1'de gövde/gövde-taban yarıçapı;
+ * taç değil), `height` (collider boyu; ağaçta oyuncunun aşamayacağı kadar yüksek, çalı/kayada görsel boy) ve
+ * `scaleHeight` (boy nesne ölçeğiyle büyür mü). Rapier collider'ları oyuncuya `colliderRadius` içindekiler için kurulur
+ * (`resyncDistance` hareketle yenilenir); aynı tablo canlı/insan/eşkıya engel sorgusunda da kullanılır.
+ */
+export const PROP_SOLIDS = {
+  colliderRadius: 36,
+  resyncDistance: 5,
+  /** Yarıçap hiçbir ölçekte bu değerin altına inmez (oyun m). */
+  minRadius: 0.25,
+  kinds: {
+    tree_broadleaf: { radius: 0.75, height: 6, scaleHeight: false },
+    tree_conifer: { radius: 0.55, height: 6, scaleHeight: false },
+    chestnut: { radius: 0.75, height: 6, scaleHeight: false },
+    hazel: { radius: 0.5, height: 3, scaleHeight: false },
+    bush: { radius: 0.9, height: 1.1, scaleHeight: true },
+    berry_bush: { radius: 0.75, height: 1, scaleHeight: true },
+    rock: { radius: 0.95, height: 1.1, scaleHeight: true },
+  } as Readonly<
+    Record<string, { radius: number; height: number; scaleHeight: boolean } | undefined>
+  >,
+} as const;
+
 /** ── Faz 11: B (11.2) ── Döşek: üstünde hareketsiz dinlenirken barınak etkisinin üstüne eklenen çarpanlar. */
 export const BEDS = {
   /** Döşeğe bu yatay uzaklıkta (oyun m) durulursa üstünde sayılır. */
