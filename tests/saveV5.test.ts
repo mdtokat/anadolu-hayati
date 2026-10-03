@@ -73,6 +73,7 @@ describe('kayıt v4 → v5 göçü (Faz 11)', () => {
       ...(raw.settlements as object),
       containers: [],
       lastPrayer: -1,
+      leftovers: [],
     });
     expect(raw.version).toBe(4); // göç girdiyi değiştirmez
   });

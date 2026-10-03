@@ -176,11 +176,16 @@ export interface SettlementsSave {
   containers: number[];
   /** Camide namaz kılınan son vaktin mutlak sırası (`survival/prayer.ts`; −1: hiç). */
   lastPrayer: number;
+  /**
+   * Ganimet panelinde açılıp tamamen alınmamış hedefler (`key`: kapı için −1 − yapı kimliği, kap için kap kimliği) ve
+   * kalan eşyaları. Eklemeli alan (sürüm artmadı): eski kayıtta yoktur, boş okunur.
+   */
+  leftovers: Array<{ key: number; items: ItemStack[] }>;
 }
 
 /** Boş yerleşim durumu (yeni oyun). */
 export function emptySettlementsSave(): SettlementsSave {
-  return { searched: [], containers: [], lastPrayer: -1 };
+  return { searched: [], containers: [], lastPrayer: -1, leftovers: [] };
 }
 
 /** Yuva listesinde gösterilen kısa özet. */
@@ -566,7 +571,16 @@ function parseSettlementsSave(value: unknown): SettlementsSave {
   if (typeof lastPrayer !== 'number' || !Number.isInteger(lastPrayer) || lastPrayer < -1) {
     throw invalid('settlements.lastPrayer −1 ya da negatif olmayan tam sayı olmalı');
   }
-  return { searched: ids('searched'), containers: ids('containers'), lastPrayer };
+  const rawLeftovers = value.leftovers ?? [];
+  if (!Array.isArray(rawLeftovers)) throw invalid('settlements.leftovers dizi olmalı');
+  const leftovers = rawLeftovers.map((entry: unknown, index) => {
+    const e = record(entry, `settlements.leftovers[${index}]`);
+    if (typeof e.key !== 'number' || !Number.isInteger(e.key)) {
+      throw invalid(`settlements.leftovers[${index}].key tam sayı olmalı`);
+    }
+    return { key: e.key, items: itemStacks(e.items, `settlements.leftovers[${index}].items`) };
+  });
+  return { searched: ids('searched'), containers: ids('containers'), lastPrayer, leftovers };
 }
 
 /** Yuva listesinde gösterilecek özet (gün 1'den başlar). */

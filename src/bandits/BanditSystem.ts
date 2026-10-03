@@ -149,6 +149,8 @@ export class BanditSystem implements TargetProvider {
   /** Bugün sokakta temizlenen/dağılan çeteler (yer sırası → gün) ve çatışma bildirilenler (`yer:gün`). */
   private readonly gangDone = new Map<number, number>();
   private readonly gangClashed = new Set<string>();
+  /** Üstü kısmen aranmış cesetlerin kalan ganimeti (eşkıya kimliği → liste; ganimet panelinden alınan düşer). */
+  private readonly corpseLeft = new Map<number, ItemStack[]>();
   /** Bu adımın katıları (görüş hattı); `update` doldurur. */
   private solids: SolidQuery | null = null;
 
@@ -181,6 +183,7 @@ export class BanditSystem implements TargetProvider {
     this.startNow = null;
     this.gangDone.clear();
     this.gangClashed.clear();
+    this.corpseLeft.clear();
   }
 
   layoutOf(campId: number): CampLayout | null {
@@ -334,6 +337,56 @@ export class BanditSystem implements TargetProvider {
     }
     this.events.emit('bandit:searched', { id, items });
     return 'ok';
+  }
+
+  /**
+   * Ganimet paneli için ölü eşkıyanın kalan ganimeti (değiştirilebilir liste; ilk açılışta zarlanır, sonra aynı liste).
+   * Ölü değilse ya da üstü tamamen arandıysa null.
+   */
+  corpseLoot(id: number): ItemStack[] | null {
+    const m = this.members.get(id);
+    if (!m || m.brain.state !== 'dead' || m.searched) return null;
+    let list = this.corpseLeft.get(id);
+    if (!list) {
+      list = rollBanditLoot(id, m.brain.weapon, this.seed);
+      this.corpseLeft.set(id, list);
+    }
+    return list;
+  }
+
+  /**
+   * Ganimet panelinden bir şey alındıktan (ya da panel açıldıktan) sonra: liste boşaldıysa ceset aranmış sayılır.
+   * `taken` alınanlar (bildirim için `bandit:searched`; hiçbir şey alınmadıysa ve ceset boş değilse olay yok).
+   */
+  commitCorpse(id: number, taken: readonly ItemStack[]): void {
+    const m = this.members.get(id);
+    if (!m || m.searched) return;
+    const list = this.corpseLeft.get(id) ?? [];
+    const emptied = list.length === 0;
+    if (emptied) {
+      m.searched = true;
+      this.corpseLeft.delete(id);
+      if (m.camp) {
+        const mem = this.memory.get(m.camp.id)?.gone.get(m.index);
+        if (mem) mem.searched = true;
+      }
+    }
+    if (taken.length > 0 || emptied) this.events.emit('bandit:searched', { id, items: [...taken] });
+  }
+
+  /** Ganimet paneli için kamp sandığının değiştirilebilir listesi. */
+  chestLoot(campId: number): ItemStack[] {
+    return this.chest(campId);
+  }
+
+  /** Ganimet panelinden sandıktan `taken` alındı (bildirim). */
+  commitChest(campId: number, taken: readonly ItemStack[]): void {
+    if (taken.length === 0) return;
+    this.events.emit('camp:looted', {
+      camp: campId,
+      items: [...taken],
+      left: this.chest(campId).length,
+    });
   }
 
   /** Kamp sandığının içeriği (salt okunur kopya). */

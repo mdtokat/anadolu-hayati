@@ -4,6 +4,7 @@ import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { COOK_RECIPES, cookRecipeFor } from '../src/combat/cooking';
 import { Inventory } from '../src/items/Inventory';
+import { takeAllStacks, takeStack } from '../src/items/lootTransfer';
 import { ITEMS } from '../src/items/itemDefs';
 import {
   BUILDING_SHAPES,
@@ -16,6 +17,7 @@ import { BUILDING_LOOT, rollBuildingLoot, rollContainerLoot } from '../src/settl
 import {
   BuildingSearch,
   containerId,
+  type BuildingLoot,
   searchPrompt,
   searchTarget,
   type SearchTarget,
@@ -70,6 +72,64 @@ describe('ganimet (Faz 10)', () => {
     }
     expect(ruined).toBeLessThan(whole * 0.7);
     expect(nuts).toBeGreaterThan(350);
+  });
+});
+
+describe('BuildingSearch: ganimet paneli kipi', () => {
+  let rich = building({ kind: 'serender' });
+  for (let i = 0; i < 100 && rollBuildingLoot(rich).length < 2; i++)
+    rich = building({ id: i, kind: 'serender' });
+  const target = (): SearchTarget => ({ type: 'door', id: rich.id, building: rich });
+  const hold = (search: BuildingSearch) => {
+    for (let t = 0; t < SEARCH.seconds + 0.5; t += 1 / 60) search.update(1 / 60, true, target());
+  };
+
+  it('eşyalar otomatik alınmaz; panel açılır, boşalınca hedef aranmış olur', () => {
+    const events = new EventBus<GameEvents>();
+    const inventory = new Inventory({ slots: INVENTORY.slots });
+    const search = new BuildingSearch(events, inventory);
+    const opened: BuildingLoot[] = [];
+    search.onLoot = (loot) => opened.push(loot);
+    hold(search);
+    expect(opened).toHaveLength(1);
+    expect(inventory.slots.every((s) => s === null)).toBe(true);
+    expect(search.isSearched(rich.id)).toBe(false);
+
+    // Bir yığın alınır: hedef hâlâ açık (kalan var), kalan kayda girer.
+    const loot = opened[0]!;
+    const total = loot.items.length;
+    takeStack(loot.items, 0, inventory);
+    loot.settle();
+    expect(loot.items).toHaveLength(total - 1);
+    expect(search.isSearched(rich.id)).toBe(false);
+    const saved = search.leftoversToSave();
+    expect(saved).toHaveLength(1);
+
+    // Yeniden aranınca aynı kalan liste açılır (yeniden zarlanmaz), kayıt yükleme de korur.
+    const other = new BuildingSearch(new EventBus<GameEvents>(), inventory);
+    other.loadSave(search.toSave(), search.containersToSave(), saved);
+    const reopened: BuildingLoot[] = [];
+    other.onLoot = (l) => reopened.push(l);
+    hold(other);
+    expect(reopened[0]!.items).toEqual(loot.items);
+
+    // Kalanı da alınca hedef biter.
+    takeAllStacks(reopened[0]!.items, inventory);
+    reopened[0]!.settle();
+    expect(other.isSearched(rich.id)).toBe(true);
+    expect(other.leftoversToSave()).toEqual([]);
+  });
+
+  it('envanter doluyken de panel açılır (sığan alınır, kalan hedefte kalır)', () => {
+    const events = new EventBus<GameEvents>();
+    const inventory = new Inventory({ slots: INVENTORY.slots });
+    while (inventory.add('stone', 10) === 0);
+    const search = new BuildingSearch(events, inventory);
+    const opened: BuildingLoot[] = [];
+    search.onLoot = (loot) => opened.push(loot);
+    hold(search);
+    expect(search.offer?.status).toBe('ready');
+    expect(opened).toHaveLength(1);
   });
 });
 

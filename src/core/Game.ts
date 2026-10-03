@@ -159,6 +159,8 @@ import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { StoragePanel } from '../ui/StoragePanel';
+import { LootPanel } from '../ui/LootPanel';
+import { takeAllStacks, takeStack } from '../items/lootTransfer';
 import { heldLabel, hotbarSignature, hotbarViews, unusableHotbarText } from '../ui/hotbarView';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
@@ -211,7 +213,7 @@ import {
   creatureTargetProvider,
   playerTargetProvider,
 } from '../combat/targets';
-import { BanditSystem, fitsAll } from '../bandits/BanditSystem';
+import { BanditSystem } from '../bandits/BanditSystem';
 import { campSiteQuery, placeCamps } from '../bandits/camps';
 import { placeGangSites } from '../bandits/gangs';
 import { SURRENDER_TEXT, WARNING_QUESTION, banditWarning, campAnswer } from '../bandits/dialog';
@@ -498,6 +500,12 @@ export class Game {
   private readonly deathScreen: DeathScreen;
   private readonly inventoryPanel: InventoryPanel;
   private readonly storagePanel: StoragePanel;
+  private readonly lootPanel: LootPanel;
+  /** Ganimet paneli açıkken kaynağı: değiştirilebilir liste ve alınanlar bildirilince çağrılan geri çağrı. */
+  private lootSession: {
+    items: ItemStack[];
+    taken(taken: readonly ItemStack[]): void;
+  } | null = null;
   /** Envanter paneli açık: oyun duraklı (fare serbest) ama duraklatma menüsü çıkmaz. */
   private inventoryOpen = false;
   /** Açık sandığın kimliği (Faz 9; sandık paneli açıkken oyun envanterdeki gibi duraklıdır). */
@@ -658,6 +666,12 @@ export class Game {
       onTakeAll: () => this.moveAllStorage('take'),
       onClose: () => this.closeStorage(),
     });
+    this.lootPanel = new LootPanel(container, this.inventory, {
+      onTake: (index) => this.takeLoot(index),
+      onTakeAll: () => this.takeAllLoot(),
+      onClose: () => this.closeLoot(),
+    });
+    this.search.onLoot = (loot) => this.openLoot(loot.items, loot.title, () => loot.settle());
     this.shopPanel = new ShopPanel(container, () => this.shopDeps(), {
       onBuy: (id, count) => this.buyFromVendor(id, count),
       onSell: (slot, count) => this.sellToVendor(slot, count),
@@ -766,12 +780,14 @@ export class Game {
       this.events.on('player:prayed', ({ prayer, health }) =>
         this.hud.notify(`${prayer} namazı kılındı · Sağlık +${health}`, INTERACT.toastMs),
       ),
-      this.events.on('building:searched', ({ items, money }) =>
+      this.events.on('building:searched', ({ items, money }) => {
+        // Bulunan eşyalar ganimet panelinde listelenir (otomatik alınmaz): yalnızca boş çıkma ve para bildirilir.
+        if (items.length > 0 && !(money && money > 0)) return;
         this.hud.notify(
-          searchedToast(items, (id) => ITEMS[id].name, money ?? 0),
+          searchedToast([], (id) => ITEMS[id].name, money ?? 0),
           INTERACT.toastMs,
-        ),
-      ),
+        );
+      }),
       this.events.on('property:bought', ({ building }) => {
         const b = this.world.settlementMap?.building(building) ?? null;
         if (b) this.hud.notify(`Tapu senin: ${propertyName(b, this.townOf(b))}`, INTERACT.toastMs);
@@ -966,6 +982,7 @@ export class Game {
     this.filler.reset();
     this.dismantler.reset();
     this.closeStorage(false);
+    this.closeLoot(false);
     this.closeDialog(false);
     this.closeShop(false);
     this.people.clear();
@@ -1148,6 +1165,7 @@ export class Game {
     this.controlsPanel.dispose();
     this.inventoryPanel.dispose();
     this.storagePanel.dispose();
+    this.lootPanel.dispose();
     this.deathScreen.dispose();
     this.hud.dispose();
     this.fps?.dispose();
@@ -1491,6 +1509,7 @@ export class Game {
     return (
       this.inventoryOpen ||
       this.storageOpenId !== null ||
+      this.lootSession !== null ||
       this.talkingTo !== null ||
       this.banditDialogId !== null ||
       this.propertyDialogId !== null ||
@@ -1626,6 +1645,55 @@ export class Game {
     this.placement.cancel();
     this.storagePanel.show(chest, ITEMS[structure.kind].name);
     this.input.exitLock();
+  }
+
+  // ── Ganimet paneli (eşkıya cesedi, kamp sandığı, bina kapları) ──
+
+  /**
+   * Ganimet panelini açar: oyun donar, fare serbest kalır. `items` kaynağın tuttuğu liste (alınanlar düşer, sığmayanlar
+   * kalır); `onTaken` her alıştan sonra alınanlarla çağrılır (kaynak boşaldıysa kendini bitirir).
+   */
+  private openLoot(
+    items: ItemStack[],
+    title: string,
+    onTaken: (taken: readonly ItemStack[]) => void,
+  ): void {
+    if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
+    this.lootSession = { items, taken: onTaken };
+    this.placement.cancel();
+    this.lootPanel.show(items, title);
+    this.input.exitLock();
+  }
+
+  /** Ganimet panelini kapatır; `resume` ise fare kilidini ister (yüklemede istemez). */
+  private closeLoot(resume = true): void {
+    if (this.lootSession === null) return;
+    this.lootSession = null;
+    this.lootPanel.hide();
+    if (resume) this.resumeAfterOverlay();
+  }
+
+  private takeLoot(index: number): void {
+    const session = this.lootSession;
+    if (!session) return;
+    const taken = takeStack(session.items, index, this.inventory);
+    if (taken) session.taken([taken]);
+    else this.hud.notify('Envanter dolu', INTERACT.toastMs);
+    this.afterLootTaken();
+  }
+
+  private takeAllLoot(): void {
+    const session = this.lootSession;
+    if (!session) return;
+    const taken = takeAllStacks(session.items, this.inventory);
+    if (taken.length > 0) session.taken(taken);
+    if (session.items.length > 0) this.hud.notify('Kalanlar envantere sığmadı', INTERACT.toastMs);
+    this.afterLootTaken();
+  }
+
+  private afterLootTaken(): void {
+    this.lootPanel.refresh();
+    this.inventoryPanel.refresh();
   }
 
   // ── Alışveriş ve tapu ──
@@ -3013,7 +3081,7 @@ export class Game {
         toast(
           items.length === 0
             ? 'Kamp sandığından bir şey alamadın (envanter dolu)'
-            : `Kamp sandığından: ${names(items)}${left > 0 ? ' · kalanı sığmadı' : ''}`,
+            : `Kamp sandığından: ${names(items)}${left > 0 ? ' · sandıkta daha var' : ''}`,
         ),
       ),
       this.events.on('pickpocket:near', () => toast('Biri çok yaklaştı… cebine dikkat!')),
@@ -3159,19 +3227,22 @@ export class Game {
       return true;
     }
     if (found?.kind === 'corpse') {
-      const loot = bandits.lootOf(found.view.id);
-      const status = fitsAll(this.inventory, loot) ? 'ready' : 'full';
-      const progress = status === 'ready' ? keep('corpse', found.view.id) : 0;
+      const progress = keep('corpse', found.view.id);
       this.banditTarget = {
         kind: 'corpse',
         id: found.view.id,
         name: found.view.name,
         progress,
-        status,
+        status: 'ready',
       };
       if (progress >= BANDITS.searchSeconds) {
-        bandits.search(found.view.id, this.inventory);
-        this.inventoryPanel.refresh();
+        const id = found.view.id;
+        const list = bandits.corpseLoot(id);
+        if (list && list.length > 0) {
+          this.openLoot(list, found.view.name, (taken) => bandits.commitCorpse(id, taken));
+        } else {
+          bandits.commitCorpse(id, []);
+        }
         this.banditTarget = null;
       }
       return held;
@@ -3193,8 +3264,10 @@ export class Game {
         status: empty ? 'empty' : 'ready',
       };
       if (progress >= BANDITS.chestSeconds) {
-        bandits.takeFromChest(camp.id, this.inventory);
-        this.inventoryPanel.refresh();
+        const campId = camp.id;
+        this.openLoot(bandits.chestLoot(campId), 'Kamp sandığı', (taken) =>
+          bandits.commitChest(campId, taken),
+        );
         this.banditTarget = null;
       }
       return held;
@@ -3209,8 +3282,6 @@ export class Game {
     if (t.kind === 'surrender')
       return { text: `E: ${t.name} ile konuş (teslim oldu)`, progress: null };
     if (t.kind === 'corpse') {
-      if (t.status === 'full')
-        return { text: 'Envanter dolu: eşkıyanın üstündekiler sığmıyor', progress: null };
       return {
         text: 'E (basılı tut): Eşkıyanın üstünü ara',
         progress: t.progress > 0 ? t.progress / BANDITS.searchSeconds : null,
@@ -3218,7 +3289,7 @@ export class Game {
     }
     if (t.status === 'empty') return { text: 'Kamp sandığı boş', progress: null };
     return {
-      text: 'E (basılı tut): Kamp sandığını boşalt',
+      text: 'E (basılı tut): Kamp sandığını ara',
       progress: t.progress > 0 ? t.progress / BANDITS.chestSeconds : null,
     };
   }

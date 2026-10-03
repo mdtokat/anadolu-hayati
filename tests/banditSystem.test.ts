@@ -7,6 +7,7 @@ import { TargetRegistry, playerTargetProvider, type TargetProvider } from '../sr
 import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/events';
 import { Inventory } from '../src/items/Inventory';
+import { takeAllStacks, takeStack } from '../src/items/lootTransfer';
 import type { BanditPlayer } from '../src/bandits/perception';
 
 const DT = 1 / 60;
@@ -273,6 +274,47 @@ describe('BanditSystem: kamp sandığı ve kayıt', () => {
     other.system.loadSave(save);
     expect(other.system.toSave()).toEqual(save);
     expect(other.system.chestOf(77)).toEqual(system.chestOf(77));
+  });
+});
+
+describe('BanditSystem: ganimet paneli', () => {
+  it('ceset: liste ilk açılışta zarlanır, kısmi alış korunur, boşalınca ceset aranmış olur', () => {
+    const { system, run, log } = setup();
+    run(1);
+    const dead = system.views()[0]!;
+    system.damage(dead.id, 1000, { x: 0, z: -30 });
+    const list = system.corpseLoot(dead.id)!;
+    expect(list).toEqual(rollBanditLoot(dead.id, dead.weapon, BANDITS.seed));
+    expect(system.corpseLoot(dead.id)).toBe(list); // aynı liste (kısmi alış kalıcı)
+    const inv = new Inventory();
+    const first = takeStack(list, 0, inv);
+    if (list.length > 0 || first) system.commitCorpse(dead.id, first ? [first] : []);
+    if (list.length > 0) {
+      expect(system.views().find((v) => v.id === dead.id)?.searched).toBe(false);
+      expect(system.corpseLoot(dead.id)).toBe(list);
+    }
+    const rest = takeAllStacks(list, inv);
+    system.commitCorpse(dead.id, rest);
+    expect(system.views().find((v) => v.id === dead.id)?.searched).toBe(true);
+    expect(system.corpseLoot(dead.id)).toBeNull();
+    expect(log.some((e) => e.name === 'bandit:searched')).toBe(true);
+  });
+
+  it('kamp sandığı: panelden alınan yığın düşer, kalan sandıkta kalır', () => {
+    const { system, log } = setup();
+    const chest = system.chestLoot(77);
+    const before = chest.length;
+    expect(before).toBeGreaterThan(1);
+    const inv = new Inventory();
+    const got = takeStack(chest, 0, inv)!;
+    system.commitChest(77, [got]);
+    expect(system.chestOf(77)).toHaveLength(before - 1);
+    const evt = log.find((e) => e.name === 'camp:looted')!.payload as { left: number };
+    expect(evt.left).toBe(before - 1);
+    // Hiçbir şey alınmadıysa olay yok.
+    log.length = 0;
+    system.commitChest(77, []);
+    expect(log).toHaveLength(0);
   });
 });
 
