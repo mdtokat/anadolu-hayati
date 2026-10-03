@@ -34,12 +34,15 @@ def test_seam_continuity_is_no_worse_than_interior(world):
         assert s["seam_p99"] <= s["interior_p99"] * 1.5 + 5.0, name
 
 
-def test_province_cells_cover_nine_targets(world):
+def test_province_cells_cover_every_target(world):
     cells = qa_world.province_cells(world)
-    for name in ("Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı", "Sinop", "Sakarya"):
+    targets = [f["properties"]["name"] for f in world["provinces"]["features"] if f["properties"]["inRegion"]]
+    assert len(targets) >= 9 and "Zonguldak" in targets  # il listesi veriden okunur (yeni iller testi değiştirmez)
+    for name in targets:
         assert cells[name]["in_region"] is True
         assert cells[name]["cells"] > 50_000
-    assert cells["Ankara"]["in_region"] is False and cells["Ankara"]["cells"] > 0
+    neighbors = [name for name, c in cells.items() if not c["in_region"]]
+    assert neighbors and all(cells[name]["cells"] > 0 for name in neighbors)
 
 
 def test_water_crosses_the_seams(world):

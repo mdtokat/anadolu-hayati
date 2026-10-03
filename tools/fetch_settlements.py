@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Overture Maps'ten yerleşim katmanlarını (Faz 10) çeker: yollar, idari birimler, yerler (POI), bina noktaları.
 
-Kullanım:  python fetch_settlements.py [dünya-id] [katman ...]     (varsayılan: bati-karadeniz, tüm katmanlar)
+Kullanım:  python fetch_settlements.py [dünya-id] [katman ...] [--groups cekirdek,bati]
+           (varsayılan: bati-karadeniz, tüm katmanlar, tüm gruplar)
 Katmanlar: roads, divisions, places, buildings
-Çıktı:     tools/raw/settlements/<dünya-id>/<katman>.json  (WGS84; commit edilmez)
+Çıktı:     tools/raw/settlements/<dünya-id>/<katman>.json  (WGS84; commit edilmez) + `.cover.json` (indirilen kutu;
+           katman istenen kutuyu kapsıyorsa indirme atlanır)
 
 Yöntem `fetch_water.py` ile aynıdır: Parquet dosyaları HTTP Range ile okunur, yalnızca altbilgiler ve sınır
 kutusuyla kesişen satır grupları (yalnızca gereken sütunlar) indirilir.
@@ -26,6 +28,8 @@ from typing import Any
 import pyarrow.parquet as pq
 import shapely
 
+import fetchlib
+import worldconfig
 from fetch_dem import load_world
 from fetch_water import BUCKET_URL, OVERTURE_RELEASE, BBox, bbox_intersects, list_parquet_files, row_groups_for_bbox
 from rangefile import HttpRangeFile
@@ -262,24 +266,36 @@ def extract_layer(
 
 
 def main(argv: list[str]) -> int:
-    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
-    layers = argv[2:] or list(PREFIXES)
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("world_id", nargs="?", default=DEFAULT_WORLD)
+    parser.add_argument("layers", nargs="*", help=f"katmanlar (varsayılan: {', '.join(PREFIXES)})")
+    parser.add_argument("--groups", default=None, help="virgülle ayrılmış il grupları (varsayılan: hepsi)")
+    args = parser.parse_args(argv[1:])
+    world_id = args.world_id
+    layers = args.layers or list(PREFIXES)
     unknown = [layer for layer in layers if layer not in PREFIXES]
     if unknown:
         print(f"Bilinmeyen katman: {', '.join(unknown)} (geçerli: {', '.join(PREFIXES)})")
         return 2
-    bbox = tuple(load_world(world_id)["bbox"])
+    want = tuple(load_world(world_id, worldconfig.parse_groups_arg(args.groups))["bbox"])
     out_dir = RAW_SETTLEMENTS / world_id
     out_dir.mkdir(parents=True, exist_ok=True)
     for layer in layers:
+        dest = out_dir / f"{layer}.json"
+        bbox = fetchlib.plan_fetch(dest, want, OVERTURE_RELEASE)
+        if bbox is None:
+            print(f"mevcut   {dest}  (kayıtlı kapsam {want} kutusunu içeriyor)")
+            continue
         keys = list_parquet_files(PREFIXES[layer].format(release=OVERTURE_RELEASE))
         print(f"{world_id}: Overture {OVERTURE_RELEASE} '{layer}', {len(keys)} dosya, bbox {bbox}")
         items, downloaded = extract_layer(layer, bbox, keys)  # type: ignore[arg-type]
-        dest = out_dir / f"{layer}.json"
         dest.write_text(
             json.dumps({"overture_release": OVERTURE_RELEASE, "layer": layer, "items": items}, ensure_ascii=False),
             encoding="utf-8",
         )
+        fetchlib.record_cover(dest, bbox, OVERTURE_RELEASE)
         print(f"  Tamam: {len(items)} kayıt, {downloaded / 1e6:.1f} MB indirildi → {dest}")
     return 0
 

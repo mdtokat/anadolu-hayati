@@ -1,0 +1,190 @@
+# Grup: çekirdek — Faz 12 öncesi dünyanın 9 hedef ili (Zonguldak … Sinop, Sakarya). Veri hattının il listesi, üslupları,
+# görünen adları ve simge yapıları grup parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2).
+# Bu dosya değişmez: yeni iller kendi grup dosyalarına (bati, dogu, guney) yazılır.
+#
+# `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen. Akış dizisi olmalıdır
+# (testler diziyi doğrudan okur: tests/helpers/groups.ts).
+provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı, Sinop, Sakarya]
+# Görünen ad (Overture adı → oyunda gösterilen ad).
+display_names: { Ereğli: Karadeniz Ereğli }
+# Yerleşim üslubu (oyunda arketip ağırlıklarını seçer, `src/config.ts` → `SETTLEMENT_STYLES`).
+# Listede olmayan il/ilçe merkezi `kasaba`, köy `koy` olur.
+styles:
+  Zonguldak: maden
+  Kozlu: maden
+  Kilimli: maden
+  Ereğli: sanayi
+  Karabük: sanayi
+  Safranbolu: osmanli
+  Amasra: osmanli
+  Bartın: osmanli
+  Mudurnu: osmanli
+  Göynük: osmanli
+  Kastamonu: osmanli
+  Tosya: osmanli
+  İnebolu: osmanli
+  Çankırı: osmanli
+  Sinop: osmanli
+  Boyabat: osmanli
+# İl kapsamını bir kutuyla sınırlama (isteğe bağlı): {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}. Yalnızca
+# **ızgara kapsamı** (extent) hesabında il çokgeni bu kutuya kırpılır (örn. büyük bir ilin yalnız bir kısmı); il
+# sınırı ve inRegion işareti tam kalır. Çekirdekte kullanılmaz.
+clip_bbox: {}
+# Cami sığmayan kıyı/sıkışık merkezler (bilinçli istisna; tests/settlementMap.test.ts). Akış dizisi.
+no_mosque_towns: [Amasra, Kurucaşile, İnebolu, Abana, Bozkurt, Doğanyurt, Çatalzeytin, Türkeli]
+# Elle seçilmiş simge yapılar. Konumlar Overture Places kayıtlarından alınmıştır (yaklaşık; oyunda en yakın boş
+# parsele oturur). `kind`: src/settlements/kinds.ts `LANDMARK_KINDS`. Yalnızca konumundan emin olunanlar listelenir.
+# `settlement`: yerleşimin görünen adı (il/ilçe merkezi).
+landmarks:
+  # Zonguldak
+  - { settlement: Zonguldak, kind: mosque_grand, name: Ulu Cami, lon: 31.789076, lat: 41.453286 }
+  - {
+      settlement: Zonguldak,
+      kind: monument,
+      name: Uzun Mehmet Anıtı,
+      lon: 31.762907,
+      lat: 41.454921,
+    }
+  - {
+      settlement: Zonguldak,
+      kind: monument,
+      name: Maden Şehitleri Anıtı,
+      lon: 31.790424,
+      lat: 41.451962,
+    }
+  # Safranbolu (eski çarşı)
+  - {
+      settlement: Safranbolu,
+      kind: mosque_grand,
+      name: Köprülü Mehmet Paşa Camii,
+      lon: 32.692823,
+      lat: 41.245149,
+    }
+  - { settlement: Safranbolu, kind: han, name: Cinci Hanı, lon: 32.693451, lat: 41.244735 }
+  - {
+      settlement: Safranbolu,
+      kind: mosque,
+      name: İzzet Mehmet Paşa Camii,
+      lon: 32.693111,
+      lat: 41.243943,
+    }
+  - {
+      settlement: Safranbolu,
+      kind: clock_tower,
+      name: Safranbolu Saat Kulesi,
+      lon: 32.690447,
+      lat: 41.246032,
+    }
+  - { settlement: Safranbolu, kind: shop_row, name: Arasta Çarşısı, lon: 32.692343, lat: 41.244739 }
+  # Karabük
+  - { settlement: Karabük, kind: mosque_grand, name: Ulu Cami, lon: 32.610655, lat: 41.19735 }
+  - { settlement: Karabük, kind: clock_tower, name: Saat Kulesi, lon: 32.617872, lat: 41.198212 }
+  # Bartın
+  - {
+      settlement: Bartın,
+      kind: mosque_grand,
+      name: Bartın Merkez Camii,
+      lon: 32.331636,
+      lat: 41.627835,
+    }
+  - { settlement: Bartın, kind: hamam, name: Tarihi Şehir Hamamı, lon: 32.336585, lat: 41.633586 }
+  # Amasra
+  - { settlement: Amasra, kind: castle, name: Amasra Kalesi, lon: 32.383965, lat: 41.750254 }
+  - { settlement: Amasra, kind: mosque, name: İskele Camii, lon: 32.387357, lat: 41.748734 }
+  # Bolu
+  - {
+      settlement: Bolu,
+      kind: mosque_grand,
+      name: Yıldırım Bayezid Camii,
+      lon: 31.60945,
+      lat: 40.733296,
+    }
+  - { settlement: Bolu, kind: han, name: Taşhan, lon: 31.609123, lat: 40.733296 }
+  - { settlement: Bolu, kind: hamam, name: Orta Hamam, lon: 31.60802, lat: 40.732304 }
+  # Mudurnu
+  - {
+      settlement: Mudurnu,
+      kind: mosque_grand,
+      name: Yıldırım Bayezid Camii,
+      lon: 31.211829,
+      lat: 40.464456,
+    }
+  # Göynük
+  - { settlement: Göynük, kind: tomb, name: Akşemseddin Türbesi, lon: 30.786663, lat: 40.399156 }
+  - {
+      settlement: Göynük,
+      kind: mosque_grand,
+      name: Gazi Süleyman Paşa Camii,
+      lon: 30.787176,
+      lat: 40.39941,
+    }
+  # Düzce
+  - { settlement: Düzce, kind: mosque_grand, name: Büyük Cami, lon: 31.159127, lat: 40.839275 }
+  # Alaplı, Gerede, Eskipazar
+  - { settlement: Alaplı, kind: mosque, name: Alaplı Ulu Camii, lon: 31.392618, lat: 41.177136 }
+  - {
+      settlement: Gerede,
+      kind: mosque,
+      name: Yıldırım Beyazıt Camii,
+      lon: 32.197574,
+      lat: 40.800949,
+    }
+  - {
+      settlement: Eskipazar,
+      kind: clock_tower,
+      name: Eskipazar Saat Kulesi,
+      lon: 32.530421,
+      lat: 40.943742,
+    }
+  # Kastamonu (Faz 11 sonrası genişleme)
+  - {
+      settlement: Kastamonu,
+      kind: mosque_grand,
+      name: Nasrullah Camii,
+      lon: 33.775217,
+      lat: 41.37768,
+    }
+  - { settlement: Kastamonu, kind: castle, name: Kastamonu Kalesi, lon: 33.769395, lat: 41.374953 }
+  - {
+      settlement: Kastamonu,
+      kind: mosque,
+      name: İsmail Bey Külliyesi,
+      lon: 33.777404,
+      lat: 41.384188,
+    }
+  - { settlement: Kastamonu, kind: mosque, name: Atabey Gazi Camii, lon: 33.771075, lat: 41.375724 }
+  # Tosya, Taşköprü
+  - { settlement: Tosya, kind: mosque, name: Tosya Ulu Camii, lon: 34.035565, lat: 41.019122 }
+  - { settlement: Taşköprü, kind: mosque, name: Taşköprü Taş Camii, lon: 34.214485, lat: 41.510338 }
+  # Çankırı
+  - {
+      settlement: Çankırı,
+      kind: mosque_grand,
+      name: Sultan Süleyman Camii,
+      lon: 33.616966,
+      lat: 40.602478,
+    }
+  - { settlement: Çankırı, kind: castle, name: Çankırı Kalesi, lon: 33.615887, lat: 40.607444 }
+  # Sinop (Sinop–Sakarya genişlemesi)
+  - { settlement: Sinop, kind: mosque_grand, name: Alaattin Camii, lon: 35.148337, lat: 42.026443 }
+  - { settlement: Sinop, kind: castle, name: Sinop Tarihi Cezaevi, lon: 35.143289, lat: 42.025164 }
+  - { settlement: Sinop, kind: clock_tower, name: Sinop Saat Kulesi, lon: 35.153558, lat: 42.02378 }
+  - { settlement: Sinop, kind: tomb, name: Gazi Çelebi Türbesi, lon: 35.148295, lat: 42.026987 }
+  - { settlement: Boyabat, kind: castle, name: Boyabat Kalesi, lon: 34.768416, lat: 41.46779 }
+  - {
+      settlement: Boyabat,
+      kind: clock_tower,
+      name: Boyabat Saat Kulesi,
+      lon: 34.77283,
+      lat: 41.468089,
+    }
+  # Sakarya (Adapazarı, Geyve, Hendek)
+  - {
+      settlement: Adapazarı,
+      kind: mosque_grand,
+      name: Mithatpaşa Ulu Camii,
+      lon: 30.389343,
+      lat: 40.764041,
+    }
+  - { settlement: Geyve, kind: mosque, name: Sinanbey Camii, lon: 30.29032, lat: 40.507775 }
+  - { settlement: Hendek, kind: tomb, name: Sarıdede Türbesi, lon: 30.756592, lat: 40.796971 }

@@ -9,6 +9,7 @@ import {
   SettlementMap,
 } from '../src/settlements/SettlementMap';
 import type { Building } from '../src/settlements/layout';
+import { noMosqueTowns, targetProvinces } from './helpers/groups';
 import { loadRealWorld } from './helpers/realRegion';
 import { buildSettlementWorld, type SettlementWorld } from './helpers/settlementWorld';
 
@@ -26,24 +27,17 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('SettlementMap — gerçek dünya (Faz 10)', () => {
-  it('veri yüklü: 9 il merkezi, 84 ilçe merkezi, seçilmiş köyler', () => {
+  it('veri yüklü: her hedef ilin il merkezi, ilçe merkezleri ve seçilmiş köyler', () => {
     const ranks = { il: 0, ilce: 0, koy: 0 };
     for (const s of map.settlements) ranks[s.data.rank]++;
-    expect(ranks.il).toBe(9);
-    expect(ranks.ilce).toBe(84);
-    expect(ranks.koy).toBeGreaterThan(200);
+    const targets = targetProvinces(world);
+    expect(ranks.il).toBe(targets.length);
+    expect(ranks.ilce).toBeGreaterThanOrEqual(ranks.il * 2);
+    expect(ranks.koy).toBeGreaterThan(ranks.il * 20);
     const names = map.settlements.filter((s) => s.data.rank === 'il').map((s) => s.data.name);
-    expect(names.sort()).toEqual([
-      'Bartın',
-      'Bolu',
-      'Düzce',
-      'Karabük',
-      'Kastamonu',
-      'Sakarya',
-      'Sinop',
-      'Zonguldak',
-      'Çankırı',
-    ]);
+    expect(names.sort()).toEqual(targets);
+    // Yerleşimler yalnızca hedef illerde.
+    for (const s of map.settlements) expect(targets, s.data.name).toContain(s.data.province);
   });
 
   it('il merkezleri kalabalık, ilçeler orta, köyler küçük; harita evle dolmaz', () => {
@@ -62,27 +56,20 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
       // Zonguldak dik kıyı kasabasıdır ve büyütülmüş ayak izi Kozlu'yla örtüşür: üst üste binme yasaklanınca ~23 yapı.
       if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(20);
     }
-    // ~5 000 yapı (9 il), yalnızca kara alanının küçük bir kesiminde.
-    expect(map.buildings.length).toBeGreaterThan(800);
-    expect(map.buildings.length).toBeLessThan(6500);
+    // Il başına ~550 yapı (9 ilde ~5 000), yalnızca kara alanının küçük bir kesiminde.
+    const provinceCount = targetProvinces(world).length;
+    expect(map.buildings.length).toBeGreaterThan(90 * provinceCount);
+    expect(map.buildings.length).toBeLessThan(720 * provinceCount);
   });
 
   it('her il ve ilçe merkezinde cami var (ayak izi çoğunlukla deniz/dik kıyı olan kıyı kasabaları hariç), camiler kıbleye döner', () => {
     const without = map.settlements
       .filter((s) => s.data.rank !== 'koy' && !s.buildings.some((b) => isMosque(b.kind)))
       .map((s) => s.data.name);
-    // Ayak izi çoğunlukla deniz (Amasra, Kurucaşile) ya da denize inen dik yamaçta dar şerit olan Kastamonu kıyı
-    // kasabaları: en küçük (ahşap) cami bile sığmaz (bilinçli istisna).
-    const coastal = new Set([
-      'Amasra',
-      'Kurucaşile',
-      'İnebolu',
-      'Abana',
-      'Bozkurt',
-      'Doğanyurt',
-      'Çatalzeytin',
-      'Türkeli', // Sinop kıyısı: Overture'da bina hücresi yok (yapı çizilmez)
-    ]);
+    // Ayak izi çoğunlukla deniz (Amasra, Kurucaşile) ya da denize inen dik yamaçta dar şerit olan kıyı kasabaları
+    // (Kastamonu, Sinop …): en küçük (ahşap) cami bile sığmaz (bilinçli istisna). Liste tools/groups/*.yaml
+    // `no_mosque_towns` alanındadır (her grup kendi istisnalarını kendi dosyasına yazar).
+    const coastal = new Set(noMosqueTowns());
     expect(without.filter((n) => !coastal.has(n))).toEqual([]);
     const yaws = new Set(
       map.buildings.filter((b) => isMosque(b.kind)).map((b) => b.yaw.toFixed(6)),
