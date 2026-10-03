@@ -54,7 +54,8 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     for (const s of map.settlements) {
       expect(s.buildings.length).toBeLessThanOrEqual(SETTLEMENT_LAYOUT.maxBuildings[s.data.rank]);
       // Zonguldak dik kıyı kasabasıdır ve büyütülmüş ayak izi Kozlu'yla örtüşür: üst üste binme yasaklanınca ~23 yapı.
-      if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(20);
+      // Samsun (13) ve Ankara (41) gibi büyükşehirlerde ilçeler çekirdeği önce alır (düzen sırası ilçe → il): alt sınır 12.
+      if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(12);
     }
     // Il başına ~550 yapı (9 ilde ~5 000), yalnızca kara alanının küçük bir kesiminde.
     const provinceCount = targetProvinces(world).length;
@@ -184,16 +185,18 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     }
   });
 
-  it('deterministik ve hızlı (yol ağı + zemin düzeltme + düzen açılışta < 10 sn)', () => {
+  it('deterministik ve hızlı (yol ağı + zemin düzeltme + düzen: veri hattı/bake hazırlığı < 60 sn)', () => {
     const again = buildSettlementWorld(world).map;
     expect(again.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`)).toEqual(
       map.buildings.map((b) => `${b.id}:${b.kind}:${b.x.toFixed(3)}`),
     );
     if (process.env.SETTLEMENT_REPORT) console.log(`düzen ${buildMs.toFixed(0)} ms`);
-    expect(buildMs).toBeLessThan(10_000);
+    // 12.0a'dan beri oyun bu hesabı açılışta değil `npm run bake` ile bir kez yapar (açılışta ~20 ms); tavan bake hazırlığı
+    // içindir (Faz 12 dünyası: ~25–35 sn, yük altında ~40 sn).
+    expect(buildMs).toBeLessThan(60_000);
     const ids = new Set(map.buildings.map((b) => b.id));
     expect(ids.size).toBe(map.buildings.length);
-  }, 30_000);
+  }, 180_000);
 
   it('kent içinde il yolu yok, sokak ızgarası var; nesne eleme yolda ve yapıda', () => {
     const zonguldak = map.settlements.find((s) => s.data.name === 'Zonguldak')!;

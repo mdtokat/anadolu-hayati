@@ -211,8 +211,8 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
     expect(region.meta.crs).toBe('EPSG:32636');
     expect(region.meta.horizontalScale).toBe(HORIZONTAL_SCALE);
     expect(region.heights.length).toBe(region.meta.gridWidth * region.meta.gridHeight);
-    // Karolu dünyada tek dosya yok (her karo ≤ 1 MB); birleştirilmiş dizi bellek içi (Sinop–Sakarya: ~22 MB).
-    expect(region.meta.gridWidth * region.meta.gridHeight * 2).toBeLessThan(32 * 1024 * 1024);
+    // Karolu dünyada tek dosya yok (her karo ≤ 1 MB); birleştirilmiş dizi bellek içi (Faz 12 dünyası: ~42 MB).
+    expect(region.meta.gridWidth * region.meta.gridHeight * 2).toBeLessThan(48 * 1024 * 1024);
   });
 
   it('yükseklik aralığı meta ile tutarlı: 0 .. elevationMax', () => {
@@ -230,13 +230,13 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
     expect(region.meta.elevationMax).toBeLessThan(2700);
   });
 
-  it('dünya boyutu oyunda ~9,40 × 4,69 km (Sinop–Sakarya dahil)', () => {
+  it('dünya boyutu oyunda ~13,27 × 6,29 km (Faz 12: Kocaeli … Samsun, Ankara dahil)', () => {
     const width = source.bounds.maxX - source.bounds.minX;
     const depth = source.bounds.maxZ - source.bounds.minZ;
-    expect(width).toBeGreaterThan(9350);
-    expect(width).toBeLessThan(9450);
-    expect(depth).toBeGreaterThan(4650);
-    expect(depth).toBeLessThan(4730);
+    expect(width).toBeGreaterThan(13_250);
+    expect(width).toBeLessThan(13_300);
+    expect(depth).toBeGreaterThan(6270);
+    expect(depth).toBeLessThan(6320);
   });
 
   // Python veri hattı + TS koordinat dönüşümü + heightmap okuma birlikte doğrulanır.

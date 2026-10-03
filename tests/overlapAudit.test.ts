@@ -23,8 +23,9 @@ describe('yol yapıları iç içe geçme denetimi', () => {
   });
 
   it('yol, akarsuyu köprüsüz neredeyse hiç kesmez (kavşakta biten yollara köprü ayağı yaslanır)', () => {
-    // Önce 77: yolun ucundaki (kavşak) geçişlere köprü planlanmıyordu.
-    expect(audit.streamCrossings.length).toBeLessThanOrEqual(8);
+    // Önce 77: yolun ucundaki (kavşak) geçişlere köprü planlanmıyordu. Faz 12 dünyasında (16 il, ~11 000 km²) 15: 4'ü kent
+    // sokağı (sınıf 3: kent içinde dere üstünden geçiş), çekirdekte 4 idi; dünya ~2,3 katı büyüdü (docs/faz-12-olcumler.md).
+    expect(audit.streamCrossings.length).toBeLessThanOrEqual(16);
   });
 
   it('yol göl, gölet ve rezervuar içinden köprüsüz geçmez', () => {
@@ -36,9 +37,10 @@ describe('yol yapıları iç içe geçme denetimi', () => {
     expect(audit.bridgeBuilding.map((o) => `${o.a} ~ ${o.b}`).length).toBeLessThanOrEqual(2);
   });
 
-  it('köprüler yalnızca ortak kavşak ayağında üst üste biner (kavşak dışı çakışma ≤ 3)', () => {
+  it('köprüler yalnızca ortak kavşak ayağında üst üste biner (kavşak dışı çakışma ≤ 6)', () => {
+    // Çekirdekte 3; Faz 12 dünyasında 5 (farklı iki yolun köprüleri yan yana).
     const away = audit.bridgeBridge.filter((o) => o.detail !== 'junction');
-    expect(away.map((o) => `${o.a} ~ ${o.b} ${o.detail}`).length).toBeLessThanOrEqual(3);
+    expect(away.map((o) => `${o.a} ~ ${o.b} ${o.detail}`).length).toBeLessThanOrEqual(6);
   });
 
   it('gerçek dünyada yeterince yapı denetlendi', () => {

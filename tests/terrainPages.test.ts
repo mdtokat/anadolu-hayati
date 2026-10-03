@@ -31,8 +31,8 @@ function streamedWith(tiles: Array<[number, number]>): RegionHeightSource {
 describe('sayfalı arazi', () => {
   it('sayfa boyu karo boyuyla aynı ve kafese hizalı dünyada sayfa = karo', () => {
     expect(PAGE_SIZE).toBe(WORLD.tileSize);
-    expect(dense.tileX0).toBe(Math.floor(-1152 / 512));
-    expect(dense.pagesX * dense.pagesY).toBeGreaterThanOrEqual(50);
+    expect(dense.tileX0).toBe(Math.floor(-1664 / 512));
+    expect(dense.pagesX * dense.pagesY).toBeGreaterThanOrEqual(98);
   });
 
   it('pencereden yüklenen karo yoğun kiple bire bir aynı (kıyı, kenar ve iç karolar)', () => {
