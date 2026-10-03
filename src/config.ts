@@ -927,6 +927,29 @@ export const OTHER_PROVINCE_PLACES = {
     { name: 'Yapraklı', lat: 40.759, lon: 33.779 },
     { name: 'Bayramören', lat: 40.943, lon: 33.203 },
   ],
+  // Sinop–Sakarya genişlemesi (doğu ve batı kıyı).
+  Sinop: [
+    { name: 'Sinop merkez', lat: 42.0231, lon: 35.1531 },
+    { name: 'Boyabat', lat: 41.4686, lon: 34.7733 },
+    { name: 'Durağan', lat: 41.4125, lon: 35.0425 },
+    { name: 'Ayancık', lat: 41.9461, lon: 34.5853 },
+    { name: 'Gerze', lat: 41.8008, lon: 35.1969 },
+    { name: 'Türkeli', lat: 41.9472, lon: 34.3367 },
+    { name: 'Erfelek', lat: 41.8786, lon: 34.9156 },
+    { name: 'Dikmen', lat: 41.6411, lon: 35.2433 },
+  ],
+  Sakarya: [
+    { name: 'Adapazarı', lat: 40.7731, lon: 30.4028 },
+    { name: 'Sapanca', lat: 40.6908, lon: 30.2689 },
+    { name: 'Hendek', lat: 40.7992, lon: 30.7447 },
+    { name: 'Akyazı', lat: 40.6847, lon: 30.6256 },
+    { name: 'Karasu', lat: 41.0958, lon: 30.6958 },
+    { name: 'Kocaali', lat: 41.0542, lon: 30.8508 },
+    { name: 'Geyve', lat: 40.5069, lon: 30.2933 },
+    { name: 'Ferizli', lat: 40.9425, lon: 30.485 },
+    { name: 'Kaynarca', lat: 41.0344, lon: 30.3067 },
+    { name: 'Taraklı', lat: 40.3969, lon: 30.4958 },
+  ],
 } as const;
 
 /** Bir yer: ad ve yaklaşık enlem/boylam. */
@@ -2880,10 +2903,10 @@ export const AMMO = {
  */
 export const BANDITS = {
   /**
-   * Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). Kastamonu–Çankırı genişlemesiyle 48 → 72 (kara alanı
+   * Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). Kastamonu–Çankırı genişlemesiyle 48 → 72, Sinop–Sakarya ile 72 → 96 (kara alanı
    * ve il/ilçe sayısı ~1,5–2 kat); seçim açgözlü ve seed'li olduğundan eski kamplar aynı kalır, yenileri eklenir.
    */
-  campCount: 72,
+  campCount: 96,
   /**
    * Kamp yeri kuralları (`bandits/camps.ts`): il/ilçe merkezinin ayak izi kenarına en az `minSettlementDistance`,
    * köyün kenarına en az `minVillageDistance` (341 köy haritayı sık örttüğünden köylere ayrı, kısa uzaklık), en yakın

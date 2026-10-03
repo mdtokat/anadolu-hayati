@@ -17,11 +17,11 @@ def world():
 
 def test_tile_table_budget_and_land(world):
     rows = qa_world.tile_table(world)
-    # Kastamonu–Çankırı genişlemesi: 9 × 5 = 45 karo kafesinden kapsamla kesişen 40'ı.
-    assert len(rows) == len(world["manifest"]["tiles"]) == 40
+    # Sinop–Sakarya genişlemesi: 10 × 5 = 50 karo kafesinin hepsi kapsamla kesişir.
+    assert len(rows) == len(world["manifest"]["tiles"]) == 50
     assert all(r["height_bytes"] <= 1024 * 1024 and r["cover_bytes"] <= 1024 * 1024 for r in rows)
     by_key = {(r["tx"], r["ty"]): r for r in rows}
-    assert by_key[(-2, 0)]["land_pct"] == 0  # kuzeybatı köşe tamamen deniz
+    assert by_key[(-3, -1)]["land_pct"] == 0  # kuzeybatı köşe tamamen deniz
     assert by_key[(1, 2)]["land_pct"] == 100
     assert max(r["max_m"] for r in rows) > 2000
 
@@ -34,9 +34,9 @@ def test_seam_continuity_is_no_worse_than_interior(world):
         assert s["seam_p99"] <= s["interior_p99"] * 1.5 + 5.0, name
 
 
-def test_province_cells_cover_seven_targets(world):
+def test_province_cells_cover_nine_targets(world):
     cells = qa_world.province_cells(world)
-    for name in ("Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı"):
+    for name in ("Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı", "Sinop", "Sakarya"):
         assert cells[name]["in_region"] is True
         assert cells[name]["cells"] > 50_000
     assert cells["Ankara"]["in_region"] is False and cells["Ankara"]["cells"] > 0

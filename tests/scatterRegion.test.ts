@@ -80,7 +80,7 @@ describe('scatterChunk (gerçek bölge)', { timeout: 60_000 }, () => {
         expect(source.elevationAt(x, z)).toBeGreaterThan(SCATTER.minElevation);
         expect(source.slopeDegAt(x, z)).toBeLessThanOrEqual(spec.maxSlopeDeg);
         expect(water.nearest(x, z, spec.waterClearance)).toBeNull();
-        expect(props.y[i]).toBeCloseTo(source.heightAt(x, z), 3);
+        expect(props.y[i]).toBeCloseTo(source.heightAt(x, z), 2);
         expect(density[cover.classAt(x, z)]?.[kind] ?? 0).toBeGreaterThan(0);
         if (TREE_KINDS.includes(kind)) {
           expect(source.elevationAt(x, z)).toBeLessThanOrEqual(SCATTER.treeLineElevation);

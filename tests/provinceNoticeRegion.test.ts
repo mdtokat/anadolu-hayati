@@ -59,6 +59,7 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
     const names = region.provinces.map((p) => p.name).sort();
     expect(names).toEqual(
       [
+        'Amasya',
         'Ankara',
         'Bartın',
         'Bilecik',
@@ -67,12 +68,17 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
         'Eskişehir',
         'Karabük',
         'Kastamonu',
+        'Kocaeli',
         'Kırıkkale',
         'Sakarya',
+        'Samsun',
         'Sinop',
+        'Tokat',
+        'Yozgat',
         'Zonguldak',
         'Çankırı',
         'Çorum',
+        'İstanbul',
       ].sort(),
     );
     const texts = region.provinces.map((p) =>
@@ -84,12 +90,13 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
     expect(texts).toContain("Bolu'ya hoş geldiniz");
     expect(texts).toContain("Düzce'ye hoş geldiniz");
     expect(texts).toContain("Ankara'ya girdiniz");
-    expect(texts).toContain("Sakarya'ya girdiniz");
+    expect(texts).toContain("Sakarya'ya hoş geldiniz");
     expect(texts).toContain("Bilecik'e girdiniz");
     expect(texts).toContain("Eskişehir'e girdiniz");
     expect(texts).toContain("Çankırı'ya hoş geldiniz");
     expect(texts).toContain("Kastamonu'ya hoş geldiniz");
-    expect(texts).toContain("Sinop'a girdiniz");
+    expect(texts).toContain("Sinop'a hoş geldiniz");
+    expect(texts).toContain("Samsun'a girdiniz");
     expect(texts).toContain("Çorum'a girdiniz");
     expect(texts).toContain("Kırıkkale'ye girdiniz");
   });

@@ -26,11 +26,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('SettlementMap — gerçek dünya (Faz 10)', () => {
-  it('veri yüklü: 7 il merkezi, 60 ilçe merkezi, seçilmiş köyler', () => {
+  it('veri yüklü: 9 il merkezi, 84 ilçe merkezi, seçilmiş köyler', () => {
     const ranks = { il: 0, ilce: 0, koy: 0 };
     for (const s of map.settlements) ranks[s.data.rank]++;
-    expect(ranks.il).toBe(7);
-    expect(ranks.ilce).toBe(60);
+    expect(ranks.il).toBe(9);
+    expect(ranks.ilce).toBe(84);
     expect(ranks.koy).toBeGreaterThan(200);
     const names = map.settlements.filter((s) => s.data.rank === 'il').map((s) => s.data.name);
     expect(names.sort()).toEqual([
@@ -39,6 +39,8 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
       'Düzce',
       'Karabük',
       'Kastamonu',
+      'Sakarya',
+      'Sinop',
       'Zonguldak',
       'Çankırı',
     ]);
@@ -60,9 +62,9 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
       // Zonguldak dik kıyı kasabasıdır ve büyütülmüş ayak izi Kozlu'yla örtüşür: üst üste binme yasaklanınca ~23 yapı.
       if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(20);
     }
-    // ~1500 yapı, yalnızca kara alanının küçük bir kesiminde.
+    // ~5 000 yapı (9 il), yalnızca kara alanının küçük bir kesiminde.
     expect(map.buildings.length).toBeGreaterThan(800);
-    expect(map.buildings.length).toBeLessThan(4000);
+    expect(map.buildings.length).toBeLessThan(6500);
   });
 
   it('her il ve ilçe merkezinde cami var (ayak izi çoğunlukla deniz/dik kıyı olan kıyı kasabaları hariç), camiler kıbleye döner', () => {
@@ -79,6 +81,7 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
       'Bozkurt',
       'Doğanyurt',
       'Çatalzeytin',
+      'Türkeli', // Sinop kıyısı: Overture'da bina hücresi yok (yapı çizilmez)
     ]);
     expect(without.filter((n) => !coastal.has(n))).toEqual([]);
     const yaws = new Set(

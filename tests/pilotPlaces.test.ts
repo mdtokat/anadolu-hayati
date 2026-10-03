@@ -68,9 +68,19 @@ describe('PILOT.places', () => {
 });
 
 describe('PROVINCE_PLACES', () => {
-  it('pilot il + 6 diğer hedef il; her ilde 8–10 yer (Shift + 1–9, 0 tuşları)', () => {
+  it('pilot il + 8 diğer hedef il; her ilde 8–10 yer (Shift + 1–9, 0 tuşları)', () => {
     expect(Object.keys(PROVINCE_PLACES).sort()).toEqual(
-      ['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak', 'Kastamonu', 'Çankırı'].sort(),
+      [
+        'Bartın',
+        'Bolu',
+        'Düzce',
+        'Karabük',
+        'Zonguldak',
+        'Kastamonu',
+        'Çankırı',
+        'Sinop',
+        'Sakarya',
+      ].sort(),
     );
     expect(PROVINCE_PLACES[PILOT.province]).toBe(PILOT.places);
     for (const [province, places] of Object.entries(PROVINCE_PLACES)) {

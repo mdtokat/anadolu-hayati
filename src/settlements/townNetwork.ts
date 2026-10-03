@@ -191,7 +191,7 @@ function splitLines<T extends Line>(lines: readonly T[], snap: number): T[] {
   return out.filter((l) => samplePathLength(l.xz) > 0.2);
 }
 
-function samplePathLength(xz: readonly number[]): number {
+function samplePathLength(xz: ArrayLike<number>): number {
   let l = 0;
   for (let i = 0; i + 3 < xz.length; i += 2)
     l += Math.hypot(
@@ -496,10 +496,39 @@ export function connectTownRoads(
   // Son güvence: kopuk kalan öbek (çizgede bağ olmayan yer) en yakın başka öbeğe bağlanır.
   const links2 = linkComponents([...roads, ...joins, ...kept], soft, nearTown);
   // Kırdaki bağlantılar (köy yolu) kent sokağı değildir.
-  return {
+  return dropOrphanLines(roads, {
     joins: [...joins, ...links2.filter((l) => l.cls !== 3)],
     streets: [...kept, ...links2.filter((l) => l.cls === 3)],
+  });
+}
+
+/** Ağa bağlanamayan kent sokağı öbeği bu uzunluğun (oyun m) altındaysa silinir (yolun kopuk parçası kalmasın). */
+const ORPHAN_MAX = 150;
+
+/**
+ * `linkComponents` rota bulamadığı (yapıların kuşattığı sıkışık merkez) kısa sokak/bağlantı öbekleri atılır: Sinop
+ * merkezinde ağdan kopuk 52 m'lik sokak parçası böyleydi. Yalnız kent sokakları (sınıf 3) atılır; yollara ve uzun
+ * öbeklere dokunulmaz.
+ */
+function dropOrphanLines(roads: readonly RoadData[], town: TownRoads): TownRoads {
+  const all = [...roads, ...town.joins, ...town.streets];
+  const samples = all.map((l) => samplePath(l.xz, 2));
+  const comp = componentsOf(samples);
+  const length = new Map<number, number>();
+  all.forEach((l, i) => {
+    const c = comp[i] as number;
+    length.set(c, (length.get(c) ?? 0) + samplePathLength(l.xz));
+  });
+  const largest = [...length.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  const orphan = (i: number): boolean => {
+    const c = comp[i] as number;
+    return c !== largest && (length.get(c) as number) < ORPHAN_MAX;
   };
+  const first = roads.length;
+  const joins = town.joins.filter((l, i) => l.cls !== 3 || !orphan(first + i));
+  const second = first + town.joins.length;
+  const streets = town.streets.filter((_, i) => !orphan(second + i));
+  return { joins, streets };
 }
 
 /** Değme uzaklığı (oyun m): iki çizgi bu kadar yakın noktaya sahipse aynı ağdadır. */
