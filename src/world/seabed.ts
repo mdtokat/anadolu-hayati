@@ -24,9 +24,14 @@ export function* seaDistanceToLandSteps(
   const DIAGONAL = Math.SQRT2;
   const BIG = 1e9;
   const dist = new Float32Array(width * height);
+  const maskSlice = rowsPerStep * 2 * width;
+  let since = 0;
   for (let i = 0; i < dist.length; i++) {
     dist[i] = isSea(i) ? BIG : 0;
-    if ((i + 1) % (rowsPerStep * 2 * width) === 0) yield;
+    if (++since === maskSlice) {
+      since = 0;
+      yield;
+    }
   }
 
   // İleri geçiş: sol-üst → sağ-alt

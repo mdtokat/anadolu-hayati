@@ -67,9 +67,13 @@ export function* terrainFromRawSteps(
   const range = encoding.elevationMax - encoding.elevationMin;
   const game = new Float32Array(heights.length);
   const slice = Math.max(1, Math.floor(rowsPerStep * 4 * width));
+  let since = 0;
   for (let i = 0; i < heights.length; i++) {
     game[i] = (encoding.elevationMin + ((heights[i] as number) / 65535) * range) / VERTICAL_SCALE;
-    if ((i + 1) % slice === 0) yield;
+    if (++since === slice) {
+      since = 0;
+      yield;
+    }
   }
   yield;
   // Küçük tümsekler (deve sırtı) düzlenir; deniz hücreleri ve kıyı çizgisi değişmez (TERRAIN_SMOOTHING).

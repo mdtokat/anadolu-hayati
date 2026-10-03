@@ -15,6 +15,11 @@ import {
   type TerrainPage,
 } from './terrainPages';
 
+// Sıcak yolda (sample/heightAt) içe aktarılan sabitlere her seferinde ad çözümlemesi yapılmasın: modül yerel kopyaları.
+const SHIFT = PAGE_SHIFT;
+const MASK = PAGE_MASK;
+const SIZE = PAGE_SIZE;
+
 export interface Bounds {
   minX: number;
   maxX: number;
@@ -139,12 +144,11 @@ export class RegionHeightSource implements HeightSource {
         const page = createPage();
         const rows = this.pageRows(py);
         const cols = this.pageCols(px);
-        if (this.smooth) page.raw = new Uint16Array(PAGE_SIZE * PAGE_SIZE);
+        if (this.smooth) page.raw = new Uint16Array(SIZE * SIZE);
         for (let r = rows.from; r < rows.to; r++) {
           const src =
-            (py * PAGE_SIZE + r - this.padRow) * this.width +
-            (px * PAGE_SIZE + cols.from - this.padCol);
-          const dst = r * PAGE_SIZE + cols.from;
+            (py * SIZE + r - this.padRow) * this.width + (px * SIZE + cols.from - this.padCol);
+          const dst = r * SIZE + cols.from;
           const n = cols.to - cols.from;
           page.game.set(game.subarray(src, src + n), dst);
           page.raw?.set(heights.subarray(src, src + n), dst);
@@ -157,15 +161,15 @@ export class RegionHeightSource implements HeightSource {
   /** Sayfa içi satır aralığı (dünya dizisinin içinde kalan kısım). */
   private pageRows(py: number): { from: number; to: number } {
     return {
-      from: Math.max(0, this.padRow - py * PAGE_SIZE),
-      to: Math.min(PAGE_SIZE, this.height + this.padRow - py * PAGE_SIZE),
+      from: Math.max(0, this.padRow - py * SIZE),
+      to: Math.min(SIZE, this.height + this.padRow - py * SIZE),
     };
   }
 
   private pageCols(px: number): { from: number; to: number } {
     return {
-      from: Math.max(0, this.padCol - px * PAGE_SIZE),
-      to: Math.min(PAGE_SIZE, this.width + this.padCol - px * PAGE_SIZE),
+      from: Math.max(0, this.padCol - px * SIZE),
+      to: Math.min(SIZE, this.width + this.padCol - px * SIZE),
     };
   }
 
@@ -200,8 +204,8 @@ export class RegionHeightSource implements HeightSource {
     const rows = this.pageRows(py);
     if (cols.to <= cols.from || rows.to <= rows.from) return null;
     return {
-      col0: px * PAGE_SIZE + cols.from - this.padCol,
-      row0: py * PAGE_SIZE + rows.from - this.padRow,
+      col0: px * SIZE + cols.from - this.padCol,
+      row0: py * SIZE + rows.from - this.padRow,
       cols: cols.to - cols.from,
       rows: rows.to - rows.from,
     };
@@ -218,14 +222,14 @@ export class RegionHeightSource implements HeightSource {
   hasPageAt(col: number, row: number): boolean {
     const c = (col < 0 ? 0 : col >= this.width ? this.width - 1 : col) + this.padCol;
     const r = (row < 0 ? 0 : row >= this.height ? this.height - 1 : row) + this.padRow;
-    return this.pages[(r >> PAGE_SHIFT) * this.pagesX + (c >> PAGE_SHIFT)] !== undefined;
+    return this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)] !== undefined;
   }
 
   /** Dizi örneğini (col, row) içeren karo. */
   tileOfSample(col: number, row: number): { tx: number; ty: number } {
     return {
-      tx: this.tileX0 + ((col + this.padCol) >> PAGE_SHIFT),
-      ty: this.tileY0 + ((row + this.padRow) >> PAGE_SHIFT),
+      tx: this.tileX0 + ((col + this.padCol) >> SHIFT),
+      ty: this.tileY0 + ((row + this.padRow) >> SHIFT),
     };
   }
 
@@ -234,8 +238,8 @@ export class RegionHeightSource implements HeightSource {
     const col = Math.min(Math.max(Math.round((x - this.origin.x) / this.cell), 0), this.width - 1);
     const row = Math.min(Math.max(Math.round((z - this.origin.z) / this.cell), 0), this.height - 1);
     return {
-      tx: this.tileX0 + ((col + this.padCol) >> PAGE_SHIFT),
-      ty: this.tileY0 + ((row + this.padRow) >> PAGE_SHIFT),
+      tx: this.tileX0 + ((col + this.padCol) >> SHIFT),
+      ty: this.tileY0 + ((row + this.padRow) >> SHIFT),
     };
   }
 
@@ -290,14 +294,14 @@ export class RegionHeightSource implements HeightSource {
       rowsPerStep,
     );
     const page = createPage();
-    page.raw = new Uint16Array(PAGE_SIZE * PAGE_SIZE);
+    page.raw = new Uint16Array(SIZE * SIZE);
     yield;
     const px = tx - this.tileX0;
     const py = ty - this.tileY0;
     for (let r = 0; r < core.rows; r++) {
       const src = (core.row0 - window.row0 + r) * window.cols + (core.col0 - window.col0);
-      const localRow = core.row0 + r + this.padRow - py * PAGE_SIZE;
-      const dst = localRow * PAGE_SIZE + (core.col0 + this.padCol - px * PAGE_SIZE);
+      const localRow = core.row0 + r + this.padRow - py * SIZE;
+      const dst = localRow * SIZE + (core.col0 + this.padCol - px * SIZE);
       page.game.set(game.subarray(src, src + core.cols), dst);
       page.raw.set(window.raw.subarray(src, src + core.cols), dst);
     }
@@ -411,27 +415,27 @@ export class RegionHeightSource implements HeightSource {
   setSample(col: number, row: number, value: number): void {
     const c = col + this.padCol;
     const r = row + this.padRow;
-    const page = this.pages[(r >> PAGE_SHIFT) * this.pagesX + (c >> PAGE_SHIFT)];
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
     if (!page) return;
     page.base ??= new Float32Array(page.game);
-    page.game[(r & PAGE_MASK) * PAGE_SIZE + (c & PAGE_MASK)] = value;
+    page.game[(r & MASK) * SIZE + (c & MASK)] = value;
     this.gradedFlag = true;
   }
 
   lock(col: number, row: number): void {
     const c = col + this.padCol;
     const r = row + this.padRow;
-    const page = this.pages[(r >> PAGE_SHIFT) * this.pagesX + (c >> PAGE_SHIFT)];
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
     if (!page) return;
-    page.locked ??= new Uint8Array(PAGE_SIZE * PAGE_SIZE);
-    page.locked[(r & PAGE_MASK) * PAGE_SIZE + (c & PAGE_MASK)] = 1;
+    page.locked ??= new Uint8Array(SIZE * SIZE);
+    page.locked[(r & MASK) * SIZE + (c & MASK)] = 1;
   }
 
   isLocked(col: number, row: number): boolean {
     const c = col + this.padCol;
     const r = row + this.padRow;
-    const page = this.pages[(r >> PAGE_SHIFT) * this.pagesX + (c >> PAGE_SHIFT)];
-    return page?.locked?.[(r & PAGE_MASK) * PAGE_SIZE + (c & PAGE_MASK)] === 1;
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
+    return page?.locked?.[(r & MASK) * SIZE + (c & MASK)] === 1;
   }
 
   /** Yol düzeltmesi uygulandı mı? */
@@ -449,9 +453,9 @@ export class RegionHeightSource implements HeightSource {
       const rr = this.clampRow(r);
       const pc = cc + this.padCol;
       const pr = rr + this.padRow;
-      const page = this.pages[(pr >> PAGE_SHIFT) * this.pagesX + (pc >> PAGE_SHIFT)];
+      const page = this.pages[(pr >> SHIFT) * this.pagesX + (pc >> SHIFT)];
       if (!page) return this.overviewAt(cc, rr);
-      return (page.base ?? page.game)[(pr & PAGE_MASK) * PAGE_SIZE + (pc & PAGE_MASK)] as number;
+      return (page.base ?? page.game)[(pr & MASK) * SIZE + (pc & MASK)] as number;
     });
   }
 
@@ -468,9 +472,9 @@ export class RegionHeightSource implements HeightSource {
       const rr = this.clampRow(r);
       const pc = cc + this.padCol;
       const pr = rr + this.padRow;
-      const page = this.pages[(pr >> PAGE_SHIFT) * this.pagesX + (pc >> PAGE_SHIFT)];
+      const page = this.pages[(pr >> SHIFT) * this.pagesX + (pc >> SHIFT)];
       if (!page) return this.overviewAt(cc, rr);
-      const local = (pr & PAGE_MASK) * PAGE_SIZE + (pc & PAGE_MASK);
+      const local = (pr & MASK) * SIZE + (pc & MASK);
       const v = (page.raw as Uint16Array)[local] as number;
       // Deniz hücreleri yumuşatılmaz: çukurlaştırılmış taban olduğu gibi okunur.
       if (v === 0) return (page.base ?? page.game)[local] as number;
@@ -517,9 +521,9 @@ export class RegionHeightSource implements HeightSource {
   sample(col: number, row: number): number {
     const c = (col < 0 ? 0 : col >= this.width ? this.width - 1 : col) + this.padCol;
     const r = (row < 0 ? 0 : row >= this.height ? this.height - 1 : row) + this.padRow;
-    const page = this.pages[(r >> PAGE_SHIFT) * this.pagesX + (c >> PAGE_SHIFT)];
+    const page = this.pages[(r >> SHIFT) * this.pagesX + (c >> SHIFT)];
     if (page === undefined) return this.overviewAt(c - this.padCol, r - this.padRow);
-    return page.game[(r & PAGE_MASK) * PAGE_SIZE + (c & PAGE_MASK)] as number;
+    return page.game[(r & MASK) * SIZE + (c & MASK)] as number;
   }
 
   heightAt(x: number, z: number): number {
