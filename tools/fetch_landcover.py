@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Overture Maps `base/land_cover` katmanından (ESA WorldCover 2021 türevi) bölgenin arazi örtüsünü çeker.
 
-Kullanım:  python fetch_landcover.py [dünya-id]      (varsayılan: bati-karadeniz)
+Kullanım:  python fetch_landcover.py [dünya-id] [--groups cekirdek,bati]   (varsayılan: bati-karadeniz, tüm gruplar)
 Çıktı:     tools/raw/landcover/<bölge-id>.parquet    (WGS84; sütunlar: subtype, geometry [WKB]; commit edilmez)
+           + `.cover.json` (indirilen kutu; ham dosya istenen kutuyu kapsıyorsa indirme atlanır)
 
 Overture veri kümesi küresel ve yüzlerce GB'dır; Parquet dosyaları HTTP Range istekleriyle okunur
 (bkz. fetch_water.py): yalnızca dosya altbilgileri ve sınır kutusuyla kesişen satır grupları indirilir.
@@ -24,6 +25,8 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
+import fetchlib
+import worldconfig
 from fetch_dem import load_world
 from fetch_water import BBox, BUCKET_URL, OVERTURE_RELEASE, list_parquet_files, row_groups_for_bbox
 from rangefile import HttpRangeFile
@@ -95,17 +98,23 @@ def extract_landcover(
 
 
 def main(argv: list[str]) -> int:
-    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
-    bbox = tuple(load_world(world_id)["bbox"])
+    args = worldconfig.fetch_arguments(__doc__, argv[1:], DEFAULT_WORLD)
+    world_id = args.world_id
+    want = tuple(load_world(world_id, worldconfig.parse_groups_arg(args.groups))["bbox"])
+    dest = RAW_LANDCOVER / f"{world_id}.parquet"
+    bbox = fetchlib.plan_fetch(dest, want, OVERTURE_RELEASE)
+    if bbox is None:
+        print(f"mevcut   {dest}  (kayıtlı kapsam {want} kutusunu içeriyor)")
+        return 0
     print(f"{world_id}: Overture {OVERTURE_RELEASE} arazi örtüsü (ESA WorldCover), bbox {bbox}")
 
     keys = list_parquet_files(LANDCOVER_PREFIX.format(release=OVERTURE_RELEASE))
     print(f"  {len(keys)} dosya taranıyor (yalnızca altbilgiler ve ilgili satır grupları indirilir)")
     table, downloaded = extract_landcover(bbox, keys)  # type: ignore[arg-type]
 
-    dest = RAW_LANDCOVER / f"{world_id}.parquet"
     dest.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(table, dest, compression="zstd")
+    fetchlib.record_cover(dest, bbox, OVERTURE_RELEASE)
     counts = Counter(table.column("subtype").to_pylist())
     print(f"Tamam: {table.num_rows} çokgen, {downloaded / 1e6:.1f} MB indirildi → {dest}")
     print("  türler: " + ", ".join(f"{name}={count}" for name, count in counts.most_common()))

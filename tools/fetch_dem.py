@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Bir bölge için Copernicus GLO-30 DEM karolarını indirir (AWS Open Data, anonim).
 
-Kullanım:  python fetch_dem.py [dünya-id]      (varsayılan: bati-karadeniz)
+Kullanım:  python fetch_dem.py [dünya-id] [--groups cekirdek,bati]   (varsayılan: bati-karadeniz, tüm gruplar)
+Önkoşul:   python fetch_boundaries.py   (sınır kutusu hedef illerden türetilir; bkz. worldconfig.py)
 Çıktı:     tools/raw/dem/<karo>.tif             (tools/raw/ .gitignore'dadır, commit edilmez)
+
+Karolar zaten indirilmişse atlanır (boyut eşleşirse).
 
 Lisans/atıf: Copernicus DEM GLO-30 — © DLR e.V. 2010–2014 ve © Airbus Defence and Space GmbH
 2014–2018, Avrupa Birliği ve ESA adına COPERNICUS kapsamında sağlanmıştır.
@@ -13,29 +16,26 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
-
 import fetchlib
 import regionlib
+import worldconfig
 
 TOOLS = Path(__file__).resolve().parent
 RAW_DEM = TOOLS / "raw" / "dem"
 DEFAULT_WORLD = "bati-karadeniz"
 
 
-def load_world(world_id: str) -> dict:
-    """Dünya tanımını (world.yaml) döndürür; `bbox` içerir."""
-    worlds = yaml.safe_load((TOOLS / "world.yaml").read_text(encoding="utf-8"))["worlds"]
-    if world_id not in worlds:
-        raise SystemExit(f"Bilinmeyen dünya: {world_id!r}. Tanımlılar: {', '.join(worlds)}")
-    return worlds[world_id]
+def load_world(world_id: str, groups: list[str] | None = None) -> dict:
+    """Dünya tanımını (world.yaml + grup dosyaları) döndürür; türetilmiş `bbox` içerir (`worldconfig.load_world`)."""
+    return worldconfig.load_world(world_id, groups)
 
 
 def main(argv: list[str]) -> int:
-    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
-    world = load_world(world_id)
+    args = worldconfig.fetch_arguments(__doc__, argv[1:], DEFAULT_WORLD)
+    world_id = args.world_id
+    world = load_world(world_id, worldconfig.parse_groups_arg(args.groups))
     tiles = regionlib.tiles_for_bbox(*world["bbox"])
-    print(f"{world_id}: {len(tiles)} karo gerekli")
+    print(f"{world_id}: {len(tiles)} karo gerekli (bbox {world['bbox']})")
 
     for name in tiles:
         url = regionlib.tile_url(name)

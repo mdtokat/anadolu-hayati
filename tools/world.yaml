@@ -4,17 +4,20 @@
 worlds:
   bati-karadeniz:
     name: 'Batı Karadeniz'
-    # Hedef iller (geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen): provinces.geojson'da inRegion=true.
-    # Faz 11 sonrası genişleme (kullanıcı talimatı): Kastamonu ve Çankırı doğuya eklendi (Ilgaz); ardından Sinop
-    # (doğu, kıyı) ve Sakarya (batı, kıyı) eklendi.
-    provinces: [Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı, Sinop, Sakarya]
+    # Hedef iller tools/groups/<grup>.yaml dosyalarındadır (Faz 12.0b; biçim: tools/worldconfig.py, docs/faz-12-paralel-plan.md
+    # §3.2): `groups` birleştirme sırasını verir. Çekirdek = Faz 12 öncesi 9 il; bati/dogu/guney Faz 12 gruplarıdır.
+    groups: [cekirdek, bati, dogu, guney]
     # Komşu iller: oyuncunun yürüyebildiği ama hedef olmayan iller (inRegion=false). 'auto' = ızgara + pay ile kesişen
     # (alanı `neighbor_min_area_km2` üstündeki) tüm iller; açık liste de verilebilir (örn. [Kastamonu, Çankırı]).
     neighbors: auto
     neighbor_min_area_km2: 1
-    # Sınır kutusu [boylam_min, enlem_min, boylam_max, enlem_max] (derece): DEM karolarını seçer, ızgaranın
-    # kutu içinde kaldığını doğrular. 30°D'nin doğusu: EPSG:32636 yeter (bkz. docs/faz-7-paralel-plan.md §1.3).
-    bbox: [29.80, 40.00, 35.55, 42.30]
+    # Sınır kutusu elle yazılmaz: hedef illerden türetilir (kırpılmış il sınırları + `margin_m` paylı kafes ızgarasının
+    # enlem/boylam zarfı; DEM karolarını ve Overture indirmelerini seçer). `bbox_max` üst sınır kutusudur
+    # [boylam_min, enlem_min, boylam_max, enlem_max] (derece): türetilen kutu bunun içinde kalmalıdır, aksi hâlde hata.
+    # Boylam sınırı EPSG:32636'nın (orta meridyen 33°D) güvenli aralığıdır: orta meridyenden ≤ 4,5° (28,5–37,5°D; ölçek
+    # sapması ≤ %0,2; docs/faz-7-paralel-plan.md §1.3). Enlem: Ankara'nın güneyi (38,6°K) ile Sinop'un kuzeyi (42,1°K).
+    # Faz 12 gruplarının hepsi bunun içindedir (Samsun 37,17°D'ye, Amasya 36,5°D'ye uzanır). Aşmak bilinçli karardır.
+    bbox_max: [28.50, 38.50, 37.50, 42.30]
     # Hedef illerin UTM sınır kutusuna eklenen pay (metre).
     margin_m: 2000
     # Izgara hücre boyu (gerçek metre); kafesle (WORLD) aynı olmalı (100).

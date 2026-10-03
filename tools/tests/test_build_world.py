@@ -212,14 +212,25 @@ def test_unknown_world_id_and_cell_size_are_rejected():
 
 
 def test_real_world_yaml_is_consistent_with_contract():
-    config = build_world.load_world_config("bati-karadeniz")
-    assert config["provinces"] == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı", "Sinop", "Sakarya"]
-    assert config["neighbors"] == "auto"
-    assert config["cell_size"] == wl.CELL_SIZE_REAL
-    assert config["bbox"] == [29.80, 40.00, 35.55, 42.30]
+    # Ham veri (il sınırları) gerektirmez: türetilmiş bbox yerine yaml'daki üst sınır (`bbox_max`) ve gruplar okunur.
     import regionlib
+    import worldconfig
 
-    assert len(regionlib.tiles_for_bbox(*config["bbox"])) == 21  # 7 boylam × 3 enlem (Sinop–Sakarya genişlemesi)
+    world = worldconfig.world_entry("bati-karadeniz")
+    groups = worldconfig.group_names(world)
+    assert groups[0] == "cekirdek"
+    # İl listesi grup dosyalarından gelir: çekirdek her zaman tanımlıdır, yeni iller yeni grup dosyalarına eklenir.
+    core = worldconfig.load_group("cekirdek")["provinces"]
+    assert core == ["Zonguldak", "Bartın", "Karabük", "Düzce", "Bolu", "Kastamonu", "Çankırı", "Sinop", "Sakarya"]
+    merged = worldconfig.merge_groups(groups)["provinces"]
+    assert merged[: len(core)] == core and len(set(merged)) == len(merged)
+    assert "provinces" not in world and "bbox" not in world  # elle yazılmaz
+    assert world["neighbors"] == "auto"
+    assert world["cell_size"] == wl.CELL_SIZE_REAL
+    lon0, lat0, lon1, lat1 = world["bbox_max"]
+    assert lon0 < lon1 and lat0 < lat1
+    # Üst sınır en azından Faz 11 sonrası dünyayı (7 boylam × 3 enlem = 21 DEM karosu) kapsar.
+    assert len(regionlib.tiles_for_bbox(*world["bbox_max"])) >= 21
     # Sabitlenmiş pencereler (eski alanlar) eski DEM mozaiğinde örneklenir: Faz 6/7 pencereleri 8, Kastamonu–Çankırı 15 karo.
     for _, window_bbox in build_world.PINNED_WINDOWS:
         assert len(regionlib.tiles_for_bbox(*window_bbox)) in (8, 15)

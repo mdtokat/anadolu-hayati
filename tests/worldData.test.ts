@@ -9,6 +9,7 @@ import type { WorldManifest } from '../src/data/worldTypes';
 import { CHUNK_CELLS, LATTICE_CELL, gridOriginOf, tileRangeOf } from '../src/world/lattice';
 import { provinceAt } from '../src/world/provinces';
 import { publicFsFetch } from './helpers/fsFetch';
+import { coreProvinces, groupProvinces } from './helpers/groups';
 
 /**
  * Gerçek Faz 7 dünyası (public/data/world/bati-karadeniz): manifest, karo dosyaları, iller, göller, yükseklikler,
@@ -89,25 +90,16 @@ describe('manifest ve karo dosyaları', () => {
 });
 
 describe('iller', () => {
-  it('dokuz hedef il inRegion=true; komşular false', () => {
+  it('hedef iller inRegion=true (çekirdek 9 il her zaman; il listesi tools/groups ve veriden okunur); komşular false', () => {
     const targets = world.provinces.filter((p) => p.inRegion).map((p) => p.name);
-    expect(targets.sort()).toEqual(
-      [
-        'Bartın',
-        'Bolu',
-        'Düzce',
-        'Karabük',
-        'Zonguldak',
-        'Kastamonu',
-        'Çankırı',
-        'Sinop',
-        'Sakarya',
-      ].sort(),
-    );
+    expect(targets.sort()).toEqual(expect.arrayContaining(coreProvinces().sort()));
+    // Hedef il işaretli her il bir grup dosyasında tanımlıdır (yaml: beklenen küme; commit'li veri onun altkümesi
+    // olabilir: bir grup PR'ı yaml'ı veriden önce genişletir, 12.9 veriyi üretir).
+    const declared = new Set(groupProvinces());
+    for (const name of targets) expect(declared.has(name), name).toBe(true);
     const neighbors = world.provinces.filter((p) => !p.inRegion).map((p) => p.name);
-    for (const name of ['Ankara', 'Bilecik', 'Samsun', 'Çorum', 'Kocaeli']) {
-      expect(neighbors, name).toContain(name);
-    }
+    expect(neighbors.length).toBeGreaterThan(0);
+    for (const name of neighbors) expect(targets, name).not.toContain(name);
   });
 
   it('komşu il parçaları gürültü yaratacak kadar küçük değil (≥ 1 km²-eşdeğeri sınır kutusu)', () => {

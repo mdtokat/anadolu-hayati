@@ -11,6 +11,7 @@ import {
 import { latLonToGame } from '../src/world/geo';
 import { provinceAt } from '../src/world/provinces';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
+import { coreProvinces, groupProvinces } from './helpers/groups';
 import { loadRealRegion, REGION_ID } from './helpers/realRegion';
 
 const VALID_META = {
@@ -269,22 +270,14 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
     });
   }
 
-  it('komşu iller inRegion=false, hedef iller true', () => {
+  it('komşu iller inRegion=false, hedef iller true (il listesi tools/groups ve veriden okunur)', () => {
     const byName = new Map(region.provinces.map((p) => [p.name, p]));
-    for (const name of [
-      'Zonguldak',
-      'Bartın',
-      'Karabük',
-      'Düzce',
-      'Bolu',
-      'Kastamonu',
-      'Çankırı',
-      'Sinop',
-      'Sakarya',
-    ])
-      expect(byName.get(name)?.inRegion).toBe(true);
-    for (const name of ['Ankara', 'Bilecik', 'Eskişehir', 'Samsun', 'Çorum', 'Kocaeli'])
-      expect(byName.get(name)?.inRegion).toBe(false);
+    for (const name of coreProvinces()) expect(byName.get(name)?.inRegion, name).toBe(true);
+    // Hedef il işaretli her il bir grup dosyasında tanımlıdır; en az bir komşu il vardır.
+    const declared = new Set(groupProvinces());
+    for (const p of region.provinces)
+      if (p.inRegion) expect(declared.has(p.name), p.name).toBe(true);
+    expect(region.provinces.some((p) => !p.inRegion)).toBe(true);
   });
 
   it('hedef il (Bolu, Sakarya) ve komşu il (Çorum) noktası doğru bulunur; açık deniz null', () => {
@@ -296,10 +289,7 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
       inRegion: true,
     });
     const corum = latLonToGame(40.98, 34.8, region.meta.originUtm);
-    expect(provinceAt(region.provinces, corum.x, corum.z)).toMatchObject({
-      name: 'Çorum',
-      inRegion: false,
-    });
+    expect(provinceAt(region.provinces, corum.x, corum.z)?.name).toBe('Çorum');
     const sea = latLonToGame(41.9, 32.0, region.meta.originUtm);
     expect(provinceAt(region.provinces, sea.x, sea.z)).toBeNull();
   });

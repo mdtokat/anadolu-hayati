@@ -7,11 +7,12 @@ import { RegionHeightSource } from '../src/world/RegionHeightSource';
 import { findSafeSpawn } from '../src/world/spawn';
 import { FreshWaterIndex } from '../src/world/waterIndex';
 import { teleportSlotForKey } from '../src/core/inputMapping';
+import { coreProvinces, groupProvinces, targetProvinces } from './helpers/groups';
 import { loadRealWorld } from './helpers/realRegion';
 
 /**
- * Faz 8.2: pilot ilin (Zonguldak) ve diğer hedef illerin (Bartın, Karabük, Düzce, Bolu) yer adları / ışınlanma
- * noktaları. Her yer kendi ilinde, karada, yürünebilir ve yakınında içilebilir su olmalı (hayatta kalma
+ * Faz 8.2: pilot ilin (Zonguldak) ve diğer hedef illerin (tools/groups/*.yaml; il listesi veriden okunur) yer adları /
+ * ışınlanma noktaları. Her yer kendi ilinde, karada, yürünebilir ve yakınında içilebilir su olmalı (hayatta kalma
  * başlangıcı için); yaklaşık koordinatlar yürünebilir noktaya çok kaymamalı.
  */
 let region: RegionData;
@@ -68,20 +69,11 @@ describe('PILOT.places', () => {
 });
 
 describe('PROVINCE_PLACES', () => {
-  it('pilot il + 8 diğer hedef il; her ilde 8–10 yer (Shift + 1–9, 0 tuşları)', () => {
-    expect(Object.keys(PROVINCE_PLACES).sort()).toEqual(
-      [
-        'Bartın',
-        'Bolu',
-        'Düzce',
-        'Karabük',
-        'Zonguldak',
-        'Kastamonu',
-        'Çankırı',
-        'Sinop',
-        'Sakarya',
-      ].sort(),
-    );
+  it('her hedef ilin yerleri var (pilot il + diğerleri); her ilde 8–10 yer (Shift + 1–9, 0 tuşları)', () => {
+    const targets = targetProvinces(region);
+    expect(targets).toEqual(expect.arrayContaining(coreProvinces()));
+    for (const province of targets)
+      expect(Object.keys(PROVINCE_PLACES), province).toContain(province);
     expect(PROVINCE_PLACES[PILOT.province]).toBe(PILOT.places);
     for (const [province, places] of Object.entries(PROVINCE_PLACES)) {
       expect(places.length, province).toBeGreaterThanOrEqual(8);
@@ -89,9 +81,17 @@ describe('PROVINCE_PLACES', () => {
     }
   });
 
+  it('yer tablosu yalnızca grup dosyalarındaki illeri içerir (yazım hatası: sessizce atlanmasın)', () => {
+    const declared = new Set(groupProvinces());
+    for (const province of Object.keys(PROVINCE_PLACES))
+      expect(declared.has(province), `${province}: tools/groups/*.yaml'da yok`).toBe(true);
+  });
+
   for (const [province, places] of Object.entries(PROVINCE_PLACES)) {
     for (const place of places) {
-      it(`${province} / ${place.name}: ilinde, karada, yürünebilir, yakında içilebilir su`, () => {
+      it(`${province} / ${place.name}: ilinde, karada, yürünebilir, yakında içilebilir su`, (ctx) => {
+        // Grubun yeri yazılmış ama il henüz commit'li dünya verisinde yoksa (grup PR'ı, 12.9'dan önce) atlanır.
+        if (!targetProvinces(region).includes(province)) ctx.skip();
         const { g, point } = safePoint(place);
         expect(point).not.toBeNull();
         const p = point as { x: number; y: number; z: number };
