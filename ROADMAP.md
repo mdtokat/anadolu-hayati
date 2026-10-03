@@ -425,7 +425,8 @@ _(Kullanıcı talimatı: "hareket ederken kasıyor; şimdi ve sonrasında da etk
 
 ---
 
-## Genişleme (DURDURULDU — kullanıcı talimatıyla)
+## Genişleme (Faz 12 ile yeniden açıldı — kullanıcı talimatıyla)
+> **Faz 12 (planlandı, kullanıcı onayıyla):** çevre iller üç grupta (Batı: Kocaeli, Bilecik; Doğu: Samsun, Çorum, Amasya; Güney: Ankara kuzeyi, Kırıkkale) paralel hazırlanır; plan [docs/faz-12-paralel-plan.md](docs/faz-12-paralel-plan.md). Sıra: 12.0a karo akışı + 12.0b veri iskelesi → 12.A/B/C (içerik ve doğrulama, dünya verisi yok) → 12.9 entegrasyon (dünya verisi tek seferde). İstanbul, Eskişehir, Tokat, Yozgat bu fazda yok.
 > Harita genişletmesi, kullanıcı açıkça söyleyene kadar yapılmaz. Aşağıdaki liste yalnızca ileride dönülecek planın kaydıdır; bu bölümden iş alınmaz.
 > **Güncelleme (Faz 11 sonrası):** kullanıcı "çevre illeri ve içlerindeki yapıları da oluştur (Ankara, Kastamonu gibi)" dedi. Ankara il sınırı 38,6°K'ye iner: dünya alanı ~3,4 katına çıkar (veri ~55 MB, açılış bütçesi 10 sn ve bellek aşılır, yerleşim düzeni açılışta ~15 sn). Bu yüzden önce **karo akışı** gerekir; kapsam (önce Kastamonu–Çankırı mı, Ankara'nın kuzeyi mi, tamamı mı) kullanıcı kararı bekliyor.
 
