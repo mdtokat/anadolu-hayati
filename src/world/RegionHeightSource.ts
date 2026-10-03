@@ -35,6 +35,12 @@ export interface TileWindow {
   raw: Uint16Array;
 }
 
+/** Düzeltme yamaları: sayfa içi indeks (`satır · 512 + sütun`) ve düzeltilmiş oyun yüksekliği. */
+export interface TilePatches {
+  indices: ArrayLike<number>;
+  values: ArrayLike<number>;
+}
+
 /** Karonun (dizi indeksinde) dünya içindeki çekirdek dikdörtgeni. */
 export interface TileCore {
   col0: number;
@@ -244,8 +250,8 @@ export class RegionHeightSource implements HeightSource {
    * Karoyu pencereden yükler: yumuşatma ve deniz tabanı pencerede hesaplanır, çekirdek sayfaya yazılır. Pencere
    * çekirdeği ve (varsa) `TILE_HALO` payını kapsamalı; sonuç yoğun kipteki değerle bire bir aynıdır.
    */
-  loadTile(tx: number, ty: number, window: TileWindow): void {
-    const steps = this.loadTileSteps(tx, ty, window, Infinity);
+  loadTile(tx: number, ty: number, window: TileWindow, patches?: TilePatches): void {
+    const steps = this.loadTileSteps(tx, ty, window, Infinity, patches);
     while (!steps.next().done) {
       // dilimler peş peşe
     }
@@ -260,6 +266,7 @@ export class RegionHeightSource implements HeightSource {
     ty: number,
     window: TileWindow,
     rowsPerStep = 32,
+    patches?: TilePatches,
   ): Generator<void, void> {
     const core = this.tileCore(tx, ty);
     if (!core) throw new Error(`Karo (${tx}, ${ty}) dünyanın dışında`);
@@ -293,6 +300,14 @@ export class RegionHeightSource implements HeightSource {
       const dst = localRow * PAGE_SIZE + (core.col0 + this.padCol - px * PAGE_SIZE);
       page.game.set(game.subarray(src, src + core.cols), dst);
       page.raw.set(window.raw.subarray(src, src + core.cols), dst);
+    }
+    // Yamalar (yol/dere/teras düzeltmesi) sayfa yayımlanmadan uygulanır: collider/mesh hiç düzeltilmemiş zemini görmez.
+    if (patches && patches.indices.length > 0) {
+      page.base = new Float32Array(page.game);
+      for (let k = 0; k < patches.indices.length; k++) {
+        page.game[patches.indices[k] as number] = patches.values[k] as number;
+      }
+      this.gradedFlag = true;
     }
     this.pages[py * this.pagesX + px] = page;
   }

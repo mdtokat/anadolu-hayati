@@ -136,9 +136,9 @@ describe('ChunkManager akış kipi', () => {
     ready = true;
     manager.update(0, 0, Infinity);
     expect(manager.lodOf(own.cx, own.cy)).toBe(0);
-    const mesh = manager.group.children.find((m) => m.name === `chunk-${own.cx}-${own.cy}`) as {
-      material: unknown;
-    };
+    const mesh = manager.group.children.find(
+      (m) => m.name === `chunk-${own.cx}-${own.cy}`,
+    ) as unknown as { material: unknown };
     expect(mesh.material).toBe(tileMaterial);
     manager.dispose();
   }, 60_000);

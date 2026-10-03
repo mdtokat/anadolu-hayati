@@ -365,12 +365,17 @@ export class RegionWorld implements GameWorld {
     }
     switch (job.phase) {
       case 0: {
-        job.heights ??= this.source.loadTileSteps(tx, ty, { ...blob.window, raw: blob.raw });
+        job.heights ??= this.source.loadTileSteps(
+          tx,
+          ty,
+          { ...blob.window, raw: blob.raw },
+          undefined,
+          { indices: blob.patchIndices, values: blob.patchValues },
+        );
         if (job.heights.next().done) job.phase = 1;
         return false;
       }
       case 1:
-        this.source.patchTile(tx, ty, blob.patchIndices, blob.patchValues);
         (this.cover as LandCoverMap).setTile(tx, ty, blob.window, blob.cover);
         job.phase = 2;
         return false;
