@@ -32,5 +32,7 @@ export const BATI: PlaceGroup = {
       { name: 'İnhisar', lat: 40.0503, lon: 30.3848 },
     ],
   },
-  campCount: 0,
+  // Ölçüm (yerel dünya, sınırsız kamp aramasıyla): Kocaeli 3 + Bilecik 3 uygun yer (komşu illerde ayrıca Bursa 21, Eskişehir 14, İstanbul 9 …:
+  // bunlar grubun değil birleşik dünyanın işi, 12.9 doğrular). Neden bu sayı: docs/faz-12-bati-rapor.md.
+  campCount: 6,
 };

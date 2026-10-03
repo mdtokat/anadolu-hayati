@@ -37,7 +37,7 @@ landmarks:
       lon: 29.91947,
       lat: 40.76278,
     }
-  - { settlement: İzmit, kind: mosque, name: Orhan Gazi Camii, lon: 29.9169, lat: 40.7669 }
+  - { settlement: Kocaeli, kind: mosque, name: Orhan Gazi Camii, lon: 29.9169, lat: 40.7669 }
   - {
       settlement: Gebze,
       kind: mosque_grand,

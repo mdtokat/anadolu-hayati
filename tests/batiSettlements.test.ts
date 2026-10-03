@@ -84,20 +84,27 @@ describe.skipIf(!AVAILABLE)('Batı grubu yerleşimleri (Kocaeli, Bilecik)', () =
     }
   });
 
-  it('elle seçilmiş simge yapılar adlarıyla yerinde (Kocaeli, Gebze, Bilecik, Söğüt)', () => {
+  it('elle seçilmiş simge yapılar adlarıyla yerinde (Kocaeli, Gebze, Karamürsel, Bilecik, Söğüt, Bozüyük, Osmaneli)', () => {
     const named = (town: string) =>
       map.settlements
         .find((s) => s.data.name === town)!
         .buildings.filter((b) => b.name)
         .map((b) => b.name);
-    // Kent merkezinde parsel azdır (ilçeler önce yerleşir): her simge yapı yerleşiminin kendi parsellerine oturur.
-    expect(named('Gebze')).toEqual(
-      expect.arrayContaining(['Çoban Mustafa Paşa Camii', 'Gebze Saat Kulesi']),
+    // Kent merkezinde parsel azdır (ilçeler önce yerleşir, İzmit ilçesi yalnız ~9 yapı alır): İzmit'in simge yapıları
+    // il merkezine (Kocaeli) bağlıdır. Her simge yapı bağlı olduğu yerleşimin kendi parsellerine oturur.
+    expect(named('Kocaeli')).toEqual(
+      expect.arrayContaining(['İzmit Saat Kulesi', 'Orhan Gazi Camii']),
     );
+    expect(named('Gebze')).toEqual(
+      expect.arrayContaining(['Çoban Mustafa Paşa Camii', 'Gebze Saat Kulesi', 'Eskihisar Kalesi']),
+    );
+    expect(named('Karamürsel')).toEqual(expect.arrayContaining(['Ulu Camii']));
     expect(named('Bilecik')).toEqual(
-      expect.arrayContaining(['Şeyh Edebali Türbesi', 'Bilecik Saat Kulesi']),
+      expect.arrayContaining(['Şeyh Edebali Türbesi', 'Bilecik Saat Kulesi', 'Bilecik Kalesi']),
     );
     expect(named('Söğüt')).toEqual(expect.arrayContaining(['Ertuğrul Gazi Türbesi']));
+    expect(named('Bozüyük')).toEqual(expect.arrayContaining(['Ulu Camii']));
+    expect(named('Osmaneli')).toEqual(expect.arrayContaining(['Lefke Kalesi']));
   });
 
   it('satıcılar: il merkezinde 4, ilçelerde 3; hepsi yapı dışında', () => {
