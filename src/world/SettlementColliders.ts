@@ -1,6 +1,6 @@
 import { BUILDING_LOOK } from '../config';
 import { RAPIER, type PhysicsWorld } from '../physics/PhysicsWorld';
-import { BUILDING_SHAPES } from '../settlements/kinds';
+import { BUILDING_SHAPES, shapeVariant } from '../settlements/kinds';
 import type { Building } from '../settlements/layout';
 import { buildingLocalToWorld, type SettlementMap, type Stair } from '../settlements/SettlementMap';
 
@@ -50,7 +50,7 @@ export class SettlementColliders {
   }
 
   private create(b: Building): RAPIER.Collider[] {
-    const shape = BUILDING_SHAPES[b.kind];
+    const shape = shapeVariant(b.kind, b.floors, b.ruined);
     const half = b.yaw / 2;
     const rotation = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
     const out: RAPIER.Collider[] = [];
@@ -61,6 +61,26 @@ export class SettlementColliders {
           RAPIER.ColliderDesc.cuboid(box.hx, box.hy, box.hz)
             .setTranslation(c.x, b.y + box.cy, c.z)
             .setRotation(rotation),
+        ),
+      );
+    }
+    // Merdiven kolları (katlı yapı): eğik levha (x ekseni etrafında eğim, sonra yapı yaw'ı).
+    for (const ramp of shape.ramps) {
+      const c = buildingLocalToWorld(b, ramp.cx, ramp.cz);
+      const sp = Math.sin(ramp.pitch / 2);
+      const cp = Math.cos(ramp.pitch / 2);
+      // q = qy · qx (önce yerel eğim, sonra yaw): qy = (0, sin, 0, cos), qx = (sp, 0, 0, cp)
+      const qy = rotation;
+      out.push(
+        this.physics.addStaticCollider(
+          RAPIER.ColliderDesc.cuboid(ramp.hx, ramp.hy, ramp.hz)
+            .setTranslation(c.x, b.y + ramp.cy, c.z)
+            .setRotation({
+              w: qy.w * cp,
+              x: qy.w * sp,
+              y: qy.y * cp,
+              z: -qy.y * sp,
+            }),
         ),
       );
     }

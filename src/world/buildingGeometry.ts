@@ -21,9 +21,11 @@ import {
   SHAPE_DIMS,
   WALL_THICKNESS,
   mosqueOffset,
+  storeyPlanOf,
   type BuildingKind,
   type LocalBox,
 } from '../settlements/kinds';
+import { PARAPET, SLAB, slabBoxes, stepCount, type StoreyPlan } from '../settlements/storeys';
 import {
   boxesOverlap,
   paneHole,
@@ -722,6 +724,139 @@ function rubble(x: number, z: number, size: number, random: Random): Part[] {
   return parts;
 }
 
+// -- katlı yapılar: üst katlar, merdiven, çatı terası -----------------------------------
+
+/** Katlı yapının üst kat/çatı görünümü (renkler ve döşeme tonları). */
+interface StoreyStyle {
+  /** Dış duvar ve korkuluk rengi. */
+  wall: number;
+  /** Zemin kat tavanı (1. döşemenin altı) ve üst katların tavan/döşeme altı rengi. */
+  ceiling: number;
+  /** Üst kat döşeme yüzü, merdiven basamağı, çatı terası zemini. */
+  floor: number;
+  step: number;
+  deck: number;
+}
+
+/** Parçaları dikey olarak `dy` yukarı taşır. */
+function lift(parts: Part[], dy: number): Part[] {
+  const m = new Matrix4().makeTranslation(0, dy, 0);
+  for (const p of parts) p.geometry.applyMatrix4(m);
+  return parts;
+}
+
+/**
+ * Katlı yapının üst katları: yakın/uzak kademede tek katı gövde (`outer`), iç mekân kademesinde ise kat kat içi boş
+ * kabuk (kapısız dış duvar + iç sıva), merdiven boşluklu döşemeler, düz merdiven kolları ve çatı terası. Korkuluk
+ * duvarı ve çatı zemini her kademede vardır. Ölçüler `settlements/storeys.ts` ile collider'larla aynıdır.
+ */
+function storeyParts(plan: StoreyPlan, st: StoreyStyle): Part[] {
+  const t = WALL_THICKNESS;
+  const { upperW: uw, upperD: ud, storeys: n } = plan;
+  const bottom = (plan.floorY[1] as number) - SLAB;
+  const parts: Part[] = [];
+  // Uzaktan/yakından: tek gövde (iç mekân kademesinde yerini kabuk alır).
+  parts.push({
+    ...box(uw, plan.roofY - bottom, ud, 0, bottom, 0, st.wall),
+    outer: true,
+  });
+  // Çatı terasının zemini (uzaktan): gövdenin üstü, korkuluğun içinde.
+  parts.push({ ...box(uw - 2 * t, 0.05, ud - 2 * t, 0, plan.roofY, 0, st.deck), outer: true });
+
+  // İç mekân kademesi: dış duvarlar (dışa bakan yüz duvar renginde), kat kat iç sıva.
+  const walls: Part[] = [
+    box(uw, plan.roofY - bottom, t, 0, bottom, -ud / 2 + t / 2, st.wall),
+    box(uw, plan.roofY - bottom, t, 0, bottom, ud / 2 - t / 2, st.wall),
+    box(t, plan.roofY - bottom, ud - 2 * t, -uw / 2 + t / 2, bottom, 0, st.wall),
+    box(t, plan.roofY - bottom, ud - 2 * t, uw / 2 - t / 2, bottom, 0, st.wall),
+  ];
+  parts.push(...indoor(walls));
+  const L = 0.02;
+  const iw = uw - 2 * t;
+  const id = ud - 2 * t;
+  for (let k = 1; k < n; k++) {
+    const y0 = plan.floorY[k] as number;
+    const h = plan.clear[k] as number;
+    parts.push(
+      ...indoor([
+        box(iw, h, L, 0, y0, -ud / 2 + t + L / 2, C.plasterInner),
+        box(iw, h, L, 0, y0, ud / 2 - t - L / 2, C.plasterInner),
+        box(L, h, id, -uw / 2 + t + L / 2, y0, 0, C.plasterInner),
+        box(L, h, id, uw / 2 - t - L / 2, y0, 0, C.plasterInner),
+        // süpürgelik
+        box(iw, 0.14, 0.04, 0, y0, -ud / 2 + t + 0.03, C.plankDark),
+      ]),
+    );
+    // Kilim ve alçak masa: üst katlar boş görünmesin (merdivenin karşı yanında).
+    parts.push(
+      ...lift(
+        rug(
+          -Math.sign(plan.flights[0]!.x) * iw * 0.18,
+          -id * 0.12,
+          2.4,
+          1.8,
+          C.kilim,
+          C.kilimAccent,
+        ),
+        y0 - 0.0,
+      ),
+    );
+  }
+  // Döşemeler: 1…n (n = çatı terası); altı tavan rengi, yüzü döşeme/teras rengi; merdiven boşluklu.
+  for (let level = 1; level <= n; level++) {
+    const topColor = level === n ? st.deck : st.floor;
+    for (const piece of slabBoxes(plan, level, iw / 2, id / 2)) {
+      const y1 = piece.cy + piece.hy;
+      const y0 = piece.cy - piece.hy;
+      parts.push(
+        ...indoor([
+          box(piece.hx * 2, piece.hy * 2 - 0.06, piece.hz * 2, piece.cx, y0, piece.cz, st.ceiling),
+          box(piece.hx * 2, 0.06, piece.hz * 2, piece.cx, y1 - 0.06, piece.cz, topColor),
+        ]),
+      );
+    }
+  }
+  // Merdiven kolları: eğik çarpışma levhasının ortalamasına oturan, altı dolu basamaklar.
+  for (const f of plan.flights) {
+    const m = stepCount(f);
+    const rise = f.y1 - f.y0;
+    const run = Math.abs(f.zTo - f.zFrom);
+    const dir = Math.sign(f.zTo - f.zFrom);
+    for (let i = 0; i < m; i++) {
+      const top = ((i + 0.5) * rise) / m;
+      const z0 = f.zFrom + (dir * (i * run)) / m;
+      const z1 = f.zFrom + (dir * ((i + 1) * run)) / m;
+      parts.push(
+        ...indoor([
+          box(
+            f.width,
+            top,
+            Math.abs(z1 - z0),
+            f.x,
+            f.y0,
+            (z0 + z1) / 2,
+            i % 2 ? st.step : st.floor,
+          ),
+        ]),
+      );
+    }
+  }
+  // Korkuluk (çatı terası çevresi): her kademede görünür; iç yüzde taş başlık.
+  const top = plan.roofY;
+  const rail: Part[] = [
+    box(uw, PARAPET, t, 0, top, -ud / 2 + t / 2, st.wall),
+    box(uw, PARAPET, t, 0, top, ud / 2 - t / 2, st.wall),
+    box(t, PARAPET, ud - 2 * t, -uw / 2 + t / 2, top, 0, st.wall),
+    box(t, PARAPET, ud - 2 * t, uw / 2 - t / 2, top, 0, st.wall),
+    box(uw + 0.1, 0.1, t + 0.1, 0, top + PARAPET, -ud / 2 + t / 2, C.darkStone),
+    box(uw + 0.1, 0.1, t + 0.1, 0, top + PARAPET, ud / 2 - t / 2, C.darkStone),
+    box(t + 0.1, 0.1, ud - 2 * t, -uw / 2 + t / 2, top + PARAPET, 0, C.darkStone),
+    box(t + 0.1, 0.1, ud - 2 * t, uw / 2 - t / 2, top + PARAPET, 0, C.darkStone),
+  ];
+  parts.push(...rail);
+  return parts;
+}
+
 // -- konutlar -------------------------------------------------------------------
 
 /** Oda tablosu (`ROOMS`) kaydı: tanımlı olmalı. */
@@ -781,20 +916,20 @@ function houseParts(random: Random, ruined: boolean): Part[] {
 }
 
 function konakParts(random: Random, ruined: boolean): Part[] {
-  const { w, d, h } = D.konak;
+  const { w, d } = D.konak;
   const r = room('konak');
   const ground = r.room;
-  const upper = 2.6;
-  const over = 0.7; // çıkma
+  const over = r.over ?? 0.7; // çıkma
   if (ruined) {
     return [
       ...ruinedRoom(w, d, ground, r.door, r.doorX, C.stone, random),
       ...containerParts('konak'),
     ];
   }
+  const plan = storeyPlanOf('konak')!;
   const { hw, hd } = innerHalf(w, d);
   const parts: Part[] = [
-    // taş zemin kat (oda) ve çıkmalı ahşap üst kat (bağdadi: badanalı sıva + ahşap dikmeler)
+    // taş zemin kat (oda) ve çıkmalı ahşap üst kat (bağdadi: badanalı sıva + ahşap dikmeler); tavan 1. döşemedir
     ...roomShell({
       w,
       d,
@@ -803,15 +938,19 @@ function konakParts(random: Random, ruined: boolean): Part[] {
       doorX: r.doorX,
       doorH: 2.2,
       wall: C.stone,
-      ceiling: true,
-      ceilingColor: C.woodLight,
+      ceiling: false,
       beams: 4,
     }),
     ...quoins(w, d, ground, C.cutStone),
-    box(w + over, upper, d + over, 0, ground, 0, C.konakWall),
+    ...storeyParts(plan, {
+      wall: C.konakWall,
+      ceiling: C.woodLight,
+      floor: C.plank,
+      step: C.woodLight,
+      deck: C.roofTileDark,
+    }),
     // çıkma altı payandaları (dış kenarda kuşak) ve eğik destekler
     ...band(w + over - 0.1, d + over - 0.1, ground - 0.1, 0.2, C.timber, 0.05),
-    hipRoof(w + over, d + over, h - ground - upper, ground + upper, C.roofTile, 0.75),
     ...windows('front', w, d / 2 + 0.02, [1], 2, [0.6, 0.8], random, 0.4, false, [r.doorX]),
     // üst kat: sık, dikdörtgen pencereler (kafesli görünüm: koyu)
     ...windows(
@@ -843,16 +982,17 @@ function konakParts(random: Random, ruined: boolean): Part[] {
   // Ahşap dikmeler (ön cephe) ve üst kuşak.
   for (let i = 0; i <= 4; i++) {
     const x = -(w + over) / 2 + ((w + over) / 4) * i;
-    parts.push(box(0.12, upper, 0.06, x, ground, (d + over) / 2 + 0.03, C.timber));
+    parts.push(box(0.12, plan.roofY - ground, 0.06, x, ground, (d + over) / 2 + 0.03, C.timber));
   }
-  parts.push(...band(w + over, d + over, ground + upper - 0.12, 0.12, C.timber, 0.03));
+  parts.push(...band(w + over, d + over, plan.roofY - 0.12, 0.12, C.timber, 0.03));
   return parts;
 }
 
 function apartmentParts(random: Random, floors: number): Part[] {
   const { w, d, floorH } = D.apartment;
   const r = room('apartment');
-  const h = floors * floorH;
+  const plan = storeyPlanOf('apartment', floors)!;
+  const h = plan.roofY;
   const { hw, hd } = innerHalf(w, d);
   const parts: Part[] = [
     ...roomShell({
@@ -864,23 +1004,25 @@ function apartmentParts(random: Random, floors: number): Part[] {
       doorH: 2.2,
       wall: C.concrete,
       floor: C.sill,
-      ceilingColor: C.marble,
+      ceiling: false,
     }),
-    // üst katlar (girilmez) ve kat silmeleri
-    box(w, h - r.room, d, 0, r.room, 0, C.concrete),
-    // çatı korkuluğu ve su deposu/güneş paneli (Türkiye'de yaygın)
-    box(w, 0.5, 0.2, 0, h, d / 2 - 0.1, C.concreteDark),
-    box(w, 0.5, 0.2, 0, h, -d / 2 + 0.1, C.concreteDark),
-    box(0.2, 0.5, d, -w / 2 + 0.1, h, 0, C.concreteDark),
-    box(0.2, 0.5, d, w / 2 - 0.1, h, 0, C.concreteDark),
-    cylinder(0.35, 1.4, w * 0.25, h, -d * 0.2, C.tank, 6),
-    box(1.6, 0.08, 1.1, w * 0.25 - 1, h + 0.5, -d * 0.2, C.window),
+    // üst katlar (içi boş kabuk, kat merdivenleri) ve düz çatı terası (korkuluklu)
+    ...storeyParts(plan, {
+      wall: C.concrete,
+      ceiling: C.marble,
+      floor: C.sill,
+      step: C.concreteDark,
+      deck: C.concreteDark,
+    }),
+    // çatı: su deposu ve güneş paneli (Türkiye'de yaygın), merdiven boşluğunun karşı yanında
+    cylinder(0.35, 1.4, -Math.sign(plan.flights[0]!.x) * w * 0.25, h, -d * 0.2, C.tank, 6),
+    box(1.6, 0.08, 1.1, -Math.sign(plan.flights[0]!.x) * w * 0.25 - 1, h + 0.5, -d * 0.2, C.window),
     box(2.4, 0.15, 1.2, 0, 2.4, d / 2 + 0.6, C.concreteDark), // giriş saçağı
     // giriş holü: posta kutuları, bank, paspas
     ...indoor([box(0.12, 0.6, 1.3, hw - 0.08, 1.2, 1.2, C.steel)]),
     ...counter(1.6, 0.4, 0.45, C.woodLight).map((p) => ({
       ...p,
-      geometry: p.geometry.applyMatrix4(new Matrix4().makeTranslation(-1.5, 0, -hd + 0.3)),
+      geometry: p.geometry.applyMatrix4(new Matrix4().makeTranslation(1.5, 0, -hd + 0.3)),
     })),
     ...rug(r.doorX, hd - 0.9, 1.2, 0.8, C.plankDark, C.darkStone),
     ...containerParts('apartment'),
@@ -896,7 +1038,6 @@ function apartmentParts(random: Random, floors: number): Part[] {
   parts.push(...windows('back', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random));
   parts.push(...windows('left', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
   parts.push(...windows('right', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
-  parts.push();
   // Balkonlar (ön cephe, birinci kattan itibaren).
   for (let f = 1; f < floors; f++) {
     const y = f * floorH;
@@ -910,23 +1051,37 @@ function apartmentParts(random: Random, floors: number): Part[] {
 }
 
 function lojmanParts(random: Random, ruined: boolean): Part[] {
-  const { w, d, h } = D.lojman;
+  const { w, d } = D.lojman;
   const r = room('lojman');
-  const wallH = r.top;
   if (ruined) {
     return [
       ...ruinedRoom(w, d, r.room + 0.8, r.door, r.doorX, C.plaster, random),
       ...containerParts('lojman'),
     ];
   }
+  const plan = storeyPlanOf('lojman')!;
   const { hw, hd } = innerHalf(w, d);
   const other = -r.doorX; // ikinci (kapalı) kapı
   return [
-    ...roomShell({ w, d, h: r.room, door: r.door, doorX: r.doorX, doorH: 2.1, wall: C.plaster }),
-    box(w, wallH - r.room, d, 0, r.room, 0, C.plaster),
+    ...roomShell({
+      w,
+      d,
+      h: r.room,
+      door: r.door,
+      doorX: r.doorX,
+      doorH: 2.1,
+      wall: C.plaster,
+      ceiling: false,
+    }),
+    ...storeyParts(plan, {
+      wall: C.plaster,
+      ceiling: C.ceiling,
+      floor: C.plank,
+      step: C.woodLight,
+      deck: C.darkStone,
+    }),
     ...band(w, d, 0, 0.3, C.darkStone, 0.03),
     ...band(w, d, r.room - 0.06, 0.14, C.brick, 0.03),
-    gableRoof(w, d, h - wallH, wallH, C.roofTile),
     door(1, 2, d / 2 + 0.02, other),
     ...doorFrame(1, 2, d / 2 + 0.03, other),
     ...windows('front', w, d / 2 + 0.02, [0.9, 3.4], 6, [0.8, 1], random, 0.3, false, [
@@ -934,8 +1089,9 @@ function lojmanParts(random: Random, ruined: boolean): Part[] {
       other,
     ]),
     ...windows('back', w, d / 2 + 0.02, [0.9, 3.4], 6, [0.8, 1], random),
-    box(0.5, 1.3, 0.5, -w * 0.3, wallH + 0.5, 0, C.brick),
-    box(0.5, 1.3, 0.5, w * 0.3, wallH + 0.5, 0, C.brick),
+    // çatı terasındaki bacalar (arka korkuluğa bitişik)
+    box(0.5, 1.3, 0.5, -w * 0.3, plan.roofY, -hd + 0.4, C.brick),
+    box(0.5, 1.3, 0.5, w * 0.3, plan.roofY, -hd + 0.4, C.brick),
     // iç: soba, ranza (kerevet), masa
     ...indoor([
       cylinder(0.3, 0.9, 1.2, 0, -hd + 0.6, C.steel, 8),
@@ -1093,9 +1249,10 @@ function pediment(depth: number): Part {
 }
 
 function governmentParts(random: Random): Part[] {
-  const { w, d, h } = D.government;
+  const { w, d } = D.government;
   const r = room('government');
-  const wallH = r.top;
+  const plan = storeyPlanOf('government')!;
+  const wallH = plan.roofY;
   const { hd } = innerHalf(w, d);
   const parts: Part[] = [
     ...roomShell({
@@ -1107,12 +1264,18 @@ function governmentParts(random: Random): Part[] {
       doorH: 2.6,
       wall: C.cutStone,
       floor: C.marble,
+      ceiling: false,
     }),
     ...quoins(w, d, wallH, C.darkStone),
-    box(w, wallH - r.room, d, 0, r.room, 0, C.cutStone),
+    ...storeyParts(plan, {
+      wall: C.cutStone,
+      ceiling: C.marble,
+      floor: C.marble,
+      step: C.cutStone,
+      deck: C.darkStone,
+    }),
     ...band(w, d, r.room - 0.05, 0.3, C.darkStone, 0.1),
     ...band(w, d, wallH - 0.3, 0.3, C.darkStone, 0.1),
-    hipRoof(w, d, h - wallH, wallH, C.roofTileDark, 0.5),
     // giriş: dört sütunlu revak, üstünde levha ve üçgen alınlık
     box(4.6, 0.25, 1.6, 0, 3.35, d / 2 + 0.8, C.cutStone),
     pediment(d),
@@ -2000,6 +2163,9 @@ export function farGenericSpec(
               : C.whitewash;
   const flat = [
     'apartment',
+    'konak',
+    'lojman',
+    'government',
     'factory',
     'castle',
     'cemetery',

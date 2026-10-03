@@ -218,7 +218,7 @@ import { DroneLayer } from '../world/DroneLayer';
 import { DroneHud } from '../ui/DroneHud';
 import { batteryPercent } from '../ui/droneFormat';
 import { rayTerrain } from '../combat/ranged';
-import { BUILDING_NAMES, BUILDING_SHAPES } from '../settlements/kinds';
+import { BUILDING_NAMES, BUILDING_SHAPES, indoorCeiling, shapeVariant } from '../settlements/kinds';
 import type { BuildingInterior } from '../settlements/SettlementMap';
 import { CREATURE_NAMES } from '../combat/promptText';
 import { CampColliders } from '../world/CampColliders';
@@ -1290,7 +1290,12 @@ export class Game {
     this.interior = interior;
     this.playerCamera.setIndoor(
       interior
-        ? BUILDING_SHAPES[interior.building.kind].roomHeight - (feet.y - interior.building.y)
+        ? indoorCeiling(
+            interior.building.kind,
+            interior.building.floors,
+            interior.building.ruined,
+            feet.y - interior.building.y,
+          )
         : null,
     );
     if (interior && this.exposure.shelter !== 'hut') {
@@ -3221,7 +3226,7 @@ export class Game {
         solidAt: settlements
           ? (x, y, z) => {
               const b = settlements.buildingAt(x, z);
-              return b !== null && y < b.y + BUILDING_SHAPES[b.kind].height;
+              return b !== null && y < b.y + shapeVariant(b.kind, b.floors, b.ruined).height;
             }
           : undefined,
       },
@@ -3480,7 +3485,7 @@ export class Game {
       }
     }
     for (const b of this.world.settlementMap?.buildingsNear(s.x, s.z, range) ?? []) {
-      const shape = BUILDING_SHAPES[b.kind];
+      const shape = shapeVariant(b.kind, b.floors, b.ruined);
       candidates.push({
         x: b.x,
         y: b.y + shape.height / 2,
