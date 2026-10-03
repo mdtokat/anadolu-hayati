@@ -2958,6 +2958,138 @@ export const GANGS = {
   seed: 0x6a9c5e,
 } as const;
 
+/**
+ * Savaş efektleri (`world/CombatEffects.ts`; kullanıcı talimatı: "ateş etme ve yakın dövüş efektleri ayırt edilsin, ateş
+ * edildiği anlaşılsın"). Ateşli silah: ağız alevi + kıvılcım + duman; yakın dövüş: savurma yayı/saplama çizgisi + darbe
+ * kıvılcımı. Boyutlar oyun metresidir; renkler 0xRRGGBB. Hepsi ışıksızdır (ışık sayısı sabit kalır).
+ */
+export const COMBAT_FX = {
+  /** Eşkıya atış/savurma efektlerinin ve seslerinin gösterildiği en uzak mesafe (oyun m). */
+  banditRadius: 320,
+  /** Parçacık havuzu kapasiteleri (alev/kıvılcım ve duman) ve yay/çizgi havuzu. */
+  flashCapacity: 96,
+  smokeCapacity: 96,
+  arcPool: 6,
+  streakPool: 3,
+  /** Savurma "vınlaması" sesi (Web Audio): tepe seviye, süzgeç frekansının başı/sonu (Hz) ve süre (sn). */
+  swingSound: {
+    slash: { gain: 0.3, from: 1000, to: 3200, seconds: 0.17 },
+    chop: { gain: 0.3, from: 700, to: 2000, seconds: 0.2 },
+    smash: { gain: 0.35, from: 400, to: 1300, seconds: 0.26 },
+    thrust: { gain: 0.26, from: 1600, to: 4200, seconds: 0.12 },
+    punch: { gain: 0.16, from: 500, to: 1200, seconds: 0.1 },
+  },
+  /** Ağız alevi ve duman ömrü (sn). */
+  flashSeconds: 0.07,
+  smokeSeconds: 1.1,
+  /** Ateşli silah profilleri: alev boyu, kıvılcım sayısı/hızı, duman sayısı/boyu. */
+  muzzle: {
+    pistol: { flashSize: 0.55, sparks: 4, sparkSpeed: 7, smoke: 2, smokeSize: 0.55 },
+    shotgun: { flashSize: 1.1, sparks: 8, sparkSpeed: 10, smoke: 4, smokeSize: 0.95 },
+    rifle: { flashSize: 0.8, sparks: 6, sparkSpeed: 9, smoke: 3, smokeSize: 0.7 },
+    sniper_rifle: { flashSize: 1.0, sparks: 6, sparkSpeed: 11, smoke: 4, smokeSize: 0.8 },
+  },
+  /**
+   * Savurma görünümü (biçime göre): saldırganın önüne `distance`, yayın dönüş aralığı `rot0 → rot1` (rad), boyut
+   * `scale0 → scale1`, `seconds` ömür, renk/saydamlık, `dark` normal karışım (koyu sopa darbesi), isabet kıvılcımları.
+   */
+  swing: {
+    slash: {
+      distance: 1.1,
+      color: 0xe8f0ff,
+      dark: false,
+      opacity: 0.85,
+      seconds: 0.22,
+      rot0: 0.2,
+      rot1: 1.5,
+      scale0: 0.45,
+      scale1: 0.6,
+      sparks: 5,
+      sparkColor: 0xffe0a0,
+      dust: false,
+    },
+    chop: {
+      distance: 1.1,
+      color: 0xdfe6ee,
+      dark: false,
+      opacity: 0.8,
+      seconds: 0.24,
+      rot0: 1.0,
+      rot1: 2.4,
+      scale0: 0.4,
+      scale1: 0.55,
+      sparks: 4,
+      sparkColor: 0xd8d0c0,
+      dust: true,
+    },
+    smash: {
+      distance: 1.15,
+      color: 0x8a6a48,
+      dark: true,
+      opacity: 0.7,
+      seconds: 0.3,
+      rot0: 0.6,
+      rot1: 2.2,
+      scale0: 0.5,
+      scale1: 0.75,
+      sparks: 3,
+      sparkColor: 0xc8a070,
+      dust: true,
+    },
+    thrust: {
+      distance: 1.1,
+      color: 0xf0f6ff,
+      dark: false,
+      opacity: 0.8,
+      seconds: 0.18,
+      rot0: 0,
+      rot1: 0,
+      scale0: 0.4,
+      scale1: 1.4,
+      sparks: 3,
+      sparkColor: 0xffe0a0,
+      dust: false,
+    },
+    punch: {
+      distance: 0.9,
+      color: 0xffffff,
+      dark: false,
+      opacity: 0.45,
+      seconds: 0.12,
+      rot0: 0.4,
+      rot1: 1.2,
+      scale0: 0.2,
+      scale1: 0.3,
+      sparks: 2,
+      sparkColor: 0xffffff,
+      dust: true,
+    },
+  },
+} as const;
+
+/**
+ * Eldeki eşya görünümü (`player/HeldItem.ts`; kullanıcı talimatı: "ele alınan eşyalar, silahlar elde de görünsün").
+ * Birinci şahıs görünümü kameranın sağ altında; üçüncü şahıs modelinde sağ elde. Ölçüler oyun metresidir (kamera
+ * uzayı: +x sağ, +y yukarı, −z ileri).
+ */
+export const HELD_ITEM = {
+  /** Birinci şahıs: tutuş noktasının kameraya göre konumu. */
+  firstPerson: { x: 0.24, y: -0.23, z: -0.55 },
+  /** Yürürken sallanma (genlik oyun m, hız rad/oyun m) ve nişanda (dürbüne bakarken) görünümü gizleme eşiği. */
+  bobAmplitude: 0.012,
+  bobRate: 5.2,
+  hideAimFraction: 0.35,
+  /** Savurma ve tepme süreleri (sn). */
+  swingSeconds: 0.28,
+  recoilSeconds: 0.16,
+  /** Tepme: geri çekilme (oyun m) ve yukarı kalkma (rad). */
+  recoilBack: 0.06,
+  recoilPitch: 0.14,
+  /** Üçüncü şahıs: omuz konumu (oyuncu merkezine göre), kol uzunluğu (oyun m). */
+  shoulder: { x: 0.42, y: 1.42 },
+  armLength: 0.5,
+} as const;
+
 /** ── Faz 11: E (11.7) ── Yankesiciler (il/ilçe merkezlerinde): nadir; yaklaşıp bir eşya çalıp kaçar. */
 export const PICKPOCKETS = {
   /** Doğma denemesi aralığı (gerçek sn) ve il/ilçe merkezinde olasılığı; doğma uzaklığı (oyun m). */

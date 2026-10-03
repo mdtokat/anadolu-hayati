@@ -129,6 +129,23 @@ export interface GameEvents {
   'glass:broken': { ids: number[]; x: number; y: number; z: number };
 
   // ── Faz 11: E (11.6/11.7 eşkıya ve yankesici; bu bölüme yalnızca E ekler) ──
+  /**
+   * Bir eşkıya/çete üyesi ateşli silahla ateş etti (görsel ve ses için): ağız noktası, namlu yönü (normalize) ve her
+   * tanenin yolu (`path`, `time`; iz çizimi). Gürültü ayrıca `noise:made` ile yayınlanır.
+   */
+  'bandit:fired': {
+    id: number;
+    weapon: ItemId;
+    x: number;
+    y: number;
+    z: number;
+    dx: number;
+    dy: number;
+    dz: number;
+    shots: Array<{ path?: Array<{ x: number; y: number; z: number }>; time?: number }>;
+  };
+  /** Bir eşkıya yakın dövüş silahını savurdu (görsel ve ses için): konum (ayak) ve bakış yönü (yaw). */
+  'bandit:swung': { id: number; weapon: ItemId; x: number; y: number; z: number; yaw: number };
   /** Bir eşkıya oyuncuyu fark edip saldırıya geçti (çatışma başına bir kez). */
   'bandit:noticed': { id: number; name: string; gang?: boolean };
   /** Şehirde iki rakip sokak çetesi çatışmaya başladı (`site`: yerleşim adı; gün ve yer başına bir kez). */

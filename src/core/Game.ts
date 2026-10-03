@@ -7,7 +7,7 @@ import {
   type WeatherState,
 } from '../survival/weather';
 import { isBackpack } from '../items/backpack';
-import { PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
+import { PerspectiveCamera, PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
 import {
   BANDITS,
   GANGS,
@@ -17,6 +17,7 @@ import {
   PEOPLE,
   AMBIENT,
   CLOCK,
+  COMBAT_FX,
   DISMANTLE,
   DRYING,
   ECONOMY,
@@ -159,6 +160,9 @@ import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { StoragePanel } from '../ui/StoragePanel';
+import { HeldItem } from '../player/HeldItem';
+import { isFirearm, swingStyle } from '../player/heldKinds';
+import { CombatEffects } from '../world/CombatEffects';
 import { LootPanel } from '../ui/LootPanel';
 import { takeAllStacks, takeStack } from '../items/lootTransfer';
 import { heldLabel, hotbarSignature, hotbarViews, unusableHotbarText } from '../ui/hotbarView';
@@ -237,7 +241,13 @@ import { walkBoxBlocks, yawBox, type WalkBox } from '../world/walkSolids';
 import { darknessOf } from '../creatures/perception';
 import type { ItemStack } from '../items/Inventory';
 import type { PersonRole } from '../people/roles';
-import { WEAPON_IDS, WeaponState, canSuppress, isWeaponId } from '../items/weaponState';
+import {
+  WEAPON_IDS,
+  WeaponState,
+  canSuppress,
+  isWeaponId,
+  type WeaponId,
+} from '../items/weaponState';
 import { resolveContextAction } from './inputMapping';
 // ── Faz 11: D (11.5 silahlar) ──
 import { CAMERA, STREAMING } from '../config';
@@ -468,6 +478,10 @@ export class Game {
   private readonly player: Player;
   private readonly playerCamera: PlayerCamera;
   private readonly playerModel = new PlayerModel();
+  /** Eldeki eşyanın görünümü (birinci şahıs viewmodel + üçüncü şahıs eli) ve savaş efektleri (ağız alevi, savurma izi). */
+  private readonly heldItem = new HeldItem(this.playerModel);
+  private readonly effects = new CombatEffects();
+  private lastHeldNow = 0;
   /** Performans ölçümü (kare süreleri, bölümler, takılma dökümü) ve göstergesi (`F3`). */
   private readonly perf = new PerfStats();
   private readonly perfOverlay: PerfOverlay;
@@ -585,6 +599,8 @@ export class Game {
     this.playerCamera = new PlayerCamera(this.events, world.terrain);
     if (world instanceof RegionWorld) this.playerCamera.setLook(PILOT_START_YAW, 0);
     this.world.scene.add(this.playerModel.object);
+    this.world.scene.add(this.heldItem.viewRoot);
+    this.world.scene.add(this.effects.group);
     this.structureLayer = new StructureLayer(this.structureSystem.structures);
     this.world.scene.add(this.structureLayer.group);
     this.structureColliders = new StructureColliders(this.physics, this.structureSystem.structures);
@@ -1143,6 +1159,8 @@ export class Game {
     document.removeEventListener('keydown', this.onDevKey);
     for (const off of this.offs) off();
     this.input.dispose();
+    this.heldItem.dispose();
+    this.effects.dispose();
     this.playerModel.dispose();
     this.player.dispose();
     this.structureLayer.dispose();
@@ -2241,6 +2259,7 @@ export class Game {
     this.drawStations(now / 1000, feet);
     this.drawFarming(now / 1000, feet);
     this.drawRanged(now / 1000, feet);
+    this.drawHeld(now, alpha);
     this.drawBandits(now / 1000, feet);
     this.drawDrone(now / 1000, feet);
 
@@ -2656,7 +2675,83 @@ export class Game {
     const result = this.combat.attack(this.meleeAim());
     if (result.status === 'exhausted') this.hud.notify('Çok yorgunsun', INTERACT.toastMs);
     // Faz 11 (E): canlıya isabet etmeyen salınış eşkıyaya/yankesiciye vurabilir.
-    if (result.status === 'miss' && result.weapon !== null) this.meleeBandits(result.weapon);
+    let hit = result.status === 'hit';
+    if (result.status === 'miss' && result.weapon !== null) hit = this.meleeBandits(result.weapon);
+    if ((result.status === 'hit' || result.status === 'miss') && result.weapon !== null) {
+      this.showSwing(result.weapon, hit);
+    }
+  }
+
+  /** Elde gösterilecek eşya: kısayoldaki (envanterde varsa); el boşsa vuruşta kullanılacak yakın silah. */
+  private heldDisplayItem(): ItemId | null {
+    const selected = this.hotbar.selectedItem;
+    if (selected !== null && this.inventory.has(selected)) return selected;
+    const weapon = this.combat.weapon;
+    return weapon === 'fist' ? null : (weapon as ItemId);
+  }
+
+  /** Her çizim karesinde: eldeki eşyayı ve savaş efektlerini günceller. */
+  private drawHeld(nowMs: number, alpha: number): void {
+    const dt = this.lastHeldNow > 0 ? Math.min((nowMs - this.lastHeldNow) / 1000, 0.1) : 0;
+    this.lastHeldNow = nowMs;
+    const alive = this.survival.alive;
+    this.heldItem.setItem(alive ? this.heldDisplayItem() : null);
+    const v = this.player.currentVelocity;
+    const ranged = this.ranged.weapon;
+    this.heldItem.update(dt, this.playerCamera.camera, {
+      firstPerson: this.playerCamera.viewFirstPerson,
+      speed: this.overlayOpen || this.loop.paused ? 0 : Math.hypot(v.x, v.z),
+      aim: ranged ? this.ranged.aimFractionAt(alpha) : 0,
+      visible: alive,
+    });
+    const camera = this.activeCamera();
+    const fov = camera instanceof PerspectiveCamera ? (camera.fov * Math.PI) / 180 : 1.2;
+    const height = this.renderer.domElement.height;
+    this.effects.update(dt, height / (2 * Math.tan(fov / 2)));
+  }
+
+  /** Oyuncunun atışı: tepme ve (ateşli silahta) ağız alevi + duman. */
+  private showShot(weapon: string, suppressed: boolean): void {
+    this.heldItem.recoil();
+    if (!isFirearm(weapon as ItemId)) return;
+    const yaw = this.playerCamera.yaw;
+    const pitch = this.playerCamera.pitch;
+    const dir = {
+      x: -Math.sin(yaw) * Math.cos(pitch),
+      y: Math.sin(pitch),
+      z: -Math.cos(yaw) * Math.cos(pitch),
+    };
+    const muzzle = this.heldItem.muzzleWorld();
+    const feet = this.player.position;
+    const eye = { x: feet.x, y: feet.y + PLAYER.eyeHeight, z: feet.z };
+    const origin = muzzle
+      ? { x: muzzle.point.x, y: muzzle.point.y, z: muzzle.point.z }
+      : { x: eye.x + dir.x * 0.6, y: eye.y - 0.2 + dir.y * 0.6, z: eye.z + dir.z * 0.6 };
+    this.effects.muzzle(weapon, origin, dir, suppressed, muzzle?.firstPerson === false ? 1 : 0.4);
+  }
+
+  /** Oyuncunun yakın dövüş savurması: eldeki eşya savrulur, iz ve vınlama; isabette kıvılcım. */
+  private showSwing(weapon: string, hit: boolean): void {
+    const style = swingStyle(weapon as ItemId | 'fist');
+    this.heldItem.swing(style);
+    const yaw = this.playerCamera.yaw;
+    const pitch = this.playerCamera.pitch;
+    const feet = this.player.position;
+    const eyeY = feet.y + PLAYER.eyeHeight - 0.25;
+    this.effects.swing(style, { x: feet.x, y: eyeY, z: feet.z }, yaw, pitch);
+    this.gunAudio?.swing(style, 0);
+    if (hit) {
+      const reach = COMBAT.weapons[weapon as keyof typeof COMBAT.weapons]?.reach ?? 1.5;
+      const d = reach * 0.8;
+      this.effects.impact(
+        {
+          x: feet.x - Math.sin(yaw) * d,
+          y: eyeY + Math.sin(pitch) * d,
+          z: feet.z - Math.cos(yaw) * d,
+        },
+        style,
+      );
+    }
   }
 
   /** Yerleştirmeyi onaylar; engel varsa nedenini söyler. */
@@ -2944,6 +3039,7 @@ export class Game {
       },
     );
     if (result.status === 'fired' && result.weapon) {
+      this.showShot(result.weapon, result.suppressed);
       this.playerCamera.kick(result.recoil);
       this.tracers?.add(result.weapon, result.shots, performance.now() / 1000);
       this.gunAudio?.play(result.weapon, 0, result.suppressed);
@@ -3074,6 +3170,8 @@ export class Game {
           items.length > 0 ? `Eşkıyanın üstünden: ${names(items)}` : 'Üstünden bir şey çıkmadı',
         ),
       ),
+      this.events.on('bandit:fired', (e) => this.onBanditFired(e)),
+      this.events.on('bandit:swung', (e) => this.onBanditSwung(e)),
       this.events.on('camp:cleared', () =>
         this.hud.showBanner('Eşkıya kampı temizlendi', PROVINCE_NOTICE.bannerMs),
       ),
@@ -3179,6 +3277,32 @@ export class Game {
         layout: bandits.layoutOf(camp.id)!,
       })),
     );
+  }
+
+  /** Bir eşkıya ateş etti: ağız alevi, duman, mermi izi ve (uzaklıkla kısılan) silah sesi. */
+  private onBanditFired(e: GameEvents['bandit:fired']): void {
+    const feet = this.player.position;
+    const distance = Math.hypot(e.x - feet.x, e.z - feet.z);
+    if (distance > COMBAT_FX.banditRadius) return;
+    const weapon = e.weapon as WeaponId;
+    const origin = {
+      x: e.x + e.dx * 0.6,
+      y: e.y - 0.25 + e.dy * 0.6,
+      z: e.z + e.dz * 0.6,
+    };
+    this.effects.muzzle(weapon, origin, { x: e.dx, y: e.dy, z: e.dz });
+    this.tracers?.add(weapon, e.shots, performance.now() / 1000);
+    this.gunAudio?.play(weapon, distance, false);
+  }
+
+  /** Bir eşkıya yakın dövüş silahını savurdu: savurma izi ve vınlama. */
+  private onBanditSwung(e: GameEvents['bandit:swung']): void {
+    const feet = this.player.position;
+    const distance = Math.hypot(e.x - feet.x, e.z - feet.z);
+    if (distance > COMBAT_FX.banditRadius) return;
+    const style = swingStyle(e.weapon);
+    this.effects.swing(style, { x: e.x, y: e.y + 1.15, z: e.z }, e.yaw, 0);
+    this.gunAudio?.swing(style, distance);
   }
 
   /** Yanık (temizlenmemiş) kamp ateşleri: ışık havuzu ve canlıların ateşten çekinmesi için (kimlik negatif). */
@@ -3295,9 +3419,9 @@ export class Game {
   }
 
   /** Canlıya isabet etmeyen yakın dövüş salınışı: bakılan eşkıya/yankesiciye vurur (`COMBAT.weapons` hasarı). */
-  private meleeBandits(weapon: string): void {
+  private meleeBandits(weapon: string): boolean {
     const stats = COMBAT.weapons[weapon as keyof typeof COMBAT.weapons];
-    if (!stats || !this.bandits || !this.banditsEnabled) return;
+    if (!stats || !this.bandits || !this.banditsEnabled) return false;
     const aim = this.meleeAim();
     const fx = -Math.sin(aim.yaw);
     const fz = -Math.cos(aim.yaw);
@@ -3324,6 +3448,7 @@ export class Game {
         weapon,
       });
     }
+    return best !== null;
   }
 
   /** Teslim olan eşkıyayla konuşma: bağışla (silahını bırakır, kaçar), kampı sor, sus. Oyun panel açıkken donar. */

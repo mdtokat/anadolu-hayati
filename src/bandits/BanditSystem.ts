@@ -498,8 +498,19 @@ export class BanditSystem implements TargetProvider {
     if (m.brain.state === 'dead') return;
     const senses = this.sensesFor(m, ctx);
     m.noise = null;
+    const struckBefore = m.brain.struck;
     const result = stepBandit(m.brain, senses, dt, m.rng);
     m.brain = result.next;
+    if (result.next.struck && !struckBefore && result.next.state === 'attack') {
+      this.events.emit('bandit:swung', {
+        id: m.id,
+        weapon: result.next.weapon,
+        x: result.next.x,
+        y: m.y,
+        z: result.next.z,
+        yaw: result.next.yaw,
+      });
+    }
     for (const action of result.actions) this.act(m, action, ctx);
     this.watchDrone(m, dt, ctx);
     this.move(m, result.intent, dt, ctx.obstacles ?? NO_OBSTACLES);
@@ -726,6 +737,8 @@ export class BanditSystem implements TargetProvider {
           );
         }),
     };
+    const shots: Array<{ path?: Array<{ x: number; y: number; z: number }>; time?: number }> = [];
+    let aim = { x: Math.cos(baseYaw), y: Math.sin(basePitch), z: Math.sin(baseYaw) };
     for (let i = 0; i < spec.pellets; i++) {
       const yaw = baseYaw + ((m.rng.next() * 2 - 1) * errorDeg * Math.PI) / 180;
       const pitch = basePitch + ((m.rng.next() * 2 - 1) * errorDeg * Math.PI) / 180;
@@ -740,7 +753,20 @@ export class BanditSystem implements TargetProvider {
         solids: ctx.solids,
       });
       if (shot.hit) ctx.targets.applyHit(shot.hit.id, spec.damage * BANDITS.damageScale, from);
+      shots.push({ path: shot.path, time: shot.time });
+      if (i === 0) aim = dir;
     }
+    this.events.emit('bandit:fired', {
+      id: m.id,
+      weapon,
+      x: origin.x,
+      y: origin.y,
+      z: origin.z,
+      dx: aim.x,
+      dy: aim.y,
+      dz: aim.z,
+      shots,
+    });
     this.events.emit('noise:made', {
       x: b.x,
       z: b.z,

@@ -1,4 +1,5 @@
-import { GLASS, RANGED } from '../config';
+import { COMBAT_FX, GLASS, RANGED } from '../config';
+import type { SwingStyle } from '../player/heldKinds';
 import type { WeaponId } from '../items/weaponState';
 import type { SettingsStore } from '../settings/SettingsStore';
 import type { AudioContextFactory } from './AmbientAudio';
@@ -85,6 +86,41 @@ export class GunshotAudio {
         this.tone(ctx, out, 'sine', profile.thumpHz, 0.8, profile.decay * 0.6, t);
       if (profile.twangHz > 0)
         this.tone(ctx, out, 'triangle', profile.twangHz, 0.6, profile.decay, t);
+      source.onended = () => out.disconnect();
+    } catch (error) {
+      this.disable(error);
+    }
+  }
+
+  /**
+   * Yakın dövüş savurma "vınlaması": bant geçiren gürültünün frekansı süre boyunca yükselir (kesici tiz, sopa boğuk).
+   * Ateş sesinden ayırt edilir: patlama/gümleme yok. `distance` dinleyiciye uzaklık (oyun m).
+   */
+  swing(style: SwingStyle, distance = 0): void {
+    const s = COMBAT_FX.swingSound[style];
+    const gain = shotGain(this.settings.current.volume, s.gain, distance);
+    if (gain <= 0) return;
+    const ctx = this.context();
+    if (!ctx) return;
+    try {
+      const t = ctx.currentTime + 0.005;
+      const out = ctx.createGain();
+      out.gain.value = gain;
+      out.connect(ctx.destination);
+      const source = ctx.createBufferSource();
+      source.buffer = this.noiseBuffer(ctx);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = 1.4;
+      filter.frequency.setValueAtTime(s.from, t);
+      filter.frequency.exponentialRampToValueAtTime(s.to, t + s.seconds);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(1, t + s.seconds * 0.45);
+      env.gain.exponentialRampToValueAtTime(0.001, t + s.seconds);
+      source.connect(filter).connect(env).connect(out);
+      source.start(t);
+      source.stop(t + s.seconds + 0.05);
       source.onended = () => out.disconnect();
     } catch (error) {
       this.disable(error);

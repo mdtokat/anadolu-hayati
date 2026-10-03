@@ -37,6 +37,8 @@ function setup(camps: Camp[] = [camp()]) {
     'bandit:surrendered',
     'bandit:spared',
     'bandit:searched',
+    'bandit:fired',
+    'bandit:swung',
     'camp:cleared',
     'camp:looted',
     'noise:made',
@@ -130,6 +132,18 @@ describe('BanditSystem: savaş', () => {
     expect(playerDamage.length).toBeGreaterThan(0);
     expect(log.some((e) => e.name === 'bandit:noticed')).toBe(true);
     expect(log.some((e) => e.name === 'noise:made')).toBe(true);
+    // Ateş görsel/ses için duyurulur: ağız noktası, yön ve mermi yolları.
+    const fired = log.find((e) => e.name === 'bandit:fired')?.payload as {
+      weapon: string;
+      shots: unknown[];
+      dx: number;
+      dy: number;
+      dz: number;
+    };
+    expect(fired).toBeDefined();
+    expect(['pistol', 'shotgun', 'rifle', 'sniper_rifle']).toContain(fired.weapon);
+    expect(fired.shots.length).toBeGreaterThan(0);
+    expect(Math.hypot(fired.dx, fired.dy, fired.dz)).toBeCloseTo(1, 3);
     expect(
       system
         .views()
@@ -153,12 +167,15 @@ describe('BanditSystem: savaş', () => {
   });
 
   it('pala taşıyan serbest eşkıya kovalar ve yakın vurur', () => {
-    const { system, run, player, playerDamage } = setup([]);
+    const { system, run, player, playerDamage, log } = setup([]);
     player.z = 0;
     player.x = 0;
     system.spawnAt(0, -12, 'pala');
     run(8);
     expect(playerDamage.some((d) => d === BANDITS.melee.pala.damage)).toBe(true);
+    // Savurma duyurulur (savurma izi ve vınlama için) ve ateş olayı yoktur.
+    expect(log.some((e) => e.name === 'bandit:swung')).toBe(true);
+    expect(log.some((e) => e.name === 'bandit:fired')).toBe(false);
   });
 
   it('oyuncu ve eşkıya isabetleri: hedef sağlayıcısı vurulan eşkıyaya hasar verir', () => {
