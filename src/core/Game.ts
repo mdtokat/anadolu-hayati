@@ -89,6 +89,7 @@ import type {
 } from '../creatures/kinds';
 import { playerWeakness } from '../creatures/perception';
 import { loadWorld } from '../data/world';
+import { loadWorldStream } from '../data/worldStreamLoader';
 import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
 import { collectedToast, gatherPrompt } from '../interaction/promptText';
@@ -237,7 +238,7 @@ import type { PersonRole } from '../people/roles';
 import { WEAPON_IDS, WeaponState, canSuppress, isWeaponId } from '../items/weaponState';
 import { resolveContextAction } from './inputMapping';
 // ── Faz 11: D (11.5 silahlar) ──
-import { CAMERA } from '../config';
+import { CAMERA, STREAMING } from '../config';
 import { RangedSystem, aimCamera, type FireResult } from '../combat/RangedSystem';
 import { ammoOf } from '../combat/ammo';
 import type { PaneQuery, SolidQuery } from '../combat/ballistics';
@@ -336,6 +337,17 @@ const PREY_KINDS: ReadonlySet<CreatureKind> = new Set([
   'hare',
   'pheasant',
 ]);
+
+/** Dünya verisi: akışlı (bake edilmiş) dünya varsa o, yoksa ya da bozuksa tüm dünyayı belleğe alan eski yol. */
+async function loadRegionData() {
+  try {
+    const streamed = await loadWorldStream(WORLD.id);
+    if (streamed) return streamed;
+  } catch (error) {
+    console.warn('Akışlı dünya yüklenemedi; tam bellek yoluna dönülüyor.', error);
+  }
+  return loadWorld(WORLD.id);
+}
 
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
 export class Game {
@@ -806,7 +818,7 @@ export class Game {
   static async create(container: HTMLElement, options: GameOptions = {}): Promise<Game> {
     const kind = options.world ?? 'region';
     const [region] = await Promise.all([
-      kind === 'region' ? loadWorld(WORLD.id) : null,
+      kind === 'region' ? loadRegionData() : null,
       initPhysics(),
     ]);
 
@@ -815,6 +827,11 @@ export class Game {
       region !== null
         ? new RegionWorld(region, physics)
         : new TestScene(physics, new ProceduralHeightSource());
+    // Karo akışı (Faz 12): başlangıç çevresinin karoları inip etkinleşmeden oyun kurulmaz.
+    if (world instanceof RegionWorld) {
+      await world.preload(world.spawn.x, world.spawn.z);
+      world.spawn = world.settlePoint(world.spawn);
+    }
     return new Game(container, physics, world, options.creatureDemo === true, options.settings);
   }
 
@@ -909,6 +926,7 @@ export class Game {
     if (!target) return false;
     this.world.prepare(target.x, target.z);
     this.player.teleport(target);
+    this.settlePending = true;
     return true;
   }
 
@@ -989,6 +1007,7 @@ export class Game {
           city?.yaw ?? PILOT_START_YAW,
         ),
       );
+      this.settlePending = true;
       if (city) console.info(`Başlangıç: ${city.name}`);
       this.autosaver.reset();
       this.hintTracker.reset();
@@ -1146,8 +1165,39 @@ export class Game {
     this.events.emit(paused ? 'game:paused' : 'game:resumed', undefined);
   }
 
+  /** Karo akışı: oyuncunun altındaki zemin yüklenene kadar oyun ilerlemez (yükleme hızlanır, ipucu gösterilir). */
+  private worldWaiting = false;
+  /** Işınlanma/doğma yaklaşık (genel bakıştan bulunmuş) bir noktaya yapıldı: karolar gelince gerçek zemine oturt. */
+  private settlePending = false;
+
+  private worldReady(): boolean {
+    const world = this.world;
+    if (!world.isReadyAt) return true;
+    const feet = this.player.position;
+    if (!world.isReadyAt(feet.x, feet.z)) {
+      if (!this.worldWaiting) {
+        this.worldWaiting = true;
+        this.hud.setPrompt('Harita yükleniyor…');
+      }
+      if (world instanceof RegionWorld) world.frameBudgetMs = STREAMING.tiles.loadingBudgetMs;
+      return false;
+    }
+    if (this.worldWaiting || this.settlePending) {
+      if (world instanceof RegionWorld) world.frameBudgetMs = STREAMING.frameBudgetMs;
+      if (this.worldWaiting) this.hud.setPrompt(null);
+      this.worldWaiting = false;
+      if (this.settlePending && world.settlePoint) {
+        this.player.teleport(world.settlePoint({ x: feet.x, y: feet.y, z: feet.z }));
+      }
+      this.settlePending = false;
+      world.prepare(this.player.position.x, this.player.position.z); // yeni zeminde collider'lar hazır olsun
+    }
+    return true;
+  }
+
   private update(step: number): void {
     if (!this.survival.alive) return; // ölü: oyun donar, ölüm ekranı gösterilir
+    if (!this.worldReady()) return; // karo akışı: oyuncunun altındaki zemin henüz yüklenmedi
     this.autosaver.update(step);
     this.structureColliders.sync(); // yeni/sökülen katı yapılar oyuncu hareketinden önce
 
@@ -2087,6 +2137,7 @@ export class Game {
     if (point) {
       this.world.prepare(point.x, point.z);
       this.player.teleport(point);
+      this.settlePending = true;
     } else {
       this.player.respawn();
     }

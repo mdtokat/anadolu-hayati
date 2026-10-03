@@ -346,6 +346,8 @@ export const STREAMING = {
     maxResident: 25,
     maxFetches: 4,
     readyRadius: 220,
+    /** Oyuncunun altındaki karo hazır değilken (yükleme ekranı) kare bütçesi (ms): yükleme hızlansın. */
+    loadingBudgetMs: 14,
   },
 } as const;
 
