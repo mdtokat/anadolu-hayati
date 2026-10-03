@@ -23,14 +23,16 @@ export const GUNEY: PlaceGroup = {
     Kırıkkale: [
       { name: 'Kırıkkale merkez', lat: 39.8468, lon: 33.5153 },
       { name: 'Yahşihan', lat: 39.8517, lon: 33.4511 },
-      { name: 'Keskin', lat: 39.6761, lon: 33.6119 },
+      { name: 'Keskin Göleti', lat: 39.6385, lon: 33.6745 },
       { name: 'Delice', lat: 39.9597, lon: 34.0267 },
       { name: 'Sulakyurt', lat: 40.1675, lon: 33.7167 },
       { name: 'Bahşılı', lat: 39.9244, lon: 33.4781 },
       { name: 'Balışeyh', lat: 39.8969, lon: 33.7083 },
       { name: 'Çelebi', lat: 39.9833, lon: 33.5167 },
-      { name: 'Karakeçili', lat: 39.9833, lon: 33.4167 },
+      { name: 'Karakeçili', lat: 39.5932, lon: 33.378 },
     ],
   },
-  campCount: 0,
+  // Ölçüm (yerel dünya, sınırsız kamp aramasıyla): Ankara'da 10 uygun orman yeri (orman %10,7: Kızılcahamam–Çamlıdere–Nallıhan),
+  // Kırıkkale'de 0 (orman %0,8). Neden bu sayı: docs/faz-12-guney-rapor.md.
+  campCount: 10,
 };
