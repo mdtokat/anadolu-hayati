@@ -71,6 +71,7 @@ import { pickFocus, lookDirection } from '../interaction/focus';
 import { GatherSystem } from '../interaction/gather';
 import { collectedToast, gatherPrompt } from '../interaction/promptText';
 import { craft } from '../items/craft';
+import { isDrink } from '../items/consume';
 import { eatItem, quickEat } from '../items/eatItem';
 import { clothingWarmth, torchLit } from '../items/equipment';
 import { Hotbar, hotbarUse } from '../items/hotbar';
@@ -1617,7 +1618,10 @@ export class Game {
       return;
     }
     const eaten = eatItem(this.inventory, this.survival, id);
-    this.hud.notify(eaten ? `Yedin: ${ITEMS[eaten].name}` : 'Tokluk dolu', INTERACT.toastMs);
+    const drink = isDrink(id);
+    const done = drink ? 'İçtin' : 'Yedin';
+    const refused = drink ? 'Şu an gerek yok' : 'Tokluk dolu';
+    this.hud.notify(eaten ? `${done}: ${ITEMS[eaten].name}` : refused, INTERACT.toastMs);
   }
 
   /** `F`: en çok tokluk veren yiyeceği ye; olmazsa nedenini bildir. */
@@ -1634,7 +1638,12 @@ export class Game {
 
   private eatFromSlot(slot: number): void {
     const item = eatItem(this.inventory, this.survival, slot);
-    if (item !== null) this.hud.notify(`Yedin: ${ITEMS[item].name}`, INTERACT.toastMs);
+    if (item !== null) {
+      this.hud.notify(
+        `${isDrink(item) ? 'İçtin' : 'Yedin'}: ${ITEMS[item].name}`,
+        INTERACT.toastMs,
+      );
+    }
     this.inventoryPanel.refresh();
   }
 
