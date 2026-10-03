@@ -89,9 +89,18 @@ def village_selected(overture_id: str, fraction: float) -> bool:
     return int.from_bytes(digest[:4], "big") / 2**32 < fraction
 
 
+def is_municipality_record(division: dict[str, Any]) -> bool:
+    """Overture'da bazı yerleşimler iç içe iki `locality` kaydıyla gelir: üstte belediye ("Kırıkkale Belediyesi", sınıfı
+    city/town olabilir), altında gerçek yerleşim ("Kırıkkale"; hiyerarşisi belediye adını içerir). Belediye kaydı
+    ayrı bir yer değildir: seçilirse aynı yerleşim iki kez (ikincisi binasız) çıkar."""
+    return str(division.get("name") or "").endswith(" Belediyesi")
+
+
 def settlement_rank(division: dict[str, Any]) -> str | None:
     """İdari birimin yerleşim rütbesi: il merkezi, ilçe merkezi/belde ya da köy; ilgisizse None."""
     if division.get("subtype") != "locality":
+        return None
+    if is_municipality_record(division):
         return None
     cls = division.get("class")
     if cls == "city":

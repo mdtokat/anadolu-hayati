@@ -39,6 +39,13 @@ def test_settlement_rank():
     assert bs.settlement_rank({"subtype": "county"}) is None
 
 
+def test_municipality_records_are_not_settlements():
+    # Kırıkkale/Bahşılı/Karakeçili: üstte "… Belediyesi" (city/town), altında gerçek yerleşim; belediye kaydı seçilmemeli.
+    assert bs.settlement_rank({"subtype": "locality", "class": "city", "name": "Kırıkkale Belediyesi"}) is None
+    assert bs.settlement_rank({"subtype": "locality", "class": "town", "name": "Bahşılı Belediyesi"}) is None
+    assert bs.settlement_rank({"subtype": "locality", "class": "city", "name": "Kırıkkale"}) == "il"
+
+
 def test_assign_footprints_nearest_by_radius_and_threshold():
     settlements = [
         {"id": 1, "rank": "il", "x": wl.lattice_x(0), "z": wl.lattice_z(0)},
