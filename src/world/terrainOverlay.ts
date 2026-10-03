@@ -257,19 +257,44 @@ export function buildTerrainOverlay(
   sources: OverlaySources,
   options: RasterOptions = {},
 ): OverlayRaster {
+  const steps = buildTerrainOverlaySteps(grid, sources, options, Infinity);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+/** `buildTerrainOverlay`'in dilimli hâli (aynı sonuç): her `vertsPerStep` çizgi köşesinde bir `yield` eder. */
+export function* buildTerrainOverlaySteps(
+  grid: OverlayGrid,
+  sources: OverlaySources,
+  options: RasterOptions = {},
+  vertsPerStep = 400,
+): Generator<void, OverlayRaster> {
   const raster = new OverlayRaster(grid, options);
+  let work = 0;
+  const tick = (xz: ArrayLike<number>): boolean => {
+    work += xz.length / 2;
+    if (work < vertsPerStep) return false;
+    work = 0;
+    return true;
+  };
   for (const road of sources.roads ?? []) {
     if (road.cls === 1) raster.polyline(OVERLAY_CHANNEL.paved, road.xz, roadHalfWidth(road));
     else if (road.cls === 2) raster.polyline(OVERLAY_CHANNEL.dirt, road.xz, roadHalfWidth(road));
+    if (tick(road.xz)) yield;
   }
   const water = sources.water;
   if (water) {
     for (const line of water.lines) {
       raster.polyline(OVERLAY_CHANNEL.water, line.xz, waterLineHalfWidth(line.kind));
+      if (tick(line.xz)) yield;
     }
     // Göl/gölet kıyısı: kenar çizgisi (yarı genişlik 0) — içi göl yüzeyi mesh'iyle örtülür, kanal kıyı bandını verir.
     for (const polygon of water.polygons) {
-      for (const ring of polygon.rings) raster.polyline(OVERLAY_CHANNEL.water, ring, 0, true);
+      for (const ring of polygon.rings) {
+        raster.polyline(OVERLAY_CHANNEL.water, ring, 0, true);
+        if (tick(ring)) yield;
+      }
     }
   }
   const borders = sources.borders ?? [];
@@ -294,13 +319,32 @@ export function buildRoadOverlay(
   roads: readonly RoadData[],
   options: RasterOptions = {},
 ): OverlayRaster {
+  const steps = buildRoadOverlaySteps(grid, roads, options, Infinity);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+/** `buildRoadOverlay`'in dilimli hâli (aynı sonuç): her `vertsPerStep` çizgi köşesinde bir `yield` eder. */
+export function* buildRoadOverlaySteps(
+  grid: OverlayGrid,
+  roads: readonly RoadData[],
+  options: RasterOptions = {},
+  vertsPerStep = 400,
+): Generator<void, OverlayRaster> {
   const raster = new OverlayRaster(grid, options);
   const data = raster.data;
   for (let i = 0; i < data.length; i += 4) {
     data[i + ROAD_CHANNEL.cos] = 128;
     data[i + ROAD_CHANNEL.sin] = 128;
   }
+  let work = 0;
   for (const road of roads) {
+    work += road.xz.length / 2;
+    if (work >= vertsPerStep) {
+      work = 0;
+      yield;
+    }
     if (road.cls === 3) {
       raster.polyline(ROAD_CHANNEL.street as OverlayChannel, road.xz, roadHalfWidth(road));
       continue;

@@ -5,10 +5,13 @@ import type { RoadData } from '../data/settlements';
 import type { TileBlob } from '../data/worldStream';
 import {
   buildRoadOverlay,
+  buildRoadOverlaySteps,
   buildTerrainOverlay,
+  buildTerrainOverlaySteps,
   type OverlayGrid,
   type OverlayRaster,
 } from './terrainOverlay';
+import { buildCoverWeights, type CoverWeights } from './landCoverWeights';
 import { createTerrainMaterial, type TerrainUniforms } from './TerrainMaterial';
 import { OVERVIEW_STRIDE, overviewSize } from './terrainPages';
 
@@ -90,7 +93,10 @@ export class TerrainTiles {
   /** LOD3 chunk'lar ve yüklü olmayan karolar için tek materyal. */
   readonly overviewMaterial: MeshStandardMaterial;
   private readonly materials = new Map<string, MeshStandardMaterial>();
-  private readonly pending = new Map<string, { overlay: OverlayRaster; roads: OverlayRaster }>();
+  private readonly pending = new Map<
+    string,
+    { overlay: OverlayRaster; roads: OverlayRaster; weights: CoverWeights }
+  >();
   private readonly roadBoxes: BoxList<RoadData>;
   private readonly lineBoxes: BoxList<WaterLine>;
   private readonly polygonBoxes: BoxList<WaterPolygon>;
@@ -159,8 +165,16 @@ export class TerrainTiles {
     };
   }
 
-  /** Aşama A: kaplama dokularının verisini rasterler. */
+  /** Aşama A: kaplama dokularının verisini rasterler (tek parça; testler). */
   rasterize(blob: TileBlob): void {
+    const steps = this.rasterizeSteps(blob, Infinity);
+    while (!steps.next().done) {
+      // dilimler peş peşe
+    }
+  }
+
+  /** Aşama A'nın dilimli hâli: her `next()` birkaç ms'den az iş yapar (karo akışı bütçeye yayar). */
+  *rasterizeSteps(blob: TileBlob, vertsPerStep = 400): Generator<void, void> {
     const box = this.boxOf(blob.window, 16);
     const grid = this.gridOf(blob.window);
     const water: WaterFeatures | null = this.sources.water
@@ -187,9 +201,20 @@ export class TerrainTiles {
       }
     }
     const roads = this.roadBoxes.query(box);
+    yield;
+    const overlay = yield* buildTerrainOverlaySteps(
+      grid,
+      { roads, water, borders },
+      {},
+      vertsPerStep,
+    );
+    yield;
+    const roadRaster = yield* buildRoadOverlaySteps(grid, roads, {}, vertsPerStep);
+    yield;
     this.pending.set(tileKey(blob), {
-      overlay: buildTerrainOverlay(grid, { roads, water, borders }),
-      roads: buildRoadOverlay(grid, roads),
+      overlay,
+      roads: roadRaster,
+      weights: buildCoverWeights(blob.cover),
     });
   }
 

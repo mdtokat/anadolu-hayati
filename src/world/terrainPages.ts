@@ -66,8 +66,10 @@ export function* terrainFromRawSteps(
 ): Generator<void, Float32Array> {
   const range = encoding.elevationMax - encoding.elevationMin;
   const game = new Float32Array(heights.length);
+  const slice = Math.max(1, Math.floor(rowsPerStep * 4 * width));
   for (let i = 0; i < heights.length; i++) {
     game[i] = (encoding.elevationMin + ((heights[i] as number) / 65535) * range) / VERTICAL_SCALE;
+    if ((i + 1) % slice === 0) yield;
   }
   yield;
   // Küçük tümsekler (deve sırtı) düzlenir; deniz hücreleri ve kıyı çizgisi değişmez (TERRAIN_SMOOTHING).
@@ -90,10 +92,13 @@ export function* terrainFromRawSteps(
     (i) => heights[i] === 0,
     rowsPerStep * 2,
   );
+  yield;
   const depth = seabedDepth(distance, cell, SEABED.slopeDeg, SEABED.maxDepth);
+  yield;
   for (let i = 0; i < depth.length; i++) {
     if (heights[i] === 0) game[i] = -(depth[i] as number);
   }
+  yield;
   return game;
 }
 

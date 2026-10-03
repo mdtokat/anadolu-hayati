@@ -37,7 +37,10 @@ export function* smoothLandSteps(
     kernel[k + radius] = Math.exp(-(k * k) / (2 * sigmaCells * sigmaCells));
   }
   const land = new Uint8Array(width * height);
-  for (let i = 0; i < land.length; i++) land[i] = isLand(i) ? 1 : 0;
+  for (let i = 0; i < land.length; i++) {
+    land[i] = isLand(i) ? 1 : 0;
+    if ((i + 1) % (rowsPerStep * 2 * width) === 0) yield;
+  }
 
   // Yatay geçiş: değer × ağırlık ve ağırlık toplamı ayrı tutulur (dikey geçiş ikisini de süzer).
   const sum = new Float32Array(width * height);

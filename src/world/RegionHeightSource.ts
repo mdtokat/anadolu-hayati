@@ -284,6 +284,7 @@ export class RegionHeightSource implements HeightSource {
     );
     const page = createPage();
     page.raw = new Uint16Array(PAGE_SIZE * PAGE_SIZE);
+    yield;
     const px = tx - this.tileX0;
     const py = ty - this.tileY0;
     for (let r = 0; r < core.rows; r++) {

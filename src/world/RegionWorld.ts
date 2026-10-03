@@ -349,7 +349,7 @@ export class RegionWorld implements GameWorld {
   /** Karo etkinleştirme işleri (dilimli): bitene kadar karo başına tek iş nesnesi. */
   private readonly tileJobs = new Map<
     string,
-    { phase: number; heights: Generator<void, void> | null }
+    { phase: number; heights: Generator<void, void> | null; raster: Generator<void, void> | null }
   >();
 
   /**
@@ -360,7 +360,7 @@ export class RegionWorld implements GameWorld {
     const key = `${tx},${ty}`;
     let job = this.tileJobs.get(key);
     if (!job) {
-      job = { phase: 0, heights: null };
+      job = { phase: 0, heights: null, raster: null };
       this.tileJobs.set(key, job);
     }
     switch (job.phase) {
@@ -374,10 +374,15 @@ export class RegionWorld implements GameWorld {
         (this.cover as LandCoverMap).setTile(tx, ty, blob.window, blob.cover);
         job.phase = 2;
         return false;
-      case 2:
-        this.tiles?.rasterize(blob);
-        job.phase = 3;
+      case 2: {
+        if (!this.tiles) {
+          job.phase = 3;
+          return false;
+        }
+        job.raster ??= this.tiles.rasterizeSteps(blob);
+        if (job.raster.next().done) job.phase = 3;
         return false;
+      }
       default:
         this.tiles?.createMaterial(blob);
         this.props?.invalidate();

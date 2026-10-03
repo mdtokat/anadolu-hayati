@@ -9,7 +9,7 @@ import {
   UnsignedByteType,
 } from 'three';
 import { BORDERS, ROADS, TERRAIN_LOOK, TERRAIN_OVERLAY, VERTICAL_SCALE } from '../config';
-import { buildCoverWeights } from './landCoverWeights';
+import { buildCoverWeights, type CoverWeights } from './landCoverWeights';
 
 /** GLSL: dünya konumu ve normalden rakım/eğime bağlı arazi rengi. */
 const FRAGMENT_FUNCTIONS = /* glsl */ `
@@ -266,6 +266,8 @@ function slopeToNormalY(deg: number): number {
 /** Arazi örtüsü ızgarası (landcover.bin): heightmap ile aynı ızgara ve sıra. */
 export interface TerrainCover {
   classes: Uint8Array;
+  /** Önceden hesaplanmış ağırlık dokusu verisi (karo akışı hesabı kare bütçesine yayar); yoksa `classes`'tan. */
+  weights?: CoverWeights;
   width: number;
   height: number;
   /** Izgara hücre boyu (oyun metresi). */
@@ -329,7 +331,7 @@ export function createTerrainMaterial(
   const width = cover?.width ?? 1;
   const height = cover?.height ?? 1;
   const weights = cover
-    ? buildCoverWeights(cover.classes)
+    ? (cover.weights ?? buildCoverWeights(cover.classes))
     : { a: new Uint8Array(4), b: new Uint8Array(4) };
   const coverA = weightTexture(weights.a, width, height);
   const coverB = weightTexture(weights.b, width, height);
