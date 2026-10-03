@@ -16,7 +16,10 @@ const world = query.get('world') === 'test' ? 'test' : 'region';
 const creatureDemo = import.meta.env.DEV && query.get('creatures') === 'demo';
 
 Game.create(container, { world, creatureDemo })
-  .then((game) => {
+  .then(async (game) => {
+    const status = loading?.querySelector('.loading-status');
+    if (status) status.textContent = 'Gölgelendiriciler hazırlanıyor…';
+    await game.precompile();
     loading?.remove();
     game.start();
     if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;

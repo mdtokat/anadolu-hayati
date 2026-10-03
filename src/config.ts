@@ -61,6 +61,11 @@ export const CAMERA = {
 export const RENDER = {
   /** Yüksek DPI ekranlarda piksel oranı üst sınırı (performans için). */
   maxPixelRatio: 2,
+  /**
+   * Yüklemede gölgelendirici ön derlemesi için en çok bekleme (ms). Derleme bu süreyi aşarsa oyun yine açılır; kalan
+   * programlar ilk kullanımda derlenir.
+   */
+  precompileTimeoutMs: 8000,
 } as const;
 
 /** Geliştirici araçları (yalnızca dev modunda görünür). */

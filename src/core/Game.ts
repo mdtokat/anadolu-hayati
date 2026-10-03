@@ -29,6 +29,7 @@ import {
   PROVINCE_PLACES,
   PLACE_NOTICE,
   QUALITY_PRESETS,
+  RENDER,
   SAVE,
   SEARCH,
   STORAGE,
@@ -1046,6 +1047,27 @@ export class Game {
 
   /** Faz 11 akışlarının kendi `setupX()`'lerinde doldurduğu kayıt bölümleri (C `farm`, E `bandits`, F `drone`). */
   private readonly saveSections: Pick<SaveTargets, 'farm' | 'bandits' | 'drone'> = {};
+
+  /**
+   * Sahnedeki tüm malzemelerin gölgelendiricilerini önceden derler (yükleme ekranındayken): bir nesne türü ilk kez
+   * göründüğünde (eşkıya, cam kırığı, mermi izi, yağmur…) derleme yüzünden oyun donmasın. `KHR_parallel_shader_compile`
+   * varsa derleme sürücüde paralel yürür. `RENDER.precompileTimeoutMs`'ten uzun sürerse beklemeden devam edilir.
+   */
+  async precompile(): Promise<void> {
+    const t0 = performance.now();
+    try {
+      await Promise.race([
+        this.renderer.compileAsync(this.world.scene, this.activeCamera()),
+        new Promise((resolve) => setTimeout(resolve, RENDER.precompileTimeoutMs)),
+      ]);
+      console.info(
+        `Gölgelendiriciler hazır: ${this.renderer.info.programs?.length ?? 0} program, ` +
+          `${(performance.now() - t0).toFixed(0)} ms`,
+      );
+    } catch (error) {
+      console.warn('Gölgelendirici ön derlemesi başarısız; ilk kullanımda derlenecek.', error);
+    }
+  }
 
   start(): void {
     this.loop.start();
