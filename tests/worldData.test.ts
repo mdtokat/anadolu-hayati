@@ -92,7 +92,17 @@ describe('iller', () => {
   it('dokuz hedef il inRegion=true; komşular false', () => {
     const targets = world.provinces.filter((p) => p.inRegion).map((p) => p.name);
     expect(targets.sort()).toEqual(
-      ['Bartın', 'Bolu', 'Düzce', 'Karabük', 'Zonguldak', 'Kastamonu', 'Çankırı', 'Sinop', 'Sakarya'].sort(),
+      [
+        'Bartın',
+        'Bolu',
+        'Düzce',
+        'Karabük',
+        'Zonguldak',
+        'Kastamonu',
+        'Çankırı',
+        'Sinop',
+        'Sakarya',
+      ].sort(),
     );
     const neighbors = world.provinces.filter((p) => !p.inRegion).map((p) => p.name);
     for (const name of ['Ankara', 'Bilecik', 'Samsun', 'Çorum', 'Kocaeli']) {

@@ -946,7 +946,7 @@ export const OTHER_PROVINCE_PLACES = {
     { name: 'Karasu', lat: 41.0958, lon: 30.6958 },
     { name: 'Kocaali', lat: 41.0542, lon: 30.8508 },
     { name: 'Geyve', lat: 40.5069, lon: 30.2933 },
-    { name: 'Ferizli', lat: 40.9425, lon: 30.4850 },
+    { name: 'Ferizli', lat: 40.9425, lon: 30.485 },
     { name: 'Kaynarca', lat: 41.0344, lon: 30.3067 },
     { name: 'Taraklı', lat: 40.3969, lon: 30.4958 },
   ],
@@ -2903,10 +2903,10 @@ export const AMMO = {
  */
 export const BANDITS = {
   /**
-   * Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). Kastamonu–Çankırı genişlemesiyle 48 → 72 (kara alanı
+   * Dünyadaki en çok kamp sayısı (uygun yer bulunamazsa daha az). Kastamonu–Çankırı genişlemesiyle 48 → 72, Sinop–Sakarya ile 72 → 96 (kara alanı
    * ve il/ilçe sayısı ~1,5–2 kat); seçim açgözlü ve seed'li olduğundan eski kamplar aynı kalır, yenileri eklenir.
    */
-  campCount: 72,
+  campCount: 96,
   /**
    * Kamp yeri kuralları (`bandits/camps.ts`): il/ilçe merkezinin ayak izi kenarına en az `minSettlementDistance`,
    * köyün kenarına en az `minVillageDistance` (341 köy haritayı sık örttüğünden köylere ayrı, kısa uzaklık), en yakın

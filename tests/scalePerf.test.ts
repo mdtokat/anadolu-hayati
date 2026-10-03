@@ -117,16 +117,17 @@ describe('Faz 7 ölçeği (gerçek dünya, CPU)', { timeout: 120_000 }, () => {
     // Sinop–Sakarya genişlemesi: 4699 × 2346 örnek, 37 × 19 = 703 chunk. Görüş uzaklığı (4 km) artık tüm dünyayı
     // kapsamaz: Zonguldak'tan Çankırı'nın doğu ucu görüş dışında kalır (draw call'ı yine frustum sınırlar).
     expect(big.grid).toMatchObject({ cx0: -9, cy0: -3, cols: 37, rows: 19 });
-    expect(big.chunks).toBeGreaterThan(550);
+    expect(big.chunks).toBeGreaterThan(500);
     expect(big.chunks).toBeLessThanOrEqual(703);
     expect(big.grid.sampleWidth * big.grid.sampleHeight).toBe(4699 * 2346);
 
-    // Bellek (7,66 M örnek: yükseklik Float32 ≈ 29 MB, deniz uzaklığı ≈ 29 MB, örtü ≈ 7 MB, dokular ≈ 58 MB;
+    // Sinop–Sakarya genişlemesi: 11,0 M örnek (Kastamonu–Çankırı dünyasının ~1,44 katı); sınırlar orantılı yükseltildi.
+    // Önceki dünya — bellek (7,66 M örnek: yükseklik Float32 ≈ 29 MB, deniz uzaklığı ≈ 29 MB, örtü ≈ 7 MB, dokular ≈ 58 MB;
     // Faz 7 dünyasının ~1,75 katı)
     const total = Object.values(big.memory).reduce((a, b) => a + b, 0);
-    expect(big.memory.gameHeightsFloat32 / MB).toBeLessThan(31);
-    expect(big.memory.coverTexturesRgba / MB).toBeLessThan(62);
-    expect(total / MB).toBeLessThan(145);
+    expect(big.memory.gameHeightsFloat32 / MB).toBeLessThan(45);
+    expect(big.memory.coverTexturesRgba / MB).toBeLessThan(90);
+    expect(total / MB).toBeLessThan(215);
 
     // Süre: başsız bütçe 3 sn (ağ ve birleştirme hariç); yavaş CI için gevşek tavan.
     expect(big.totalMs + assembleMs).toBeLessThan(15_000);

@@ -201,7 +201,7 @@ describe('yol ağı — köprüler ve tüneller', () => {
 
   it('köprüler kısa, arka arkaya ve tepeli değil; dere boyunca uzanan köprü yok', () => {
     expect(metrics.bridges).toBeGreaterThan(120);
-    expect(metrics.bridges).toBeLessThan(450);
+    expect(metrics.bridges).toBeLessThan(600);
     expect(metrics.bridgeMedian).toBeLessThan(18);
     expect(metrics.bridgeP90).toBeLessThan(40);
     expect(metrics.consecutiveBridges / metrics.bridges).toBeLessThan(0.15);

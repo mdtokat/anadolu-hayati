@@ -454,5 +454,10 @@
     "ESA WorldCover 2021 (Overture Maps)"
   ],
   "overtureRelease": "2026-09-23.1",
-  "built": "2026-10-03"
+  "built": "2026-10-03",
+  "settlements": {
+    "file": "settlements.json",
+    "bytes": 2222092,
+    "sha256": "1584a1432628173fe7c6b36fcad4cf52838edd168765da9018a4a3929d424351"
+  }
 }

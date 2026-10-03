@@ -216,13 +216,43 @@ worlds:
         }
       - { settlement: Çankırı, kind: castle, name: Çankırı Kalesi, lon: 33.615887, lat: 40.607444 }
       # Sinop (Sinop–Sakarya genişlemesi)
-      - { settlement: Sinop, kind: mosque_grand, name: Alaattin Camii, lon: 35.148337, lat: 42.026443 }
-      - { settlement: Sinop, kind: castle, name: Sinop Tarihi Cezaevi, lon: 35.143289, lat: 42.025164 }
-      - { settlement: Sinop, kind: clock_tower, name: Sinop Saat Kulesi, lon: 35.153558, lat: 42.02378 }
+      - {
+          settlement: Sinop,
+          kind: mosque_grand,
+          name: Alaattin Camii,
+          lon: 35.148337,
+          lat: 42.026443,
+        }
+      - {
+          settlement: Sinop,
+          kind: castle,
+          name: Sinop Tarihi Cezaevi,
+          lon: 35.143289,
+          lat: 42.025164,
+        }
+      - {
+          settlement: Sinop,
+          kind: clock_tower,
+          name: Sinop Saat Kulesi,
+          lon: 35.153558,
+          lat: 42.02378,
+        }
       - { settlement: Sinop, kind: tomb, name: Gazi Çelebi Türbesi, lon: 35.148295, lat: 42.026987 }
       - { settlement: Boyabat, kind: castle, name: Boyabat Kalesi, lon: 34.768416, lat: 41.46779 }
-      - { settlement: Boyabat, kind: clock_tower, name: Boyabat Saat Kulesi, lon: 34.77283, lat: 41.468089 }
+      - {
+          settlement: Boyabat,
+          kind: clock_tower,
+          name: Boyabat Saat Kulesi,
+          lon: 34.77283,
+          lat: 41.468089,
+        }
       # Sakarya (Adapazarı, Geyve, Hendek)
-      - { settlement: Adapazarı, kind: mosque_grand, name: Mithatpaşa Ulu Camii, lon: 30.389343, lat: 40.764041 }
+      - {
+          settlement: Adapazarı,
+          kind: mosque_grand,
+          name: Mithatpaşa Ulu Camii,
+          lon: 30.389343,
+          lat: 40.764041,
+        }
       - { settlement: Geyve, kind: mosque, name: Sinanbey Camii, lon: 30.29032, lat: 40.507775 }
       - { settlement: Hendek, kind: tomb, name: Sarıdede Türbesi, lon: 30.756592, lat: 40.796971 }

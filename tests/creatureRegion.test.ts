@@ -46,10 +46,10 @@ function allCandidates(epoch: number) {
 }
 
 describe('gerçek bölge: doğma kuralları', () => {
-  it('ızgara chunk ızgarasıyla aynı: 27×18 hücre, ilk hücre kafes chunk’ı (−5, −2)', () => {
-    expect(grid.cols).toBe(27);
-    expect(grid.rows).toBe(18);
-    expect([grid.cx0, grid.cy0]).toEqual([-5, -2]);
+  it('ızgara chunk ızgarasıyla aynı: 37×19 hücre, ilk hücre kafes chunk’ı (−9, −3)', () => {
+    expect(grid.cols).toBe(37);
+    expect(grid.rows).toBe(19);
+    expect([grid.cx0, grid.cy0]).toEqual([-9, -3]);
   });
 
   it('her aday kendi türünün arazi örtüsü/rakım/eğim/su kuralına uyar', () => {

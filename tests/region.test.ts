@@ -271,7 +271,17 @@ describe('gerçek dünya verisi (public/data/world, karolu)', () => {
 
   it('komşu iller inRegion=false, hedef iller true', () => {
     const byName = new Map(region.provinces.map((p) => [p.name, p]));
-    for (const name of ['Zonguldak', 'Bartın', 'Karabük', 'Düzce', 'Bolu', 'Kastamonu', 'Çankırı', 'Sinop', 'Sakarya'])
+    for (const name of [
+      'Zonguldak',
+      'Bartın',
+      'Karabük',
+      'Düzce',
+      'Bolu',
+      'Kastamonu',
+      'Çankırı',
+      'Sinop',
+      'Sakarya',
+    ])
       expect(byName.get(name)?.inRegion).toBe(true);
     for (const name of ['Ankara', 'Bilecik', 'Eskişehir', 'Samsun', 'Çorum', 'Kocaeli'])
       expect(byName.get(name)?.inRegion).toBe(false);
