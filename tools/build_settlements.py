@@ -83,6 +83,23 @@ def stable_id(overture_id: str) -> int:
     return zlib.crc32(overture_id.encode("utf-8")) & 0xFFFFF
 
 
+def assign_unique_ids(entries: list[tuple[str, str, dict[str, Any]]], province_order: list[str]) -> None:
+    """Yerleşim kimliklerini (20 bit CRC) tekilleştirir: çakışmada **sonraki** il (grup sırası = `province_order`; çekirdek
+    iller önce) ve aynı ilde Overture kimliği büyük olan, kimliğine `#n` eklenerek yeniden karmalanır. Çakışmayan kimlik
+    `stable_id` ile aynı kalır (mevcut dünya değişmez; yeni genişleme mevcut yerleşimlerin kimliğini ancak kendisi çakışırsa
+    bozar). `entries`: (Overture kimliği, il, yerleşim sözlüğü); sözlüklerin `id` alanı yerinde yazılır."""
+    rank_of = {name: i for i, name in enumerate(province_order)}
+    used: set[int] = set()
+    for oid, province, settlement in sorted(entries, key=lambda e: (rank_of.get(e[1], len(rank_of)), e[1], e[0])):
+        sid = stable_id(oid)
+        salt = 0
+        while sid in used:
+            salt += 1
+            sid = stable_id(f"{oid}#{salt}")
+        used.add(sid)
+        settlement["id"] = sid
+
+
 def village_selected(overture_id: str, fraction: float) -> bool:
     """Köyün çizilip çizilmeyeceği: kimlik karmasına göre deterministik `fraction` oranı."""
     digest = hashlib.sha256(overture_id.encode("utf-8")).digest()
@@ -262,6 +279,7 @@ def select_settlements(
     display: dict[str, str] = config.get("display_names") or {}
     village_radius = config["radius_m"]["koy"] / wl.CELL_SIZE_REAL
     out: list[dict[str, Any]] = []
+    entries: list[tuple[str, str, dict[str, Any]]] = []
     for division in divisions:
         rank = settlement_rank(division)
         province = province_of(division)
@@ -284,21 +302,22 @@ def select_settlements(
             if total < config["village_min_buildings"]:
                 continue
         name = division["name"]
-        out.append(
-            {
-                "id": stable_id(division["id"]),
-                "name": display.get(name, name),
-                "province": province,
-                "rank": rank,
-                "style": styles.get(name, "koy" if rank == "koy" else "kasaba"),
-                "population": division.get("population"),
-                "x": round(x, 2),
-                "z": round(z, 2),
-            }
-        )
+        settlement = {
+            "id": 0,  # assign_unique_ids yazar
+            "name": display.get(name, name),
+            "province": province,
+            "rank": rank,
+            "style": styles.get(name, "koy" if rank == "koy" else "kasaba"),
+            "population": division.get("population"),
+            "x": round(x, 2),
+            "z": round(z, 2),
+        }
+        out.append(settlement)
+        entries.append((division["id"], province, settlement))
+    assign_unique_ids(entries, list(config.get("provinces") or sorted(provinces)))
     out.sort(key=lambda s: (RANKS.index(s["rank"]), s["province"], s["name"], s["id"]))
     ids = [s["id"] for s in out]
-    if len(set(ids)) != len(ids):
+    if len(set(ids)) != len(ids):  # güvence: assign_unique_ids sonrası olmamalı
         dup = [k for k, v in Counter(ids).items() if v > 1]
         raise SystemExit(f"yerleşim kimliği çakışması: {dup}")
     return out
