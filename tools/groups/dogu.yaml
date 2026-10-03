@@ -1,0 +1,14 @@
+# Grup: dogu — Faz 12 (Doğu: Samsun, Çorum, Amasya) için ayrıldı. Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
+# parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
+# grubun oturumu tarafından doldurulur (plan §2.2). Boş grup (`provinces: []`) geçerlidir ve hiçbir şeyi değiştirmez.
+#
+# `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen; akış dizisi olmalıdır.
+provinces: []
+display_names: {}
+styles: {}
+# {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar.
+clip_bbox: {}
+# Cami sığmayan kıyı/sıkışık merkezler (bilinçli istisna; tests/settlementMap.test.ts). Akış dizisi.
+no_mosque_towns: []
+# Simge yapılar: `- { settlement: Ad, kind: mosque_grand, name: Ad, lon: 0.0, lat: 0.0 }` (bkz. cekirdek.yaml).
+landmarks: []

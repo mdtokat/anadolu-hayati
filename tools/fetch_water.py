@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Overture Maps `base/water` katmanından (OSM türevi) bölgenin su özelliklerini çeker.
 
-Kullanım:  python fetch_water.py [dünya-id]      (varsayılan: bati-karadeniz)
-Çıktı:     tools/raw/water/<bölge-id>.geojson    (WGS84; commit edilmez)
+Kullanım:  python fetch_water.py [dünya-id] [--groups cekirdek,bati]   (varsayılan: bati-karadeniz, tüm gruplar)
+Çıktı:     tools/raw/water/<bölge-id>.geojson    (WGS84; commit edilmez) + `.cover.json` (indirilen kutu)
+
+Ham dosya istenen kutuyu zaten kapsıyorsa indirme atlanır; kısmen kapsıyorsa eski kutuyla birleşimi indirilir.
 
 Overture veri kümesi küresel ve yüzlerce GB'dır; Parquet dosyaları HTTP Range istekleriyle okunur:
 yalnızca dosya altbilgileri ve sınır kutusuyla kesişen satır grupları indirilir (bölge için birkaç MB).
@@ -26,6 +28,8 @@ import pyarrow.parquet as pq
 import shapely
 from shapely.geometry import mapping
 
+import fetchlib
+import worldconfig
 from fetch_dem import load_world
 from rangefile import USER_AGENT, HttpRangeFile
 
@@ -167,20 +171,26 @@ def extract_water(
 
 
 def main(argv: list[str]) -> int:
-    world_id = argv[1] if len(argv) > 1 else DEFAULT_WORLD
-    bbox = tuple(load_world(world_id)["bbox"])
+    args = worldconfig.fetch_arguments(__doc__, argv[1:], DEFAULT_WORLD)
+    world_id = args.world_id
+    want = tuple(load_world(world_id, worldconfig.parse_groups_arg(args.groups))["bbox"])
+    dest = RAW_WATER / f"{world_id}.geojson"
+    bbox = fetchlib.plan_fetch(dest, want, OVERTURE_RELEASE)
+    if bbox is None:
+        print(f"mevcut   {dest}  (kayıtlı kapsam {want} kutusunu içeriyor)")
+        return 0
     print(f"{world_id}: Overture {OVERTURE_RELEASE} su katmanı, bbox {bbox}")
 
     keys = list_water_files()
     print(f"  {len(keys)} dosya taranıyor (yalnızca altbilgiler ve ilgili satır grupları indirilir)")
     features, downloaded = extract_water(bbox, keys)  # type: ignore[arg-type]
 
-    dest = RAW_WATER / f"{world_id}.geojson"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(
         json.dumps({"type": "FeatureCollection", "overture_release": OVERTURE_RELEASE, "features": features}, ensure_ascii=False),
         encoding="utf-8",
     )
+    fetchlib.record_cover(dest, bbox, OVERTURE_RELEASE)
     print(f"Tamam: {len(features)} özellik, {downloaded / 1e6:.1f} MB indirildi → {dest}")
     return 0
 

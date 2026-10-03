@@ -8,6 +8,7 @@ import {
   type ProvinceChange,
 } from '../src/world/provinceNotice';
 import { provinceAt } from '../src/world/provinces';
+import { coreProvinces, groupProvinces } from './helpers/groups';
 import { loadRealRegion } from './helpers/realRegion';
 
 let region: RegionData;
@@ -56,49 +57,30 @@ describe('gerçek il sınırlarında geçiş bildirimi', () => {
   });
 
   it('bildirim metinleri gerçek il adlarıyla doğru yönelme ekini kullanır', () => {
-    const names = region.provinces.map((p) => p.name).sort();
-    expect(names).toEqual(
-      [
-        'Amasya',
-        'Ankara',
-        'Bartın',
-        'Bilecik',
-        'Bolu',
-        'Düzce',
-        'Eskişehir',
-        'Karabük',
-        'Kastamonu',
-        'Kocaeli',
-        'Kırıkkale',
-        'Sakarya',
-        'Samsun',
-        'Sinop',
-        'Tokat',
-        'Yozgat',
-        'Zonguldak',
-        'Çankırı',
-        'Çorum',
-        'İstanbul',
-      ].sort(),
-    );
+    // İl listesi veriden okunur (yeni iller testi değiştirmez): hedef il "hoş geldiniz", komşu il "girdiniz".
+    const names = region.provinces.map((p) => p.name);
+    expect(new Set(names).size).toBe(names.length);
+    const declared = new Set(groupProvinces());
+    for (const p of region.provinces) {
+      const text = provinceNoticeText({ name: p.name, inRegion: p.inRegion });
+      expect(text, p.name).toMatch(
+        p.inRegion ? /^.+'(a|e|ya|ye) hoş geldiniz$/ : /^.+'(a|e|ya|ye) girdiniz$/,
+      );
+      expect(text.startsWith(`${p.name}'`), p.name).toBe(true);
+      // Yalnızca tools/groups'taki iller hedef olabilir (komşu olup grupta bulunanlar: grup PR'ı, 12.9'dan önce).
+      if (p.inRegion)
+        expect(declared.has(p.name), `${p.name}: tools/groups/*.yaml'da yok`).toBe(true);
+    }
+    // Çekirdek iller her zaman hedef ildir; gerçek adlarla örnekler (yönelme eki ünlü uyumu).
+    const byName = new Map(region.provinces.map((p) => [p.name, p]));
+    for (const name of coreProvinces()) expect(byName.get(name)?.inRegion, name).toBe(true);
     const texts = region.provinces.map((p) =>
       provinceNoticeText({ name: p.name, inRegion: p.inRegion }),
     );
     expect(texts).toContain("Bartın'a hoş geldiniz");
     expect(texts).toContain("Karabük'e hoş geldiniz");
-    expect(texts).toContain("Zonguldak'a hoş geldiniz");
-    expect(texts).toContain("Bolu'ya hoş geldiniz");
     expect(texts).toContain("Düzce'ye hoş geldiniz");
-    expect(texts).toContain("Ankara'ya girdiniz");
-    expect(texts).toContain("Sakarya'ya hoş geldiniz");
-    expect(texts).toContain("Bilecik'e girdiniz");
-    expect(texts).toContain("Eskişehir'e girdiniz");
-    expect(texts).toContain("Çankırı'ya hoş geldiniz");
-    expect(texts).toContain("Kastamonu'ya hoş geldiniz");
     expect(texts).toContain("Sinop'a hoş geldiniz");
-    expect(texts).toContain("Samsun'a girdiniz");
-    expect(texts).toContain("Çorum'a girdiniz");
-    expect(texts).toContain("Kırıkkale'ye girdiniz");
   });
 
   it('ışınlanma noktaları: her biri bir ile düşer ya da denizdedir (izleyici çökmez)', () => {

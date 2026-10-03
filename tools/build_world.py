@@ -2,7 +2,8 @@
 """Dünyanın oyun verisini karo düzeninde üretir (Faz 7.3): tiles/*.bin, world.json, provinces.geojson, features.json.
 
 Kullanım:  python build_world.py [dünya-id]     (varsayılan: bati-karadeniz)
-Önkoşul:   python fetch_dem.py <id> && python fetch_boundaries.py && python fetch_water.py <id> && python fetch_landcover.py <id>
+Önkoşul:   python fetch_boundaries.py && python fetch_dem.py <id> && python fetch_water.py <id> && python fetch_landcover.py <id>
+           (hedef iller tools/groups/*.yaml'dan, sınır kutusu bunlardan türetilir: tools/worldconfig.py)
 Çıktı:     public/data/world/<id>/                 (commit edilir; oyunun okuduğu dosyalar)
 
 Adımlar: DEM karolarını birleştir → kafese çapalı ızgaraya (`worldlib.grid_for_lattice`) alan ortalamasıyla
@@ -35,7 +36,9 @@ from shapely.geometry import box, mapping
 
 import features as features_lib
 import landcover as landcover_lib
+import fetchlib
 import regionlib
+import worldconfig
 import worldlib as wl
 
 TOOLS = Path(__file__).resolve().parent
@@ -125,13 +128,28 @@ def check_grid_inside_bbox(grid: wl.LatticeGrid, bbox: list[float]) -> None:
 
 
 def load_world_config(world_id: str) -> dict:
-    worlds = yaml.safe_load((TOOLS / "world.yaml").read_text(encoding="utf-8"))["worlds"]
-    if world_id not in worlds:
-        raise SystemExit(f"Bilinmeyen dünya: {world_id!r}. Tanımlılar: {', '.join(worlds)}")
-    config = dict(worlds[world_id])
+    """Birleştirilmiş dünya tanımı: ortak ayarlar + grup illeri + türetilmiş `bbox` (`worldconfig.load_world`)."""
+    config = worldconfig.load_world(world_id)
     if config.get("cell_size") != wl.CELL_SIZE_REAL:
         raise SystemExit(f"world.yaml cell_size {config.get('cell_size')}, kafes hücresi {wl.CELL_SIZE_REAL} m olmalı")
     return config
+
+
+def check_raw_coverage(raw_files: list[Path], bbox: list[float], release: str = OVERTURE_RELEASE_DEFAULT) -> None:
+    """Kapsam kaydı olan ham dosyaların (fetchlib `.cover.json`) türetilmiş kutuyu kapsadığını doğrular; kayıt yoksa
+    (eski ham dosya) denetlenmez. Kısmi `--groups` indirmesiyle tam dünya kurulmasın."""
+    short = []
+    for path in raw_files:
+        if not fetchlib.cover_record_path(path).exists():
+            continue
+        have = fetchlib.read_cover(path, release)
+        if not fetchlib.covers(have, tuple(bbox)):  # type: ignore[arg-type]
+            short.append(f"{path.name}: kayıtlı kapsam {have}")
+    if short:
+        raise SystemExit(
+            f"Ham veri türetilmiş sınır kutusunu {bbox} kapsamıyor (fetch_* betiklerini `--groups` olmadan yeniden çalıştır):\n  "
+            + "\n  ".join(short)
+        )
 
 
 def resample_world_dem(dem_paths: list[Path], grid: wl.LatticeGrid) -> np.ndarray:
@@ -207,7 +225,9 @@ def build(
     """Dünya dosyalarını `out_dir`'e yazar. Dönüş: (manifest, ek bilgi: elevation/cover dizileri, grid)."""
     boundaries = gpd.read_file(boundaries_path).to_crs(wl.CRS)
     targets = select_provinces(boundaries, config["provinces"])
-    minx, miny, maxx, maxy = targets.total_bounds
+    # `clip_bbox`: grup dosyasında bir ilin yalnız bir kısmı kapsama alınacaksa çokgen kutuyla kırpılır (yalnızca ızgara
+    # kapsamı için; il sınırı ve inRegion tam kalır). Çekirdek illerde boştur: `total_bounds` ile aynı sonuç.
+    minx, miny, maxx, maxy = worldconfig.target_bounds(targets, config.get("clip_bbox"))
     grid = wl.grid_for_lattice(minx, miny, maxx, maxy, config["margin_m"])
     check_grid_inside_bbox(grid, config["bbox"])
 
@@ -306,9 +326,10 @@ def main(argv: list[str]) -> int:
     missing = [str(p) for p in [*dem_paths, boundaries_path, water_path, landcover_path] if not p.exists()]
     if missing:
         raise SystemExit(
-            "Eksik ham veri (önce fetch_dem.py, fetch_boundaries.py, fetch_water.py ve fetch_landcover.py çalıştır):\n  "
+            "Eksik ham veri (önce fetch_boundaries.py, fetch_dem.py, fetch_water.py ve fetch_landcover.py çalıştır):\n  "
             + "\n  ".join(missing)
         )
+    check_raw_coverage([water_path, landcover_path], config["bbox"])
 
     out_dir = REPO / "public" / "data" / "world" / args.world_id
     print(f"{args.world_id}: karo düzeninde üretiliyor")

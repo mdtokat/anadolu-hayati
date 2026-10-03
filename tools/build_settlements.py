@@ -3,7 +3,8 @@
 
 Kullanım:  python build_settlements.py [dünya-id]      (varsayılan: bati-karadeniz)
 Girdi:     tools/raw/settlements/<id>/{divisions,roads,places,buildings}.json  (fetch_settlements.py)
-           tools/settlements.yaml, public/data/world/<id>/{world.json, provinces.geojson}
+           tools/settlements.yaml (ortak ayarlar) + tools/groups/*.yaml (iller, üsluplar, simge yapılar; tools/worldconfig.py),
+           public/data/world/<id>/{world.json, provinces.geojson}
 Çıktı:     public/data/world/<id>/settlements.json  + world.json'a `settlements` girdisi (bayt + sha256)
 
 `build_world.py` dünya klasörünü baştan yazar (settlements.json silinir); dünya yeniden üretilirse bu betik de
@@ -30,11 +31,11 @@ from pathlib import Path
 from typing import Any
 
 import shapely
-import yaml
 from pyproj import Transformer
 from shapely.geometry import LineString, MultiLineString, box, shape
 from shapely.ops import linemerge, unary_union
 
+import worldconfig
 import worldlib as wl
 
 TOOLS = Path(__file__).resolve().parent
@@ -397,7 +398,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("world_id", nargs="?", default=DEFAULT_WORLD)
     args = parser.parse_args(argv)
 
-    config = yaml.safe_load((TOOLS / "settlements.yaml").read_text(encoding="utf-8"))["worlds"][args.world_id]
+    config = worldconfig.load_settlements_config(args.world_id)
     raw_dir = TOOLS / "raw" / "settlements" / args.world_id
     missing = [str(raw_dir / f"{k}.json") for k in ("divisions", "roads", "places", "buildings") if not (raw_dir / f"{k}.json").exists()]
     if missing:
