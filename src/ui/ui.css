@@ -2726,3 +2726,36 @@
 .hud-debug:empty {
   display: none;
 }
+
+/* Envanter sürükle-bırak: imleci izleyen hayalet simge; panel dışında (atılacak) kırmızıya döner. */
+.inv-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  pointer-events: none;
+  border-radius: var(--ui-radius);
+  background: rgba(20, 28, 22, 0.85);
+  border: 1px solid var(--ui-accent-hi);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.inv-drag-ghost[data-drop='true'] {
+  border-color: #d9534f;
+  box-shadow: 0 0 0 1px #d9534f, 0 6px 20px rgba(217, 83, 79, 0.45);
+}
+.inv-drag-ghost .inv-slot-count {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 11px;
+}
+.inv-panel button.inv-slot[data-dragging='true'] {
+  opacity: 0.35;
+}
