@@ -19,8 +19,10 @@ export function transferSlot(from: Inventory, slot: number, to: Inventory): numb
 /** Kaynaktaki bütün yığınları sığdığı kadar hedefe taşır; toplam taşınan adedi döndürür. */
 export function transferAll(from: Inventory, to: Inventory): number {
   let total = 0;
-  // Sırt çantaları en son taşınır: dolu çanta çıkarılamaz, önce içindekiler boşalsın.
-  for (const backpacks of [false, true]) {
+  // Sırt çantaları envanterden en son çıkar (dolu çanta çıkarılamaz, önce içindekiler boşalsın), envantere ise önce
+  // girer (çanta yer açar, ardından gelen eşyalar da sığsın).
+  const order = to.backpacks ? [true, false] : [false, true];
+  for (const backpacks of order) {
     for (let slot = 0; slot < from.slotCount; slot++) {
       const stack = from.slots[slot] ?? null;
       if (stack === null || isBackpack(stack.id) !== backpacks) continue;
