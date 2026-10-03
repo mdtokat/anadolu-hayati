@@ -25,7 +25,7 @@ export const HINT_TEXT: Readonly<Record<HintId, string>> = {
   shelter:
     'Sundurma (G) soğuğu azaltır; çalışma tezgâhının yanında üretilen ahşap kulübe daha iyi korur. Ateşin yanında ve barınakta hareketsiz durarak dinlen: can ve enerji daha hızlı dolar.',
   hunt: 'Yakında av hayvanı var: sol tık saldırır (taş balta ya da mızrak daha güçlü). Karaca, geyik, tavşan ve sülünün eti helaldir: leşi E basılı tutarak kes, ateşte pişir. Yaban domuzu necistir, kesilmez; kurt ve ayının yalnızca derisi ve kemiği, tilkinin postu alınır. Ayıdan uzak dur.',
-  town: 'Terk edilmiş bir yerleşimdesin: evlerin ve dükkânların kapısında E basılı tutarak kilerleri ara. Camiler kutsal ve güvenli sığınaktır (yağmalanmaz); çeşmelerden su içebilirsin. Bulgur ve tarhanayı bakır tencereyle ateşte pişir.',
+  town: 'Terk edilmiş bir yerleşimdesin: evlere ve dükkânlara gir, içerideki sandık ve dolaplara bakıp E basılı tutarak ara. Camiler kutsal ve güvenli sığınaktır (yağmalanmaz); vakit girince camide E basılı tutarak namaz kılabilirsin. Çeşme ve şadırvanlardan su içebilirsin. Bulgur ve tarhanayı bakır tencereyle ateşte pişir.',
   person:
     'Yakında biri var: yanına gidince selam verir. Yüzüne bakıp E’ye basarak konuş; yol sorabilir, takas yapabilirsin.',
   ranged:
