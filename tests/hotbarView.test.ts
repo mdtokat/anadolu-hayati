@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Hotbar } from '../src/items/hotbar';
 import { Inventory } from '../src/items/Inventory';
 import { RECIPES } from '../src/items/recipes';
-import { heldLabel, hotbarSignature, hotbarViews } from '../src/ui/hotbarView';
+import { heldLabel, hotbarSignature, hotbarViews, unusableHotbarText } from '../src/ui/hotbarView';
+import { hotbarUse } from '../src/items/hotbar';
+import { ITEMS, ITEM_IDS } from '../src/items/itemDefs';
 import { failureText, recipeRow } from '../src/ui/inventoryView';
 import {
   dismantlePrompt,
@@ -78,5 +80,17 @@ describe('inşa metinleri', () => {
     expect(dismantlePrompt({ ...offer, status: 'not_empty' })).toBe('Önce sandık boşaltılmalı');
     expect(dismantlePrompt({ ...offer, status: 'no_space' })).toMatch(/^Envanterde yer yok/);
     expect(dismantledToast([{ id: 'stone', count: 4 }])).toBe('Söküldü: +4 Taş');
+  });
+
+  it('doğrudan kullanılamayan eşyalar: eşyaya göre açıklama (yalnız boş kap "doldur" der)', () => {
+    expect(unusableHotbarText('water_container_empty')).toBe(
+      `${ITEMS.water_container_empty.name}: tatlı su kenarında E ile doldur`,
+    );
+    expect(unusableHotbarText('backpack_large')).toMatch(/sırtında taşınır/);
+    expect(unusableHotbarText('bulgur')).toMatch(/çiğ yenmez.*pişir.*Bakır Tencere gerekir/);
+    for (const id of ITEM_IDS) {
+      if (hotbarUse(id) !== 'none' || id === 'water_container_empty') continue;
+      expect(unusableHotbarText(id), id).not.toMatch(/doldur/);
+    }
   });
 });

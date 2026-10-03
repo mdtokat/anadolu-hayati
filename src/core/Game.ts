@@ -135,7 +135,7 @@ import { attackPrompt, hitMarkerKind, noticedToast, vignetteStrength } from '../
 import { Hud } from '../ui/Hud';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { StoragePanel } from '../ui/StoragePanel';
-import { heldLabel, hotbarSignature, hotbarViews } from '../ui/hotbarView';
+import { heldLabel, hotbarSignature, hotbarViews, unusableHotbarText } from '../ui/hotbarView';
 import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
@@ -1557,7 +1557,7 @@ export class Game {
       return;
     }
     if (id !== null && hotbarUse(id) === 'none') {
-      this.hud.notify(`${ITEMS[id].name}: tatlı su kenarında E ile doldur`, INTERACT.toastMs);
+      this.hud.notify(unusableHotbarText(id), INTERACT.toastMs);
       return;
     }
     this.hotbar.select(this.hotbar.selected === slot ? null : slot);
