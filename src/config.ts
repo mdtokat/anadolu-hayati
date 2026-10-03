@@ -268,6 +268,12 @@ export const CHUNK = {
   physicsRemoveFactor: 1.6,
   /** Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). */
   maxColliderBuildsPerFrame: 1,
+  /**
+   * Tünel ağzı delikli chunk'ın collider'ı bu kadar hücrelik kare bloklara bölünür: yalnızca delik içeren bloklar
+   * üçgen ağıdır (trimesh), gerisi heightfield. Tek parça 128×128 trimesh kurulumu ~70 ms sürüyordu (takılma);
+   * 16 hücrelik blokta ~1 ms. Chunk hücre sayısını (128) tam bölmeli.
+   */
+  holeBlockCells: 16,
 } as const;
 
 /** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */

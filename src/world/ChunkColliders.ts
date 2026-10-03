@@ -20,7 +20,8 @@ import type { TerrainHoles } from './roadTunnels';
  */
 export class ChunkColliders {
   readonly grid: ChunkGrid;
-  private readonly colliders = new Map<number, RAPIER.Collider>();
+  /** Chunk başına collider(lar): deliksiz chunk tek heightfield, delikli chunk blok başına bir collider. */
+  private readonly colliders = new Map<number, RAPIER.Collider[]>();
 
   constructor(
     private readonly physics: PhysicsWorld,
@@ -32,6 +33,7 @@ export class ChunkColliders {
     this.grid = chunkGridFor(source);
   }
 
+  /** Collider'ı olan chunk sayısı. */
   get count(): number {
     return this.colliders.size;
   }
@@ -58,7 +60,9 @@ export class ChunkColliders {
   }
 
   dispose(): void {
-    for (const collider of this.colliders.values()) this.physics.removeCollider(collider);
+    for (const list of this.colliders.values()) {
+      for (const collider of list) this.physics.removeCollider(collider);
+    }
     this.colliders.clear();
   }
 
@@ -82,9 +86,9 @@ export class ChunkColliders {
     for (let cy = cy0; cy < cy0 + rows; cy++) {
       for (let cx = cx0; cx < cx0 + cols; cx++) {
         const key = chunkKey(cx, cy);
-        const collider = this.colliders.get(key);
-        if (collider && distanceToChunk(this.grid, cx, cy, x, z) > limit) {
-          this.physics.removeCollider(collider);
+        const list = this.colliders.get(key);
+        if (list && distanceToChunk(this.grid, cx, cy, x, z) > limit) {
+          for (const collider of list) this.physics.removeCollider(collider);
           this.colliders.delete(key);
           removed++;
         }
@@ -107,18 +111,62 @@ export class ChunkColliders {
         heights[r * n + c] = this.source.sample(col0 + c, row0 + r);
       }
     }
-    const size = cells * this.grid.cellSize;
-    const rect = chunkRect(this.grid, cx, cy);
-    const centerX = (rect.minX + rect.maxX) / 2;
-    const centerZ = (rect.minZ + rect.maxZ) / 2;
     const holes = this.holes;
-    const desc =
-      holes && holes.any(col0, row0, col0 + cells, row0 + cells)
-        ? createChunkTrimeshDesc(heights, cells, rect.minX, rect.minZ, this.grid.cellSize, (c, r) =>
-            holes.has(col0 + c, row0 + r),
-          )
-        : createChunkHeightfieldDesc(heights, cells, size, centerX, centerZ);
-    this.colliders.set(key, this.physics.addStaticCollider(desc));
+    if (!holes || !holes.any(col0, row0, col0 + cells, row0 + cells)) {
+      const size = cells * this.grid.cellSize;
+      const rect = chunkRect(this.grid, cx, cy);
+      const centerX = (rect.minX + rect.maxX) / 2;
+      const centerZ = (rect.minZ + rect.maxZ) / 2;
+      const desc = createChunkHeightfieldDesc(heights, cells, size, centerX, centerZ);
+      this.colliders.set(key, [this.physics.addStaticCollider(desc)]);
+      return true;
+    }
+    this.colliders.set(key, this.addHoledBlocks(heights, cx, cy, holes));
     return true;
+  }
+
+  /**
+   * Delikli chunk: `CHUNK.holeBlockCells` hücrelik bloklar; delik içeren blok trimesh, diğerleri heightfield. Komşu
+   * bloklar sınır örneklerini paylaşır (aynı yükseklikler), dikiş yoktur.
+   */
+  private addHoledBlocks(
+    heights: Float32Array,
+    cx: number,
+    cy: number,
+    holes: TerrainHoles,
+  ): RAPIER.Collider[] {
+    const { cells, cellSize } = this.grid;
+    const n = cells + 1;
+    const block = CHUNK.holeBlockCells;
+    const bn = block + 1;
+    const col0 = chunkCol0(this.grid, cx);
+    const row0 = chunkRow0(this.grid, cy);
+    const rect = chunkRect(this.grid, cx, cy);
+    const out: RAPIER.Collider[] = [];
+    const sub = new Float32Array(bn * bn);
+    for (let br = 0; br < cells; br += block) {
+      for (let bc = 0; bc < cells; bc += block) {
+        for (let r = 0; r < bn; r++) {
+          for (let c = 0; c < bn; c++) sub[r * bn + c] = heights[(br + r) * n + bc + c] as number;
+        }
+        const minX = rect.minX + bc * cellSize;
+        const minZ = rect.minZ + br * cellSize;
+        const c0 = col0 + bc;
+        const r0 = row0 + br;
+        const desc = holes.any(c0, r0, c0 + block, r0 + block)
+          ? createChunkTrimeshDesc(sub, block, minX, minZ, cellSize, (c, r) =>
+              holes.has(c0 + c, r0 + r),
+            )
+          : createChunkHeightfieldDesc(
+              sub,
+              block,
+              block * cellSize,
+              minX + (block * cellSize) / 2,
+              minZ + (block * cellSize) / 2,
+            );
+        out.push(this.physics.addStaticCollider(desc));
+      }
+    }
+    return out;
   }
 }
