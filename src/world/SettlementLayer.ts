@@ -14,6 +14,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { BUILDING_LOOK } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import {
   BUILDING_SHAPES,
   GOVERNMENT_FLAG,
@@ -183,8 +184,10 @@ export class SettlementLayer {
     this.lastX = Number.NaN;
   }
 
-  update(x: number, z: number): void {
+  /** `budget`: kare zaman bütçesi tükenmişse yenileme sonraki kareye ertelenir. */
+  update(x: number, z: number, budget: FrameBudget | null = null): void {
     if (Math.hypot(x - this.lastX, z - this.lastZ) < BUILDING_LOOK.refreshDistance) return;
+    if (budget !== null && budget.exhausted) return;
     this.lastX = x;
     this.lastZ = z;
     this.fill(x, z);

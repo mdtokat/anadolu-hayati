@@ -5,6 +5,7 @@ import { FRESH_WATER, SCATTER, TELEPORTS } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { latLonToGame } from '../src/world/geo';
 import { LandCoverMap } from '../src/world/LandCoverMap';
+import { FrameBudget } from '../src/core/FrameBudget';
 import { PropLayer } from '../src/world/PropLayer';
 import { PROP_KINDS } from '../src/world/propKinds';
 import { RegionHeightSource } from '../src/world/RegionHeightSource';
@@ -234,5 +235,47 @@ describe('PropLayer — GPU yüklemesi ve doldurma sıklığı (performans)', ()
     for (let i = 0; i < 3; i++) layer.update(forest.x, forest.z);
     expect(layer.stats.instances).toBeGreaterThan(first);
     layer.dispose();
+  });
+});
+
+describe('PropLayer — kare zaman bütçesi', () => {
+  it('bütçe tükenmişse hiçbir şey yapmaz (sonraki kareye kalır); süre varken hesaplar', () => {
+    let t = 0;
+    const budget = new FrameBudget(() => t);
+    const layer = makeLayer();
+    budget.begin(4);
+    t = 10;
+    layer.update(forest.x, forest.z, undefined, budget);
+    expect(layer.stats.loadedChunks).toBe(0);
+    expect(layer.stats.activeChunks).toBe(0);
+    budget.begin(4); // saat durağan: süre var
+    layer.update(forest.x, forest.z, undefined, budget);
+    expect(layer.stats.loadedChunks).toBe(SCATTER.maxChunkBuildsPerFrame);
+    layer.dispose();
+  });
+});
+
+describe('PropLayer — dilimli dağılım', () => {
+  it('chunk hesabı kareler arasına bölünür ve sonuç bütçesiz hesapla birebir aynıdır', () => {
+    let t = 0;
+    // Her saat okuması 1 ms ilerler: bütçe birkaç dilimde biter.
+    const budget = new FrameBudget(() => (t += 1));
+    const layer = makeLayer();
+    budget.begin(4);
+    layer.update(forest.x, forest.z, undefined, budget);
+    expect(layer.stats.loadedChunks).toBe(0); // ilk chunk bile bu karede bitmedi
+    for (let i = 0; i < 2000 && (layer.stats.pendingChunks > 0 || i === 0); i++) {
+      budget.begin(4);
+      layer.update(forest.x, forest.z, undefined, budget);
+    }
+    expect(layer.stats.pendingChunks).toBe(0);
+    const reference = makeLayer();
+    reference.prepare(forest.x, forest.z);
+    expect(layer.stats.byKind).toEqual(reference.stats.byKind);
+    expect(layer.propsNear(forest.x, forest.z, 40)).toEqual(
+      reference.propsNear(forest.x, forest.z, 40),
+    );
+    layer.dispose();
+    reference.dispose();
   });
 });

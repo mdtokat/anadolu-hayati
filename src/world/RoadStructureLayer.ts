@@ -1,5 +1,6 @@
 import { BufferGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { ROAD_STRUCTURES } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { GrowableGeometry } from './growableGeometry';
 import { StructureIndex, buildBoxVertices, type StructureBox } from './roadStructureGeometry';
 
@@ -62,8 +63,10 @@ export class RoadStructureLayer {
     this.lastX = Number.NaN;
   }
 
-  update(x: number, z: number): void {
+  /** `budget`: kare zaman bütçesi tükenmişse yenileme sonraki kareye ertelenir. */
+  update(x: number, z: number, budget: FrameBudget | null = null): void {
     if (Math.hypot(x - this.lastX, z - this.lastZ) < ROAD_STRUCTURES.refreshDistance) return;
+    if (budget !== null && budget.exhausted) return;
     this.lastX = x;
     this.lastZ = z;
     const ids = this.index.near(x, z, this.drawRadius);

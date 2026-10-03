@@ -21,6 +21,7 @@ import { createBoundsWalls } from '../physics/bounds';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import type { Vec3 } from '../player/movement';
 import type { SkyPosition } from '../survival/astronomy';
+import { FrameBudget } from '../core/FrameBudget';
 import { ChunkColliders } from './ChunkColliders';
 import { ChunkManager } from './ChunkManager';
 import { tunnelHoles } from './roadTunnels';
@@ -100,6 +101,8 @@ export class RegionWorld implements GameWorld {
   private daylight = 1;
   /** Yağmur damlaları. */
   private readonly rain = new RainLayer();
+  /** Akışlı işlerin kare zaman bütçesi (`STREAMING.frameBudgetMs`; performans göstergesi de okur). */
+  readonly budget = new FrameBudget();
   private readonly settlementColliders: SettlementColliders | null;
   /** Ağaç, kaya ve çalı collider'ları (nesne katmanı yoksa null). */
   private readonly propColliders: PropColliders | null;
@@ -301,18 +304,21 @@ export class RegionWorld implements GameWorld {
   update(focusX: number, focusZ: number, timeSeconds: number): void {
     // Faz 11 (F): collider'lar oyuncuda, çizim görüş odağında (drone görüşü; yoksa oyuncu).
     const { visual } = viewCenters({ x: focusX, z: focusZ }, this.viewFocus);
-    this.colliders.update(focusX, focusZ);
+    // Akışlı işler ortak kare bütçesini paylaşır (öncelik sırasıyla): collider > mesh > nesne > katman yenilemeleri.
+    const budget = this.budget;
+    budget.begin();
+    this.colliders.update(focusX, focusZ, budget);
     this.settlementColliders?.update(focusX, focusZ);
     this.structureColliders?.update(focusX, focusZ);
-    this.chunks.update(visual.x, visual.z);
-    this.props?.update(visual.x, visual.z);
+    this.chunks.update(visual.x, visual.z, undefined, budget);
+    this.props?.update(visual.x, visual.z, undefined, budget);
     this.propColliders?.update(focusX, focusZ);
-    this.settlementLayer?.update(visual.x, visual.z);
-    this.glass?.update(visual.x, visual.z, timeSeconds);
+    this.settlementLayer?.update(visual.x, visual.z, budget);
+    this.glass?.update(visual.x, visual.z, timeSeconds, budget);
     this.birds.update(visual.x, visual.z, timeSeconds, this.daylight);
     this.rain.update(visual.x, this.source.heightAt(visual.x, visual.z), visual.z, timeSeconds);
     this.environment.setTime(timeSeconds);
-    this.structureLayer?.update(visual.x, visual.z);
+    this.structureLayer?.update(visual.x, visual.z, budget);
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
     this.environment.follow(visual.x, visual.z);

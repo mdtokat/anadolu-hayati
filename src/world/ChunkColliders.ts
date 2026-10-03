@@ -1,4 +1,5 @@
 import { CHUNK } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { createChunkHeightfieldDesc, createChunkTrimeshDesc } from '../physics/heightfield';
 import type { PhysicsWorld, RAPIER } from '../physics/PhysicsWorld';
 import {
@@ -48,12 +49,20 @@ export class ChunkColliders {
     this.removeFar(x, z);
   }
 
-  /** Yaklaşan chunk'ların collider'ını (bütçeyle) kurar, uzaklaşanları kaldırır. */
-  update(x: number, z: number): { added: number; removed: number } {
+  /**
+   * Yaklaşan chunk'ların collider'ını (bütçeyle) kurar, uzaklaşanları kaldırır. `budget`: kare zaman bütçesi (en
+   * yakındaki ilk collider her durumda kurulur).
+   */
+  update(
+    x: number,
+    z: number,
+    budget: FrameBudget | null = null,
+  ): { added: number; removed: number } {
     const removed = this.removeFar(x, z);
     let added = 0;
     for (const { cx, cy } of this.wanted(x, z)) {
       if (added >= CHUNK.maxColliderBuildsPerFrame) break;
+      if (budget !== null && !budget.allows(added)) break;
       if (this.add(cx, cy)) added++;
     }
     return { added, removed };

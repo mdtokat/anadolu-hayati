@@ -7,6 +7,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { SCATTER } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { chunkGridFor, chunkKey, chunksWithin, distanceToChunk, type ChunkGrid } from './chunks';
 import type { LandCoverMap } from './LandCoverMap';
 import { buildPropGeometry, type PropLod } from './propGeometry';
@@ -16,7 +17,7 @@ import { PropIndex } from './propIndex';
 import { PROP_KINDS, type PropId, type PropKind, type PropRef } from './propKinds';
 import { MAX_PROP_SOLID_RADIUS, propSolid, type PropSolid } from './propSolids';
 import type { RegionHeightSource } from './RegionHeightSource';
-import { scatterChunk, type ChunkProps, type ScatterHeight } from './scatter';
+import { ScatterJob, type ChunkProps, type ScatterHeight } from './scatter';
 import type { FreshWaterIndex } from './waterIndex';
 
 /** Tür sırasına göre seyreltme oranı (`SCATTER.thinning`). */
@@ -82,6 +83,8 @@ export class PropLayer {
   private readonly tierIndex = new Int16Array(PROP_KINDS.length * 2).fill(-1);
   /** `fill` sayaçları (her doldurmada yeniden ayrılmasın). */
   private readonly fillCounts: Int32Array;
+  /** Yarım kalmış dağılım işi (kare bütçesi bitti; aynı chunk sonraki karede sürer). */
+  private job: { key: number; job: ScatterJob } | null = null;
   /** Bekleyen chunk varken son doldurmadan beri geçen `update` sayısı. */
   private sinceFill = 0;
   /** Tür başına (ölçek 1'de) yakın geometrinin yatay yarıçapı (oyun m): eleme yarıçapı. */
@@ -161,16 +164,25 @@ export class PropLayer {
     };
   }
 
-  /** Odak (oyuncu) çevresini günceller: önce eksik chunk'ları hesaplar, sonra gerekiyorsa tamponları yeniler. */
-  update(focusX: number, focusZ: number, maxBuilds: number = SCATTER.maxChunkBuildsPerFrame): void {
+  /**
+   * Odak (oyuncu) çevresini günceller: önce eksik chunk'ları hesaplar, sonra gerekiyorsa tamponları yeniler. `budget`:
+   * kare zaman bütçesi; nesneler kritik değildir: süre kalmadıysa chunk hesaplanmaz, yenileme sonraki kareye kalır.
+   */
+  update(
+    focusX: number,
+    focusZ: number,
+    maxBuilds: number = SCATTER.maxChunkBuildsPerFrame,
+    budget: FrameBudget | null = null,
+  ): void {
     // İlk çağrıda lastX NaN'dır: karşılaştırma yanlış olur ve yenileme zorlanır.
     const refresh = !(
       Math.hypot(focusX - this.lastX, focusZ - this.lastZ) < SCATTER.refreshDistance
     );
     if (!refresh && !this.dirty && this.pending === 0) return;
+    if (budget !== null && budget.exhausted) return; // sonraki karede
 
     if (refresh) this.selectActive(focusX, focusZ);
-    const built = this.computeMissing(maxBuilds);
+    const built = this.computeMissing(maxBuilds, budget);
     // Bekleyen chunk'lar hesaplanırken tamponlar her karede değil, `pendingFillInterval` adımda bir (ve son chunk
     // hesaplanınca) yeniden doldurulur: art arda karelerde tam doldurma + yükleme takılma yapıyordu.
     const settle =
@@ -308,8 +320,11 @@ export class PropLayer {
       .sort((a, b) => a.distance - b.distance);
   }
 
-  /** Etkin chunk'lardan hesaplanmamışları (yakından uzağa) bütçe kadar hesaplar; hesaplananı döndürür. */
-  private computeMissing(budget: number): number {
+  /**
+   * Etkin chunk'lardan hesaplanmamışları (yakından uzağa) `budget` adede kadar (ve kare zaman bütçesi izin verdikçe)
+   * hesaplar; hesaplananı döndürür.
+   */
+  private computeMissing(budget: number, time: FrameBudget | null = null): number {
     let built = 0;
     this.pending = 0;
     for (const chunk of this.active) {
@@ -319,19 +334,16 @@ export class PropLayer {
         this.cache.set(chunk.key, cached);
         continue;
       }
-      if (built >= budget) {
+      if (built >= budget || (time !== null && !time.allows(built, 0))) {
         this.pending++;
         continue;
       }
-      const props = scatterChunk({
-        cx: chunk.cx,
-        cy: chunk.cy,
-        grid: this.grid,
-        seed: SCATTER.seed,
-        cover: this.cover,
-        height: this.scatterHeight,
-        isWater: (x, z, clearance) => this.water?.nearest(x, z, clearance) != null,
-      });
+      const props = this.scatter(chunk, time);
+      if (props === null) {
+        // Süre bitti: iş sonraki karede kaldığı yerden sürer.
+        this.pending++;
+        continue;
+      }
       this.cache.set(chunk.key, props);
       this.index.set(props);
       const mask = new Uint8Array(props.count);
@@ -356,6 +368,41 @@ export class PropLayer {
     if (built > 0) this.solidVer++;
     this.evict();
     return built;
+  }
+
+  /**
+   * Chunk'ın nesnelerini hesaplar. Kare bütçesi varsa iş `SCATTER.rowsPerSlice` satırlık dilimlerle, süre kaldıkça
+   * ilerler; bitmezse null döner ve yarım iş saklanır (aynı chunk sonraki karede sürer, başka chunk'a geçilirse atılır).
+   */
+  private scatter(
+    chunk: { cx: number; cy: number; key: number },
+    time: FrameBudget | null,
+  ): ChunkProps | null {
+    let job = this.job !== null && this.job.key === chunk.key ? this.job.job : null;
+    job ??= new ScatterJob({
+      cx: chunk.cx,
+      cy: chunk.cy,
+      grid: this.grid,
+      seed: SCATTER.seed,
+      cover: this.cover,
+      height: this.scatterHeight,
+      isWater: (x, z, clearance) => this.water?.nearest(x, z, clearance) != null,
+    });
+    if (time === null) {
+      job.step(Number.POSITIVE_INFINITY);
+    } else {
+      let slices = 0;
+      while (!job.done && time.allows(slices, 1)) {
+        job.step(SCATTER.rowsPerSlice);
+        slices++;
+      }
+    }
+    if (!job.done) {
+      this.job = { key: chunk.key, job };
+      return null;
+    }
+    this.job = null;
+    return job.result();
   }
 
   /** Önbellek kapasitesini aşınca en eski, etkin olmayan chunk'ları atar. */

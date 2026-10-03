@@ -287,20 +287,35 @@ export const CHUNK = {
   skirtDepth: [1, 2, 4, 8],
   /** Bu uzaklıktan (oyun m) yakın chunk'lar yüklenir. Bölge ~4 km olduğundan hemen hepsi. */
   viewDistance: 4000,
-  /** Karede kurulan en fazla chunk (mesh/collider) sayısı: kare süresi sıçramasın. */
-  maxBuildsPerFrame: 2,
+  /**
+   * Karede kurulan en fazla chunk mesh'i (üst sınır; asıl sınır `STREAMING.frameBudgetMs` zaman bütçesidir, ilk mesh
+   * her durumda kurulur).
+   */
+  maxBuildsPerFrame: 3,
   /** Fizik: bu uzaklıktaki (oyun m) chunk'lar için Rapier heightfield collider'ı vardır. */
   physicsRadius: 160,
   /** Collider'lar `physicsRadius × bu` uzaklıktan sonra kaldırılır (histerezis). */
   physicsRemoveFactor: 1.6,
-  /** Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). */
-  maxColliderBuildsPerFrame: 1,
+  /**
+   * Karede kurulan en fazla collider sayısı (yakınlaşırken; ışınlanmada hepsi senkron kurulur). Üst sınırdır; ilki her
+   * durumda, ikincisi `STREAMING.frameBudgetMs` süresi kaldıysa kurulur.
+   */
+  maxColliderBuildsPerFrame: 2,
   /**
    * Tünel ağzı delikli chunk'ın collider'ı bu kadar hücrelik kare bloklara bölünür: yalnızca delik içeren bloklar
    * üçgen ağıdır (trimesh), gerisi heightfield. Tek parça 128×128 trimesh kurulumu ~70 ms sürüyordu (takılma);
    * 16 hücrelik blokta ~1 ms. Chunk hücre sayısını (128) tam bölmeli.
    */
   holeBlockCells: 16,
+} as const;
+
+/**
+ * Akışlı işlerin kare başına ortak zaman bütçesi (`core/FrameBudget.ts`): arazi collider'ı ve mesh'i, nesne dağılımı,
+ * katman yenilemeleri (yapılar, köprüler, camlar) karede toplam bu kadar (ms) sürebilir; kritik ilk iş (oyuncunun
+ * altındaki collider, en yakın mesh) bütçe tükense de yapılır, dönemsel yenilemeler bir sonraki kareye ertelenir.
+ */
+export const STREAMING = {
+  frameBudgetMs: 4,
 } as const;
 
 /** Gerçek bölge sahnesinin ortam ayarları (bölge ~4 km; Faz 1 test sahnesinden geniş sis). */
@@ -450,6 +465,11 @@ export const SCATTER = {
    * hesaplanınca hemen): her karede tam doldurma + GPU yüklemesi takılma yapıyordu.
    */
   pendingFillInterval: 8,
+  /**
+   * Kare bütçesi varken chunk dağılımı bu kadar aday satırlık dilimlerle ilerler (chunk 64 satır; tek chunk ~10 ms
+   * sürüyordu, dilim ~1 ms).
+   */
+  rowsPerSlice: 8,
   /** Hesaplanmış chunk sonuçlarının LRU önbellek kapasitesi. */
   chunkCacheSize: 64,
   /**

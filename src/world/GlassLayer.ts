@@ -1,5 +1,6 @@
 import { BufferGeometry, DoubleSide, Group, Mesh, MeshStandardMaterial } from 'three';
 import { BUILDING_LOOK, GLASS } from '../config';
+import type { FrameBudget } from '../core/FrameBudget';
 import { localToWorld } from '../placement/structureShapes';
 import type { Building } from '../settlements/layout';
 import type { SettlementMap } from '../settlements/SettlementMap';
@@ -88,15 +89,19 @@ export class GlassLayer {
 
   private lastTime = NaN;
 
-  /** Kare başına (`time`: saniye): cam mesh'i yer değiştirince/kırılınca yenilenir; kırıklar düşer. */
-  update(x: number, z: number, time: number): void {
+  /**
+   * Kare başına (`time`: saniye): cam mesh'i yer değiştirince/kırılınca yenilenir (kare bütçesi tükenmişse yer
+   * değiştirme yenilemesi sonraki kareye kalır; kırılma hemen); kırıklar düşer.
+   */
+  update(x: number, z: number, time: number, budget: FrameBudget | null = null): void {
     const dt = Number.isFinite(this.lastTime)
       ? Math.min(Math.max(time - this.lastTime, 0), 0.1)
       : 0;
     this.lastTime = time;
     if (
       this.dirty ||
-      !(Math.hypot(x - this.lastX, z - this.lastZ) < BUILDING_LOOK.refreshDistance / 2)
+      (!(Math.hypot(x - this.lastX, z - this.lastZ) < BUILDING_LOOK.refreshDistance / 2) &&
+        !(budget !== null && budget.exhausted))
     ) {
       this.lastX = x;
       this.lastZ = z;
