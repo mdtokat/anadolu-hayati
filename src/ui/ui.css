@@ -1289,7 +1289,7 @@
 }
 @media (max-width: 760px) {
   .inv-columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .inv-section-head {
@@ -1315,7 +1315,8 @@
 /* Slot ızgarası */
 .inv-slots {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* minmax(0, …): uzun eşya adı (nowrap) sütunu genişletip ızgarayı kabından taşırmasın; ad kısaltılır. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px;
 }
 .inv-panel button.inv-slot {
@@ -1327,6 +1328,7 @@
   justify-content: center;
   gap: 3px;
   aspect-ratio: 1;
+  min-width: 0;
   min-height: 64px;
   padding: 6px 4px 5px;
   font: 500 11px/1.15 var(--ui-font);
