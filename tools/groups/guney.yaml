@@ -1,13 +1,18 @@
-# Grup: guney — Faz 12 (Güney: Ankara, Kırıkkale) için ayrıldı. Veri hattının il listesi, üslupları, görünen adları ve simge yapıları grup
-# parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
+# Grup: guney — Faz 12 (Güney: Ankara [kuzey şeridi], Kırıkkale). Veri hattının il listesi, üslupları, görünen adları ve simge yapıları
+# grup parçalarından birleştirilir (tools/groups.py; biçim: docs/faz-12-paralel-plan.md §3.2). Bu dosya yalnızca ilgili
 # grubun oturumu tarafından doldurulur (plan §2.2). Boş grup (`provinces: []`) geçerlidir ve hiçbir şeyi değiştirmez.
 #
 # `provinces`: geoBoundaries TUR ADM1 `shapeName`, Türkçe karakterlerle aynen; akış dizisi olmalıdır.
-provinces: []
+provinces: [Ankara, Kırıkkale]
 display_names: {}
 styles: {}
-# {İl: [boylam_min, enlem_min, boylam_max, enlem_max]}: ızgara kapsamı hesabında il çokgenini kutuya kırpar.
-clip_bbox: {}
+# Ankara kapsamı (kullanıcı kararı, 12.C): yalnız kuzey şeridi. Kutu Ankara'nın kuzeyini (Çankırı sınırı, Kızılcahamam, Çamlıdere,
+# Nallıhan, Beypazarı, Çubuk, Kalecik … Ankara merkezi) kapsar. NOT: ızgara kapsamı (extent) tek dikdörtgendir ve Kırıkkale
+# 39,33°K'ye indiği için türetilen sınır kutusu bu kırpmadan bağımsızdır (ölçüldü: kırpmalı = kırpmasız Kırıkkale'li kutu);
+# Ankara'nın 39,33°K üstündeki güney parçası (Polatlı, Haymana kuzeyi) dikdörtgenin içinde kaldığı için yine haritaya girer.
+# Ayrıntı: docs/faz-12-guney-rapor.md.
+clip_bbox:
+  Ankara: [30.84, 39.70, 33.89, 40.75]
 # Cami sığmayan kıyı/sıkışık merkezler (bilinçli istisna; tests/settlementMap.test.ts). Akış dizisi.
 no_mosque_towns: []
 # Simge yapılar: `- { settlement: Ad, kind: mosque_grand, name: Ad, lon: 0.0, lat: 0.0 }` (bkz. cekirdek.yaml).
