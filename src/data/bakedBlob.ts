@@ -75,3 +75,25 @@ export function unpackBlob<T = unknown>(buffer: ArrayBuffer): T {
     return v;
   }) as T;
 }
+
+async function pipeThrough(
+  bytes: ArrayBuffer | Uint8Array,
+  stream: CompressionStream | DecompressionStream,
+): Promise<Uint8Array> {
+  const source = new Blob([bytes as BlobPart]).stream().pipeThrough(stream);
+  return new Uint8Array(await new Response(source).arrayBuffer());
+}
+
+/** `packBlob` + gzip (sunucu `.bin` dosyalarını sıkıştırmaz; veri hattı kendisi sıkıştırır, aktarım ~2× küçülür). */
+export async function packCompressed(value: unknown): Promise<Uint8Array> {
+  return pipeThrough(packBlob(value), new CompressionStream('gzip'));
+}
+
+/** `packCompressed` çıktısını açar (tarayıcı ve Node ≥ 18: `DecompressionStream`). */
+export async function unpackCompressed<T = unknown>(buffer: ArrayBuffer): Promise<T> {
+  const raw = await pipeThrough(buffer, new DecompressionStream('gzip'));
+  // Taze, 0'dan başlayan tampon: tipli diziler 8 bayta hizalı görünüm olarak kurulur.
+  return unpackBlob<T>(
+    raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer,
+  );
+}

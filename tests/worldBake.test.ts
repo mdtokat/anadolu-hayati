@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FRESH_WATER } from '../src/config';
-import { packBlob, unpackBlob } from '../src/data/bakedBlob';
+import { packBlob, packCompressed, unpackBlob, unpackCompressed } from '../src/data/bakedBlob';
 import type { RegionData } from '../src/data/region';
 import { bakeWorld, type BakeResult } from '../src/data/worldBake';
 import {
@@ -20,10 +20,10 @@ let region: RegionData;
 let baked: BakeResult;
 let dense: PreparedWorld;
 
-const bytesOf = (path: string): ArrayBuffer => {
+const blobOf = async <T>(path: string): Promise<T> => {
   const file = baked.files.find((f) => f.path === path);
   if (!file) throw new Error(`${path} yok`);
-  return file.bytes.buffer as ArrayBuffer;
+  return unpackCompressed<T>(file.bytes.slice().buffer as ArrayBuffer);
 };
 
 beforeAll(async () => {
@@ -55,6 +55,16 @@ describe('bakedBlob', () => {
     expect(Array.from(out.list[1] as Uint8Array)).toEqual([1, 2, 3]);
     expect((out.list[2] as Int32Array).length).toBe(0);
   });
+
+  it('sıkıştırılmış kapsayıcı gidiş-dönüşte aynı kalır ve gerçekten küçülür', async () => {
+    const big = { z: new Uint16Array(50_000).fill(1234), f: new Float32Array([0.5, 1.5]) };
+    const packed = await packCompressed(big);
+    expect(packed.length).toBeLessThan(packBlob(big).length / 10);
+    const out = await unpackCompressed<typeof big>(packed.slice().buffer as ArrayBuffer);
+    expect(out.z.length).toBe(50_000);
+    expect(out.z[49_999]).toBe(1234);
+    expect(Array.from(out.f)).toEqual([0.5, 1.5]);
+  });
 });
 
 describe('bake çıktısı', () => {
@@ -71,22 +81,22 @@ describe('bake çıktısı', () => {
     expect(hex).toBe(manifest.overview.sha256);
   });
 
-  it('genel bakış dizisi yoğun kaynağın her 8. örneğidir', () => {
-    const overview = unpackBlob<OverviewBlob>(bytesOf('stream/overview.bin'));
+  it('genel bakış dizisi yoğun kaynağın her 8. örneğidir', async () => {
+    const overview = await blobOf<OverviewBlob>('stream/overview.bin');
     const reference = dense.source.buildOverview();
     expect(overview.heights.length).toBe(reference.length);
     for (let i = 0; i < reference.length; i += 97) expect(overview.heights[i]).toBe(reference[i]);
     expect(overview.cover.length).toBe(overview.cols * overview.rows);
   });
 
-  it('tüm karolar pencere + yamalarla yoğun (düzeltilmiş) kaynakla bire bir aynı', () => {
+  it('tüm karolar pencere + yamalarla yoğun (düzeltilmiş) kaynakla bire bir aynı', async () => {
     const streamed = RegionHeightSource.streamed(
       region.meta,
-      unpackBlob<OverviewBlob>(bytesOf('stream/overview.bin')).heights,
+      (await blobOf<OverviewBlob>('stream/overview.bin')).heights,
     );
     let patched = 0;
     for (const t of baked.manifest.tiles) {
-      const blob = unpackBlob<TileBlob>(bytesOf(t.file));
+      const blob = await blobOf<TileBlob>(t.file);
       streamed.loadTile(blob.tx, blob.ty, { ...blob.window, raw: blob.raw });
       streamed.patchTile(blob.tx, blob.ty, blob.patchIndices, blob.patchValues);
       patched += blob.patchIndices.length;
@@ -106,8 +116,8 @@ describe('bake çıktısı', () => {
     expect(streamed.graded).toBe(true);
   }, 300_000);
 
-  it('baked yerleşim haritası hesaplananla aynı', () => {
-    const blob = unpackBlob<SettlementBlob>(bytesOf('stream/settlements.bin'));
+  it('baked yerleşim haritası hesaplananla aynı', async () => {
+    const blob = await blobOf<SettlementBlob>('stream/settlements.bin');
     const hydrated = new SettlementMap(blob.map);
     const map = dense.settlementMap!;
     expect(hydrated.settlements.length).toBe(map.settlements.length);

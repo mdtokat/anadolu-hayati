@@ -27,6 +27,7 @@ import {
   renderReport,
   worstStatus,
   type AssetStat,
+  type DataRole,
   type DataStat,
   type ModuleGroup,
 } from './buildReport.ts';
@@ -95,6 +96,14 @@ interface WorldManifest {
   settlements?: { file: string; bytes: number; sha256: string } | null;
 }
 
+/** `stream.json` (Faz 12; ayrıntı `src/data/worldStream.ts`): denetimin okuduğu alanlar. */
+interface StreamManifestLite {
+  world: { bytes: number; sha256: string };
+  overview: { file: string; bytes: number; sha256: string };
+  settlements: { file: string; bytes: number; sha256: string } | null;
+  tiles: Array<{ file: string; bytes: number; sha256: string }>;
+}
+
 /** Her `dist/data/world/<id>/world.json` için karo bayt + sha256 ve yan dosyalar. */
 function checkWorlds(problems: string[]): string[] {
   const notes: string[] = [];
@@ -146,6 +155,37 @@ function checkWorlds(problems: string[]): string[] {
           problems.push(`${id}: ${settlements.file} sha256 manifestle uyuşmuyor`);
       }
     }
+    // Karo akışı (Faz 12): `stream.json` varsa bake'in güncel olduğu ve dosyaların bayt + sha256'sı denetlenir.
+    const streamPath = join(dir, 'stream.json');
+    if (existsSync(streamPath)) {
+      listed.add('stream.json');
+      const stream = readJson<StreamManifestLite>(streamPath);
+      const worldBytes = readFileSync(manifestPath);
+      if (
+        worldBytes.byteLength !== stream.world.bytes ||
+        createHash('sha256').update(worldBytes).digest('hex') !== stream.world.sha256
+      )
+        problems.push(`${id}: stream.json eski (world.json değişmiş): \`npm run bake\` çalıştır`);
+      const entries = [
+        stream.overview,
+        ...(stream.settlements ? [stream.settlements] : []),
+        ...stream.tiles,
+      ];
+      for (const entry of entries) {
+        listed.add(entry.file);
+        const path = join(dir, entry.file);
+        if (!existsSync(path)) {
+          problems.push(`${id}: ${entry.file} eksik`);
+          continue;
+        }
+        const blob = readFileSync(path);
+        if (blob.byteLength !== entry.bytes)
+          problems.push(`${id}: ${entry.file} ${blob.byteLength} bayt, manifest ${entry.bytes}`);
+        else if (createHash('sha256').update(blob).digest('hex') !== entry.sha256)
+          problems.push(`${id}: ${entry.file} sha256 manifestle uyuşmuyor`);
+      }
+      notes.push(`Dünya \`${id}\`: karo akışı, ${stream.tiles.length} karo dosyası doğrulandı`);
+    }
     const unlisted = walk(dir).filter((file) => !listed.has(file));
     if (unlisted.length > 0)
       notes.push(
@@ -154,6 +194,28 @@ function checkWorlds(problems: string[]): string[] {
     notes.push(`Dünya \`${id}\`: ${manifest.tiles.length} karo, bayt + sha256 doğrulandı`);
   }
   return notes;
+}
+
+/**
+ * Karo akışlı dünyaların (`stream.json` olan) dosya rolleri: akış karoları (`stream/t_*.bin`) yaklaştıkça iner, eski
+ * karolar (`tiles/*.bin`) akışlı dünyada hiç inmez, geri kalan her şey açılışta iner. Akışlı dünya yoksa null.
+ */
+function dataRolesOf(files: readonly string[]): ReadonlyMap<string, DataRole> | undefined {
+  const roles = new Map<string, DataRole>();
+  const streamed = new Set(
+    files
+      .filter((file) => file.endsWith('/stream.json'))
+      .map((file) => file.slice(0, -'stream.json'.length)),
+  );
+  if (streamed.size === 0) return undefined;
+  for (const file of files) {
+    const world = [...streamed].find((prefix) => file.startsWith(prefix));
+    if (world === undefined) continue;
+    const rel = file.slice(world.length);
+    if (/^stream\/t_.+\.bin$/.test(rel)) roles.set(file, 'streamTile');
+    else if (/^tiles\/.+\.bin$/.test(rel)) roles.set(file, 'legacyTile');
+  }
+  return roles;
 }
 
 function main(): void {
@@ -191,7 +253,8 @@ function main(): void {
       moduleGroups[chunkKey(file)] = groupModules(chunk.modules);
   }
 
-  const checks = evaluateBuild({ assets, initialFiles, data }, BUILD_BUDGET);
+  const dataRoles = dataRolesOf(data.map((stat) => stat.file));
+  const checks = evaluateBuild({ assets, initialFiles, data, dataRoles }, BUILD_BUDGET);
   const status = worstStatus(checks, problems);
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
   const title = `Derleme raporu — ${status === 'fail' ? '❌ başarısız' : status === 'warn' ? '⚠️ uyarılı' : '✅ bütçe içinde'}`;

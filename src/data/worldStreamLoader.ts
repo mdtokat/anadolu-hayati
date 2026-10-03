@@ -9,7 +9,7 @@ import {
   type RegionFeatures,
   type RegionMeta,
 } from './region';
-import { unpackBlob } from './bakedBlob';
+import { unpackCompressed } from './bakedBlob';
 import { regionMetaOf, parseWorldManifest, sha256Hex, waterAnchors } from './world';
 import {
   parseStreamManifest,
@@ -95,8 +95,10 @@ export async function loadWorldStream(
     verified(manifest.overview),
     manifest.settlements ? verified(manifest.settlements) : Promise.resolve(null),
   ]);
-  const overview = unpackBlob<OverviewBlob>(overviewBuffer);
-  const settlements = settlementBuffer ? unpackBlob<SettlementBlob>(settlementBuffer) : null;
+  const overview = await unpackCompressed<OverviewBlob>(overviewBuffer);
+  const settlements = settlementBuffer
+    ? await unpackCompressed<SettlementBlob>(settlementBuffer)
+    : null;
   const meta = regionMetaOf(world);
   const anchors = settlements
     ? { settlements: settlements.map.settlements.map((s) => s.data as SettlementData) }
@@ -118,7 +120,7 @@ export async function loadWorldStream(
     fetchTile: async (tx, ty) => {
       const entry = tiles.get(`${tx},${ty}`);
       if (!entry) fail(`karo (${tx}, ${ty}) manifestte yok`);
-      const blob = unpackBlob<TileBlob>(await verified(entry));
+      const blob = await unpackCompressed<TileBlob>(await verified(entry));
       if (blob.tx !== tx || blob.ty !== ty)
         fail(`karo dosyası (${blob.tx}, ${blob.ty}), beklenen (${tx}, ${ty})`);
       return blob;

@@ -10,6 +10,8 @@ export interface BudgetShape {
   initialGzipKB: number;
   data: { totalKB: number; maxFileKB: number };
   load: { referenceMbps: number; maxSeconds: number };
+  /** Karo akışlı dünya (Faz 12): açılışta inen karo sayısı ve bu durumdaki ilk yükleme sınırı (sn). */
+  stream?: { startTiles: number; maxSeconds: number };
   warnRatio: number;
 }
 
@@ -34,6 +36,30 @@ export interface BuildInput {
   /** index.html'in açılışta çektiği dosyalar (`dist/`'e göreli). */
   initialFiles: string[];
   data: DataStat[];
+  /**
+   * Karo akışlı dünya varsa: veri dosyalarının açılıştaki rolü (`dist/`'e göreli yol → rol). `initial` açılışta tam
+   * iner, `streamTile` oyuncuya yaklaştıkça iner (açılışta `budget.stream.startTiles` kadarı), `legacyTile` akışlı
+   * dünyada hiç indirilmez (eski tam bellek yolunun karoları). Verilmezse tüm dosyalar açılışta iner.
+   */
+  dataRoles?: ReadonlyMap<string, DataRole>;
+}
+
+export type DataRole = 'initial' | 'streamTile' | 'legacyTile';
+
+/**
+ * Açılışta inen veri baytı (aktarım): akışlı dünyada `initial` dosyalar + `startTiles` ortalama karo; `legacyTile`
+ * indirilmez, `streamTile`'ın kalanı sonradan iner.
+ */
+export function startupDataTransfer(
+  data: readonly DataStat[],
+  roles: ReadonlyMap<string, DataRole> | undefined,
+  startTiles: number,
+): number {
+  if (!roles) return sum(data.map(transferBytes));
+  const tiles = data.filter((stat) => roles.get(stat.file) === 'streamTile');
+  const tileMean = tiles.length === 0 ? 0 : sum(tiles.map(transferBytes)) / tiles.length;
+  const initial = data.filter((stat) => (roles.get(stat.file) ?? 'initial') === 'initial');
+  return sum(initial.map(transferBytes)) + Math.min(startTiles, tiles.length) * tileMean;
 }
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
@@ -116,12 +142,17 @@ export function evaluateBuild(input: BuildInput, budget: BudgetShape): Check[] {
       ),
     );
 
-  const transfer = sum(initial.map(transferBytes)) + sum(input.data.map(transferBytes));
+  const streamed =
+    input.dataRoles !== undefined && [...input.dataRoles.values()].includes('streamTile');
+  const startTiles = budget.stream?.startTiles ?? 9;
+  const transfer =
+    sum(initial.map(transferBytes)) +
+    startupDataTransfer(input.data, streamed ? input.dataRoles : undefined, startTiles);
   checks.push(
     checkLimit(
-      `tahmini ilk yükleme @ ${budget.load.referenceMbps} Mbit/s`,
+      `tahmini ilk yükleme @ ${budget.load.referenceMbps} Mbit/s${streamed ? ` (karo akışı, ${startTiles} karo)` : ''}`,
       estimateLoadSeconds(transfer, budget.load.referenceMbps),
-      budget.load.maxSeconds,
+      streamed ? (budget.stream?.maxSeconds ?? budget.load.maxSeconds) : budget.load.maxSeconds,
       warnRatio,
       's',
     ),

@@ -4,7 +4,7 @@ import { cutWindow, OVERVIEW_STRIDE, TILE_HALO, overviewSize } from '../world/te
 import { prepareDenseWorld } from '../world/worldPrep';
 import { FreshWaterIndex } from '../world/waterIndex';
 import { lakeLevels } from '../world/waterGeometry';
-import { packBlob } from './bakedBlob';
+import { packCompressed } from './bakedBlob';
 import type { RegionData } from './region';
 import {
   STREAM_VERSION,
@@ -65,7 +65,7 @@ export async function bakeWorld(
   const { gridWidth: width, gridHeight: height } = region.meta;
   const files: BakedFile[] = [];
   const add = async (path: string, value: unknown) => {
-    const bytes = packBlob(value);
+    const bytes = await packCompressed(value);
     files.push({ path, bytes });
     return { file: path, bytes: bytes.length, sha256: await sha256Hex(bytes) };
   };
