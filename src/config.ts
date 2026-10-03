@@ -931,6 +931,19 @@ export const TERRAIN_SMOOTHING = {
 } as const;
 
 /** Deniz yüzeyi (Karadeniz) ayarları. */
+/**
+ * Kıyı biçimlendirme (`world/coastShaping.ts`; arazi sayfası hesabının son adımı, deniz tabanından sonra; kullanıcı
+ * talimatı: "Samsun ve Sinop sahil şeridinde deniz kesik kesik görünüyor", Kocaeli körfezi): kara/deniz maskesi
+ * `sigmaCells` (hücre) Gauss süzgeciyle yumuşatılır; kıyı yüksekliği su + `relief` · (b − ½) (oyun m). Tek hücrelik
+ * deniz/kara benekleri kalkar, alçak kıyı ovası su düzleminin en az `relief`/2 üstündedir (titreme yok), su çizgisi
+ * yumuşatılmış maskeyi izler. `shoreBand`: maske bundan büyükse deniz hücresi sığ kıyı yüksekliğine çıkar.
+ */
+export const COAST_SHAPING = {
+  sigmaCells: 1,
+  relief: 0.3,
+  shoreBand: 0.2,
+} as const;
+
 export const WATER = {
   /** Su yüzeyi yüksekliği (oyun m): 0'ın hemen üstü; kıyı çizgisinde zemin ile çakışıp titremesin. */
   level: 0.02,
@@ -1279,19 +1292,29 @@ export const FRESH_WATER = {
 } as const;
 
 /**
- * Küçük derelerin ayıklanması (`data/waterThinning.ts`; yüklemede bir kez): veri her kısa dere kolunu taşıdığından
- * arazide çok sayıda ince akarsu görünüyordu. Uç noktalarıyla bağlı dereler öbeklenir; öbeğin toplam uzunluğu
- * (oyun m) eşikten kısaysa öbek kaldırılır. Nehir, kanal, göl ve kaynaklar etkilenmez. Kaldırılan dereler yalnızca
- * nesne dağılımında hesaba katılmaya devam eder (`RegionFeatures.minorStreams`): nesne kimlikleri kaymasın.
+ * Kısa su çizgilerinin ayıklanması (`data/waterThinning.ts`; yüklemede bir kez): veri her kısa dere kolunu ve menfez/köprü
+ * altında bölünmüş kısa akarsu parçalarını taşıdığından arazide çok sayıda ince, birkaç hücrelik su parçası (ve
+ * üstlerinde köprüler) görünüyordu (kullanıcı talimatları: "akarsu sayısı çok fazla"; "2-3 karelik suları ve
+ * üzerindeki köprüleri kaldır, uzun nehirler kalsın"). Dere, nehir ve kanal çizgileri uç noktalarıyla öbeklenir;
+ * öbeğin toplam uzunluğu (oyun m) eşikten kısaysa öbek kaldırılır. Göl ve kaynaklar etkilenmez. Kaldırılan çizgiler
+ * yalnızca nesne dağılımında hesaba katılmaya devam eder (`RegionFeatures.minorStreams`): nesne kimlikleri kaymasın.
+ * Köprüler yol planında kalan su ağından seçildiğinden (`npm run bake`) kaldırılan suyun köprüsü de kalkar.
  */
 export const WATER_THINNING = {
   /** Bu toplam uzunluktan (oyun m; 400 = 20 gerçek km) kısa dere öbekleri kaldırılır. */
   minNetworkLength: 400,
   /** Tamamı mevsimlik (kuruyabilen) dere öbekleri için eşik (oyun m). */
   minIntermittentLength: 600,
-  /** Uç noktaları bu uzaklıktan (oyun m) yakın dereler bağlı sayılır. */
+  /** Nehir ya da kanal içeren öbeklerin eşiği (oyun m; 200 = 10 gerçek km): kısa nehir/kanal parçaları da kalkar. */
+  minRiverNetworkLength: 200,
+  /**
+   * İl/ilçe merkezine ya da yer adına yakın geçen öbek kısa olsa da kalır (içme suyu); ama bundan (oyun m) kısaysa
+   * kalkar: kentin içinde kalan birkaç hücrelik kopuk parçalar.
+   */
+  minAnchoredLength: 80,
+  /** Uç noktaları bu uzaklıktan (oyun m) yakın çizgiler bağlı sayılır. */
   joinTolerance: 1.5,
-  /** İl/ilçe merkezine ya da oyunun yer adlarına bu uzaklıktan (oyun m) yakın geçen dere öbeği kalır (içme suyu). */
+  /** İl/ilçe merkezine ya da oyunun yer adlarına bu uzaklıktan (oyun m) yakın geçen öbek kalır (içme suyu). */
   anchorReach: 60,
 } as const;
 
@@ -2270,9 +2293,44 @@ export const ROAD_STRUCTURES = {
   portalWing: 2.2,
   portalCrown: 1.6,
   lampSpacing: 12,
+  /**
+   * Deniz geçişi (kullanıcı talimatı: "Gebze civarındaki Osman Gazi Köprüsü"; körfezi geçen otoyol deniz tabanında
+   * kalıyordu): yolun deniz hücrelerindeki (doğal yükseklik < 0) kesimi `seaBridgeMin`'den (oyun m) uzunsa köprüdür;
+   * güverte suyun en az `seaClearance` üstündedir. Anayolda `suspensionMinLength`'ten uzun deniz geçişi asma köprüdür
+   * (`suspension`: iki kule, ana kablolar, askılar; güverte suyun `suspensionClearance` üstünde — gerçekte 64 m / dikey
+   * ölçek 15). Kent içinde de bu geçiş ve iki yanında `seaApproach` kadar yaklaşım anayol kalır (cadde sayılmaz).
+   */
+  seaBridgeMin: 6,
+  seaClearance: 1.6,
+  suspensionMinLength: 30,
+  suspensionClearance: 4.3,
+  seaApproach: 30,
+  /**
+   * Asma köprü: kulelerin güverteden yüksekliği (gerçekte ~188 m / 15), kule bacağı kalınlığı, ana açıklığın kenar
+   * açıklığına oranı (1 550 m / 566 m), kulelerin deniz kesiminin uçlarından içeri payı (deniz kesimi boyuna oranı),
+   * kablonun açıklık ortasında güverteden yüksekliği ve kalınlığı, askı aralığı (yol noktası).
+   */
+  towerHeight: 12.5,
+  towerLeg: 0.9,
+  sideSpanShare: 0.365,
+  towerInset: 0.12,
+  cableSag: 1.1,
+  cableHalf: 0.09,
+  hangerHalf: 0.03,
+  /**
+   * Köprü güvertesinin ve tünel zemininin üstündeki yol yüzeyi (kullanıcı talimatı: "köprüler gri olmasın, ayakları gri
+   * olsun; köprünün üstündeki yol hangi yolsa o renkte olsun; tüneller de"): yol tipinin rengi (`TERRAIN_OVERLAY`:
+   * anayol koyu asfalt + kenar çizgileri ve kesik orta şerit, köy yolu açık asfalt, patika toprak, kent sokağı parke +
+   * kaldırım). Kalınlık (oyun m) güvertenin üstüne eklenir; çizgiler yüzeyin `markingLift` üstündedir.
+   */
+  surfaceThickness: 0.04,
+  markingLift: 0.012,
+  /** Anayol kenar çizgisinin genişliği (oyun m). */
+  edgeLineWidth: 0.14,
+  /** Ahşap köprüde toprak yolun güverteye oranı (kalas kenarları görünür kalsın). */
+  woodenTrailShare: 0.75,
   /** Renkler 0xRRGGBB (tür başına). */
   colors: {
-    deck: 0x7b7870,
     parapet: 0x9a9284,
     pier: 0x86827a,
     guardRail: 0xb9bcc0,
@@ -2284,6 +2342,9 @@ export const ROAD_STRUCTURES = {
     tunnelFloor: 0x3a3a3c,
     portal: 0xa9a49a,
     lamp: 0xffc36b,
+    /** Asma köprü kulesi (ayak gibi gri beton) ve çelik kablolar. */
+    tower: 0x8c8a86,
+    cable: 0x4b5057,
   },
 } as const;
 
@@ -2389,6 +2450,8 @@ export const SEARCH = {
   containerChanceScale: 0.35,
   containerChanceMax: 1.8,
   containerSeedSalt: 0x5a7d,
+  /** Üst kat kaplarının tohum tuzu (her kat ayrı zarlanır; `rollUpperContainerLoot`). */
+  upperFloorSeedSalt: 0x7c3f,
   /** Kapısı aranacak yapıların merkezinin sorgulandığı yarıçap (oyun m; en büyük yapı payıyla). */
   queryRadius: 24,
   /** Yıkık yapıda her ganimet olasılığı bu oranla çarpılır (çatı çökmüş, kiler ıslanmış). */

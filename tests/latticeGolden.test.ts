@@ -279,6 +279,10 @@ describe('gerçek dünyada eski alan yerinde kalır (≤ 1 nicem)', { timeout: 1
  * nicemlendi (≤ 1 nicem ≈ 4 cm). Tüm eski alanda (130 chunk, ~93 750 nesne) yalnızca ~10 nesne eğim/rakım eşiğinde
  * eklendi/kalktı (16 chunk; 7.10'daki 2 nesneyle aynı tür kayma), kalanların türü ve yatay konumu aynı; özetler
  * çoğunlukla yükseklik (`y`) yüzünden değişti, tamamı deniz olan (0, 0) aynı kaldı. Yeniden kaydedildi.
+ *
+ * Faz 12 sonrası kıyı biçimlendirmesi (`world/coastShaping.ts`): kıyı chunk'ı (10, 0) yeniden kaydedildi. Nesne sayısı,
+ * türleri, yatay konumları, ölçek ve yönleri aynı (ayrıca doğrulandı); yalnız denize komşu birkaç nesnenin `y`'si
+ * (deniz hücresinin biçimlendirilmiş yüksekliğiyle aradeğer) değişti.
  */
 const SCATTER_GOLDEN = {
   total: 9830,
@@ -293,7 +297,7 @@ const SCATTER_GOLDEN = {
     '8,5': '3c9b4101',
     '7,8': 'd4e9e3a6',
     '4,3': '370898d1',
-    '10,0': '301050a5',
+    '10,0': '66f09563',
     '1,9': '129f5498',
   },
 };

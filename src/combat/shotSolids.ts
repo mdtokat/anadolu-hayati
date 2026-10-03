@@ -69,7 +69,7 @@ function solidsOf(kind: BuildingKind, ruined: boolean, floors: number): readonly
   const key = `${kind}:${floors}`;
   let list = holedSolids.get(key);
   if (!list) {
-    const holes = windowPanes(kind).map((pane) => paneHole(pane));
+    const holes = windowPanes(kind, floors).map((pane) => paneHole(pane));
     list = holes.length > 0 ? subtractHoles(solids, holes) : solids;
     holedSolids.set(key, list);
   }
@@ -112,7 +112,7 @@ const PANE_HALF = 0.05;
 /** Bir binanın camları (dünya; yıkık yapıda yok). Kimlik `paneId(yapı, sıra)`. */
 export function buildingPanes(b: Building): PaneBox[] {
   if (b.ruined) return [];
-  return windowPanes(b.kind).map((pane) => {
+  return windowPanes(b.kind, b.floors).map((pane) => {
     const c = localToWorld(b, pane.cx, pane.cz);
     const alongX = pane.face === 'front' || pane.face === 'back';
     return {

@@ -127,7 +127,7 @@ export class GlassLayer {
     const positions: number[] = [];
     for (const b of this.map.buildingsNear(x, z, BUILDING_LOOK.interiorRadius)) {
       if (b.ruined || Math.hypot(b.x - x, b.z - z) > BUILDING_LOOK.interiorRadius) continue;
-      for (const pane of windowPanes(b.kind)) {
+      for (const pane of windowPanes(b.kind, b.floors)) {
         if (this.broken.has(paneId(b.id, pane.index))) continue;
         pushQuad(positions, paneCorners(b, pane));
       }
@@ -140,7 +140,7 @@ export class GlassLayer {
     near: { x: number; z: number },
   ): { building: Building; pane: WindowPane } | null {
     for (const b of this.map.buildingsNear(near.x, near.z, GLASS.searchRadius)) {
-      for (const pane of windowPanes(b.kind)) {
+      for (const pane of windowPanes(b.kind, b.floors)) {
         if (paneId(b.id, pane.index) === id) return { building: b, pane };
       }
     }

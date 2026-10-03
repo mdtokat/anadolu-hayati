@@ -393,17 +393,20 @@ export async function loadWorld(
 }
 
 /**
- * Küçük dere ayıklamasında korunacak noktalar: il/ilçe merkezleri ve oyunun yer adları / ışınlanma noktaları (yanından
- * geçen dere kısa olsa da kalır: oyuncunun başladığı ya da ışınlandığı yerde içme suyu olsun).
+ * Küçük dere ayıklamasında korunacak noktalar: il/ilçe merkezleri (yanından geçen öbek kısa olsa da kalır, birkaç
+ * hücrelik parça değilse: `minAnchoredLength`) ve oyunun yer adları / ışınlanma noktaları (yanından geçen öbek her
+ * uzunlukta kalır: oyuncunun başladığı ya da ışınlandığı yerde içme suyu olsun).
  */
 export function waterAnchors(
   settlements: { settlements: ReadonlyArray<{ rank: string; x: number; z: number }> } | null,
   origin: readonly [number, number],
-): Array<{ x: number; z: number }> {
-  const out: Array<{ x: number; z: number }> = [];
-  for (const s of settlements?.settlements ?? []) if (s.rank !== 'koy') out.push(s);
+): Array<{ x: number; z: number; keepShort?: boolean }> {
+  const out: Array<{ x: number; z: number; keepShort?: boolean }> = [];
+  for (const s of settlements?.settlements ?? [])
+    if (s.rank !== 'koy') out.push({ x: s.x, z: s.z });
+  // Yer adı/ışınlanma noktaları hayatta kalma başlangıcıdır: yakındaki su kısa olsa da kalır (`tests/pilotPlaces`).
   const places = [...Object.values(PROVINCE_PLACES).flat(), ...TELEPORTS];
-  for (const p of places) out.push(latLonToGame(p.lat, p.lon, origin));
+  for (const p of places) out.push({ ...latLonToGame(p.lat, p.lon, origin), keepShort: true });
   return out;
 }
 

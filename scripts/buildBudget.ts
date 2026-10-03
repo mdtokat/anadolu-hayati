@@ -18,9 +18,11 @@ export const BUILD_BUDGET = {
      * tarım, silahlar, eşkıya, drone) ekleyeceği saf mantık + geometri için 175 → 230 kB gzip, ham 560 → 740 kB
      * (aynı oran); bir akış tek başına 15 kB'tan fazla eklerse PR'ında ölçümü yazar. Faz 11 sonrası alışveriş ve
      * tapu (ekonomi mantığı + dükkân paneli, ~+8 kB gzip; önce ~229 kB, sonra ~237 kB): 230 → 270 kB gzip, ham
-     * 740 → 850 kB (~%14 pay; uyarı eşiği %90'ın altında kalsın).
+     * 740 → 850 kB (~%14 pay; uyarı eşiği %90'ın altında kalsın). Faz 12 sonrası (savaş görünümü, ganimet paneli;
+     * ardından üst kat camları/kapları, balkonlar, asma köprü, kıyı biçimlendirme: ~+3,6 kB gzip): taban ~269 kB'de
+     * bütçenin %99'una dayanmıştı, ölçülen 272,7 kB → 270 → 310 kB gzip (%88: uyarı eşiğinin altında), ham 850 → 950 kB.
      */
-    'index.js': { gzipKB: 270, rawKB: 850 },
+    'index.js': { gzipKB: 310, rawKB: 950 },
     /** Three.js; sürüm yükseltmesinde büyüyebilir. */
     'three.js': { gzipKB: 180, rawKB: 700 },
     /** Rapier: WASM base64 gömülüdür (~4,3 MB ham); `vite.config.ts` uyarı eşiği de bu `rawKB`'dir. */

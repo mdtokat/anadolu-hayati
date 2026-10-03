@@ -358,3 +358,14 @@ Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup 
 - [ ] **Envanter sürükle-bırak:** slottan slota bırakınca taşınıyor/birleşiyor/yer değiştiriyor mu? Panelin dışına (karartılmış arka plana) bırakınca yığın atılıyor mu (imleç kırmızı hayalet)? Tıklama hâlâ seçiyor mu? Chrome, Firefox ve Edge'de aynı mı?
 - [ ] **Ganimet paneli:** ölü eşkıya (E basılı), kamp sandığı ve bina kabı (sandık/dolap) arayınca panel açılıyor mu? Çift tık eşyayı alıyor mu, "Hepsini al" hepsini alıyor mu? Envanter doluyken sığanı alıp kalanı bırakıyor mu? Paneli kapatıp yeniden arayınca kalan geliyor mu? Oyunu kaydedip yükleyince bina kabının kalanı korunuyor mu (cesetlerin kalanı kayda girmez)?
 - Notlar: ____________________
+
+## 23. Kısa sular, üst katlar, Osman Gazi Köprüsü, kıyılar ve köprü renkleri (Faz 12 sonrası)
+
+- [ ] **Kısa sular:** kent içlerinde ve kırda 2-3 hücrelik kopuk dere/nehir parçaları ve üstlerindeki küçük köprüler kalktı mı? Uzun nehirler (Filyos, Sakarya, Kızılırmak, Yeşilırmak, Bartın Çayı) kopmadan duruyor mu? Kentlerde içilecek su (çeşme/şadırvan/dere) hâlâ yakında mı?
+- [ ] **Üst katlarda cam:** apartman, konak, lojman ve hükümet konağının üst katlarında pencereden dışarısı görünüyor mu? Uzaktan pencereler eskisi gibi koyu mu? Ateş edince üst kat camı kırılıyor mu, mermi geçiyor mu?
+- [ ] **Üst katlarda eşya:** her üst katta sandık/dolap var mı ve `E` ile aranıyor mu (alt/üst kattaki kap karışmıyor mu)? Ganimet geliyor mu? Sedir, sini ve kilim yerinde mi (merdiveni kapatmıyor mu)?
+- [ ] **Balkon:** apartmanın üst katlarında balkon kapısından balkona çıkılıyor mu? Korkuluk düşmeyi engelliyor mu? Balkondan geri girilebiliyor mu? Balkon kapısı ile pencereler çakışıyor mu?
+- [ ] **Osman Gazi Köprüsü:** Dilovası (`Shift` + 8 Kocaeli'deyken) ile Hersek arasındaki asma köprü görünüyor mu (iki kule, ana kablolar, askılar)? Üstünden yürünerek/koşarak karşıya geçilebiliyor mu, iki uçta yola bağlanıyor mu? Güverte suyun yeterince üstünde mi?
+- [ ] **Kıyılar:** Samsun (Kızılırmak/Yeşilırmak deltaları), Sinop yarımadası ve Kocaeli körfezinde deniz benek benek/kesik kesik görünüyor mu? Kıyı çizgisi yumuşak mı, alçak ova suyla titreşiyor mu? Lagünler (Balık Gölü) su olarak duruyor mu?
+- [ ] **Köprü/tünel renkleri:** köprü güvertesindeki yol, bağlı olduğu yolun renginde mi (anayol koyu asfalt + beyaz çizgiler, köy yolu açık asfalt, patika toprak, kent sokağı parke)? Ayaklar gri mi? Tünel içinde yol aynı renkte mi?
+- Notlar: ____________________
