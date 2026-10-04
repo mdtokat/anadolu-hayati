@@ -1,4 +1,4 @@
-# Battle Royale Modu — Plan (onaylandı)
+# Battle Royale Modu — Plan (tamamlandı)
 
 > Kullanıcı talimatı: "Oyuna battle royale modu getirelim. Şu an sadece NPC'lerle oynansın. Harita kapsamı ister tüm
 > harita ister il il olacak şekilde, oyuncu sayısını kullanıcı seçsin. Bunu planla, onayladığımda uygulayacağız."
@@ -184,9 +184,8 @@ başlangıç aralığı, bölge hasarı.
 
 ## 6. Performans
 
-- Yakın kademe en çok 16 yarışmacı: `BanditLayer` çizimi (örnekli) + atış ışınları; mevcut çete çatışmalarıyla aynı
-  ölçekte. Uzak kademe 100 NPC × 2 adım/sn, kare zaman bütçesine (`core/FrameBudget`) bağlanır; ölçülen hedef
-  < 0,3 ms/kare.
+- Yakın kademe en çok 12 yarışmacı (BR.7'de 16'dan indirildi): `BanditLayer` yarışmacı başına 5 mesh (gövde, iki bacak,
+  iki kol) çizer = 5 draw call; atış ışınları mevcut çete çatışmalarıyla aynı ölçekte.
 - Bölge duvarı +1 draw call. Kapatılan sistemler (eşkıya, insanlar, satıcılar) birkaç draw call geri kazandırır.
 - Tüm haritada oyuncu hızla yer değiştirmez (ışınlanma yok), karo akışı mevcut bütçesinde kalır.
 - Gerçek GPU'da FPS elle ölçülecek (kılavuz bölüm 27).
@@ -261,7 +260,7 @@ başlangıç aralığı, bölge hasarı.
     `CONTESTANT_ID_BASE` (2⁴¹) + maç kimliği.
   - `ai.ts` (yalnız ekleme): sakin etkinlik `travel` (`BANDIT_ACTIVITIES` sonuna; `home`'a `travelSpeed` hızla gider),
     `noSurrender`. `HitSource.attacker` ve `bandit:damaged` `by`/`attacker`/`weapon`: öldüren bulunur.
-  - Kademe geçişi: oyuncuya 320 m içindeki, karosu hazır uzak NPC'ler (yakından uzağa, en çok 16) yarışmacıya
+  - Kademe geçişi: oyuncuya 320 m içindeki, karosu hazır uzak NPC'ler (yakından uzağa, en çok 16; BR.7'de 12) yarışmacıya
     dönüşür (teçhizat → silah, can aynen); 380 m (çatışıyorsa 500 m) ötesinde soyut kayda döner (teçhizat silahın
     altına inmez). Sakin yarışmacının hedefini uzak simülasyonla aynı kurallar verir (`FarSim.guide`: ganimet yeri,
     bölge, akış alanı); ganimet yerinde bekleyenin silahı yükselir; 3 sn'de 0,8 m ilerleyemeyen kaçış noktası seçer
@@ -331,4 +330,24 @@ başlangıç aralığı, bölge hasarı.
   - Maç kurulum süresi (başsız, tarayıcı içinde): Zonguldak + Bartın 0,3 sn; tüm harita 100 kişi 2,3 sn (2,0 sn'si
     bütün aşamaların akış alanları; tek seferlik, "Maç hazırlanıyor…" sırasında).
   - Bütçe: `index.js` 294 → 302 kB gzip (sınır 310 kB, %98 uyarı; sınır yükseltilmedi).
-- [ ] BR.7 — ölçüm ve belgeler
+- [x] **BR.7 — ölçüm ve belgeler** (elle doğrulama kılavuzu bölüm 27 `docs/faz-8-elle-dogrulama.md`, ROADMAP "Son
+  Kalan (Battle Royale)", `CLAUDE.md`; performans göstergesinde `F3` ayrı "son kalan" bölümü).
+  - Başsız ölçüm (yazılımsal WebGL, 1280 × 800; gerçek GPU değil):
+
+    | Durum | Draw call | Üçgen |
+    |---|---:|---:|
+    | Hayatta kalma, yeni oyun başlangıcı | 57 | 0,29 M |
+    | Maç, Zonguldak 100 kişi, kalabalığın yanında (3 yarışmacı yakında) | 83 | 0,52 M |
+    | Maç, tüm harita 100 kişi (1 yarışmacı yakında) | 74 | 0,57 M |
+    | Maç, Zonguldak şehir merkezi, 4 yarışmacı | 185 | 0,64 M |
+    | Aynı yerde +16 yarışmacı görüş alanında | 265 | 0,64 M |
+
+    Yarışmacı başına 5 draw call ölçüldü; bu yüzden yakın kademe en çok 16 → **12** (en kötü şehir sahnesi ≈ 245, hedef
+    ≤ 250). Bölge duvarı +1, yerdeki ganimet +2 draw call.
+  - Maç adımı (tarayıcı içinde, kare başına): Zonguldak 100 kişi `BrSession.update` ≈ 0,13 ms, çizim/HUD ≈ 0,01 ms; tüm
+    harita ≈ 0,03 / 0,1 ms (yakın yarışmacı yapay zekâsı eşkıya bölümünde; Node'da 13 yarışmacıyla üç sistem birlikte
+    ≈ 0,05 ms/adım). Maç kurulumu: Zonguldak 0,23 sn, tüm harita 2,8 sn (2,2 sn akış alanları; tek seferlik).
+  - Yan düzeltme: eşkıya çizimi "Eşkıyalar" ayarına bağlıydı; ayar kapalıyken maçtaki yarışmacılar hiç çizilmeyecekti
+    (artık maçta ayardan bağımsız, kamplar maçta çizilmez).
+  - Elle doğrulanacak (kılavuz bölüm 27): gerçek GPU'da FPS, oyun hissi (NPC çatışmaları, bölge baskısı, süreler),
+    görseller (bölge duvarı, harita, sonuç ekranı), kayıt güvenliği.

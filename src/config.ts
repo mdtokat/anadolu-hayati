@@ -3659,12 +3659,13 @@ export const BATTLE_ROYALE = {
   /**
    * Yakın kademe (BR.3, `battleRoyale/nearTier.ts`): oyuncuya `radius` (oyun m) içindeki ve karosu hazır uzak NPC'ler
    * tam yapay zekâlı yarışmacıya (`BanditSystem`) dönüşür, `radius + margin` ötesinde (çatışmıyorsa; çatışıyorsa
-   * `radius + 3 · margin`) soyut kayda döner. Aynı anda en çok `maxAgents` (çizim ve atış ışını bütçesi).
+   * `radius + 3 · margin`) soyut kayda döner. Aynı anda en çok `maxAgents` (çizim ve atış ışını bütçesi: yarışmacı başına
+   * 5 draw call ölçüldü; en kalabalık şehir sahnesi 185 + 12 · 5 ≈ 245 < 250 hedefi).
    */
   near: {
     radius: 320,
     margin: 60,
-    maxAgents: 16,
+    maxAgents: 12,
     /** Hedef yenileme aralığı (sn). */
     guideInterval: 0.5,
     /** Hedefi olan yarışmacı `progressWindow` sn'de `minProgress` m'den az ilerlerse kaçış noktası seçer. */

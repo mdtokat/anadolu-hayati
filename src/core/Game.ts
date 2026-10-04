@@ -1362,7 +1362,11 @@ export class Game {
     this.updateRanged(step);
     this.updateBandits(step);
     this.updateDrone(step);
-    this.updateBattleRoyale(step);
+    if (this.br) {
+      this.perf.section('son kalan');
+      this.updateBattleRoyale(step);
+      this.perf.section('simülasyon');
+    }
     this.updateMedical(step);
     // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
     const held = this.input.interactHeld;
@@ -2388,7 +2392,10 @@ export class Game {
     this.drawHeld(now, alpha);
     this.drawBandits(now / 1000, feet);
     this.drawDrone(now / 1000, feet);
-    this.drawBattleRoyale(now, feet);
+    if (this.br) {
+      this.perf.section('son kalan');
+      this.drawBattleRoyale(now, feet);
+    }
 
     this.perf.section('çizim');
     this.renderer.render(this.world.scene, this.activeCamera());
@@ -3693,8 +3700,9 @@ export class Game {
     const bandits = this.bandits;
     const layer = this.banditLayer;
     if (!bandits || !layer) return;
-    const on = this.banditsEnabled;
-    layer.syncPeople(on ? bandits.views() : [], on ? this.pickpockets.list() : []);
+    // Maçta yarışmacılar eşkıya ayarından bağımsız çizilir; kamplar ve yankesiciler maçta yoktur.
+    const on = this.banditsEnabled && !this.br;
+    layer.syncPeople(on || this.br ? bandits.views() : [], on ? this.pickpockets.list() : []);
     const near = (radius: number) =>
       on ? bandits.camps.filter((c) => Math.hypot(c.x - feet.x, c.z - feet.z) <= radius) : [];
     layer.syncCamps(
