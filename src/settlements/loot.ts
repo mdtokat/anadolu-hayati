@@ -2,7 +2,7 @@ import { AMMO, SEARCH } from '../config';
 import type { ItemStack } from '../items/Inventory';
 import type { ItemId } from '../items/itemDefs';
 import { createRandom, seedFrom } from '../utils/random';
-import { BUILDING_SHAPES, type BuildingKind } from './kinds';
+import { BUILDING_SHAPES, shapeVariant, type BuildingKind, type InteriorContainer } from './kinds';
 import { ITEMS } from '../items/itemDefs';
 
 /** Ganimet satırı: `chance` olasılıkla `min`–`max` adet. */
@@ -217,6 +217,20 @@ export function rollContainerLoot(
   const scale =
     (building.ruined ? SEARCH.ruinedChanceScale : 1) *
     Math.min(1 + (containers.length - 1) * SEARCH.containerChanceScale, SEARCH.containerChanceMax);
+  return distributeLoot(table, random, scale, containers, index);
+}
+
+/**
+ * Zarlanan satırları kaplara dağıtır: yiyecekler dolaba, diğerleri sandığa (o tür kap yoksa öbürüne); aynı türden kaplar
+ * arasında sırayla. `index`. kabın payı döner.
+ */
+function distributeLoot(
+  table: readonly LootEntry[],
+  random: ReturnType<typeof createRandom>,
+  scale: number,
+  containers: readonly InteriorContainer[],
+  index: number,
+): ItemStack[] {
   const cupboards: number[] = [];
   const chests: number[] = [];
   containers.forEach((c, i) => (c.kind === 'cupboard' ? cupboards : chests).push(i));
@@ -239,4 +253,30 @@ export function rollContainerLoot(
     if (pool[k % pool.length] === index) out.push({ id: row.item, count });
   }
   return out;
+}
+
+/**
+ * Katlı yapının üst kat kabının (`upperContainers` içindeki `index`.) ganimeti (deterministik; kullanıcı talimatı: "üst
+ * katlarda da eşyalar olsun"). Her kat ayrı bir daire gibi yapının tablosunu kendi tohumuyla zarlar ve o katın kaplarına
+ * dağıtır (zemin kattaki gibi). Yıkık yapının üst katı yoktur.
+ */
+export function rollUpperContainerLoot(
+  building: { id: number; kind: BuildingKind; ruined: boolean; floors?: number },
+  index: number,
+  seed: number = SEARCH.seed,
+): ItemStack[] {
+  const all = shapeVariant(building.kind, building.floors, building.ruined).upperContainers;
+  const table = BUILDING_LOOT[building.kind];
+  const target = all[index];
+  if (!table || !target) return [];
+  const level = target.level ?? 1;
+  const floor = all.filter((c) => (c.level ?? 1) === level);
+  const random = createRandom(
+    seedFrom(seed ^ SEARCH.containerSeedSalt ^ SEARCH.upperFloorSeedSalt, building.id * 16 + level),
+  );
+  const scale = Math.min(
+    1 + (floor.length - 1) * SEARCH.containerChanceScale,
+    SEARCH.containerChanceMax,
+  );
+  return distributeLoot(table, random, scale, floor, floor.indexOf(target));
 }

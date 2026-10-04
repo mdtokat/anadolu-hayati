@@ -184,8 +184,10 @@ describe('RegionHeightSource (sentetik 3×2 ızgara)', () => {
   });
 
   it('değeri 0 olan hücre deniz sayılır ve çukurlaşır (yükseklik negatif)', () => {
-    const sea = new RegionHeightSource(meta, new Uint16Array([0, 150, 300, 150, 300, 450]));
+    // Deniz bir sütun (tek hücrelik deniz beneği kıyı biçimlendirmesinde karaya döner: `COAST_SHAPING`).
+    const sea = new RegionHeightSource(meta, new Uint16Array([0, 150, 300, 0, 300, 450]));
     expect(sea.heightAt(sea.xAt(0), sea.zAt(0))).toBeLessThan(0);
+    expect(sea.heightAt(sea.xAt(0), sea.zAt(1))).toBeLessThan(0);
     // Kara hücreleri değişmez
     expect(sea.heightAt(sea.xAt(2), sea.zAt(1))).toBeCloseTo(450 / VERTICAL_SCALE, 5);
   });

@@ -467,6 +467,23 @@ Elle doğrulanacak:
 
 ---
 
+## Faz 12 sonrası — Kısa sular, üst katlar, Osman Gazi Köprüsü ve kıyılar (kullanıcı talimatı)
+_(Kullanıcı talimatı: "2-3 karelik suları ve üzerindeki köprüleri kaldır, uzun nehirler kalsın; yüksek katlı binaların üst katlarında da camlar ve eşyalar olsun, balkonlar da kullanılabilir olsun; Gebze civarında Osman Gazi Köprüsü var onu da ekle; Kocaeli körfezindeki ve Samsun/Sinop sahil şeridindeki haritalandırma hatalarını düzelt, deniz kesik kesik görünüyor; köprüler gri olmasın, ayakları gri olsun, köprünün üstündeki yol hangi yolsa o renkte olsun; tüneller de")_
+
+- [x] **Kısa sular** (`data/waterThinning.ts`, `WATER_THINNING`): nehir ve kanallar da öbek uzunluğuna göre ayıklanır (< 200 oyun m); kent merkezi yakınındaki öbek de < 80 m ise kalkar (yer adı noktasında başka su yoksa en uzun öbek kalır); dereler nehre bağlanınca kurtulmaz. Dere 2 951 → 2 403, nehir 1 690 → 1 055, kanal 411 → 218 çizgi; kalkan suların köprüleri de kalkar (998 → 935 köprü)
+- [x] **Üst katlarda cam ve eşya** (`settlements/windows.ts`, `kinds.ts` `upperContainers`, `loot.ts` `rollUpperContainerLoot`, `search.ts` `upperContainerId`): konak, apartman, lojman ve hükümet konağının her katında camlı pencere (kırılır, mermi geçer), sandık/dolap (aranır, ganimet kat başına ayrı zarlanır), sedir ve sini; zemin kat kimlikleri/ganimeti ve kayıt sürümü değişmedi
+- [x] **Kullanılabilir balkonlar** (`settlements/balconies.ts`): apartmanın her üst katında iki balkon; balkon kapısından çıkılır, döşeme ve korkuluklar katı (`tests/upperFloors`: Rapier ile odadan balkona yürüyüş, korkuluktan düşülmez)
+- [x] **Osman Gazi Köprüsü** (`roadProfile.ts` deniz köprüsü + `suspension` türü, `SettlementMap.ts` `cutRoads`, `roadStructureGeometry.ts`): Dil Boğazı'nı (Dilovası–Hersek) geçen otoyol artık deniz tabanında değil, iki kuleli, ana kablolu ve askılı asma köprüden geçer; yolun deniz hücrelerinden geçen her kesimi (≥ 6 m) köprüdür
+- [x] **Kıyı düzeltmesi** (`world/coastShaping.ts`, `COAST_SHAPING`): Kocaeli körfezi, Samsun deltası ve Sinop kıyısında tek hücrelik deniz/kara benekleri kalktı, alçak kıyı ovası su düzleminin üstünde (titreme yok), su çizgisi yumuşak
+- [x] **Köprü ve tünel renkleri** (`roadStructureGeometry.ts` `roadSurfaceColor`, `ROAD_STRUCTURES.surface*`): güverte ve tünel zemininde yolun kendi yüzeyi (anayol asfaltı + çizgiler, köy yolu asfaltı, patika toprağı, kent sokağı parkesi); ayaklar/kuleler gri; yapı renkleri sRGB → doğrusal dönüştürülür (önceden tüm köprüler soluk gri görünüyordu)
+
+Elle doğrulanacak:
+- [ ] Kısa su parçalarının gerçekten kalktığı, uzun nehirlerin kopmadığı (Filyos, Sakarya, Kızılırmak, Yeşilırmak)
+- [ ] Üst katlarda camdan dışarısı, kaplar, balkon kapısı ve balkon (gerçek GPU'da FPS etkisi)
+- [ ] Osman Gazi Köprüsü görünüşü ve köprüden geçiş; Samsun/Sinop/Kocaeli kıyılarının görünüşü
+
+---
+
 ## Fikir Havuzu
 Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 

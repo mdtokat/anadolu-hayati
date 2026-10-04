@@ -1,15 +1,19 @@
+import { balconyLayout } from './balconies';
 import {
   ROOMS,
   SHAPE_DIMS,
   WALL_THICKNESS,
   mosqueOffset,
+  storeyPlanOf,
   type BuildingKind,
   type LocalBox,
 } from './kinds';
 
 /**
- * Girilebilir yapıların camlı pencereleri (saf; kullanıcı talimatı: "binaların içindeyken camdan dışarısı görünsün,
- * ateş edince cam kırılsın"). Tek kaynak: görsel geometri (`world/buildingGeometry.ts`) bu pencerelerde duvarı
+ * Girilebilir yapıların camlı pencereleri (saf; kullanıcı talimatları: "binaların içindeyken camdan dışarısı görünsün,
+ * ateş edince cam kırılsın"; "yüksek katlı binaların üst katlarında da camlar olsun"). Katlı yapılarda (konak,
+ * apartman, maden lojmanı, hükümet konağı) her katın pencereleri camlıdır; apartmanın ön cephesinde üst kat pencereleri
+ * balkon kapılarına (`balconies.ts`) yer bırakır. Tek kaynak: görsel geometri (`world/buildingGeometry.ts`) bu pencerelerde duvarı
  * deler ve içten kasa çizer, cam katmanı (`world/GlassLayer.ts`) camı çizer, mermi (`combat/shotSolids.ts`) duvarın
  * katı kutusunu pencerede deler (mermi camdan geçer, camı kırar). Oyuncu collider'ı (Rapier) delinmez: pencereden
  * geçilmez.
@@ -29,6 +33,8 @@ interface WindowRow {
   size: readonly [number, number];
   /** Bu yerel konumlara (kapılar) yakın alt satır pencereleri atlanır (`windows()` ile aynı kural). */
   avoid?: readonly number[];
+  /** Duvar dikdörtgeni (çıkmalı üst katta zemin kattan büyük); yoksa yapının ölçüsü. */
+  walls?: { w: number; d: number };
 }
 
 /** Tek pencere camı: duvarın orta düzleminde, eksene hizalı ince kutu (yerel). */
@@ -45,12 +51,71 @@ export interface WindowPane {
   h: number;
 }
 
-/** Bir yapıda en çok pencere sayısı: kırık cam kimliği `yapı · 64 + sıra`. */
-export const MAX_PANES = 64;
+/** Bir yapıda en çok pencere sayısı: kırık cam kimliği `yapı · 128 + sıra` (oturumluk; kayda girmez). */
+export const MAX_PANES = 128;
 
 /** Kırık cam kimliği. */
 export function paneId(buildingId: number, index: number): number {
   return buildingId * MAX_PANES + index;
+}
+
+/** Katlı yapının üst kat pencere satırları (görsel `windows()` çağrılarıyla aynı düzen; `buildingGeometry.ts`). */
+function upperRowsOf(kind: BuildingKind, floors: number | undefined): WindowRow[] {
+  const D = SHAPE_DIMS;
+  const plan = storeyPlanOf(kind, floors);
+  if (!plan) return [];
+  switch (kind) {
+    case 'konak': {
+      const { w, d } = D.konak;
+      const over = ROOMS.konak!.over ?? 0;
+      const walls = { w: w + over, d: d + over };
+      const rows = [ROOMS.konak!.room + 0.7];
+      const size = [0.7, 1.2] as const;
+      return [
+        { face: 'front', span: w + over, rows, cols: 5, size, walls },
+        { face: 'left', span: d + over, rows, cols: 3, size, walls },
+        { face: 'right', span: d + over, rows, cols: 3, size, walls },
+        { face: 'back', span: w + over, rows, cols: 4, size, walls },
+      ];
+    }
+    case 'apartment': {
+      const { w, d } = D.apartment;
+      const doors = balconyLayout(kind, plan, w, d)
+        .filter((b) => b.level === 1)
+        .map((b) => b.doorX);
+      const out: WindowRow[] = [];
+      for (let k = 1; k < plan.storeys; k++) {
+        const rows = [(plan.floorY[k] as number) + 0.9];
+        const size = [1.1, 1.2] as const;
+        out.push(
+          { face: 'front', span: w, rows, cols: 4, size, avoid: doors },
+          { face: 'back', span: w, rows, cols: 4, size },
+          { face: 'left', span: d, rows, cols: 2, size: [1, 1.2] },
+          { face: 'right', span: d, rows, cols: 2, size: [1, 1.2] },
+        );
+      }
+      return out;
+    }
+    case 'lojman': {
+      const size = [0.8, 1] as const;
+      return [
+        { face: 'front', span: D.lojman.w, rows: [3.4], cols: 6, size },
+        { face: 'back', span: D.lojman.w, rows: [3.4], cols: 6, size },
+      ];
+    }
+    case 'government': {
+      const { w, d } = D.government;
+      const size = [0.9, 1.6] as const;
+      return [
+        { face: 'front', span: w, rows: [4], cols: 7, size },
+        { face: 'back', span: w, rows: [4], cols: 7, size },
+        { face: 'left', span: d, rows: [4], cols: 3, size },
+        { face: 'right', span: d, rows: [4], cols: 3, size },
+      ];
+    }
+    default:
+      return [];
+  }
 }
 
 function rowsOf(kind: BuildingKind): WindowRow[] {
@@ -135,18 +200,24 @@ function wallsOf(kind: BuildingKind): { w: number; d: number } | null {
   return dims ? { w: dims.w, d: dims.d } : null;
 }
 
-const cache = new Map<BuildingKind, readonly WindowPane[]>();
+const cache = new Map<string, readonly WindowPane[]>();
 
-/** Yapı türünün camlı pencereleri (yerel, harim kayması dahil); camsız türde boş. Önbellekli. */
-export function windowPanes(kind: BuildingKind): readonly WindowPane[] {
-  const hit = cache.get(kind);
+/**
+ * Yapının camlı pencereleri (yerel, harim kayması dahil); camsız türde boş. Katlı yapıda üst katlarınki de (apartmanda
+ * kat sayısı `floors`; yıkık katlı yapının yalnız zemin katı olduğundan çağıran yıkıkta camları hiç kullanmaz).
+ * Önbellekli.
+ */
+export function windowPanes(kind: BuildingKind, floors?: number): readonly WindowPane[] {
+  const key = kind === 'apartment' ? `${kind}:${floors ?? SHAPE_DIMS.apartment.floors}` : kind;
+  const hit = cache.get(key);
   if (hit) return hit;
   const panes: WindowPane[] = [];
-  const walls = wallsOf(kind);
+  const base = wallsOf(kind);
   const oz = mosqueOffset(kind);
-  if (walls) {
+  if (base) {
     const t = WALL_THICKNESS;
-    for (const row of rowsOf(kind)) {
+    for (const row of [...rowsOf(kind), ...upperRowsOf(kind, floors)]) {
+      const walls = row.walls ?? base;
       const [ww, wh] = row.size;
       for (let r = 0; r < row.rows.length; r++) {
         for (let c = 0; c < row.cols; c++) {
@@ -179,7 +250,7 @@ export function windowPanes(kind: BuildingKind): readonly WindowPane[] {
     }
   }
   if (panes.length > MAX_PANES) throw new Error(`${kind}: ${panes.length} pencere > ${MAX_PANES}`);
-  cache.set(kind, panes);
+  cache.set(key, panes);
   return panes;
 }
 
@@ -206,62 +277,4 @@ export function withoutOffset(box: LocalBox, kind: BuildingKind): LocalBox {
   return oz === 0 ? box : { ...box, cz: box.cz - oz };
 }
 
-/** İki kutu (yerel, eksene hizalı) kesişiyor mu (sınırda değmek kesişme sayılmaz)? */
-export function boxesOverlap(a: LocalBox, b: LocalBox, eps = 1e-4): boolean {
-  return (
-    Math.abs(a.cx - b.cx) < a.hx + b.hx - eps &&
-    Math.abs(a.cy - b.cy) < a.hy + b.hy - eps &&
-    Math.abs(a.cz - b.cz) < a.hz + b.hz - eps
-  );
-}
-
-/**
- * Kutudan (eksene hizalı) delik kutusunu çıkarır: en çok 6 parça kalır (önce x, sonra y, sonra z dilimleri).
- * Kesişmiyorsa kutunun kendisi döner.
- */
-export function subtractBox(box: LocalBox, hole: LocalBox): LocalBox[] {
-  if (!boxesOverlap(box, hole)) return [box];
-  const out: LocalBox[] = [];
-  let x0 = box.cx - box.hx;
-  let x1 = box.cx + box.hx;
-  let y0 = box.cy - box.hy;
-  let y1 = box.cy + box.hy;
-  const z0 = box.cz - box.hz;
-  const z1 = box.cz + box.hz;
-  const push = (a0: number, a1: number, b0: number, b1: number, c0: number, c1: number) => {
-    if (a1 - a0 > 1e-4 && b1 - b0 > 1e-4 && c1 - c0 > 1e-4) {
-      out.push({
-        cx: (a0 + a1) / 2,
-        cy: (b0 + b1) / 2,
-        cz: (c0 + c1) / 2,
-        hx: (a1 - a0) / 2,
-        hy: (b1 - b0) / 2,
-        hz: (c1 - c0) / 2,
-      });
-    }
-  };
-  const hx0 = hole.cx - hole.hx;
-  const hx1 = hole.cx + hole.hx;
-  const hy0 = hole.cy - hole.hy;
-  const hy1 = hole.cy + hole.hy;
-  const hz0 = hole.cz - hole.hz;
-  const hz1 = hole.cz + hole.hz;
-  if (hx0 > x0) push(x0, hx0, y0, y1, z0, z1);
-  if (hx1 < x1) push(hx1, x1, y0, y1, z0, z1);
-  x0 = Math.max(x0, hx0);
-  x1 = Math.min(x1, hx1);
-  if (hy0 > y0) push(x0, x1, y0, hy0, z0, z1);
-  if (hy1 < y1) push(x0, x1, hy1, y1, z0, z1);
-  y0 = Math.max(y0, hy0);
-  y1 = Math.min(y1, hy1);
-  if (hz0 > z0) push(x0, x1, y0, y1, z0, hz0);
-  if (hz1 < z1) push(x0, x1, y0, y1, hz1, z1);
-  return out;
-}
-
-/** Kutulardan tüm delikleri çıkarır. */
-export function subtractHoles(boxes: readonly LocalBox[], holes: readonly LocalBox[]): LocalBox[] {
-  let current = [...boxes];
-  for (const hole of holes) current = current.flatMap((b) => subtractBox(b, hole));
-  return current;
-}
+export { boxesOverlap, subtractBox, subtractHoles } from './boxMath';

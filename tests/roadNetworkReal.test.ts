@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { FRESH_WATER, ROADS } from '../src/config';
+import { FRESH_WATER, ROADS, WATER } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { footprintRadius, settlementCenter } from '../src/settlements/layout';
 import { SPAN_KIND } from '../src/settlements/roadProfile';
@@ -214,18 +214,29 @@ describe('yol ağı — köprüler ve tüneller', () => {
     expect(metrics.parallelBridges / metrics.bridges).toBeLessThan(0.03);
   });
 
-  it('köprü türleri yola göre: beton, viyadük, taş kemer, ahşap; anayolda ahşap yok', () => {
+  it('köprü türleri yola göre: beton, viyadük, taş kemer, ahşap, asma (deniz); anayolda ahşap yok', () => {
     const plan = sw.map.plan;
     const types = new Map<string, number>();
     for (const span of plan.spans) {
       if (span.kind !== SPAN_KIND.bridge) continue;
       types.set(span.type, (types.get(span.type) ?? 0) + 1);
       const cls = plan.roads[span.road]!.cls;
-      if (cls === 0) expect(['beam', 'viaduct']).toContain(span.type);
+      if (cls === 0) expect(['beam', 'viaduct', 'suspension']).toContain(span.type);
       if (span.type === 'wooden') expect(cls).toBe(2);
+      if (span.type === 'suspension') expect(cls).toBe(0);
     }
     for (const type of ['beam', 'viaduct', 'arch', 'wooden'])
       expect(types.get(type) ?? 0).toBeGreaterThan(5);
+    // Osman Gazi Köprüsü: Dil Boğazı'nda (Dilovası–Hersek) tek asma köprü, güverte suyun üstünde.
+    const suspension = plan.spans.filter((s) => s.type === 'suspension');
+    expect(suspension).toHaveLength(1);
+    const og = suspension[0]!;
+    const r = plan.roads[og.road]!;
+    const mx = (r.xz[og.i0 * 2]! + r.xz[og.i1 * 2]!) / 2;
+    const mz = (r.xz[og.i0 * 2 + 1]! + r.xz[og.i1 * 2 + 1]!) / 2;
+    expect(Math.hypot(mx - -4570, mz - 1190)).toBeLessThan(40);
+    expect((og.i1 - og.i0) * r.step).toBeGreaterThan(50);
+    for (let i = og.i0; i <= og.i1; i++) expect(r.bed[i]!).toBeGreaterThan(WATER.level + 2);
   });
 
   it('dağların altından geçen tüneller var; tavan arazinin altında', () => {

@@ -13,36 +13,50 @@ function lineLength(xz: Float64Array): number {
   return length;
 }
 
-/** Bir öbekteki dere çizgilerinin özeti (bağlı dereler: ortak uç noktası). */
-interface StreamGroup {
+/** Bir öbekteki su çizgilerinin özeti (bağlı çizgiler: ortak uç noktası). */
+interface LineGroup {
   length: number;
   intermittent: boolean;
-  /** Bir yerleşim merkezine yakından geçiyor mu (köy deresi: kalır)? */
+  /** Nehir/kanal öbeği mi (eşik `minRiverNetworkLength`)? */
+  river: boolean;
+  /** Bir yerleşim merkezine yakından geçiyor mu (köy deresi: `minAnchoredLength`'i aşarsa kalır)? */
   anchored: boolean;
+  /** Yakınından geçtiği yer adı/ışınlanma noktaları (`keepShort`). */
+  places: Array<{ x: number; z: number }>;
+}
+
+/** Ayıklama eşikleri (`WATER_THINNING`). */
+export interface WaterThinningOptions {
+  minNetworkLength: number;
+  minIntermittentLength: number;
+  /** Nehir/kanal içeren öbeklerin eşiği (oyun m). */
+  minRiverNetworkLength: number;
+  /** Yerleşim merkezine yakın öbeğin yine de kalması için en kısa toplam uzunluk (oyun m). */
+  minAnchoredLength: number;
+  joinTolerance: number;
+  anchorReach: number;
 }
 
 /**
- * Küçük, ince dereleri ayıklar (kullanıcı talimatı: "akarsu sayısı çok fazla"). Nehir ve kanallar olduğu gibi kalır.
- * Dereler uç noktalarıyla (`joinTolerance` içinde) birbirine bağlanıp öbeklenir; öbeğin toplam uzunluğu
- * `minNetworkLength`'ten kısaysa (tamamı mevsimlikse `minIntermittentLength`'ten) öbek kaldırılır. Böylece uzun bir
- * derenin kısa parçaları silinmez, yalnızca kendi başına kalan kısa kollar gider. Bir yerleşim merkezinin yakınından
- * geçen dere öbekleri (köy/kasaba deresi: içme suyu) kısa olsa da kalır. Saf ve deterministik.
+ * Küçük, kısa su çizgilerini ayıklar (kullanıcı talimatları: "akarsu sayısı çok fazla"; "2-3 karelik suları ve
+ * üzerindeki köprüleri kaldır, uzun nehirler kalsın"). Dereler kendi aralarında, nehir ve kanallar kendi aralarında uç
+ * noktalarıyla (`joinTolerance` içinde) öbeklenir; öbeğin toplam uzunluğu eşiğin altındaysa öbek kaldırılır: dere öbeği
+ * `minNetworkLength` (tamamı mevsimlikse `minIntermittentLength`), nehir/kanal öbeği `minRiverNetworkLength`. Bir
+ * derenin nehre bağlanması onu kurtarmaz (yoksa nehre dökülen her kısa kol kalırdı). Böylece uzun bir akarsuyun kısa parçaları silinmez, yalnızca kendi
+ * başına kalan kısa parçalar gider. Bir yerleşim merkezinin yakınından geçen öbek (köy/kasaba deresi: içme suyu) kısa
+ * olsa da kalır, ama `minAnchoredLength`'ten kısaysa (birkaç hücrelik kopuk parça) o da kalkar. Saf ve deterministik.
  */
 export function thinWaterLines(
   lines: readonly WaterLine[],
-  options: {
-    minNetworkLength: number;
-    minIntermittentLength: number;
-    joinTolerance: number;
-    anchorReach: number;
-  } = WATER_THINNING,
-  /** Yerleşim merkezleri: bunlara `anchorReach` içinden geçen dere öbeği kısa olsa da kalır (köy deresi). */
-  anchors: ReadonlyArray<{ x: number; z: number }> = [],
+  options: WaterThinningOptions = WATER_THINNING,
+  /**
+   * Yerleşim merkezleri: bunlara `anchorReach` içinden geçen öbek kısa olsa da kalır (köy deresi), `minAnchoredLength`'ten
+   * kısa değilse. `keepShort` olanlar (yer adı ve ışınlanma noktaları: hayatta kalma başlangıcında içilecek su):
+   * yakınında hiç su kalmadıysa yakından geçen en uzun öbek uzunluğu ne olursa olsun korunur.
+   */
+  anchors: ReadonlyArray<{ x: number; z: number; keepShort?: boolean }> = [],
 ): WaterLine[] {
-  const streams: number[] = [];
-  for (let i = 0; i < lines.length; i++)
-    if ((lines[i] as WaterLine).kind === 'stream') streams.push(i);
-  if (streams.length === 0) return [...lines];
+  if (lines.length === 0) return [];
 
   const parent = new Int32Array(lines.length);
   for (let i = 0; i < parent.length; i++) parent[i] = i;
@@ -54,20 +68,22 @@ export function thinWaterLines(
     return i;
   };
   const tol = options.joinTolerance;
-  const endpoints = new Map<string, number>();
+  // Dereler ve nehir/kanallar ayrı öbeklenir (ayrı uç noktası kovaları).
+  const endpoints = [new Map<string, number>(), new Map<string, number>()] as const;
   const join = (i: number, x: number, z: number): void => {
+    const bucket = endpoints[(lines[i] as WaterLine).kind === 'stream' ? 0 : 1];
     // Komşu kovalara da bakılır: tolerans sınırına düşen uçlar kaçmasın.
     const kx = Math.floor(x / tol);
     const kz = Math.floor(z / tol);
     for (let dx = -1; dx <= 1; dx++) {
       for (let dz = -1; dz <= 1; dz++) {
-        const other = endpoints.get(`${kx + dx},${kz + dz}`);
+        const other = bucket.get(`${kx + dx},${kz + dz}`);
         if (other !== undefined) parent[find(i)] = find(other);
       }
     }
-    endpoints.set(`${kx},${kz}`, i);
+    bucket.set(`${kx},${kz}`, i);
   };
-  for (const i of streams) {
+  for (let i = 0; i < lines.length; i++) {
     const xz = (lines[i] as WaterLine).xz;
     if (xz.length < 4) continue;
     join(i, xz[0] as number, xz[1] as number);
@@ -75,15 +91,17 @@ export function thinWaterLines(
   }
 
   const reach = options.anchorReach;
-  const anchorCells = new Map<string, Array<{ x: number; z: number }>>();
+  const anchorCells = new Map<string, Array<{ x: number; z: number; keepShort?: boolean }>>();
   for (const a of anchors) {
     const k = `${Math.floor(a.x / reach)},${Math.floor(a.z / reach)}`;
     const list = anchorCells.get(k) ?? [];
     list.push(a);
     anchorCells.set(k, list);
   }
-  const nearAnchor = (xz: Float64Array): boolean => {
-    if (anchorCells.size === 0) return false;
+  /** Çizginin `anchorReach` içinden geçtiği çapalar. */
+  const anchorsNear = (xz: Float64Array): Array<{ x: number; z: number; keepShort?: boolean }> => {
+    const out: Array<{ x: number; z: number; keepShort?: boolean }> = [];
+    if (anchorCells.size === 0) return out;
     for (let j = 0; j + 1 < xz.length; j += 2) {
       const x = xz[j] as number;
       const z = xz[j + 1] as number;
@@ -92,38 +110,68 @@ export function thinWaterLines(
       for (let dx = -1; dx <= 1; dx++) {
         for (let dz = -1; dz <= 1; dz++) {
           for (const a of anchorCells.get(`${kx + dx},${kz + dz}`) ?? []) {
-            if (Math.hypot(a.x - x, a.z - z) <= reach) return true;
+            if (Math.hypot(a.x - x, a.z - z) <= reach && !out.includes(a)) out.push(a);
           }
         }
       }
     }
-    return false;
+    return out;
   };
 
-  const groups = new Map<number, StreamGroup>();
-  for (const i of streams) {
+  const groups = new Map<number, LineGroup>();
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i] as WaterLine;
     const root = find(i);
-    const group = groups.get(root) ?? { length: 0, intermittent: true, anchored: false };
+    const group = groups.get(root) ?? {
+      length: 0,
+      intermittent: true,
+      river: false,
+      anchored: false,
+      places: [],
+    };
     group.length += lineLength(line.xz);
     group.intermittent &&= line.intermittent;
-    group.anchored ||= nearAnchor(line.xz);
+    group.river ||= line.kind !== 'stream';
+    for (const a of anchorsNear(line.xz)) {
+      if (!a.keepShort) group.anchored = true;
+      else if (!group.places.includes(a)) group.places.push(a);
+    }
     groups.set(root, group);
   }
 
-  return lines.filter((line, i) => {
-    if (line.kind !== 'stream') return true;
-    const group = groups.get(find(i)) as StreamGroup;
-    if (group.anchored) return true;
-    const min = group.intermittent ? options.minIntermittentLength : options.minNetworkLength;
-    return group.length >= min;
-  });
+  const keep = new Set<LineGroup>();
+  for (const group of groups.values()) {
+    const min = group.river
+      ? options.minRiverNetworkLength
+      : group.intermittent
+        ? options.minIntermittentLength
+        : options.minNetworkLength;
+    if (group.length >= min || (group.anchored && group.length >= options.minAnchoredLength)) {
+      keep.add(group);
+    }
+  }
+  // Yer adı/ışınlanma noktası: yakınında hiç su kalmadıysa oradan geçen en uzun öbek kalır (içme suyu).
+  const best = new Map<{ x: number; z: number }, LineGroup>();
+  const watered = new Set<{ x: number; z: number }>();
+  for (const group of groups.values()) {
+    for (const p of group.places) {
+      if (keep.has(group)) watered.add(p);
+      const current = best.get(p);
+      if (!current || group.length > current.length) best.set(p, group);
+    }
+  }
+  for (const [p, group] of best) if (!watered.has(p)) keep.add(group);
+
+  return lines.filter((_line, i) => keep.has(groups.get(find(i)) as LineGroup));
 }
 
-/** Özelliklerin küçük derelerden ayıklanmış kopyası; ayıklananlar `minorStreams`'e (yalnızca nesne dağılımı için). */
+/**
+ * Özelliklerin kısa su çizgilerinden ayıklanmış kopyası; ayıklananlar (dere, nehir ya da kanal) `minorStreams`'e
+ * (yalnızca nesne dağılımı için).
+ */
 export function thinFeatures(
   features: RegionFeatures,
-  anchors: ReadonlyArray<{ x: number; z: number }> = [],
+  anchors: ReadonlyArray<{ x: number; z: number; keepShort?: boolean }> = [],
 ): RegionFeatures {
   const lines = thinWaterLines(features.water.lines, WATER_THINNING, anchors);
   const kept = new Set(lines);

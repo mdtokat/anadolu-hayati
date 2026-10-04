@@ -1,4 +1,4 @@
-import { ROADS, SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
+import { ROADS, ROAD_STRUCTURES, SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
 import type { LandmarkData, RoadData, SettlementData, SettlementsData } from '../data/settlements';
 import { BUILDING_SHAPES, MAX_BURY, isMosque, shapeVariant } from './kinds';
 import { FootprintRegistry } from './footprints';
@@ -85,11 +85,14 @@ export interface BuildingInterior {
 /**
  * Yolları dairelerin (kent içleri) içinde keser: köy yolu ve patikanın dairenin içine düşen parçaları atılır (kalan
  * parçalar ayrı çizgiler olur; uçları `townNetwork.ts` sokaklara bağlar). Anayol kesilmez: kentin içinden geçen kısmı
- * kentin ana caddesi olur (sınıf 3, `ROADS.avenueWidth`).
+ * kentin ana caddesi olur (sınıf 3, `ROADS.avenueWidth`). `sea` verilirse uzun deniz geçişleri (köprü: körfezi geçen
+ * otoyol, Osman Gazi Köprüsü) ve iki yanındaki yaklaşım kentin içinde de kesilmez, sınıfını korur: deniz üstündeki yol
+ * cadde sayılmaz, köprü tek parça kalır (kavşak denizin ortasına düşmez).
  */
 export function cutRoads(
   roads: readonly RoadData[],
   circles: ReadonlyArray<{ x: number; z: number; r: number }>,
+  sea?: { isSea: (x: number, z: number) => boolean; minLength: number; approach: number },
 ): RoadData[] {
   const out: RoadData[] = [];
   for (const road of roads) {
@@ -136,8 +139,11 @@ export function cutRoads(
     }
     const xz = Float32Array.from(dense);
     const trunk = road.cls === 0;
+    const kept = sea ? seaCrossingMask(xz, sea) : null;
+    const insideIdx = (k: number) =>
+      !kept?.[k] && insideAt(xz[k * 2] as number, xz[k * 2 + 1] as number);
     let run: number[] = [];
-    let runInside = insideAt(xz[0] as number, xz[1] as number);
+    let runInside = insideIdx(0);
     const flush = () => {
       if (run.length >= 4) {
         if (!runInside) out.push({ cls: road.cls, xz: Float32Array.from(run) });
@@ -148,7 +154,15 @@ export function cutRoads(
     for (let i = 0; i + 1 < xz.length; i += 2) {
       const x = xz[i] as number;
       const z = xz[i + 1] as number;
-      const inside = insideAt(x, z);
+      const inside = insideIdx(i / 2);
+      if (i > 0 && inside !== runInside && kept && kept[i / 2] !== kept[i / 2 - 1]) {
+        // Deniz geçişinin sınırı: parçalar bu noktada buluşur.
+        run.push(x, z);
+        flush();
+        runInside = inside;
+        run.push(x, z);
+        continue;
+      }
       if (i > 0 && inside !== runInside) {
         // Sınır noktası (ikiye bölme): iki parça aynı noktada buluşur.
         let ax = xz[i - 2] as number;
@@ -176,6 +190,44 @@ export function cutRoads(
     flush();
   }
   return out;
+}
+
+/**
+ * Yolun (sık örnekli) noktalarından uzun deniz geçişine ait olanlar: denizdeki ardışık noktaların toplam uzunluğu
+ * `minLength`'i aşan kesim ve iki yanında `approach` kadar kara (oyun m).
+ */
+function seaCrossingMask(
+  xz: Float32Array,
+  sea: { isSea: (x: number, z: number) => boolean; minLength: number; approach: number },
+): Uint8Array {
+  const n = xz.length / 2;
+  const along = new Float64Array(n);
+  for (let k = 1; k < n; k++) {
+    along[k] =
+      (along[k - 1] as number) +
+      Math.hypot(
+        (xz[k * 2] as number) - (xz[k * 2 - 2] as number),
+        (xz[k * 2 + 1] as number) - (xz[k * 2 - 1] as number),
+      );
+  }
+  const mask = new Uint8Array(n);
+  let start = -1;
+  for (let k = 0; k <= n; k++) {
+    const wet = k < n && sea.isSea(xz[k * 2] as number, xz[k * 2 + 1] as number);
+    if (wet && start < 0) start = k;
+    if (!wet && start >= 0) {
+      const a = along[start] as number;
+      const b = along[k - 1] as number;
+      if (b - a >= sea.minLength) {
+        for (let j = 0; j < n; j++) {
+          const s = along[j] as number;
+          if (s >= a - sea.approach && s <= b + sea.approach) mask[j] = 1;
+        }
+      }
+      start = -1;
+    }
+  }
+  return mask;
 }
 
 /**
@@ -436,7 +488,11 @@ export class SettlementMap {
     const shaped = terrain.nearestWater
       ? separateRoadsFromWater(smoothed, terrain.nearestWater)
       : smoothed;
-    const roads = cutRoads(shaped, cuts);
+    const roads = cutRoads(shaped, cuts, {
+      isSea: (x, z) => terrain.heightAt(x, z) < 0,
+      minLength: ROAD_STRUCTURES.suspensionMinLength,
+      approach: ROAD_STRUCTURES.seaApproach,
+    });
     this.networkRoads = roads;
     // Yol profili: eğimi sınırlı, düzgün yatak; dere geçişleri köprü, derin vadiler viyadük, sırtlar tünel. Zemin yola
     // uydurulur.

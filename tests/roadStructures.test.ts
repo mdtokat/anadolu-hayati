@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ROADS, ROAD_STRUCTURES } from '../src/config';
+import { ROADS, ROAD_STRUCTURES, TERRAIN_OVERLAY } from '../src/config';
 import { SPAN_KIND, type PlannedRoad, type RoadPlan } from '../src/settlements/roadProfile';
 import {
   StructureIndex,
   boxBasis,
   buildBoxVertices,
+  roadSurfaceColor,
   structureShape,
 } from '../src/world/roadStructureGeometry';
 
@@ -38,8 +39,9 @@ describe('köprü şekli', () => {
     const plan = bridgePlan(0);
     const shape = structureShape(plan, plan.spans[0]!);
     const S = ROAD_STRUCTURES;
-    const deck = shape.boxes.filter((b) => b.color === S.colors.deck);
-    expect(deck).toHaveLength(10); // 10 parça (i0 … i1)
+    // Beton güverte gri değil, yolun renginde (anayol asfaltı); 10 parça (i0 … i1).
+    const deck = shape.boxes.filter((b) => b.color === roadSurfaceColor(0) && b.solid);
+    expect(deck).toHaveLength(10);
     for (const b of deck) {
       expect(b.y + b.hh).toBeCloseTo(5, 3); // üst yüz yatak seviyesinde
       expect(b.hw).toBeCloseTo((ROADS.width[0] as number) / 2 + (S.widthPad[0] as number), 3);
@@ -103,6 +105,56 @@ describe('köprü şekli', () => {
     expect(roof).toHaveLength(10);
     expect(shape.boxes.some((b) => b.emissive)).toBe(true);
     expect(shape.boxes.filter((b) => b.color === S.colors.portal).length).toBe(6);
+  });
+
+  it('köprü ve tünelin üstündeki yol, yolun tipinin renginde; anayolda çizgiler; ayaklar gri', () => {
+    const S = ROAD_STRUCTURES;
+    const O = TERRAIN_OVERLAY;
+    const surfaceTop = 5 + S.surfaceThickness;
+    const tops = (cls: 0 | 1 | 2, type?: 'beam' | 'viaduct' | 'arch' | 'wooden') => {
+      const plan = bridgePlan(cls, false, type);
+      return structureShape(plan, plan.spans[0]!).boxes.filter(
+        (b) => !b.solid && b.hh < 0.05 && Math.abs(b.y + b.hh - surfaceTop) < 1e-3,
+      );
+    };
+    expect(tops(0).every((b) => b.color === O.asphalt)).toBe(true);
+    expect(tops(0)).toHaveLength(10);
+    expect(tops(1, 'arch').every((b) => b.color === O.villageAsphalt)).toBe(true);
+    expect(tops(2, 'wooden').every((b) => b.color === O.dirt)).toBe(true);
+    // Anayol: iki kenar çizgisi + kesik orta şerit (30 m'de 7 m dönemli, yarısı çizgi).
+    const beam = structureShape(bridgePlan(0), bridgePlan(0).spans[0]!);
+    const marks = beam.boxes.filter((b) => b.y + b.hh > surfaceTop + 1e-4 && b.hh < 0.05);
+    expect(marks.filter((b) => b.color === O.edgeLine)).toHaveLength(20);
+    const dashes = marks.filter((b) => b.color === O.centerLine);
+    const dashLength = dashes.reduce((sum, b) => sum + 2 * b.hl, 0);
+    expect(dashLength).toBeGreaterThan(12);
+    expect(dashLength).toBeLessThan(18);
+    // Köy yolunda çizgi yok.
+    const village = structureShape(bridgePlan(1), bridgePlan(1).spans[0]!);
+    expect(village.boxes.some((b) => b.color === O.centerLine || b.color === O.edgeLine)).toBe(
+      false,
+    );
+    // Viyadükte ayaklar gri kalır.
+    const tall = bridgePlan(0, true);
+    const piers = structureShape(tall, tall.spans[0]!).boxes.filter(
+      (b) => b.color === S.colors.pier,
+    );
+    expect(piers.length).toBeGreaterThan(0);
+    // Tünel zemininin üstünde de yol yüzeyi (10 parça + iki ağız önü).
+    const plan = bridgePlan(1);
+    for (let i = 3; i <= 11; i++) plan.roads[0]!.kind[i] = SPAN_KIND.tunnel;
+    plan.spans[0] = {
+      road: 0,
+      i0: 2,
+      i1: 12,
+      kind: SPAN_KIND.tunnel,
+      viaduct: false,
+      type: 'beam',
+    };
+    const tunnel = structureShape(plan, plan.spans[0]!).boxes.filter(
+      (b) => b.color === O.villageAsphalt && Math.abs(b.y + b.hh - surfaceTop) < 1e-3,
+    );
+    expect(tunnel).toHaveLength(12);
   });
 
   it('patika köprüsü ana yol köprüsünden dar', () => {

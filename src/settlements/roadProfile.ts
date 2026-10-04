@@ -1,4 +1,4 @@
-import { FRESH_WATER, ROADS, ROAD_STRUCTURES } from '../config';
+import { FRESH_WATER, ROADS, ROAD_STRUCTURES, WATER } from '../config';
 import type { RoadClass, RoadData } from '../data/settlements';
 import { NodeIndex, pathLength } from './roadNetwork';
 import { StreamGrid, type NearestWater } from './roadRouting';
@@ -15,8 +15,11 @@ import { StreamGrid, type NearestWater } from './roadRouting';
  *   kazının `portalDepth`'e indiği yerdedir. Tünelin üstündeki arazi değişmez (ağızlarda arazi delinir:
  *   `world/roadTunnels.ts`).
  *
- * Köprü türü yola ve konuma göre seçilir (`BRIDGE_TYPES`): anayolda beton kirişli köprü ya da viyadük, köy yolunda taş
- * kemer (kısa) ya da beton, patikada ahşap (kısa) ya da taş kemer. Zemini yola uydurmayı `world/roadGrading.ts` yapar.
+ * - **Deniz köprüsü:** yolun deniz hücrelerinden geçen kesimi (`seaBridgeMin`'den uzun); anayolda uzun deniz geçişi asma
+ *   köprüdür (Osman Gazi Köprüsü).
+ *
+ * Köprü türü yola ve konuma göre seçilir (`BRIDGE_TYPES`): anayolda beton kirişli köprü ya da viyadük (uzun deniz
+ * geçişinde asma köprü), köy yolunda taş kemer (kısa) ya da beton, patikada ahşap (kısa) ya da taş kemer. Zemini yola uydurmayı `world/roadGrading.ts` yapar.
  *
  * Yöntem: arazi yüksekliği yol boyunca eşit aralıkla örneklenir, yumuşatılır (sınıfa göre `profileSigma`), eğim
  * `gradeMax` ile sınırlanır (uçlar kavşağın doğal yüksekliğine sabit); sonra yapı kesimleri seçilir ve sınırlar
@@ -27,8 +30,8 @@ import { StreamGrid, type NearestWater } from './roadRouting';
 export const SPAN_KIND = { ground: 0, bridge: 1, tunnel: 2 } as const;
 export type SpanKind = (typeof SPAN_KIND)[keyof typeof SPAN_KIND];
 
-/** Köprü türleri: beton kirişli, viyadük (yüksek ayaklı), taş kemer (Osmanlı), ahşap (patika). */
-export const BRIDGE_TYPES = ['beam', 'viaduct', 'arch', 'wooden'] as const;
+/** Köprü türleri: beton kirişli, viyadük (yüksek ayaklı), taş kemer (Osmanlı), ahşap (patika), asma (deniz geçişi). */
+export const BRIDGE_TYPES = ['beam', 'viaduct', 'arch', 'wooden', 'suspension'] as const;
 export type BridgeType = (typeof BRIDGE_TYPES)[number];
 
 /** Planlanmış yol: sıklaştırılmış eksen + nokta başına doğal yükseklik, yatak yüksekliği ve tür. */
@@ -207,7 +210,10 @@ function hash01(x: number, z: number): number {
   return v - Math.floor(v);
 }
 
-/** Köprü türü: yola, uzunluğa, yüksekliğe ve (çeşitleme için) konuma göre. */
+/**
+ * Köprü türü: yola, uzunluğa, yüksekliğe ve (çeşitleme için) konuma göre. `seaRun`: köprünün altındaki en uzun deniz
+ * kesimi (oyun m); anayolda `suspensionMinLength`'ten uzunsa asma köprü.
+ */
 export function bridgeTypeFor(
   cls: RoadClass,
   length: number,
@@ -215,8 +221,10 @@ export function bridgeTypeFor(
   viaduct: boolean,
   x: number,
   z: number,
+  seaRun = 0,
 ): BridgeType {
   const B = ROAD_STRUCTURES;
+  if (cls === 0 && seaRun >= B.suspensionMinLength) return 'suspension';
   if (cls === 0)
     return viaduct || (height > B.viaductHeight && length > B.archMaxLength) ? 'viaduct' : 'beam';
   if (cls === 2) return length <= B.woodenMaxLength ? 'wooden' : 'arch';
@@ -350,6 +358,22 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
         candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: false });
     }
 
+    // Deniz köprüsü: deniz hücrelerinden (doğal yükseklik < 0) geçen kesim; kısa dalışlar (kıyıda bir iki örnek) zeminde
+    // kalır. Güverte suyun üstünde (`seaClearance`; uzun anayol geçişinde asma köprü yüksekliği).
+    const seaLift = new Float64Array(count);
+    {
+      const sea = new Uint8Array(count);
+      for (let i = 1; i < count - 1; i++) if ((natural[i] as number) < 0) sea[i] = 1;
+      for (const [a, b] of runsOf(sea, 1)) {
+        const len = (b - a + 1) * ds;
+        if (len < S.seaBridgeMin) continue;
+        const lift =
+          cls === 0 && len >= S.suspensionMinLength ? S.suspensionClearance : S.seaClearance;
+        for (let i = a; i <= b; i++) seaLift[i] = lift;
+        candidates.push({ a, b, kind: SPAN_KIND.bridge, viaduct: false });
+      }
+    }
+
     // Viyadük: yalnız anayolda, uzun ve derin dolgu.
     if (cls === 0) {
       const fill = new Uint8Array(count);
@@ -416,7 +440,11 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
     for (let i = 0; i < count; i++) {
       const hv = h[i] as number;
       if (kind[i] === SPAN_KIND.bridge) {
-        lo[i] = hv + S.clearance;
+        // Denizde açıklık su yüzeyinden ölçülür (taban çukurlaştırılmıştır).
+        lo[i] =
+          (seaLift[i] as number) > 0
+            ? Math.max(hv, WATER.level) + (seaLift[i] as number)
+            : hv + S.clearance;
         hi[i] = Number.POSITIVE_INFINITY;
       } else if (kind[i] === SPAN_KIND.tunnel) {
         lo[i] = Number.NEGATIVE_INFINITY;
@@ -522,11 +550,16 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
         xz[i * 2 + 1] = (xz[i * 2 + 1] as number) * (1 - taper) + (az + (bz - az) * t) * taper;
         natural[i] = terrain.heightAt(xz[i * 2] as number, xz[i * 2 + 1] as number);
       }
-      // Tür: yol sınıfı, uzunluk, güvertenin zeminden en büyük yüksekliği.
+      // Tür: yol sınıfı, uzunluk, güvertenin zeminden en büyük yüksekliği, en uzun deniz kesimi.
       let height = 0;
-      for (let i = span.i0; i <= span.i1; i++)
-        height = Math.max(height, (p[i] as number) - (natural[i] as number));
-      span.type = bridgeTypeFor(cls, len, height, span.viaduct, ax, az);
+      let seaRun = 0;
+      let wet = 0;
+      for (let i = span.i0; i <= span.i1; i++) {
+        height = Math.max(height, (p[i] as number) - Math.max(natural[i] as number, 0));
+        wet = (natural[i] as number) < 0 ? wet + 1 : 0;
+        seaRun = Math.max(seaRun, wet * ds);
+      }
+      span.type = bridgeTypeFor(cls, len, height, span.viaduct, ax, az, seaRun);
     }
     spans.push(...mySpans);
 

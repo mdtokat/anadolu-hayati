@@ -6,6 +6,8 @@
  * dünyaya `yaw` ile döndürülür (`localToWorld`). Ölçüler oyun metresidir (oyuncu 1,8 m).
  */
 
+import { balconyDoorHole, balconyLayout, balconySolids, type Balcony } from './balconies';
+import { subtractHoles } from './boxMath';
 import {
   SLAB,
   ceilingAbove,
@@ -101,8 +103,12 @@ export interface BuildingShape {
   searchable: boolean;
   /** Kapı (arama noktası) yerel konumu: ön yüzün ortası, biraz dışarıda. */
   door: { x: number; z: number };
-  /** İçerideki aranabilir sandık/dolaplar (yerel; girilebilir konutlarda). Boşsa yok. */
+  /** İçerideki aranabilir sandık/dolaplar (yerel; girilebilir konutlarda, zemin kat). Boşsa yok. */
   containers: readonly InteriorContainer[];
+  /** Üst katlardaki aranabilir kaplar (katlı yapı; `y` katın zemini, `level` kat). Boşsa yok. */
+  upperContainers: readonly InteriorContainer[];
+  /** Kullanılabilir balkonlar (apartman; `balconies.ts`). Boşsa yok. */
+  balconies: readonly Balcony[];
   /** Girilebilir yapının iç (zemin kat) tavan yüksekliği (oyun m; iç mekân yoksa 0). */
   roomHeight: number;
   /** Merdiven kollarının eğik çarpışma levhaları (katlı yapı; yerel). */
@@ -134,6 +140,10 @@ export interface InteriorContainer {
   x: number;
   z: number;
   facing: number;
+  /** Durduğu döşemenin yüksekliği (yerel; zemin kat 0, üst katlarda katın zemini). */
+  y?: number;
+  /** Kat (zemin 0; üst kat kapları 1…). */
+  level?: number;
 }
 
 /** Kabın ön yüz normali (yerel). */
@@ -202,6 +212,11 @@ export const ROOMS: Partial<
       storeys?: number;
       over?: number;
       containers: ReadonlyArray<readonly [ContainerKind, Side, number]>;
+      /**
+       * Katlı yapının her üst katında iç duvarlara dayalı kaplar (aynı biçim; üst katın iç dikdörtgenine göre). Merdiven
+       * kollarının karşı yanında ve pencerelerin arasında durur (`tests/upperFloors` denetler).
+       */
+      upperContainers?: ReadonlyArray<readonly [ContainerKind, Side, number]>;
     }
   >
 > = {
@@ -226,6 +241,10 @@ export const ROOMS: Partial<
       ['cupboard', 'back', 2.4],
       ['chest', 'right', 1.2],
     ],
+    upperContainers: [
+      ['chest', 'right', 0.5],
+      ['cupboard', 'back', 2.4],
+    ],
   },
   apartment: {
     room: 2.6,
@@ -236,6 +255,10 @@ export const ROOMS: Partial<
       ['cupboard', 'back', -3],
       ['chest', 'right', -2],
       ['cupboard', 'back', 3],
+    ],
+    upperContainers: [
+      ['chest', 'right', -1],
+      ['cupboard', 'back', 2.5],
     ],
   },
   lojman: {
@@ -248,6 +271,10 @@ export const ROOMS: Partial<
       ['chest', 'back', -3.2],
       ['cupboard', 'back', 1.4],
       ['chest', 'left', -1.6],
+    ],
+    upperContainers: [
+      ['chest', 'left', -1.2],
+      ['cupboard', 'left', 1.5],
     ],
   },
   kahvehane: {
@@ -281,6 +308,11 @@ export const ROOMS: Partial<
       ['chest', 'back', 0],
       ['chest', 'right', 1],
     ],
+    upperContainers: [
+      ['cupboard', 'back', 3.86],
+      ['cupboard', 'back', 6.43],
+      ['chest', 'right', 1.6],
+    ],
   },
   hamam: {
     room: 3.4,
@@ -312,7 +344,7 @@ export function containerBox(c: InteriorContainer): LocalBox {
   const sideways = Math.abs(Math.sin(c.facing)) > 0.5;
   return box(
     c.x,
-    dims.h / 2,
+    (c.y ?? 0) + dims.h / 2,
     c.z,
     (sideways ? dims.d : dims.w) / 2,
     dims.h / 2,
@@ -399,13 +431,33 @@ function roomShape(
     ...containers.map(containerBox),
   ];
   const ramps: RampBox[] = [];
+  const upperContainers: InteriorContainer[] = [];
+  const balconies = balconyLayout(kind, plan, w, d);
   if (plan) {
-    // Üst katlar: kapısız dış duvarlar (çatı korkuluğuna kadar tek parça), her katın döşemesi (merdiven boşluklu).
-    solids.push(...upperWallBoxes(plan, WALL));
+    // Üst katlar: dış duvarlar (çatı korkuluğuna kadar tek parça; balkon kapılarında delik), her katın döşemesi
+    // (merdiven boşluklu), balkon döşemesi ve korkulukları.
+    const doors = balconies.map((b) => balconyDoorHole(b, WALL));
+    solids.push(...subtractHoles(upperWallBoxes(plan, WALL), doors));
     for (let level = 1; level <= plan.storeys; level++) {
       solids.push(...slabBoxes(plan, level, plan.upperW / 2 - WALL, plan.upperD / 2 - WALL));
     }
+    for (const b of balconies) solids.push(...balconySolids(b));
     ramps.push(...plan.flights.map(rampBox));
+    // Üst kat kapları: her katta aynı düzen, katın zemininde.
+    const upperInner = {
+      halfWidth: plan.upperW / 2 - WALL,
+      back: -plan.upperD / 2 + WALL,
+    };
+    for (let level = 1; level < plan.storeys; level++) {
+      for (const [k, side, t] of room.upperContainers ?? []) {
+        upperContainers.push({
+          ...against(k, side, t, upperInner),
+          y: plan.floorY[level] as number,
+          level,
+        });
+      }
+    }
+    solids.push(...upperContainers.map(containerBox));
   }
   return {
     width: w,
@@ -417,6 +469,8 @@ function roomShape(
     searchable: false,
     door: { x: room.doorX, z: d / 2 + 0.6 },
     containers,
+    upperContainers,
+    balconies,
     roomHeight: room.room,
     ramps,
     indoorTop: plan ? plan.roofY - SLAB + 0.2 : height,
@@ -426,7 +480,7 @@ function roomShape(
 
 type BaseShape = Omit<
   BuildingShape,
-  'containers' | 'roomHeight' | 'ramps' | 'indoorTop' | 'storeys'
+  'containers' | 'upperContainers' | 'balconies' | 'roomHeight' | 'ramps' | 'indoorTop' | 'storeys'
 >;
 
 function shapeOf(kind: BuildingKind): BuildingShape {
@@ -453,6 +507,8 @@ function shapeOf(kind: BuildingKind): BuildingShape {
       searchable: false,
       solids: [...base.solids, ...containers.map(containerBox)],
       containers,
+      upperContainers: [],
+      balconies: [],
       roomHeight: d.han.h,
       ramps: [],
       indoorTop: base.height,
@@ -462,6 +518,8 @@ function shapeOf(kind: BuildingKind): BuildingShape {
   return {
     ...base,
     containers: [],
+    upperContainers: [],
+    balconies: [],
     roomHeight: base.interior ? Math.min(base.height, (d[kind] as { h?: number }).h ?? 4) : 0,
     ramps: [],
     indoorTop: base.height,

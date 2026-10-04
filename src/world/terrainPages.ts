@@ -1,5 +1,6 @@
 import { HORIZONTAL_SCALE, SEABED, TERRAIN_SMOOTHING, VERTICAL_SCALE } from '../config';
 import { latticeCol, latticeRow, LATTICE_CELL } from './lattice';
+import { shapeCoastSteps } from './coastShaping';
 import { seabedDepth, seaDistanceToLandSteps } from './seabed';
 import { smoothLandSteps } from './terrainSmoothing';
 
@@ -7,7 +8,7 @@ import { smoothLandSteps } from './terrainSmoothing';
  * Sayfalı arazi (saf): yükseklik dizisi `PAGE_SIZE × PAGE_SIZE` örneklik sayfalara bölünür (= dünya karosu); akış
  * kipinde yalnızca oyuncuya yakın sayfalar bellekte durur. Yumuşatma ve deniz tabanı **pencere** üzerinde de
  * hesaplanabilir: pencere sayfanın `TILE_HALO` örnek taşan komşu verisini taşıyorsa sonuç tüm diziyle hesaplananla
- * bit-bit aynıdır (Gauss yarıçapı 4, deniz tabanı etkisi en çok ~10 hücre).
+ * bit-bit aynıdır (Gauss yarıçapı 4, deniz tabanı etkisi en çok ~10 hücre, kıyı biçimlendirmesi 3 hücre).
  */
 
 /** Sayfa kenarı (örnek); `WORLD.tileSize` ile aynı olmalı (test eşleştirir). */
@@ -103,6 +104,8 @@ export function* terrainFromRawSteps(
     if (heights[i] === 0) game[i] = -(depth[i] as number);
   }
   yield;
+  // Kıyı: benekler kalkar, alçak kıyı suyun belirgin üstünde, su çizgisi yumuşak (`COAST_SHAPING`).
+  yield* shapeCoastSteps(game, (i) => heights[i] !== 0, width, height, rowsPerStep);
   return game;
 }
 

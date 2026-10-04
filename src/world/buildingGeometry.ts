@@ -21,10 +21,12 @@ import {
   SHAPE_DIMS,
   WALL_THICKNESS,
   mosqueOffset,
+  shapeVariant,
   storeyPlanOf,
   type BuildingKind,
   type LocalBox,
 } from '../settlements/kinds';
+import { BALCONY, balconyDoorHole, type Balcony } from '../settlements/balconies';
 import { PARAPET, SLAB, slabBoxes, stepCount, type StoreyPlan } from '../settlements/storeys';
 import {
   boxesOverlap,
@@ -278,10 +280,10 @@ function orient(
  * Camlı pencerelerin iç kasası (girilebilir yapılar; `settlements/windows.ts`): iç sıvanın önünde ahşap kasa ve duvar
  * kalınlığınca orta kayıt. Cam ayrı katmandadır (`GlassLayer`); duvar `cut` parçalarında delinir.
  */
-function windowFrames(kind: BuildingKind): Part[] {
+function windowFrames(kind: BuildingKind, floors: number): Part[] {
   const parts: Part[] = [];
   const t = WALL_THICKNESS;
-  for (const pane of windowPanes(kind)) {
+  for (const pane of windowPanes(kind, floors)) {
     const hole = withoutOffset(paneHole(pane, 0), kind);
     const { w: ww, h: wh } = pane;
     const y = hole.cy - wh / 2;
@@ -313,10 +315,14 @@ function windowFrames(kind: BuildingKind): Part[] {
 
 /**
  * Camlı pencereler (kullanıcı talimatı: içeriden dışarısı görünsün). Dış pencere levhası camlı pencerede hiç tahtalı
- * olmaz (kademeler arası tutarlı); `interior` kademesinde levha kaldırılır ve duvar/sıva (`cut`) delinir.
+ * olmaz (kademeler arası tutarlı); `interior` kademesinde levha kaldırılır ve duvar/sıva (`cut`) delinir. Balkon
+ * kapıları (`balconies.ts`) da aynı yolla delinir (dış kapı levhası `pane`).
  */
-function openWindows(kind: BuildingKind, parts: Part[], lod: BuildingLod): Part[] {
-  const holes = windowPanes(kind).map((pane) => withoutOffset(paneHole(pane), kind));
+function openWindows(kind: BuildingKind, floors: number, parts: Part[], lod: BuildingLod): Part[] {
+  const holes: LocalBox[] = [
+    ...windowPanes(kind, floors).map((pane) => withoutOffset(paneHole(pane), kind)),
+    ...shapeVariant(kind, floors).balconies.map((b) => balconyDoorHole(b, WALL_THICKNESS)),
+  ];
   if (holes.length === 0) return parts;
   const out: Part[] = [];
   for (const part of parts) {
@@ -770,6 +776,8 @@ function storeyParts(plan: StoreyPlan, st: StoreyStyle): Part[] {
     box(t, plan.roofY - bottom, ud - 2 * t, -uw / 2 + t / 2, bottom, 0, st.wall),
     box(t, plan.roofY - bottom, ud - 2 * t, uw / 2 - t / 2, bottom, 0, st.wall),
   ];
+  // Üst kat camlı pencereleri ve balkon kapıları duvarda ve iç sıvada delinir (`openWindows`).
+  for (const p of walls) p.cut = true;
   parts.push(...indoor(walls));
   const L = 0.02;
   const iw = uw - 2 * t;
@@ -777,12 +785,16 @@ function storeyParts(plan: StoreyPlan, st: StoreyStyle): Part[] {
   for (let k = 1; k < n; k++) {
     const y0 = plan.floorY[k] as number;
     const h = plan.clear[k] as number;
+    const plaster = [
+      box(iw, h, L, 0, y0, -ud / 2 + t + L / 2, C.plasterInner),
+      box(iw, h, L, 0, y0, ud / 2 - t - L / 2, C.plasterInner),
+      box(L, h, id, -uw / 2 + t + L / 2, y0, 0, C.plasterInner),
+      box(L, h, id, uw / 2 - t - L / 2, y0, 0, C.plasterInner),
+    ];
+    for (const p of plaster) p.cut = true;
     parts.push(
       ...indoor([
-        box(iw, h, L, 0, y0, -ud / 2 + t + L / 2, C.plasterInner),
-        box(iw, h, L, 0, y0, ud / 2 - t - L / 2, C.plasterInner),
-        box(L, h, id, -uw / 2 + t + L / 2, y0, 0, C.plasterInner),
-        box(L, h, id, uw / 2 - t - L / 2, y0, 0, C.plasterInner),
+        ...plaster,
         // süpürgelik
         box(iw, 0.14, 0.04, 0, y0, -ud / 2 + t + 0.03, C.plankDark),
       ]),
@@ -1032,21 +1044,65 @@ function apartmentParts(random: Random, floors: number): Part[] {
   }
   const rows: number[] = [];
   for (let f = 0; f < floors; f++) rows.push(f * floorH + 0.9);
+  // Ön cephe: zemin kat kapıyı, üst katlar balkon kapılarını atlar (`windows.ts` ile aynı düzen).
+  const balconies = shapeVariant('apartment', floors).balconies;
+  const doors = balconies.filter((b) => b.level === 1).map((b) => b.doorX);
   parts.push(
-    ...windows('front', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random, 0.2, false, [r.doorX]),
+    ...windows('front', w, d / 2 + 0.02, [rows[0]!], 4, [1.1, 1.2], random, 0.2, false, [r.doorX]),
   );
+  for (const y of rows.slice(1)) {
+    parts.push(...windows('front', w, d / 2 + 0.02, [y], 4, [1.1, 1.2], random, 0.2, false, doors));
+  }
   parts.push(...windows('back', w, d / 2 + 0.02, rows, 4, [1.1, 1.2], random));
   parts.push(...windows('left', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
   parts.push(...windows('right', d, w / 2 + 0.02, rows, 2, [1, 1.2], random));
-  // Balkonlar (ön cephe, birinci kattan itibaren).
-  for (let f = 1; f < floors; f++) {
-    const y = f * floorH;
-    for (const sx of [-1, 1]) {
-      parts.push(box(w * 0.36, 0.15, 1, sx * w * 0.28, y, d / 2 + 0.5, C.concreteDark));
-      parts.push(box(w * 0.36, 0.8, 0.08, sx * w * 0.28, y + 0.15, d / 2 + 0.96, C.concreteDark));
-      parts.push(box(w * 0.36 - 0.1, 0.05, 0.05, sx * w * 0.28, y + 0.98, d / 2 + 0.96, C.steel));
-    }
-  }
+  // Balkonlar (ön cephe, birinci kattan itibaren; yürünebilir: `balconies.ts`).
+  for (const b of balconies) parts.push(...balconyParts(b));
+  return parts;
+}
+
+/**
+ * Kullanılabilir balkon (`balconies.ts` ölçüleriyle; collider'lar `kinds.ts`'te aynı kutulardan): döşemesi katın
+ * zemininde, önde ve yanlarda beton korkuluk + çelik küpeşte; balkon kapısının kasası ve uzaktan görünen koyu kapı
+ * levhası (iç mekân kademesinde kalkar, kapı delinir).
+ */
+function balconyParts(b: Balcony): Part[] {
+  const { slab, railHeight, railThickness: rt, doorWidth: dw, doorHeight: dh } = BALCONY;
+  const z0 = b.wallZ;
+  const z1 = b.wallZ + b.depth;
+  const y = b.floorY;
+  const wall = railHeight - 0.12;
+  const parts: Part[] = [
+    box(b.width, slab, b.depth, b.x, y - slab, (z0 + z1) / 2, C.concreteDark),
+    box(b.width, 0.04, b.depth - rt, b.x, y - 0.02, (z0 + z1 - rt) / 2, C.sill),
+    box(b.width, wall, rt, b.x, y, z1 - rt / 2, C.concreteDark),
+    box(rt, wall, b.depth - rt, b.x - b.width / 2 + rt / 2, y, (z0 + z1 - rt) / 2, C.concreteDark),
+    box(rt, wall, b.depth - rt, b.x + b.width / 2 - rt / 2, y, (z0 + z1 - rt) / 2, C.concreteDark),
+    box(b.width - 0.02, 0.06, 0.07, b.x, y + railHeight - 0.08, z1 - rt / 2, C.steel),
+    box(
+      0.07,
+      0.06,
+      b.depth - rt,
+      b.x - b.width / 2 + rt / 2,
+      y + railHeight - 0.08,
+      (z0 + z1 - rt) / 2,
+      C.steel,
+    ),
+    box(
+      0.07,
+      0.06,
+      b.depth - rt,
+      b.x + b.width / 2 - rt / 2,
+      y + railHeight - 0.08,
+      (z0 + z1 - rt) / 2,
+      C.steel,
+    ),
+    // balkon kapısı: kasa (dış yüzde) ve uzaktan koyu kapı levhası
+    box(0.1, dh + 0.08, 0.1, b.doorX - dw / 2 - 0.05, y, z0 + 0.03, C.timber),
+    box(0.1, dh + 0.08, 0.1, b.doorX + dw / 2 + 0.05, y, z0 + 0.03, C.timber),
+    box(dw + 0.2, 0.1, 0.1, b.doorX, y + dh, z0 + 0.03, C.timber),
+    { ...box(dw, dh, 0.08, b.doorX, y, z0 + 0.02, C.window), pane: true },
+  ];
   return parts;
 }
 
@@ -1889,6 +1945,58 @@ function factoryParts(random: Random): Part[] {
 // -- birleştirme ----------------------------------------------------------------
 
 function nearParts(kind: BuildingKind, ruined: boolean, floors: number, random: Random): Part[] {
+  const parts = nearBaseParts(kind, ruined, floors, random);
+  if (!ruined) parts.push(...upperFloorParts(kind, floors));
+  return parts;
+}
+
+/** Üst katlarda sedir: duvara dayalı konumu (yerel x, merdivenlerin ve pencerelerin arasında) ve boyu. */
+const UPPER_SEDIR: Partial<Record<BuildingKind, { x: number; len: number }>> = {
+  konak: { x: 0.3, len: 2 },
+  apartment: { x: 0.3, len: 2 },
+  lojman: { x: -1, len: 2 },
+  government: { x: -1.28, len: 1.5 },
+};
+
+/**
+ * Katlı yapının üst kat eşyaları (kullanıcı talimatı: "üst katlarda da eşyalar olsun"): her katta aranabilir kaplar
+ * (`kinds.ts` `upperContainers`), arka duvara dayalı sedir ve kilimin üstünde alçak sini. Yalnız iç mekân kademesi.
+ */
+function upperFloorParts(kind: BuildingKind, floors: number): Part[] {
+  const shape = shapeVariant(kind, floors);
+  const plan = shape.storeys;
+  if (!plan) return [];
+  const parts: Part[] = [];
+  for (const c of shape.upperContainers) {
+    parts.push(
+      ...placeParts(
+        c.kind === 'chest' ? chestParts() : cupboardParts(),
+        c.x,
+        c.z,
+        c.facing,
+        c.y ?? 0,
+      ),
+    );
+  }
+  const sedirAt = UPPER_SEDIR[kind];
+  const back = -plan.upperD / 2 + WALL_THICKNESS;
+  const iw = plan.upperW - 2 * WALL_THICKNESS;
+  const id = plan.upperD - 2 * WALL_THICKNESS;
+  const rugX = -Math.sign(plan.flights[0]!.x) * iw * 0.18;
+  for (let level = 1; level < plan.storeys; level++) {
+    const y = plan.floorY[level] as number;
+    if (sedirAt) parts.push(...placeParts(sedir(sedirAt.len), sedirAt.x, back + 0.37, 0, y));
+    parts.push(...lift(table(rugX, -id * 0.12, 0.45, 0.32), y));
+  }
+  return indoor(parts);
+}
+
+function nearBaseParts(
+  kind: BuildingKind,
+  ruined: boolean,
+  floors: number,
+  random: Random,
+): Part[] {
   switch (kind) {
     case 'house':
       return houseParts(random, ruined);
@@ -2060,7 +2168,7 @@ export function buildBuildingGeometry(
     lod === 'far' ? farParts(kind, ruined, floors) : nearParts(kind, ruined, floors, random);
   if (lod !== 'far' && !ruined) {
     // Camlı pencereler: duvar delinir, iç kasa eklenir (yalnız `interior`; kasalar `inner` parçadır).
-    parts = [...openWindows(kind, parts, lod), ...windowFrames(kind)];
+    parts = [...openWindows(kind, floors, parts, lod), ...windowFrames(kind, floors)];
   }
   if (lod !== 'far') {
     // `near`: iç mekân parçaları atılır; `interior`: kapı boşluğu karartması atılır (içi görünür).

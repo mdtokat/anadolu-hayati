@@ -10,15 +10,17 @@ import {
   CONTAINER_DIMS,
   CONTAINER_NAMES,
   containerFront,
+  shapeVariant,
   type InteriorContainer,
 } from './kinds';
 import type { Building } from './layout';
-import { rollBuildingLoot, rollContainerLoot } from './loot';
+import { rollBuildingLoot, rollContainerLoot, rollUpperContainerLoot } from './loot';
 import { buildingLocalToWorld } from './SettlementMap';
 
 /**
  * Aranacak hedef: kapıdan aranan yapı (serender, maden, fabrika) ya da girilebilir yapının içindeki bir kap (sandık,
- * dolap). `id` kayıt kimliğidir: kapı için yapı kimliği, kap için `containerId(yapı, sıra)`.
+ * dolap). `id` kayıt kimliğidir: kapı için yapı kimliği, zemin kat kabı için `containerId(yapı, sıra)`, üst kat kabı
+ * için `upperContainerId(yapı, sıra)` (`upper`: sıra `upperContainers` içindedir).
  */
 export type SearchTarget =
   | { type: 'door'; id: number; building: Building }
@@ -28,6 +30,7 @@ export type SearchTarget =
       building: Building;
       index: number;
       container: InteriorContainer;
+      upper?: boolean;
     };
 
 /** Ganimet paneline verilen: değiştirilebilir liste ve her alıştan sonra çağrılan `settle` (boşaldıysa hedef biter). */
@@ -59,6 +62,18 @@ export function containerId(building: { id: number }, index: number): number {
   return building.id * CONTAINER_SLOTS + index;
 }
 
+/**
+ * Üst kat kaplarının kimlik uzayı (zemin kat kimlikleriyle çakışmaz: yapı kimlikleri < 2³¹, `· 8` < 2³⁴): taban 2⁴⁴,
+ * yapı başına `UPPER_CONTAINER_SLOTS` kap (apartmanın 6 katında en çok 10).
+ */
+export const UPPER_CONTAINER_BASE = 2 ** 44;
+export const UPPER_CONTAINER_SLOTS = 64;
+
+/** Üst kat kabının kalıcı kimliği (kayıtta `settlements.containers`). */
+export function upperContainerId(building: { id: number }, index: number): number {
+  return UPPER_CONTAINER_BASE + building.id * UPPER_CONTAINER_SLOTS + index;
+}
+
 /** Bakış/konum: kapıya yakın ve yapıya bakan oyuncu. */
 export interface SearchPose {
   x: number;
@@ -83,27 +98,37 @@ export function searchTarget(
   let best: SearchTarget | null = null;
   let bestD = Infinity;
   const containerCone = Math.cos((SEARCH.containerConeDeg * Math.PI) / 180);
+  const consider = (b: Building, c: InteriorContainer, index: number, upper: boolean) => {
+    if (Math.abs(pose.y - (b.y + (c.y ?? 0))) > SEARCH.containerVerticalReach) return;
+    const front = containerFront(c);
+    const reachDepth = CONTAINER_DIMS[c.kind].d / 2;
+    // Kabın ön yüzünün ortası (dünya).
+    const face = buildingLocalToWorld(b, c.x + front.x * reachDepth, c.z + front.z * reachDepth);
+    const center = buildingLocalToWorld(b, c.x, c.z);
+    const d = Math.hypot(face.x - pose.x, face.z - pose.z);
+    if (d > SEARCH.containerReach) return;
+    const tx = center.x - pose.x;
+    const tz = center.z - pose.z;
+    const len = Math.hypot(tx, tz) || 1;
+    if ((tx * fx + tz * fz) / len < containerCone) return;
+    if (d < bestD) {
+      bestD = d;
+      best = upper
+        ? {
+            type: 'container',
+            id: upperContainerId(b, index),
+            building: b,
+            index,
+            container: c,
+            upper: true,
+          }
+        : { type: 'container', id: containerId(b, index), building: b, index, container: c };
+    }
+  };
   for (const b of candidates) {
-    const shape = BUILDING_SHAPES[b.kind];
-    if (shape.containers.length === 0) continue;
-    if (Math.abs(pose.y - b.y) > SEARCH.containerVerticalReach) continue;
-    shape.containers.forEach((c, index) => {
-      const front = containerFront(c);
-      const reachDepth = CONTAINER_DIMS[c.kind].d / 2;
-      // Kabın ön yüzünün ortası (dünya).
-      const face = buildingLocalToWorld(b, c.x + front.x * reachDepth, c.z + front.z * reachDepth);
-      const center = buildingLocalToWorld(b, c.x, c.z);
-      const d = Math.hypot(face.x - pose.x, face.z - pose.z);
-      if (d > SEARCH.containerReach) return;
-      const tx = center.x - pose.x;
-      const tz = center.z - pose.z;
-      const len = Math.hypot(tx, tz) || 1;
-      if ((tx * fx + tz * fz) / len < containerCone) return;
-      if (d < bestD) {
-        bestD = d;
-        best = { type: 'container', id: containerId(b, index), building: b, index, container: c };
-      }
-    });
+    const shape = shapeVariant(b.kind, b.floors, b.ruined);
+    shape.containers.forEach((c, index) => consider(b, c, index, false));
+    shape.upperContainers.forEach((c, index) => consider(b, c, index, true));
   }
   if (best) return best;
   const cone = Math.cos((SEARCH.viewConeDeg * Math.PI) / 180);
@@ -128,8 +153,9 @@ export function searchTarget(
 
 /** Hedefin ganimeti (deterministik). */
 export function lootOf(target: SearchTarget): ItemStack[] {
-  return target.type === 'door'
-    ? rollBuildingLoot(target.building)
+  if (target.type === 'door') return rollBuildingLoot(target.building);
+  return target.upper
+    ? rollUpperContainerLoot(target.building, target.index)
     : rollContainerLoot(target.building, target.index);
 }
 
