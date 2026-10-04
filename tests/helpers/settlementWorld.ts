@@ -60,6 +60,8 @@ export function buildSettlementWorld(
         ? {
             grade: (plan: Parameters<typeof applyRoadGrading>[1]) =>
               (grading = applyRoadGrading(source, plan, world.features?.water.lines)),
+            gradeStreets: (plan: Parameters<typeof applyRoadGrading>[1]) =>
+              applyRoadGrading(source, plan, world.features?.water.lines, { respectLocks: true }),
           }
         : {}),
     },

@@ -64,6 +64,8 @@ import { SettlementLayer } from './SettlementLayer';
 import { SettlementColliders } from './SettlementColliders';
 import { StructureIndex } from './roadStructureGeometry';
 import { RoadStructureLayer } from './RoadStructureLayer';
+import { RoadSignColliders } from './RoadSignColliders';
+import { RoadSignLayer } from './RoadSignLayer';
 import { RoadStructureColliders } from './RoadStructureColliders';
 import { PropColliders } from './PropColliders';
 import { StructureWalkSolids } from './roadStructureWalk';
@@ -128,6 +130,8 @@ export class RegionWorld implements GameWorld {
   /** Köprü/viyadük/tünel çizimi ve collider'ları (yol planından); yerleşim verisi yoksa null. */
   private readonly structureLayer: RoadStructureLayer | null;
   private readonly structureColliders: RoadStructureColliders | null;
+  private readonly signLayer: RoadSignLayer | null;
+  private readonly signColliders: RoadSignColliders | null;
   /** Diğer insanların arazi/yerleşim sorguları (Faz 10); yerleşim verisi yoksa null. */
   readonly peopleWorld: PeopleWorld | null;
 
@@ -255,6 +259,11 @@ export class RegionWorld implements GameWorld {
     if (this.structureLayer) this.scene.add(this.structureLayer.group);
     this.structureColliders = structures ? new RoadStructureColliders(physics, structures) : null;
     this.roadWalk = structures ? new StructureWalkSolids(structures) : null;
+    // Yol levhaları: kavşak yön levhaları ve il/ilçe giriş levhaları.
+    const hasSigns = settlements !== null && settlements.signs.length > 0;
+    this.signLayer = hasSigns ? new RoadSignLayer(settlements) : null;
+    if (this.signLayer) this.scene.add(this.signLayer.group);
+    this.signColliders = hasSigns ? new RoadSignColliders(physics, settlements.signs) : null;
     this.peopleWorld = settlements
       ? {
           heightAt: (x, z) => this.source.heightAt(x, z),
@@ -510,6 +519,7 @@ export class RegionWorld implements GameWorld {
     p?.section('yapı collider');
     this.settlementColliders?.update(focusX, focusZ);
     this.structureColliders?.update(focusX, focusZ);
+    this.signColliders?.update(focusX, focusZ);
     p?.section('arazi mesh');
     this.chunks.update(visual.x, visual.z, undefined, budget);
     p?.section('nesneler');
@@ -524,6 +534,7 @@ export class RegionWorld implements GameWorld {
     this.environment.setTime(timeSeconds);
     p?.section('köprü/tünel');
     this.structureLayer?.update(visual.x, visual.z, budget);
+    this.signLayer?.update(visual.x, visual.z, budget);
     p?.section('çevre');
     this.water.update(timeSeconds);
     if (this.terrainUniforms) this.terrainUniforms.uTime.value = timeSeconds;
@@ -585,21 +596,27 @@ export class RegionWorld implements GameWorld {
 
   walkBlocked(x0: number, z0: number, x1: number, z1: number, radius: number): boolean {
     if (this.props?.solidBlocks(x0, z0, x1, z1, radius)) return true;
+    if (this.settlementMap?.signPostNear(x1, z1, radius)) return true;
     return this.roadWalk?.blocks(x0, z0, x1, z1, radius, this.source.heightAt(x1, z1)) ?? false;
   }
 
   walkContains(x: number, z: number, radius: number): boolean {
-    return this.props?.solidContains(x, z, radius) ?? false;
+    return (
+      (this.props?.solidContains(x, z, radius) ?? false) ||
+      (this.settlementMap?.signPostNear(x, z, radius) ?? false)
+    );
   }
 
   prepare(x: number, z: number): void {
     this.colliders.ensureAround(x, z);
     this.settlementColliders?.update(x, z, true);
     this.structureColliders?.update(x, z, true);
+    this.signColliders?.update(x, z, true);
     this.props?.prepare(x, z);
     this.propColliders?.update(x, z, true);
     this.settlementLayer?.update(x, z);
     this.structureLayer?.update(x, z);
+    this.signLayer?.update(x, z);
   }
 
   /** (x, z)'ye `radius` içindeki yüklü nesneler (ağaç, kaya, bitki…), yakından uzağa. */
@@ -696,6 +713,8 @@ export class RegionWorld implements GameWorld {
     this.propColliders?.dispose();
     this.structureColliders?.dispose();
     this.structureLayer?.dispose();
+    this.signColliders?.dispose();
+    this.signLayer?.dispose();
     this.settlementColliders?.dispose();
     this.settlementLayer?.dispose();
     this.glass?.dispose();

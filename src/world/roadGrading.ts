@@ -1,5 +1,6 @@
 import { FRESH_WATER, ROADS } from '../config';
 import { SPAN_KIND, type RoadPlan } from '../settlements/roadProfile';
+import { roadWidth } from '../settlements/roadWidth';
 
 /**
  * Zemin düzeltme (saf mantık): yol planının (`settlements/roadProfile.ts`) yatağını arazi yükseklik ızgarasına işler.
@@ -19,6 +20,13 @@ export interface HeightGrid {
   setSample(col: number, row: number, value: number): void;
   /** Varsa yol yatağı hücreleri kilitlenir (yapı terasları değiştirmesin). */
   lock?(col: number, row: number): void;
+  /** Kilitli hücre mi (yapı ayak izi, ana yol yatağı)? `respectLocks` ile kilitli hücreye dokunulmaz. */
+  isLocked?(col: number, row: number): boolean;
+}
+
+export interface GradingOptions {
+  /** Kilitli hücreler değişmez (yapı düzeninden sonra düzeltilen kent sokakları: yapıların zemini korunur). */
+  respectLocks?: boolean;
 }
 
 export interface GradingStats {
@@ -40,15 +48,17 @@ export function applyRoadGrading(
   plan: RoadPlan,
   /** Varsa akarsu çizgileri: dere yatağı yolun dolgusuyla yükseltilmez (dere yamaçta kalmasın). */
   streams?: ReadonlyArray<{ kind: string; xz: ArrayLike<number> }>,
+  options: GradingOptions = {},
 ): GradingStats {
   const { width, height, cell, origin } = grid;
+  const locked = options.respectLocks && grid.isLocked ? grid.isLocked.bind(grid) : null;
   const streamCells = streams ? streamMask(grid, streams) : null;
   const bestD = new Float32Array(width * height).fill(Number.POSITIVE_INFINITY);
   const bestBed = new Float32Array(width * height);
   const reach = ROADS.shoulder + ROADS.maxBlend;
 
   for (const road of plan.roads) {
-    const half = (ROADS.width[road.cls] as number) / 2;
+    const half = roadWidth(road) / 2;
     const pad = half + reach;
     const pad2 = pad * pad;
     const n = road.xz.length / 2;
@@ -124,6 +134,7 @@ export function applyRoadGrading(
       const at = r * width + c;
       const d = bestD[at] as number;
       if (!Number.isFinite(d)) continue;
+      if (locked?.(c, r)) continue;
       const natural = grid.sample(c, r);
       if (natural <= 0) continue; // deniz / kıyı çizgisi
       const bed = Math.max(bestBed[at] as number, ROADS.minBedHeight);

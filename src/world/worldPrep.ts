@@ -35,6 +35,8 @@ export function prepareDenseWorld(
         bounds: source.bounds,
         // Yol planı zemine uygulanır; yapı düzeni düzeltilmiş zeminin üstünde kurulur.
         grade: (plan) => applyRoadGrading(source, plan, region.features?.water.lines),
+        gradeStreets: (plan) =>
+          applyRoadGrading(source, plan, region.features?.water.lines, { respectLocks: true }),
         level: (box, y) => levelPad(source, box, y),
         lock: (box) => lockFootprint(source, box),
       })

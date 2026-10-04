@@ -1,10 +1,11 @@
 import type { RoadData, SettlementData } from '../data/settlements';
 import type { Building } from './layout';
 import type { RoadPlan } from './roadProfile';
+import type { RoadSign } from './roadSigns';
 import type { Stair } from './SettlementMap';
 
 /** Baked harita biçim sürümü (`SettlementMap.toBaked`; şema değişirse artırılır). */
-export const BAKED_MAP_VERSION = 1;
+export const BAKED_MAP_VERSION = 2;
 
 /** Bir yerleşim: veri (ayak izi hücreleri çıkarılmış) + yerleştirilmiş yapılar. */
 export interface BakedSettlement {
@@ -27,6 +28,8 @@ export interface BakedSettlementMap {
   streetLines: RoadData[];
   plan: RoadPlan;
   stairs: Stair[];
+  /** Yol levhaları (sürüm 2). */
+  signs: RoadSign[];
   /** `FootprintRegistry.dump` çıktısı. */
   footprints: Float64Array;
 }

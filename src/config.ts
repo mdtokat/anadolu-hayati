@@ -1972,6 +1972,11 @@ export const SETTLEMENT_LAYOUT = {
    */
   maxPadRange: 9,
   padMargin: 0.8,
+  /**
+   * Kent sokakları zemine uydurulmadan önce her yapının ayak izi (ve merdiven yeri) bu payla (oyun m) kilitlenir: sokak
+   * şevi yapının zeminini değiştirmez.
+   */
+  streetLockMargin: 0.6,
   /** Girilebilir yapıların terasının (ve kilidinin) ayak izinden taşan payı (oyun m; arazi kafesi 2 m'den geniş). */
   interiorPadMargin: 2.3,
   /** Komşu terasların şevi yüzünden arka kenarı `MAX_BURY`'yi bu kadar (oyun m) aşan yapı atılır. */
@@ -2192,7 +2197,7 @@ export const ROADS = {
   gradeMax: [0.17, 0.23, 0.34, 0.3],
   maxCut: 10,
   maxFill: [4.5, 4, 3, 2.5],
-  shoulder: 0.7,
+  shoulder: 1.4,
   batterCut: 1,
   batterFill: 0.65,
   minBlend: 2.6,
@@ -2211,6 +2216,67 @@ export const ROADS = {
   streamGuard: 1.6,
   /** Düzeltme denizden (oyun y) bu kadarın altına inmez ve deniz hücrelerine dokunmaz. */
   minBedHeight: 0.18,
+} as const;
+
+/**
+ * Yol levhaları (`settlements/roadSigns.ts` yer ve içerik, `world/RoadSignLayer.ts` çizim). Uzunluklar oyun metresi;
+ * levhadaki uzaklıklar gerçek kilometredir (yol ağı üzerinden, `HORIZONTAL_SCALE`).
+ */
+export const ROAD_SIGNS = {
+  /**
+   * Yön levhası: en az `junctionMinArms` kollu ve en az bir kolu anayol/köy yolu olan kavşaklara (il/ilçe merkezinin
+   * kesim dairesinin `townClearance` katı dışında) konur. Birbirine `mergeDistance`'tan yakın kavşaklarda tek levha.
+   * Kol yönü kavşaktan yol boyunca `armProbe` ilerideki noktaya bakar; aralarında `armMergeDeg`'den dar açı olan kollar
+   * tek koldur. Kol başına en çok `maxLinesPerArm` hedef: o koldan en yakın il merkezleri; ilçe merkezi en yakın ilin
+   * `ilceShare` katından yakınsa (ya da kolda il yoksa, `ilceMaxKm` içinde) önce o yazılır. Levha başına en çok `maxPlates`.
+   */
+  junctionMinArms: 3,
+  townClearance: 1.25,
+  mergeDistance: 70,
+  armProbe: 14,
+  armMergeDeg: 22,
+  maxLinesPerArm: 2,
+  ilceShare: 0.6,
+  ilceMaxKm: 90,
+  maxPlates: 6,
+  /** Direk yol kenarından bu kadar dışarıda (yol yarı genişliğine eklenir). */
+  sideOffset: 1.4,
+  /**
+   * Yerleşim (il/ilçe) giriş levhası: kente varan yol ucundan (kesim dairesi ya da ayak izi + `attachPad`, + `edgeTolerance`)
+   * yol boyunca `entranceOutward` dışarıda, gelen sürücünün sağında; birbirine `entranceMerge`'den yakın girişlerde tek levha.
+   */
+  edgeTolerance: 8,
+  entranceOutward: 12,
+  entranceMerge: 30,
+  /** Çizim: oyuncuya `drawRadius` içindeki en yakın `maxDrawn` levha (levha başına bir yazı dokusu); `refreshDistance`. */
+  drawRadius: 240,
+  maxDrawn: 10,
+  refreshDistance: 12,
+  /** Direklerin çarpışma kutuları oyuncuya bu kadar yakın levhalar için kurulur. */
+  colliderRadius: 60,
+  /**
+   * Ölçüler: yön plakası (ok biçimli, mavi zemin beyaz yazı) `plate` genişlik × yükseklik, ok ucu `plateTip`, plakalar
+   * arası `plateGap`, en alttaki plakanın alt kenarı `plateBase`; giriş levhası (beyaz zemin siyah yazı) `board`,
+   * alt kenarı `boardBase`, iki direği arası `boardPosts`. Direk kalınlığı `post`.
+   */
+  plate: { width: 2.3, height: 0.42, depth: 0.05 },
+  plateTip: 0.32,
+  plateGap: 0.08,
+  plateBase: 1.7,
+  board: { width: 2.8, height: 1.5, depth: 0.06 },
+  boardBase: 1.1,
+  boardPosts: 2.2,
+  post: 0.09,
+  /** Renkler (sRGB). */
+  colors: {
+    post: '#8a8f94',
+    plate: '#1c4f9c',
+    plateText: '#ffffff',
+    board: '#f4f4f0',
+    boardText: '#111111',
+    exitSlash: '#c8202a',
+    back: '#7d8186',
+  },
 } as const;
 
 /**
