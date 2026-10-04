@@ -646,7 +646,7 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
  * dönüştürülmeden yazılıyordu: köprüler ve tüneller yapılandırılan renkten belirgin açık (soluk gri) görünüyordu;
  * şimdi güverte yolu arazideki yolla aynı tondadır.
  */
-function srgbToLinear(c: number): number {
+export function srgbToLinear(c: number): number {
   return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 }
 

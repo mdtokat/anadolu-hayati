@@ -484,6 +484,22 @@ Elle doğrulanacak:
 
 ---
 
+## Faz 12 sonrası — Yol yüzeyi düzeltmesi ve yol levhaları (kullanıcı talimatı)
+_(Kullanıcı talimatı: "Tüm yolları yeniden kontrol et, eğik yatay mantık dışı yolları düzelt. Ayrıca yol ayrımı olan yerlere tabela yerleştir illerin hangi yönde olduğunu göstersin. İl girişlerine de şehir adı ve nüfus tabelası koy.")_
+
+- [x] **Denetim** (`tests/helpers/roadSlopeAudit.ts`, `tests/roadSurface.test.ts`): boyanan her yol 3 m aralıkla örneklenir, iki kenarı arasındaki yükseklik farkı / genişlik = enine eğim. Önce kent sokakları ve bağlantıları **hiç zemine uydurulmuyordu**: örneklerin %39'u 8,5°'den, %22'si 17°'den yan yatıktı (en kötü %5'i 45°'ye yakın); köy yolunda %3,9, dağ patikasında %11
+- [x] **Kent sokakları zemine uydurulur** (`roadProfile.ts` `planStreetProfiles`, `SettlementMap` `gradeStreets`, `roadGrading.ts` `respectLocks`): yapı düzeninden sonra sokak ve bağlantıların boyuna profili yumuşatılır, eğimi sınırlanır (uçlar kavşağa/ana yol yatağına sabit), enine kesiti düzdür; yapıların ayak izi ve merdiven yerleri önce kilitlenir (`SETTLEMENT_LAYOUT.streetLockMargin`), zeminleri değişmez. Sokaklarda yan yatma %39 → ~%12 (kalan: sokağa bitişik kilitli teras/temel zemini)
+- [x] **Banket** `ROADS.shoulder` 0,7 → 1,4 m: dar yolun kenarı artık 2 m arazi ızgarasının şevine karışmaz (anayol %2,7 → %1,9, köy yolu %3,9 → %1,7, patika %11 → %5,7); kentin ana caddesi kendi genişliğiyle (`avenueWidth`) düzeltilir ve boyanır (`PlannedRoad.width`; önce sokak genişliğine düşüyordu)
+- [x] **Yön levhaları** (`settlements/roadSigns.ts` `placeRoadSigns`, `ROAD_SIGNS`): en az üç kollu ve bir kolu anayol/köy yolu olan kavşaklarda (il/ilçe merkezlerinin dışında) direk + kolların yönüne bakan ok biçimli mavi plakalar; her kolda o yoldan en kısa yolla ulaşılan en yakın il merkezleri (yakın ilçe merkezi varsa önce o) ve yol ağı üzerinden gerçek km. Gerçek dünyada 749 yön levhası
+- [x] **Giriş levhaları**: il/ilçe merkezine giren her yolda, gelen sürücünün sağında beyaz levha: ad, NÜFUS, RAKIM; arka yüzü (kentten çıkarken) kırmızı çizgili ad. Komşu merkezlerin örtüşen dairelerinde her giriş tek merkezi gösterir (il önce). 186 il/ilçe merkezinin 176'sında (659 levha; eksikler il merkezinin içinde kalan büyükşehir merkez ilçeleri)
+- [x] **Çizim ve çarpışma** (`world/RoadSignLayer.ts`, `roadSignGeometry.ts`, `RoadSignColliders.ts`): oyuncuya 240 m içindeki en yakın 10 levha iki draw call (gövdeler + tek doku atlasında yazılar; hafif öz ışıma: gece okunur); direkler Rapier ile çarpışır, canlı/insan yürüyüşünü keser, levha yerindeki ağaç/kaya gizlenir. Levhalar bake'e girer (`BAKED_MAP_VERSION` 2)
+
+Elle doğrulanacak:
+- [ ] Kent sokaklarının (Safranbolu, Zonguldak, Amasra, Kastamonu gibi dik kentler) yan yatmadan düz göründüğü; yapıların temel/merdivenlerinin bozulmadığı
+- [ ] Yön levhalarının okunurluğu (gündüz/gece), hedeflerin ve km'lerin mantıklı olduğu; giriş levhalarının yerleri
+
+---
+
 ## Fikir Havuzu
 Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 

@@ -369,3 +369,12 @@ Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup 
 - [ ] **Kıyılar:** Samsun (Kızılırmak/Yeşilırmak deltaları), Sinop yarımadası ve Kocaeli körfezinde deniz benek benek/kesik kesik görünüyor mu? Kıyı çizgisi yumuşak mı, alçak ova suyla titreşiyor mu? Lagünler (Balık Gölü) su olarak duruyor mu?
 - [ ] **Köprü/tünel renkleri:** köprü güvertesindeki yol, bağlı olduğu yolun renginde mi (anayol koyu asfalt + beyaz çizgiler, köy yolu açık asfalt, patika toprak, kent sokağı parke)? Ayaklar gri mi? Tünel içinde yol aynı renkte mi?
 - Notlar: ____________________
+
+## 24. Yol yüzeyi düzeltmesi ve yol levhaları (Faz 12 sonrası)
+
+- [ ] **Kent sokakları:** dik kentlerde (Safranbolu, Zonguldak, Amasra, Kastamonu, Amasya) sokaklar ve kente giren bağlantı yolları yamaçta yan yatmadan, düz bir yatakla mı ilerliyor? Sokak kenarında yapıların taş temeli, kapı merdiveni ya da odası bozulmuş (havada/gömülü) yapı var mı?
+- [ ] **Ana yollar ve patikalar:** anayol, köy yolu ve dağ patikası dik yamaçta yan yatıyor mu? Banket genişlemesi yolun iki yanında göze batan düz şeritler bıraktı mı?
+- [ ] **Yön levhaları:** kavşaklarda direk ve ok biçimli mavi plakalar görünüyor mu, oklar gerçekten o yolun yönünü mü gösteriyor? Yazılan il/ilçe ve km mantıklı mı (ör. Çaycuma yakınında "ZONGULDAK", "BARTIN")? Gece okunuyor mu? Plaka yazısı her iki yandan da düz okunuyor mu?
+- [ ] **Giriş levhaları:** il/ilçe merkezine girerken sağda ad, NÜFUS ve RAKIM yazan beyaz levha çıkıyor mu? Kentten çıkarken arka yüzde kırmızı çizgili ad görünüyor mu? Levha yolun üstünde/binanın içinde değil mi?
+- [ ] **Çarpışma ve performans:** levha direklerinin içinden geçilmiyor mu? Levhaların yakınında FPS düşüşü/takılma var mı (yeni levha görünürken atlas yeniden boyanır)?
+- Notlar: ____________________

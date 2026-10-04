@@ -1,4 +1,5 @@
-import { ROADS, ROAD_STRUCTURES, SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
+import { ROADS, ROAD_SIGNS, ROAD_STRUCTURES, SETTLEMENT_LAYOUT, TERRAIN_OVERLAY } from '../config';
+import { placeRoadSigns, signPosts, type RoadSign, type SignTown } from './roadSigns';
 import type { LandmarkData, RoadData, SettlementData, SettlementsData } from '../data/settlements';
 import { BUILDING_SHAPES, MAX_BURY, isMosque, shapeVariant } from './kinds';
 import { FootprintRegistry } from './footprints';
@@ -14,7 +15,13 @@ import {
 } from './layout';
 import { RoadIndex } from './roadIndex';
 import { BAKED_MAP_VERSION, type BakedSettlementMap } from './bakedMap';
-import { groundRuns, planRoadProfiles, surfaceRuns, type RoadPlan } from './roadProfile';
+import {
+  groundRuns,
+  planRoadProfiles,
+  planStreetProfiles,
+  surfaceRuns,
+  type RoadPlan,
+} from './roadProfile';
 import {
   buildRoadNetwork,
   terrainRouteField,
@@ -369,6 +376,11 @@ export type SettlementTerrain = LayoutTerrain & {
    * verir ve yapı düzeni onun üstünde kurulur. Yoksa zemin doğal kalır.
    */
   grade?: (plan: RoadPlan) => void;
+  /**
+   * Varsa kent sokakları ve bağlantıları (yapı düzeninden sonra) zemine uygulanır; kilitli hücrelere (yapı ayak izleri,
+   * ana yol yatağı) dokunulmaz.
+   */
+  gradeStreets?: (plan: RoadPlan) => void;
   /** Dünya kenarı (yol ağı düzeni: kenardaki çıkmazlar budanmaz); yoksa yolların sınır kutusu. */
   bounds?: { minX: number; maxX: number; minZ: number; maxZ: number };
 };
@@ -394,9 +406,12 @@ export class SettlementMap {
   readonly roads: RoadIndex;
   /** Kapı önü merdivenleri (görsel + collider). */
   readonly stairs: Stair[] = [];
+  /** Yol levhaları: kavşaklarda yön levhaları, il/ilçe girişlerinde ad/nüfus levhaları (`roadSigns.ts`). */
+  readonly signs: RoadSign[] = [];
   private readonly byId = new Map<number, Building>();
   private readonly grid = new Map<string, Building[]>();
   private readonly cell = 64;
+  private signGrid: Map<string, RoadSign[]> | null = null;
 
   /** Tüm yapıların görsel ayak izleri (taşma payı ve merdiven dahil): yerleşimler arası çakışma, sokak eleme. */
   readonly footprints: FootprintRegistry;
@@ -448,6 +463,7 @@ export class SettlementMap {
         for (const b of view.buildings) this.register(b);
       }
       this.stairs.push(...baked.stairs);
+      this.signs.push(...baked.signs);
       return;
     }
     const data = input;
@@ -568,6 +584,29 @@ export class SettlementMap {
     const town = connectTownRoads(roads, streets, data, terrain, this.footprints, doors);
     this.streetLines = town.streets;
     this.joinLines = town.joins;
+    // Kent sokakları ve bağlantılar da zemine uydurulur (enine kesit düz; yamaçta yan yatmaz). Yapıların ayak izi ve
+    // merdiven yerleri önce kilitlenir: zeminleri (temel, döşeme, merdiven ucu) değişmez.
+    if (terrain.gradeStreets) {
+      if (terrain.lock) {
+        const m = SETTLEMENT_LAYOUT.streetLockMargin;
+        for (const b of this.buildings) {
+          const shape = BUILDING_SHAPES[b.kind];
+          const hz = shape.depth / 2 + m;
+          terrain.lock({ x: b.x, z: b.z, hx: shape.width / 2 + m, hz, yaw: b.yaw });
+          if (b.stairRun > 0) {
+            const c = buildingLocalToWorld(b, shape.door.x, shape.depth / 2 + b.stairRun / 2);
+            terrain.lock({
+              x: c.x,
+              z: c.z,
+              hx: stairWidth(b.kind) / 2 + m,
+              hz: b.stairRun / 2 + m,
+              yaw: b.yaw,
+            });
+          }
+        }
+      }
+      terrain.gradeStreets(planStreetProfiles([...town.joins, ...town.streets], terrain.heightAt));
+    }
     this.roadLines = [...roads, ...town.joins, ...town.streets];
     this.paintLines = [...groundRuns(this.plan), ...town.joins, ...town.streets];
     // Dizin yüzeydeki yollardır: tünelin içi dağın altındadır (üstünde ağaç kalır, insanlar oradan yürümez).
@@ -576,6 +615,30 @@ export class SettlementMap {
       const stair = stairFor(b, terrain);
       if (stair) this.stairs.push(stair);
     }
+    // Yol levhaları: kavşak yön levhaları ve il/ilçe giriş levhaları (zemin düzeltmesinden sonra; yerleri yol, yapı ve
+    // sudan uzak).
+    const signTowns: SignTown[] = data.settlements
+      .filter((s) => s.rank !== 'koy')
+      .map((s) => {
+        const c = settlementCenter(s);
+        return {
+          ...c,
+          r: footprintRadius(s) * SETTLEMENT_LAYOUT.innerRoadCut,
+          name: s.name,
+          rank: s.rank as 'il' | 'ilce',
+          population: s.population,
+          elevation: Math.max(0, Math.round(terrain.elevationAt(c.x, c.z))),
+        };
+      });
+    this.signs.push(
+      ...placeRoadSigns(roads, signTowns, {
+        heightAt: terrain.heightAt,
+        blocked: (x, z) =>
+          this.roads.onRoad(x, z, 0.6) ||
+          this.footprints.contains(x, z, 0.6) ||
+          terrain.isWater(x, z, 0.8),
+      }),
+    );
   }
 
   /** Yapıyı listeye, kimlik haritasına ve uzamsal ızgaraya ekler. */
@@ -602,6 +665,7 @@ export class SettlementMap {
       streetLines: this.streetLines,
       plan: this.plan,
       stairs: this.stairs,
+      signs: this.signs,
       footprints: this.footprints.dump(),
     };
   }
@@ -655,8 +719,55 @@ export class SettlementMap {
   blocksProp(x: number, z: number, radius = 0.8): boolean {
     return (
       this.footprints.contains(x, z, radius) ||
+      this.signNear(x, z, radius + ROAD_SIGNS.board.width / 2 + 0.3) ||
       this.roads.onRoad(x, z, radius + TERRAIN_OVERLAY.shoulderWidth)
     );
+  }
+
+  /** (x, z)'ye `radius` içinde levha var mı (levha yerinde ağaç/kaya gizlenir)? */
+  private signNear(x: number, z: number, radius: number): boolean {
+    return this.signsNear(x, z, radius).length > 0;
+  }
+
+  /** (x, z)'ye `radius` içinde levha direği var mı (canlı/insan yürüyüşü engeli)? */
+  signPostNear(x: number, z: number, radius: number): boolean {
+    const r = radius + ROAD_SIGNS.post / 2;
+    for (const sign of this.signsNear(x, z, radius + ROAD_SIGNS.boardPosts)) {
+      for (const p of signPosts(sign)) if ((p.x - x) ** 2 + (p.z - z) ** 2 < r * r) return true;
+    }
+    return false;
+  }
+
+  /** (x, z)'ye `radius` içindeki levhalar (uzamsal ızgarayla). */
+  signsNear(x: number, z: number, radius: number): RoadSign[] {
+    if (this.signs.length === 0) return [];
+    if (!this.signGrid) {
+      this.signGrid = new Map();
+      for (const sign of this.signs) {
+        const k = this.key(Math.floor(sign.x / this.cell), Math.floor(sign.z / this.cell));
+        const list = this.signGrid.get(k) ?? [];
+        list.push(sign);
+        this.signGrid.set(k, list);
+      }
+    }
+    const out: RoadSign[] = [];
+    const r2 = radius * radius;
+    for (
+      let cx = Math.floor((x - radius) / this.cell);
+      cx <= Math.floor((x + radius) / this.cell);
+      cx++
+    ) {
+      for (
+        let cz = Math.floor((z - radius) / this.cell);
+        cz <= Math.floor((z + radius) / this.cell);
+        cz++
+      ) {
+        for (const sign of this.signGrid.get(this.key(cx, cz)) ?? []) {
+          if ((sign.x - x) ** 2 + (sign.z - z) ** 2 <= r2) out.push(sign);
+        }
+      }
+    }
+    return out;
   }
 
   /** (x, y, z) girilebilir bir yapının (cami, han) içinde mi? */

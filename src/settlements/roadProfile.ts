@@ -37,6 +37,8 @@ export type BridgeType = (typeof BRIDGE_TYPES)[number];
 /** Planlanmış yol: sıklaştırılmış eksen + nokta başına doğal yükseklik, yatak yüksekliği ve tür. */
 export interface PlannedRoad {
   cls: RoadClass;
+  /** Varsa çizgiye özgü genişlik (kentin ana caddesi; `roadWidth`). */
+  width?: number;
   /** [x0, z0, x1, z1, …]; noktalar eşit aralıklı (`step`). */
   xz: Float32Array;
   step: number;
@@ -280,7 +282,15 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
       natural[i] = terrain.heightAt(xz[i * 2] as number, xz[i * 2 + 1] as number);
     const bed = new Float32Array(natural);
     const kind = new Uint8Array(count);
-    planned.push({ cls: road.cls, xz, step: ds, natural, bed, kind });
+    planned.push({
+      cls: road.cls,
+      ...(road.width !== undefined ? { width: road.width } : {}),
+      xz,
+      step: ds,
+      natural,
+      bed,
+      kind,
+    });
     if (count < 4) return; // çok kısa: doğal zeminde kalır
 
     const [na, nb] = endNodes[ri] as [number, number];
@@ -590,6 +600,75 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
   return { roads: planned, spans };
 }
 
+/**
+ * Kent sokakları ve bağlantı yollarının profili (yapı düzeninden sonra; köprü/tünel yok): boyuna profil o anki zeminden
+ * (`heightAt`: ana yollar düzeltilmiş, teraslar düzlenmiş) yumuşatılır ve eğimi sınırlanır; aynı düğümde buluşan uçlar
+ * ortak yüksekliğe, ana yola değen uçlar ana yolun yatağına sabittir. Enine kesit `applyRoadGrading`'de düzdür: sokak
+ * yamaçta yan yatmaz.
+ */
+export function planStreetProfiles(
+  lines: readonly RoadData[],
+  heightAt: (x: number, z: number) => number,
+): RoadPlan {
+  const step = ROADS.profileStep;
+  const index = new NodeIndex();
+  const nodeSum: number[] = [];
+  const nodeCount: number[] = [];
+  const ends: Array<[number, number]> = [];
+  for (const line of lines) {
+    const pair: number[] = [];
+    for (const at of [0, line.xz.length - 2]) {
+      const x = line.xz[at] as number;
+      const z = line.xz[at + 1] as number;
+      const id = index.node(x, z);
+      while (nodeSum.length <= id) {
+        nodeSum.push(0);
+        nodeCount.push(0);
+      }
+      nodeSum[id] = (nodeSum[id] as number) + heightAt(x, z);
+      nodeCount[id] = (nodeCount[id] as number) + 1;
+      pair.push(id);
+    }
+    ends.push([pair[0] as number, pair[1] as number]);
+  }
+  const nodeHeight = (id: number) => (nodeSum[id] as number) / (nodeCount[id] as number);
+  const roads: PlannedRoad[] = lines.map((line, li) => {
+    const length = pathLength(Array.from(line.xz));
+    const segments = Math.max(1, Math.round(length / step));
+    const count = segments + 1;
+    const xz = resampleUniform(line.xz, count);
+    const ds = length / segments;
+    const natural = new Float32Array(count);
+    for (let i = 0; i < count; i++)
+      natural[i] = heightAt(xz[i * 2] as number, xz[i * 2 + 1] as number);
+    const [na, nb] = ends[li] as [number, number];
+    const pinA = nodeHeight(na);
+    const pinB = nodeHeight(nb);
+    const h = Float64Array.from(natural);
+    h[0] = pinA;
+    h[count - 1] = pinB;
+    const cls = line.cls;
+    let p: Float64Array = h;
+    if (count >= 3 && length > 0) {
+      const grade = Math.max(ROADS.gradeMax[cls] as number, (1.1 * Math.abs(pinB - pinA)) / length);
+      p = smoothValues(h, ds, ROADS.profileSigma[cls] as number);
+      p[0] = pinA;
+      p[count - 1] = pinB;
+      limitGrade(p, ds, grade, pinA, pinB);
+    }
+    return {
+      cls,
+      ...(line.width !== undefined ? { width: line.width } : {}),
+      xz,
+      step: ds,
+      natural,
+      bed: Float32Array.from(p),
+      kind: new Uint8Array(count),
+    };
+  });
+  return { roads, spans: [] };
+}
+
 /** Patika düzeltme ağırlığı (0 = doğal zemin, 1 = tam düzeltme): arazi eğimi arttıkça düşer. */
 function lowlandWeight(
   terrain: ProfileTerrain,
@@ -631,7 +710,12 @@ function runsWhere(plan: RoadPlan, keep: (kind: number) => boolean): RoadData[] 
   for (const road of plan.roads) {
     let run: number[] = [];
     const flush = () => {
-      if (run.length >= 4) out.push({ cls: road.cls, xz: Float32Array.from(run) });
+      if (run.length >= 4)
+        out.push({
+          cls: road.cls,
+          ...(road.width !== undefined ? { width: road.width } : {}),
+          xz: Float32Array.from(run),
+        });
       run = [];
     };
     const n = road.xz.length / 2;
