@@ -3709,8 +3709,8 @@ export const MEDICAL = {
  */
 /**
  * Mini harita (`ui/Minimap.ts`, saf görünüm `ui/minimapView.ts`; kullanıcı talimatı: "hayatta kalmada üretilerek elde
- * edilsin, Son Kalan'da verilsin; oyuncunun konumu, Son Kalan'da bölge görünsün"). Kuzey yukarıdadır; oyuncu ortada ok.
- * Hayatta kalmada envanterde `map` (Harita) varken görünür; Son Kalan'da her zaman.
+ * edilsin"). Kuzey yukarıdadır; oyuncu ortada ok. Hayatta kalmada envanterde `map` (Harita) varken görünür; **Son
+ * Kalan'da hiç yoktur** (orada yalnızca `M` ile açılıp kapanan büyük harita; kullanıcı talimatı).
  */
 export const MINIMAP = {
   /** Ekrandaki çap (CSS px). */
@@ -3739,8 +3739,6 @@ export const MINIMAP = {
     street: 0xc9c2b0,
     building: 0x5a4636,
     mosque: 0x2f8a7e,
-    zone: 0xffffff,
-    next: 0x7fd1ff,
     player: 0xffd25e,
   },
 } as const;
@@ -3761,24 +3759,28 @@ export const BATTLE_ROYALE = {
   },
   zone: {
     /**
-     * Güvenli bölge aşamaları (sırayla): `wait` bekleme ve `shrink` daralma süresi (sn; maç süresi çarpanıyla), yeni
-     * dairenin yarıçapı bir öncekinin `radiusFactor` katı (son aşama 0: bölge tamamen kapanır), dışarıda saniye başı
-     * hasar (can), sınırın en hızlı noktasının en çok hızı (oyun m/sn; yürüme 4, koşu 7; kısa maçta ÷ 0,7 ile bile
-     * NPC koşusunu — `far.zoneSpeed` 4,6 — aşmaz). Daralma, sınır bu hızı
-     * aşmayacak kadar uzar: büyük alanda (tüm harita) maç kendiliğinden uzar. Ölçülen (100 kişi; kısa / orta / uzun): il ≈ 17–24 /
-     * 24–35 / 33–49 dk, tüm harita ≈ 52 / 75 / 105 dk.
+     * Güvenli bölge aşamaları (sırayla): yeni dairenin yarıçapı bir öncekinin `radiusFactor` katı (son aşama 0: bölge
+     * tamamen kapanır) ve dışarıda saniye başı hasar (can). **Hasar her aşamada artar** (`tests/brCore` denetler).
+     * Aşama süresi sabit değildir: kurulumdaki "bölge kaç dakikada bir daralsın" (`intervalMinutes`) seçimi her aşamanın
+     * toplam süresidir (bekleme + daralma); `waitShare` bunun beklemeye ayrılan payı.
      */
     phases: [
-      { wait: 120, shrink: 300, radiusFactor: 0.6, damage: 0.4, edgeSpeed: 3.2 },
-      { wait: 90, shrink: 180, radiusFactor: 0.55, damage: 0.8, edgeSpeed: 3 },
-      { wait: 75, shrink: 150, radiusFactor: 0.5, damage: 1.5, edgeSpeed: 2.5 },
-      { wait: 60, shrink: 120, radiusFactor: 0.5, damage: 3, edgeSpeed: 2.2 },
-      { wait: 45, shrink: 90, radiusFactor: 0.45, damage: 5, edgeSpeed: 2 },
-      { wait: 40, shrink: 75, radiusFactor: 0.4, damage: 8, edgeSpeed: 1.5 },
-      { wait: 30, shrink: 60, radiusFactor: 0, damage: 12, edgeSpeed: 1.5 },
+      { radiusFactor: 0.6, damage: 0.5 },
+      { radiusFactor: 0.55, damage: 1 },
+      { radiusFactor: 0.5, damage: 2 },
+      { radiusFactor: 0.5, damage: 3.5 },
+      { radiusFactor: 0.45, damage: 5.5 },
+      { radiusFactor: 0.4, damage: 8 },
+      { radiusFactor: 0, damage: 12 },
     ],
-    /** Maç süresi seçimi: aşama sürelerinin çarpanı (sınır hızı bu çarpana bölünür). */
-    durationScale: { short: 0.7, medium: 1, long: 1.4 },
+    /**
+     * Daralma aralığı seçimi (dakika; oyuncu maç öncesi belirler): aşama başına bekleme + daralma. Daralma, sınırın
+     * en hızlı noktası `maxEdgeSpeed`'i (oyun m/sn; koşu 7) aşmayacak kadar uzar: büyük alanda (tüm harita) kısa aralık
+     * seçilse de bölge yetişilemez hızda kapanmaz, aşama seçilenden uzun sürer.
+     */
+    intervalMinutes: { min: 2, max: 15, default: 4 },
+    waitShare: 0.35,
+    maxEdgeSpeed: 6,
     /** Seçili alanın dışında (komşu il, deniz) saniye başı en az hasar (bölge içinde olsa da). */
     outsideAreaDamage: 1,
     /** Yeni daire merkezi için deneme sayısı (karada, alanda, uygun noktada). */

@@ -5,7 +5,6 @@ import type { WaterFeatures } from '../data/region';
 import type { RoadData } from '../data/settlements';
 import {
   boundsTouch,
-  circleToPx,
   frameAround,
   lineBounds,
   mapTransform,
@@ -30,12 +29,6 @@ export interface MinimapSource {
   ): ReadonlyArray<{ x: number; z: number; yaw: number; w: number; d: number; mosque: boolean }>;
 }
 
-/** Son Kalan: şimdiki ve sonraki güvenli daire. */
-export interface MinimapZone {
-  circle: { x: number; z: number; r: number };
-  next: { x: number; z: number; r: number } | null;
-}
-
 type Bounds = ReturnType<typeof lineBounds>;
 
 const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
@@ -44,7 +37,7 @@ const C = MINIMAP.colors;
 /**
  * Mini harita (HTML canvas; kullanıcı talimatı): kuzey yukarı, oyuncu ortada ok. Arazi taban görüntüsü oyuncu kenara
  * yaklaşınca yeniden örneklenir (kare başına birkaç satır: takılma yok); su, yol ve yapılar her çizimde vektör olarak
- * üstüne çizilir. Son Kalan'da güvenli bölge (dışı karartılır) ve sonraki daire (kesikli) görünür.
+ * üstüne çizilir.
  */
 export class Minimap {
   readonly root = el('div', 'minimap');
@@ -104,7 +97,7 @@ export class Minimap {
   }
 
   /** Her karede: taban örneklemesini ilerletir, aralıkla çizer. */
-  update(nowMs: number, player: { x: number; z: number; yaw: number }, zone: MinimapZone | null) {
+  update(nowMs: number, player: { x: number; z: number; yaw: number }) {
     if (!this.shown || !this.ctx) return;
     const radius = MINIMAP.radius;
     if (!this.job && needsRebase(this.frame, player.x, player.z, radius)) {
@@ -119,7 +112,7 @@ export class Minimap {
     }
     if (nowMs - this.lastDraw < MINIMAP.drawIntervalMs) return;
     this.lastDraw = nowMs;
-    this.draw(player, zone);
+    this.draw(player);
   }
 
   dispose(): void {
@@ -217,7 +210,7 @@ export class Minimap {
 
   // ── Çizim ──
 
-  private draw(player: { x: number; z: number; yaw: number }, zone: MinimapZone | null): void {
+  private draw(player: { x: number; z: number; yaw: number }): void {
     const ctx = this.ctx!;
     const size = MINIMAP.sizePx;
     const half = size / 2;
@@ -282,42 +275,6 @@ export class Minimap {
       const d = Math.max(b.d * t.scale, 1.5);
       ctx.fillRect(-w / 2, -d / 2, w, d);
       ctx.restore();
-    }
-
-    if (zone) {
-      const cur = circleToPx(t, zone.circle);
-      // Güvenli bölgenin dışı karartılır.
-      ctx.beginPath();
-      ctx.rect(0, 0, size, size);
-      ctx.arc(cur.x, cur.y, cur.r, 0, Math.PI * 2, true);
-      ctx.fillStyle = 'rgba(40, 10, 60, 0.38)';
-      ctx.fill('evenodd');
-      ctx.beginPath();
-      ctx.arc(cur.x, cur.y, cur.r, 0, Math.PI * 2);
-      ctx.strokeStyle = css(C.zone);
-      ctx.lineWidth = 1.8;
-      ctx.stroke();
-      if (zone.next) {
-        const next = circleToPx(t, zone.next);
-        ctx.beginPath();
-        ctx.arc(next.x, next.y, next.r, 0, Math.PI * 2);
-        ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = css(C.next);
-        ctx.lineWidth = 1.4;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Sonraki dairenin merkezi haritanın dışındaysa kenarda yön işareti.
-        const dx = next.x - half;
-        const dy = next.y - half;
-        const dist = Math.hypot(dx, dy);
-        if (dist > half - 6) {
-          const k = (half - 9) / dist;
-          ctx.beginPath();
-          ctx.arc(half + dx * k, half + dy * k, 3.2, 0, Math.PI * 2);
-          ctx.fillStyle = css(C.next);
-          ctx.fill();
-        }
-      }
     }
 
     // Oyuncu: ucu bakış yönünde ok (yaw 0 = −Z = yukarı; pozitif sola döner).

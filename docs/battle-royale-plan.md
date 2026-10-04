@@ -18,7 +18,7 @@
     seçimi ikiye bölecek il çıkarılamaz. Komşuluk il çokgenlerinden türetilir (ortak sınır ≥ 5 oyun m ≈ 250 gerçek m;
     köşe teması sayılmaz).
   - **Oyuncu sayısı:** 2–100 (oyuncu dahil; geri kalanı NPC). Varsayılan: il 24, tüm harita 64.
-  - **Maç süresi:** Kısa / Orta / Uzun (bölge daralma takvimini ölçekler).
+  - **Bölge daralma aralığı:** kaç dakikada bir daralsın (2–15 dk; her aşamanın bekleme + daralma süresi). _(İlk plandaki Kısa/Orta/Uzun seçimi bunun yerine geçti; kullanıcı talimatı.)_
   - **NPC zorluğu:** Kolay / Normal / Zor (isabet, tepki süresi, cesaret).
   - Ek seçenekler: vahşi hayvanlar (açık/kapalı), saat (sabit gündüz / gerçek akış).
 - Herkes alanın içinde rastgele, birbirinden uzak noktalarda **eli boş** başlar; silah, mermi, zırh ve sağlık eşyası

@@ -90,6 +90,11 @@ export const RECIPE_IDS = [
   'war_axe',
   'gurz',
   'map',
+  // Dürbünler (kullanıcı talimatı: tamamı envanterde, istasyonsuz üretilir).
+  'scope_2x',
+  'scope',
+  'scope_8x',
+  'scope_16x',
 ] as const;
 export type RecipeId = (typeof RECIPE_IDS)[number];
 
@@ -863,6 +868,48 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     ],
     station: 'workbench',
     output: { id: 'map', count: 1 },
+  },
+  // Dürbünler (kullanıcı talimatı: tamamı envanterde üretilebilir, istasyon istemez): demir boru + hurda gövde, büyütme
+  // arttıkça daha çok demir ve elektronik parça (mercek/nişangâh düzeneği). Girdilerde demir külçe olduğundan satıcıdan
+  // tam girdi alınamaz (kâr döngüsü yok).
+  scope_2x: {
+    id: 'scope_2x',
+    name: 'Dürbün (2x)',
+    inputs: [
+      { id: 'iron_ingot', count: 1 },
+      { id: 'scrap_metal', count: 2 },
+    ],
+    output: { id: 'scope_2x', count: 1 },
+  },
+  scope: {
+    id: 'scope',
+    name: 'Dürbün (4x)',
+    inputs: [
+      { id: 'iron_ingot', count: 2 },
+      { id: 'scrap_metal', count: 3 },
+      { id: 'electronic_parts', count: 1 },
+    ],
+    output: { id: 'scope', count: 1 },
+  },
+  scope_8x: {
+    id: 'scope_8x',
+    name: 'Dürbün (8x)',
+    inputs: [
+      { id: 'iron_ingot', count: 3 },
+      { id: 'scrap_metal', count: 4 },
+      { id: 'electronic_parts', count: 2 },
+    ],
+    output: { id: 'scope_8x', count: 1 },
+  },
+  scope_16x: {
+    id: 'scope_16x',
+    name: 'Dürbün (16x)',
+    inputs: [
+      { id: 'iron_ingot', count: 4 },
+      { id: 'scrap_metal', count: 5 },
+      { id: 'electronic_parts', count: 4 },
+    ],
+    output: { id: 'scope_16x', count: 1 },
   },
 };
 

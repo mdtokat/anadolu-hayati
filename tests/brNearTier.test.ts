@@ -41,7 +41,7 @@ interface Options {
 
 function setup(o: Options) {
   const area = new BrArea([SQUARE], ['K'], 8, 0);
-  const zone = { plan: planZone(area, createRandom(1), 'medium', () => true), area };
+  const zone = { plan: planZone(area, createRandom(1), 4, () => true), area };
   const n = o.players ?? Math.max(...o.starts.map((s) => s.id)) + 1;
   const match = new BrMatch(Array.from({ length: n }, (_, i) => (i === 0 ? 'Sen' : `Y${i}`)));
   const t0 = o.start ?? GRACE + 10;

@@ -3,8 +3,8 @@ import { BATTLE_ROYALE } from '../config';
 import { isConnectedSelection, toggleProvince, type Adjacency } from '../battleRoyale/area';
 import {
   BR_DIFFICULTIES,
-  BR_DURATIONS,
   clampPlayers,
+  clampShrinkMinutes,
   defaultPlayers,
   normalizeSetup,
   type BrAreaChoice,
@@ -14,7 +14,6 @@ import type { ProvinceShape } from '../data/region';
 import {
   BR_SETUP_STORAGE_KEY,
   DIFFICULTY_LABELS,
-  DURATION_LABELS,
   provinceButtonStates,
   provinceMapPaths,
   setupSummary,
@@ -36,7 +35,7 @@ export interface BrSetupOptions {
 
 /**
  * Battle Royale kurulum penceresi (BR.6): alan (tüm harita ya da sınır komşuluğuyla bağlı il seçimi — haritada ya da
- * listede tıklanır; yalnız seçime komşu iller eklenebilir, seçimi bölecek il çıkarılamaz), oyuncu sayısı, süre, zorluk,
+ * listede tıklanır; yalnız seçime komşu iller eklenebilir, seçimi bölecek il çıkarılamaz), oyuncu sayısı, bölgenin daralma aralığı (dk), zorluk,
  * hayvanlar ve saat. Son kurulum tarayıcıda hatırlanır (`BR_SETUP_STORAGE_KEY`).
  */
 export class BrSetupPanel {
@@ -47,7 +46,8 @@ export class BrSetupPanel {
   private readonly paths = new Map<string, SVGPathElement>();
   private readonly playersInput = document.createElement('input');
   private readonly playersNumber = document.createElement('input');
-  private readonly durationButtons = new Map<string, HTMLButtonElement>();
+  private readonly shrinkInput = document.createElement('input');
+  private readonly shrinkNumber = document.createElement('input');
   private readonly difficultyButtons = new Map<string, HTMLButtonElement>();
   private readonly animalsButtons = new Map<boolean, HTMLButtonElement>();
   private readonly daylightButtons = new Map<boolean, HTMLButtonElement>();
@@ -151,12 +151,34 @@ export class BrSetupPanel {
     playersBox.append(this.playersInput, this.playersNumber);
     playersRow.append(playersLabel, playersBox);
 
-    const durationRow = this.segmentedRow(
-      'Maç süresi',
-      BR_DURATIONS.map((d) => [d, DURATION_LABELS[d]] as [string, string]),
-      this.durationButtons,
-      (value) => this.patch({ duration: value as BrSetup['duration'] }),
-    );
+    // Bölge daralma aralığı (dakika)
+    const shrinkRow = document.createElement('div');
+    shrinkRow.className = 'settings-row';
+    const shrinkLabel = document.createElement('span');
+    shrinkLabel.className = 'settings-label';
+    shrinkLabel.textContent = 'Bölge kaç dakikada bir daralsın';
+    const interval = BATTLE_ROYALE.zone.intervalMinutes;
+    for (const input of [this.shrinkInput, this.shrinkNumber]) {
+      input.min = String(interval.min);
+      input.max = String(interval.max);
+      input.step = '1';
+      input.addEventListener('input', () => this.setShrinkMinutes(Number(input.value)));
+    }
+    this.shrinkInput.type = 'range';
+    this.shrinkInput.className = 'br-setup-range';
+    this.shrinkInput.setAttribute('aria-label', 'Bölge daralma aralığı (dakika)');
+    this.shrinkNumber.type = 'number';
+    this.shrinkNumber.className = 'br-setup-number';
+    this.shrinkNumber.setAttribute('aria-label', 'Bölge daralma aralığı (dakika, sayı)');
+    const shrinkBox = document.createElement('div');
+    shrinkBox.className = 'br-setup-players';
+    shrinkBox.append(this.shrinkInput, this.shrinkNumber);
+    shrinkRow.append(shrinkLabel, shrinkBox);
+    const shrinkHint = document.createElement('p');
+    shrinkHint.className = 'settings-hint';
+    shrinkHint.textContent =
+      'Her aşama bu kadar sürer (önce bekleme, sonra daralma). Alan çok büyükse bölge koşarak yetişilemeyecek hızda kapanmasın diye daralma seçtiğinden uzun sürebilir.';
+
     const difficultyRow = this.segmentedRow(
       'Zorluk',
       BR_DIFFICULTIES.map((d) => [d, DIFFICULTY_LABELS[d]] as [string, string]),
@@ -191,7 +213,8 @@ export class BrSetupPanel {
       areaRow,
       areaBox,
       playersRow,
-      durationRow,
+      shrinkRow,
+      shrinkHint,
       difficultyRow,
       animalsRow,
       daylightRow,
@@ -263,6 +286,11 @@ export class BrSetupPanel {
   private setPlayers(n: number): void {
     if (!Number.isFinite(n)) return;
     this.patch({ players: clampPlayers(n) });
+  }
+
+  private setShrinkMinutes(n: number): void {
+    if (!Number.isFinite(n)) return;
+    this.patch({ shrinkMinutes: clampShrinkMinutes(n) });
   }
 
   private setAreaKind(kind: 'world' | 'provinces'): void {
@@ -340,8 +368,9 @@ export class BrSetupPanel {
     if (document.activeElement !== this.playersNumber) {
       this.playersNumber.value = String(setup.players);
     }
-    for (const [key, button] of this.durationButtons) {
-      mark(button, key === setup.duration);
+    this.shrinkInput.value = String(setup.shrinkMinutes);
+    if (document.activeElement !== this.shrinkNumber) {
+      this.shrinkNumber.value = String(setup.shrinkMinutes);
     }
     for (const [key, button] of this.difficultyButtons) {
       mark(button, key === setup.difficulty);

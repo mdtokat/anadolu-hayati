@@ -4,9 +4,6 @@ import { BATTLE_ROYALE } from '../config';
  * Battle Royale sözleşmesi (saf): maç kurulumu ve seçenekleri. Listeler yalnızca sona eklenir.
  */
 
-export const BR_DURATIONS = ['short', 'medium', 'long'] as const;
-export type BrDuration = (typeof BR_DURATIONS)[number];
-
 export const BR_DIFFICULTIES = ['easy', 'normal', 'hard'] as const;
 export type BrDifficulty = (typeof BR_DIFFICULTIES)[number];
 
@@ -18,7 +15,8 @@ export interface BrSetup {
   area: BrAreaChoice;
   /** Oyuncu sayısı (oyuncu dahil). */
   players: number;
-  duration: BrDuration;
+  /** Güvenli bölge kaç dakikada bir daralsın (aşama başına bekleme + daralma; tam sayı, `intervalMinutes` aralığı). */
+  shrinkMinutes: number;
   difficulty: BrDifficulty;
   /** Vahşi hayvanlar maçta bulunsun mu? */
   animals: boolean;
@@ -38,7 +36,7 @@ export function defaultSetup(): BrSetup {
   return {
     area,
     players: defaultPlayers(area),
-    duration: 'medium',
+    shrinkMinutes: BATTLE_ROYALE.zone.intervalMinutes.default,
     difficulty: 'normal',
     animals: true,
     fixedDaylight: true,
@@ -48,6 +46,12 @@ export function defaultSetup(): BrSetup {
 export function clampPlayers(n: number): number {
   const { min, max } = BATTLE_ROYALE.players;
   return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : min;
+}
+
+/** Daralma aralığını (dk) tam sayıya yuvarlayıp izin verilen aralığa çeker (bozuk değer varsayılana düşer). */
+export function clampShrinkMinutes(n: number): number {
+  const { min, max, default: fallback } = BATTLE_ROYALE.zone.intervalMinutes;
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 }
 
 function oneOf<T extends string>(list: readonly T[], value: unknown, fallback: T): T {
@@ -73,7 +77,10 @@ export function normalizeSetup(raw: unknown, valid: (names: string[]) => boolean
   return {
     area,
     players: typeof r.players === 'number' ? clampPlayers(r.players) : defaultPlayers(area),
-    duration: oneOf(BR_DURATIONS, r.duration, base.duration),
+    shrinkMinutes:
+      typeof r.shrinkMinutes === 'number'
+        ? clampShrinkMinutes(r.shrinkMinutes)
+        : base.shrinkMinutes,
     difficulty: oneOf(BR_DIFFICULTIES, r.difficulty, base.difficulty),
     animals: typeof r.animals === 'boolean' ? r.animals : base.animals,
     fixedDaylight: typeof r.fixedDaylight === 'boolean' ? r.fixedDaylight : base.fixedDaylight,

@@ -38,7 +38,7 @@ export function planMatch(
   playerName = 'Sen',
 ): MatchPlan {
   const area = BrArea.fromChoice(setup.area, world.provinces);
-  const zone = planZone(area, createRandom(seedFrom(seed, 1)), setup.duration, (x, z, phase) =>
+  const zone = planZone(area, createRandom(seedFrom(seed, 1)), setup.shrinkMinutes, (x, z, phase) =>
     world.zoneCenterOk(x, z, phase),
   );
   const spawns = planSpawns(area, setup.players, createRandom(seedFrom(seed, 2)), (x, z) =>

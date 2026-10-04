@@ -130,8 +130,8 @@ export function lineBounds(xz: ArrayLike<number>): {
 }
 
 /**
- * Mini harita görünür mü? Son Kalan'da her zaman (harita verilir); hayatta kalmada envanterde Harita varken. Ölüyken ve
- * oyun duraklıyken gizlenir.
+ * Mini harita görünür mü? Hayatta kalmada envanterde Harita varken; **Son Kalan'da hiç** (orada yalnızca büyük harita,
+ * `M`). Ölüyken ve oyun duraklıyken gizlenir.
  */
 export function minimapVisible(opts: {
   battleRoyale: boolean;
@@ -139,15 +139,6 @@ export function minimapVisible(opts: {
   alive: boolean;
   paused: boolean;
 }): boolean {
-  if (!opts.alive || opts.paused) return false;
-  return opts.battleRoyale || opts.hasMap;
-}
-
-/** Dairenin harita içindeki pikseli ve yarıçapı (çizimde kırpılır). */
-export function circleToPx(
-  t: ReturnType<typeof mapTransform>,
-  c: { x: number; z: number; r: number },
-): { x: number; y: number; r: number } {
-  const p = t.toPx(c.x, c.z);
-  return { x: p.x, y: p.y, r: Math.max(c.r, 0) * t.scale };
+  if (!opts.alive || opts.paused || opts.battleRoyale) return false;
+  return opts.hasMap;
 }

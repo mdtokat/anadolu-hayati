@@ -9,7 +9,12 @@ import {
   provinceAdjacency,
   toggleProvince,
 } from '../src/battleRoyale/area';
-import { clampPlayers, defaultSetup, normalizeSetup } from '../src/battleRoyale/kinds';
+import {
+  clampPlayers,
+  clampShrinkMinutes,
+  defaultSetup,
+  normalizeSetup,
+} from '../src/battleRoyale/kinds';
 import { BrMatch } from '../src/battleRoyale/match';
 import { contestantNames } from '../src/battleRoyale/names';
 import { planSpawns, spawnSpacing } from '../src/battleRoyale/spawn';
@@ -132,7 +137,7 @@ describe('BrArea', () => {
 
 describe('güvenli bölge', () => {
   const area = new BrArea([rect('K', 0, 0, 2000, 1000)], ['K'], 8, 0);
-  const plan = planZone(area, createRandom(11), 'medium', () => true);
+  const plan = planZone(area, createRandom(11), 4, () => true);
 
   it('her daire öncekinin içinde, merkez alanda; zamanlar artan; son daire kapanır', () => {
     let prev = plan.initial;
@@ -153,14 +158,26 @@ describe('güvenli bölge', () => {
     expect(plan.phases.at(-1)!.to.r).toBe(0);
   });
 
-  it('sınır hızı aşamanın sınırını aşmaz', () => {
-    BATTLE_ROYALE.zone.phases.forEach((cfg, i) => {
-      const p = plan.phases[i]!;
+  it('her aşama seçilen aralık kadar sürer (bekleme + daralma); sınır hızı sınırı aşmaz', () => {
+    const period = 4 * 60;
+    for (const p of plan.phases) {
       const travel = p.from.r - p.to.r + Math.hypot(p.to.x - p.from.x, p.to.z - p.from.z);
+      // Küçük alanda hız sınırı devreye girmez: aşama tam seçilen aralıktır.
+      expect(p.end - p.start).toBeGreaterThanOrEqual(period - 1e-6);
+      expect(p.shrinkStart - p.start).toBeCloseTo(period * BATTLE_ROYALE.zone.waitShare);
       expect(travel / (p.end - p.shrinkStart)).toBeLessThanOrEqual(
-        cfg.edgeSpeed / BATTLE_ROYALE.zone.durationScale.medium + 1e-9,
+        BATTLE_ROYALE.zone.maxEdgeSpeed + 1e-9,
       );
-    });
+    }
+    const small = new BrArea([rect('S', 0, 0, 200, 200)], ['S'], 8, 0);
+    const tiny = planZone(small, createRandom(3), 3, () => true);
+    for (const p of tiny.phases) expect(p.end - p.start).toBeCloseTo(3 * 60);
+  });
+
+  it('aşama hasarı her kademede artar', () => {
+    const damages = BATTLE_ROYALE.zone.phases.map((p) => p.damage);
+    for (let i = 1; i < damages.length; i++) expect(damages[i]!).toBeGreaterThan(damages[i - 1]!);
+    expect(plan.phases.map((p) => p.damage)).toEqual(damages);
   });
 
   it('zoneAt: bekleme, daralma (doğrusal), kapanma', () => {
@@ -178,9 +195,9 @@ describe('güvenli bölge', () => {
     expect(closed.circle.r).toBe(0);
   });
 
-  it('süre seçimi aşamaları ölçekler', () => {
-    const short = planZone(area, createRandom(11), 'short', () => true);
-    const long = planZone(area, createRandom(11), 'long', () => true);
+  it('daralma aralığı seçimi maç süresini ölçekler', () => {
+    const short = planZone(area, createRandom(11), 2, () => true);
+    const long = planZone(area, createRandom(11), 8, () => true);
     expect(short.total).toBeLessThan(plan.total);
     expect(long.total).toBeGreaterThan(plan.total);
   });
@@ -196,7 +213,7 @@ describe('güvenli bölge', () => {
   });
 
   it('uygun merkez yoksa önceki merkez korunur', () => {
-    const stuck = planZone(area, createRandom(1), 'medium', () => false);
+    const stuck = planZone(area, createRandom(1), 4, () => false);
     for (const p of stuck.phases) {
       expect(p.to.x).toBeCloseTo(stuck.initial.x);
       expect(p.to.z).toBeCloseTo(stuck.initial.z);
@@ -279,14 +296,19 @@ describe('kurulum ve adlar', () => {
       {
         area: { kind: 'provinces', names: ['A', 'B', 'A', 3] },
         players: 999,
-        duration: 'x',
+        shrinkMinutes: 'x',
         animals: false,
       },
       valid,
     );
     expect(s.area).toEqual({ kind: 'provinces', names: ['A', 'B'] });
     expect(s.players).toBe(BATTLE_ROYALE.players.max);
-    expect(s.duration).toBe('medium');
+    expect(s.shrinkMinutes).toBe(BATTLE_ROYALE.zone.intervalMinutes.default);
+    expect(normalizeSetup({ shrinkMinutes: 99 }, valid).shrinkMinutes).toBe(
+      BATTLE_ROYALE.zone.intervalMinutes.max,
+    );
+    expect(clampShrinkMinutes(0)).toBe(BATTLE_ROYALE.zone.intervalMinutes.min);
+    expect(clampShrinkMinutes(Number.NaN)).toBe(BATTLE_ROYALE.zone.intervalMinutes.default);
     expect(s.animals).toBe(false);
     expect(normalizeSetup({ area: { kind: 'provinces', names: ['Z'] } }, valid).area).toEqual({
       kind: 'world',

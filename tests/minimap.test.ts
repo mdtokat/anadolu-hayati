@@ -4,7 +4,6 @@ import { RECIPES } from '../src/items/recipes';
 import { ITEMS } from '../src/items/itemDefs';
 import {
   boundsTouch,
-  circleToPx,
   frameAround,
   lineBounds,
   mapTransform,
@@ -16,12 +15,12 @@ import {
 /** Mini harita (kullanıcı talimatı): görünürlük kuralı, taban görüntüsü, dönüşüm. */
 
 describe('mini harita', () => {
-  it('Son Kalan’da her zaman, hayatta kalmada yalnızca Harita varken görünür; ölü/duraklıyken gizli', () => {
+  it('hayatta kalmada yalnızca Harita varken görünür, Son Kalan’da hiç (yalnızca M haritası); ölü/duraklıyken gizli', () => {
     const base = { battleRoyale: false, hasMap: false, alive: true, paused: false };
     expect(minimapVisible(base)).toBe(false);
     expect(minimapVisible({ ...base, hasMap: true })).toBe(true);
-    expect(minimapVisible({ ...base, battleRoyale: true })).toBe(true);
-    expect(minimapVisible({ ...base, battleRoyale: true, alive: false })).toBe(false);
+    expect(minimapVisible({ ...base, battleRoyale: true })).toBe(false);
+    expect(minimapVisible({ ...base, battleRoyale: true, hasMap: true })).toBe(false);
     expect(minimapVisible({ ...base, hasMap: true, paused: true })).toBe(false);
   });
 
@@ -57,7 +56,6 @@ describe('mini harita', () => {
     expect(t.toPx(100, 50)).toEqual({ x: 200, y: 200 });
     expect(t.toPx(100, 0).y).toBeLessThan(200);
     expect(t.toPx(150, 50).x).toBeGreaterThan(200);
-    expect(circleToPx(t, { x: 100, z: 50, r: 100 }).r).toBe(100);
   });
 
   it('çizgi sınır kutusu ve kare kesişimi', () => {

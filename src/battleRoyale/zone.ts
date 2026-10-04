@@ -1,13 +1,12 @@
 import { BATTLE_ROYALE } from '../config';
 import type { Random } from '../utils/random';
 import type { Circle } from './area';
-import type { BrDuration } from './kinds';
 
 /**
  * Güvenli bölge (saf): maç başında bütün aşamaların daireleri ve zamanları bir kez planlanır (`planZone`), oyun her
  * an `zoneAt(plan, t)` ile durumu okur. Her yeni daire bir öncekinin içindedir; merkezi alanın içinde ve `centerOk`'un
- * kabul ettiği (karada, yürünebilir…) bir noktadır. Daralma süresi, sınırın en hızlı noktası aşamanın `edgeSpeed`
- * sınırını (maç süresi çarpanına bölünmüş: kısa maçta sınır daha hızlı) aşmayacak kadar uzar.
+ * kabul ettiği (karada, yürünebilir…) bir noktadır. Her aşama `intervalMinutes` dakika sürer (bekleme `waitShare`
+ * payı, kalanı daralma); sınırın en hızlı noktası `maxEdgeSpeed`'i aşacaksa daralma (dolayısıyla aşama) uzar.
  */
 
 /** `planZone`'un alandan istediği (BrArea karşılar; testte sahte). */
@@ -57,11 +56,11 @@ export interface ZoneState {
 export function planZone(
   area: ZoneArea,
   random: Random,
-  duration: BrDuration,
+  intervalMinutes: number,
   centerOk: (x: number, z: number, phase: number) => boolean,
 ): ZonePlan {
   const cfg = BATTLE_ROYALE.zone;
-  const scale = cfg.durationScale[duration];
+  const period = intervalMinutes * 60;
   const initial = area.enclosingCircle();
   const phases: ZonePhase[] = [];
   let from = initial;
@@ -80,9 +79,9 @@ export function planZone(
     }
     to ??= { x: from.x, z: from.z, r };
     const travel = from.r - to.r + Math.hypot(to.x - from.x, to.z - from.z);
-    const wait = p.wait * scale;
-    // Süre çarpanı sınır hızına da uygulanır: büyük alanda (sınır hızının belirlediği) kısa maç da kısalır.
-    const shrink = Math.max(p.shrink * scale, (travel * scale) / p.edgeSpeed);
+    const wait = period * cfg.waitShare;
+    // Büyük alanda kısa aralık, sınırı yetişilemez hızda kapatmasın: daralma gerekirse seçilenden uzar.
+    const shrink = Math.max(period - wait, travel / cfg.maxEdgeSpeed);
     phases.push({
       start: t,
       shrinkStart: t + wait,

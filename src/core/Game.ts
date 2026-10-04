@@ -3556,7 +3556,7 @@ export class Game {
     return true;
   }
 
-  /** Mini harita: Son Kalan'da her zaman, hayatta kalmada envanterde Harita varken; maçta güvenli bölge de çizilir. */
+  /** Mini harita: hayatta kalmada envanterde Harita varken; Son Kalan'da yok (yalnızca `M` büyük haritası). */
   private drawMinimap(now: number, feet: { x: number; y: number; z: number }): void {
     const minimap = this.minimap;
     if (!minimap) return;
@@ -3568,17 +3568,9 @@ export class Game {
     });
     if (on !== minimap.visible) {
       minimap.setVisible(on);
-      // Son Kalan öldürme listesi mini haritanın altına iner (CSS).
-      if (on) this.container.dataset.minimap = '1';
-      else delete this.container.dataset.minimap;
     }
     if (!on) return;
-    const zone = this.br?.zone ?? null;
-    minimap.update(
-      now,
-      { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw },
-      zone ? { circle: zone.circle, next: zone.next } : null,
-    );
+    minimap.update(now, { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw });
   }
 
   /** Kare başı maç çizimi: bölge duvarı, yerdeki ganimet, HUD, pusula işareti, harita. */
