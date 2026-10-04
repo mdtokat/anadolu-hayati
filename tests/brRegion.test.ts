@@ -135,10 +135,11 @@ describe('maç planı (gerçek dünya)', () => {
     return { total: plan.zone.total };
   }
 
-  it('her il tek başına: 100 kişi sığar, bölge karada; orta süre 15–40 dk', () => {
+  it('her il tek başına: 100 kişi sığar, bölge karada; 4 dk aralıkla 28–40 dk', () => {
     for (const [i, name] of names.entries()) {
       const { total } = checkPlan(setupFor([name]), 100 + i);
-      expect(total / 60, name).toBeGreaterThan(15);
+      // 7 aşama × 4 dk; hız sınırı yalnız büyük illerde biraz uzatır.
+      expect(total / 60, name).toBeGreaterThanOrEqual(28 - 1e-6);
       expect(total / 60, name).toBeLessThan(40);
     }
   });
@@ -146,10 +147,11 @@ describe('maç planı (gerçek dünya)', () => {
   it('bağlı il grubu (Zonguldak + Bartın + Karabük) ve tüm harita', () => {
     checkPlan(setupFor(['Zonguldak', 'Bartın', 'Karabük']), 7);
     const { total } = checkPlan(setupFor(null), 8);
-    expect(total / 60).toBeGreaterThan(55);
-    expect(total / 60).toBeLessThan(95);
-    // Süre seçimi tüm haritada da etkili (sınır hızı da ölçeklenir).
-    expect(checkPlan(setupFor(null, 2), 8).total).toBeLessThan(total * 0.8);
+    // Tüm haritada sınır hızı sınırı (6 m/sn) aşamaları 4 dk'dan (toplam 28 dk) uzatır.
+    expect(total / 60).toBeGreaterThan(28);
+    expect(total / 60).toBeLessThan(75);
+    // Aralık tüm haritada da etkili: 2 dk seçimi daha kısa maç verir (hız sınırı altında kalarak).
+    expect(checkPlan(setupFor(null, 2), 8).total).toBeLessThan(total);
   });
 
   it('aynı tohum aynı plan', () => {

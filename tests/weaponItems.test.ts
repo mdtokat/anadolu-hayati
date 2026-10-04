@@ -44,9 +44,9 @@ describe('silahlar: tarif ve ganimet', () => {
     }
   });
 
-  it('keskin nişancı tüfeği dürbün ister; dürbünün tarifi yok, yalnızca ganimetten çıkar', () => {
+  it('keskin nişancı tüfeği dürbün ister; dürbün hem üretilir hem ganimetten çıkar', () => {
     expect(RECIPES.sniper_rifle.inputs.some((s) => s.id === 'scope')).toBe(true);
-    expect(RECIPE_LIST.some((r) => r.output.id === 'scope')).toBe(false);
+    expect(RECIPE_LIST.some((r) => r.output.id === 'scope')).toBe(true);
     expect(lootItems.has('scope')).toBe(true);
   });
 
