@@ -221,7 +221,36 @@ başlangıç aralığı, bölge hasarı.
   - Maç süresi (bölge tamamen kapanana kadar; kısa / orta / uzun): tek il ≈ 17–19 / 24–28 / 33–39 dk (Ankara en
     uzun), tüm harita ≈ 40 / 56 / 79 dk (büyük alanda süreyi sınırın en çok hızı belirler; süre çarpanı bu hızı da ölçekler).
   - 100 kişi en küçük ilde de (Bartın) aralıklı ve karada başlar.
-- [ ] BR.2 — uzak kademe simülasyonu
+- [x] **BR.2 — uzak kademe simülasyonu** (`battleRoyale/farSim.ts` `FarSim`, `flowField.ts`; `config.ts` →
+  `BATTLE_ROYALE.far`; testler `tests/brFarSim` sentetik + akış alanı, `tests/brFarRegion` gerçek dünya).
+  - NPC: konum, can, teçhizat (0–1), niyet (ganimet / bölge). Ganimet yerleri yerleşimlerdir (`lootSpotsOf`, zenginlik
+    il 1 / ilçe 0,75 / köy 0,4); yerde kalırken teçhizat artar. Bölgeye yetişemeyecekse (yürüme uzaklığı / koşu hızı >
+    kalan süre × 0,7), daire dışındaysa ya da seçili alanın dışındaysa bölgeye yönelir.
+  - Karşılaşma: menzil 40 m + 110 m × teçhizat (tüfekli uzaktan görür), saniyede %5 olasılık (eli boşken ×0,15),
+    ilk 90 sn ateşkes; kazanan güç oranıyla zarlanır (güç = (0,2 + teçhizat) · √(can/100)), %80 ölümle biter, kazanan
+    yenilenin teçhizatını alır, yenilenin ganimeti yerde kalır (`drops`).
+  - **Akış alanı:** ilk ölçümde tüm haritada NPC'lerin ~%45–60'ı bölgeden ölüyordu: düz çizgide dağ sırtına/kıyıya
+    takılıyorlardı. Her bölge aşaması için 24 m'lik kaba yürüme ızgarasında (hücre 5 noktadan örneklenir; alan dışı
+    hücre ×6 pahalı) Dijkstra akış alanı; takılan NPC yakında rastgele bir kaçış noktasına yürür. Sonuç: bölge ölümü
+    çoğu senaryoda %0–2, en kötü %7.
+  - Sınır hızları NPC koşusunun altına çekildi (kısa maçta ÷ 0,7 ile bile ≤ 4,6 m/sn). Bölgenin kapanma süresi
+    (kısa / orta / uzun, 100 kişi): tek il ≈ 17–24 / 24–35 / 33–49 dk (büyük iller — Ankara, Bolu, Samsun, Kastamonu —
+    uzun; önce 17–19 / 24–28 / 33–39), tüm harita ≈ 52 / 75 / 105 dk (önce 40 / 56 / 79).
+  - Ölçüm (tohum 1–2; "yarı" = oyuncuların yarısının elendiği an, "son" = kazananın belli olduğu an):
+
+    | Alan, kişi | Aşama sonlarında kalan | Yarı | Son / bölge kapanışı | Bölge ölümü |
+    |---|---|---|---|---|
+    | Tüm harita, 100 | 59/32/12/6/3/1 | 32–37 dk | 72–77 / 75–80 dk | 0–7 |
+    | Tüm harita, 24 | 24/18/11/9/2/1 | 57–61 dk | 69–77 dk | 0–3 |
+    | Ankara, 100 | 35–45/13–17/5–9/3 | 7–10 dk | 30–32 / 33–36 dk | 1 |
+    | Zonguldak + Bartın + Karabük, 100 | 29–44/13–16/4–6 | 5–7 dk | 20 / 25–26 dk | 1–2 |
+    | Zonguldak, 100 | 17–20/5–6/1–2 | 3,5–4,6 dk | 15–16 / 24 dk | 0 |
+    | Zonguldak, 24 | 9–10/4/1–3 | 6,6–6,8 dk | 14–17 / 24 dk | 0 |
+
+    Küçük ilde 100 kişi bilinçli olarak yoğun bir maçtır (yaklaşık 1,2 km²'ye 100 kişi). Maliyet: 100 NPC'de adım
+    başına ≤ 0,3 ms (saniyede 2 adım); tüm haritayı baştan sona hızlı sonuçlandırma ~3 sn (BR.5'te kare bütçesine
+    dilimlenecek).
+  - Yan düzeltme: `vitest.config.ts` `hookTimeout` 30 sn (tam pakette 4 dosyanın `beforeAll`'u 10 sn'yi aşıyordu).
 - [ ] BR.3 — yakın kademe (yarışmacı üye türü)
 - [ ] BR.4 — ganimet ve yeni eşyalar
 - [ ] BR.5 — `Game` entegrasyonu

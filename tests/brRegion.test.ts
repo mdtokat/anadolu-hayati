@@ -146,8 +146,8 @@ describe('maç planı (gerçek dünya)', () => {
   it('bağlı il grubu (Zonguldak + Bartın + Karabük) ve tüm harita', () => {
     checkPlan(setupFor(['Zonguldak', 'Bartın', 'Karabük']), 7);
     const { total } = checkPlan(setupFor(null), 8);
-    expect(total / 60).toBeGreaterThan(30);
-    expect(total / 60).toBeLessThan(75);
+    expect(total / 60).toBeGreaterThan(55);
+    expect(total / 60).toBeLessThan(95);
     // Süre seçimi tüm haritada da etkili (sınır hızı da ölçeklenir).
     expect(checkPlan(setupFor(null, 'short'), 8).total).toBeLessThan(total * 0.8);
   });

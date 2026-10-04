@@ -3537,15 +3537,16 @@ export const BATTLE_ROYALE = {
     /**
      * Güvenli bölge aşamaları (sırayla): `wait` bekleme ve `shrink` daralma süresi (sn; maç süresi çarpanıyla), yeni
      * dairenin yarıçapı bir öncekinin `radiusFactor` katı (son aşama 0: bölge tamamen kapanır), dışarıda saniye başı
-     * hasar (can), sınırın en hızlı noktasının en çok hızı (oyun m/sn; yürüme 4, koşu 7). Daralma, sınır bu hızı
-     * aşmayacak kadar uzar: büyük alanda (tüm harita) maç kendiliğinden uzar. Ölçülen (100 kişi, orta): il ≈ 24–28 dk,
-     * tüm harita ≈ 56 dk.
+     * hasar (can), sınırın en hızlı noktasının en çok hızı (oyun m/sn; yürüme 4, koşu 7; kısa maçta ÷ 0,7 ile bile
+     * NPC koşusunu — `far.zoneSpeed` 4,6 — aşmaz). Daralma, sınır bu hızı
+     * aşmayacak kadar uzar: büyük alanda (tüm harita) maç kendiliğinden uzar. Ölçülen (100 kişi; kısa / orta / uzun): il ≈ 17–24 /
+     * 24–35 / 33–49 dk, tüm harita ≈ 52 / 75 / 105 dk.
      */
     phases: [
-      { wait: 120, shrink: 300, radiusFactor: 0.6, damage: 0.4, edgeSpeed: 6 },
-      { wait: 90, shrink: 180, radiusFactor: 0.55, damage: 0.8, edgeSpeed: 4 },
-      { wait: 75, shrink: 150, radiusFactor: 0.5, damage: 1.5, edgeSpeed: 3 },
-      { wait: 60, shrink: 120, radiusFactor: 0.5, damage: 3, edgeSpeed: 2.5 },
+      { wait: 120, shrink: 300, radiusFactor: 0.6, damage: 0.4, edgeSpeed: 3.2 },
+      { wait: 90, shrink: 180, radiusFactor: 0.55, damage: 0.8, edgeSpeed: 3 },
+      { wait: 75, shrink: 150, radiusFactor: 0.5, damage: 1.5, edgeSpeed: 2.5 },
+      { wait: 60, shrink: 120, radiusFactor: 0.5, damage: 3, edgeSpeed: 2.2 },
       { wait: 45, shrink: 90, radiusFactor: 0.45, damage: 5, edgeSpeed: 2 },
       { wait: 40, shrink: 75, radiusFactor: 0.4, damage: 8, edgeSpeed: 1.5 },
       { wait: 30, shrink: 60, radiusFactor: 0, damage: 12, edgeSpeed: 1.5 },
@@ -3566,6 +3567,78 @@ export const BATTLE_ROYALE = {
     attemptsPerRound: 1500,
     relax: 0.8,
     rounds: 12,
+  },
+  /**
+   * Uzak kademe (soyut) simülasyon (BR.2, `battleRoyale/farSim.ts`): oyuncudan uzaktaki NPC'ler tam yapay zekâ ve
+   * fizikle değil, sabit adımlı bir modelle yaşar: ganimet yerlerinde teçhizat toplar, bölgeye göç eder, birbirine
+   * rastlayınca karşılaşma zarla çözülür.
+   */
+  far: {
+    /** Sabit adım (sn). */
+    step: 0.5,
+    /** Yürüme hızı (oyun m/sn): ganimet ararken ve bölgeye koşarken (eşkıya yürüme 1,3, koşu 4,6). */
+    lootSpeed: 2.2,
+    zoneSpeed: 4.6,
+    /** Bir ganimet yerinde kalış süresi aralığı (sn). */
+    dwell: [25, 70],
+    /** Teçhizat kazanımı: zenginliği 1 olan yerde saniyede (1 − teçhizat)'ın bu oranı. */
+    lootRate: 0.006,
+    /** Ganimet yeri seçiminde en çok bakılan uzaklık (oyun m; içinden en yakın birkaçı arasından seçilir). */
+    lootSearchRadius: 900,
+    lootChoices: 4,
+    /**
+     * Bölgeye göç: hedef daireye varış süresi, kalan sürenin (`stageEnds − t`, beklemedeyse daralma süresi de eklenir)
+     * `zoneMargin` katını aşarsa ya da güvenli dairenin dışındaysa NPC bölgeye yönelir.
+     */
+    zoneMargin: 0.7,
+    /**
+     * Karşılaşma: `engageRadius + engageReachPerGear · (iki tarafın büyük teçhizatı)` uzaklıktaki (oyun m; tüfekli uzaktan
+     * görür/vurur) iki NPC saniyede `engageRate` olasılıkla çatışır; ikisi de eli boşsa (teçhizat 0) olasılık
+     * `unarmedEngage` katına iner, teçhizat `armedGear`'a varınca tamdır. Maçın ilk `graceSeconds`'ında kimse
+     * çatışmaz (herkes ilk silahını arar).
+     */
+    engageRadius: 40,
+    engageReachPerGear: 110,
+    engageRate: 0.05,
+    unarmedEngage: 0.15,
+    armedGear: 0.5,
+    graceSeconds: 90,
+    /** Çatışmanın ölümle bitme olasılığı (kalanında iki taraf yaralanıp ayrılır). */
+    killChance: 0.8,
+    /** Güç = (`gearBase` + teçhizat) · √(can/100); kazanma olasılığı güç^`strengthExponent` oranı. */
+    gearBase: 0.2,
+    strengthExponent: 2,
+    /** Kazananın aldığı hasar aralığı (can), rakibin göreli gücüyle çarpılır (×2 en çok). */
+    fightDamage: [10, 40],
+    /** Kazanan, yenilenin teçhizatından bu oranı alır (kendi teçhizatından büyükse). */
+    lootTransfer: 0.8,
+    /** Çatışma sonrası iki tarafın yeniden çatışamadığı süre (sn). */
+    cooldown: 20,
+    /** İyileşme: son hasardan `calmSeconds` sonra, teçhizatı `healGear` üstündeyse saniyede `healPerSec` can. */
+    calmSeconds: 40,
+    healGear: 0.25,
+    healPerSec: 0.3,
+    /**
+     * Bölgeye giderken yol: bu hücreli (oyun m) kaba yürüme ızgarasında güvenli daire başına bir akış alanı
+     * (`flowField.ts`; dağ sırtına/kıyıya takılmasınlar diye).
+     */
+    flowCell: 24,
+    /** Yürünemeyen yere çarpınca denenen sapma açıları (derece) ve bu kadar adım takılınca yeni hedef. */
+    detourDeg: [35, -35, 70, -70, 110, -110],
+    stuckSteps: 6,
+    /** Takılan NPC'nin yöneldiği rastgele kaçış noktasının uzaklık aralığı (oyun m). */
+    escapeRadius: [20, 70],
+    /** Ganimet yeri zenginliği yerleşim rütbesine göre (il merkezi en zengin). */
+    richness: { il: 1, ilce: 0.75, koy: 0.4 },
+    /** Teçhizat düzeyi → silah (eşkıya silahları; eşik altındaki ilk silah). */
+    gearWeapons: [
+      { below: 0.15, weapon: 'club' },
+      { below: 0.3, weapon: 'pala' },
+      { below: 0.5, weapon: 'pistol' },
+      { below: 0.7, weapon: 'shotgun' },
+      { below: 0.9, weapon: 'rifle' },
+      { below: Infinity, weapon: 'sniper_rifle' },
+    ],
   },
   /** Maç başı geri sayım (sn): hareket serbest, silah kapalı. */
   countdownSeconds: 3,

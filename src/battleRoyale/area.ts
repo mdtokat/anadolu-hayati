@@ -290,6 +290,16 @@ export class BrArea {
     return this.mask[r * this.cols + c] === 1;
   }
 
+  /** Izgaranın kapladığı dikdörtgen (oyun X/Z). */
+  get bounds(): { minX: number; minZ: number; maxX: number; maxZ: number } {
+    return {
+      minX: this.x0,
+      minZ: this.z0,
+      maxX: this.x0 + this.cols * this.cell,
+      maxZ: this.z0 + this.rows * this.cell,
+    };
+  }
+
   /** Alanın yüzölçümü (oyun m²; deniz hücreleri dahil değil — il çokgenleri karadadır). */
   get areaM2(): number {
     return this.cells.length * this.cell * this.cell;
