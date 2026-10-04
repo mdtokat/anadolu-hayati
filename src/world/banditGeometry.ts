@@ -120,6 +120,23 @@ function weaponParts(weapon: BanditWeapon): Part[] {
       ];
     case 'pistol':
       return [box(0.07, 0.16, 0.14, 0.24, HIP_Y - 0.05, 0.05, 0x242322)];
+    case 'revolver':
+      return [box(0.07, 0.17, 0.18, 0.24, HIP_Y - 0.05, 0.06, 0x3a3c40)];
+    case 'smg':
+      return [
+        tilted(new BoxGeometry(0.06, 0.55, 0.07), -0.5, -0.05, SHOULDER_Y - 0.25, -0.2, 0x2b2a28),
+        tilted(new BoxGeometry(0.04, 0.18, 0.05), -0.5, 0.02, SHOULDER_Y - 0.4, -0.22, 0x1d1c1b),
+      ];
+    case 'assault_rifle':
+      return [
+        tilted(new BoxGeometry(0.06, 0.95, 0.07), 0.55, 0.02, SHOULDER_Y - 0.15, -0.17, 0x3a3f2e),
+        tilted(new BoxGeometry(0.04, 0.2, 0.05), 0.55, 0.1, SHOULDER_Y - 0.12, -0.24, 0x1d1c1b),
+      ];
+    case 'yatagan':
+      return [
+        tilted(new BoxGeometry(0.035, 0.6, 0.07), 0.3, -0.26, HIP_Y - 0.2, 0.05, 0xd4d9de),
+        box(0.06, 0.11, 0.06, -0.23, HIP_Y + 0.08, 0.05, 0x3a2412),
+      ];
     case 'pala':
       return [
         tilted(new BoxGeometry(0.04, 0.62, 0.09), 0.25, -0.26, HIP_Y - 0.2, 0.05, 0xb9bdc1),

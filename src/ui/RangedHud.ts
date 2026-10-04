@@ -15,6 +15,7 @@ export class RangedHud {
   private readonly root = el('div', 'ranged-hud');
   private readonly cross = el('div', 'ranged-cross');
   private readonly scope = el('div', 'ranged-scope');
+  private readonly zoomLabel = el('div', 'ranged-scope-zoom');
   private readonly breath = el('div', 'ranged-breath');
   private readonly breathFill = el('div', 'ranged-breath-fill');
   private readonly panel = el('div', 'ranged-ammo hud-card');
@@ -40,7 +41,7 @@ export class RangedHud {
       dot.style.setProperty('--mil', String(i));
       reticle.append(dot);
     }
-    this.scope.append(reticle);
+    this.scope.append(reticle, this.zoomLabel);
     this.breath.append(this.breathFill);
     this.reload.append(this.reloadFill);
     const text = el('div', 'ranged-ammo-text');
@@ -59,13 +60,16 @@ export class RangedHud {
     else delete this.container.dataset.ranged;
     if (!show || !state) return;
 
-    const label = `${state.weapon}:${state.suppressed}`;
+    const label = `${state.weapon}:${state.suppressed}:${state.zoom}`;
     if (this.lastWeapon !== label) {
       this.lastWeapon = label;
       this.icon.replaceChildren(itemIcon(state.weapon));
-      this.name.textContent = state.suppressed
-        ? `${ITEMS[state.weapon].name} · susturuculu`
-        : ITEMS[state.weapon].name;
+      const extras = [
+        ...(state.suppressed ? ['susturuculu'] : []),
+        ...(state.zoom > 0 ? [`${state.zoom}x`] : []),
+      ];
+      this.name.textContent = [ITEMS[state.weapon].name, ...extras].join(' · ');
+      this.zoomLabel.textContent = state.zoom > 0 ? `${state.zoom}x` : '';
     }
     const kind = crosshairKind(state.weapon, state.scoped);
     this.root.dataset.kind = kind;

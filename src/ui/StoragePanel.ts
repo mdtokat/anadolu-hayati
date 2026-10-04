@@ -6,6 +6,8 @@ import { closeButton, el, loadMeter, slotButton } from './widgets';
 import { slotUsageText } from './inventoryView';
 
 export interface StoragePanelCallbacks {
+  /** Esc: panel kapanır ve oyun duraklar (verilmezse Esc de yalnızca kapatır). Panel açıkken oyun sürer. */
+  onEscape?(): void;
   /** Oyuncu slotundaki yığını sandığa koy. */
   onStore(slot: number): void;
   /** Sandık slotundaki yığını oyuncuya al. */
@@ -19,7 +21,7 @@ export interface StoragePanelCallbacks {
 /**
  * Sandık paneli (Faz 9; HTML overlay, envanter paneliyle aynı görünüm): solda oyuncunun, sağda sandığın slotları.
  * Bir slota tıklamak o yığını karşı tarafa taşır (sığdığı kadar). Taşıma mantığı `placement/storage.ts`'te; bu
- * sınıf yalnızca çizer ve tıklamaları geri çağrılara iletir. Oyun panel açıkken duraklatılır (Game).
+ * sınıf yalnızca çizer ve tıklamaları geri çağrılara iletir. Panel açıkken oyun sürer (Esc duraklatır; Game).
  */
 export class StoragePanel {
   private readonly root = el('div', 'inv-panel');
@@ -35,7 +37,8 @@ export class StoragePanel {
     ];
     if (!closers.includes(event.code) || event.repeat) return;
     event.preventDefault();
-    this.callbacks.onClose();
+    if (event.code === 'Escape' && this.callbacks.onEscape) this.callbacks.onEscape();
+    else this.callbacks.onClose();
   };
 
   constructor(

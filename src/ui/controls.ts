@@ -26,7 +26,8 @@ export const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readon
         [['E'], 'Sandık aç, kapı ve çit kapısı aç/kapat, rafa et as/al, insanlarla konuş (bas)'],
         [['Sol tık'], 'Saldır · hayalet varken kur'],
         [['F'], 'Hızlı yemek'],
-        [['I', 'Tab'], 'Envanter ve üretim (sırt çantası taşınınca yer artar)'],
+        [['I', 'Tab'], 'Envanter ve üretim (açıkken oyun sürer; sırt çantası taşınınca yer artar)'],
+        [['Esc'], 'Envanter/ganimet açıkken: paneli kapat ve oyunu duraklat'],
         [['Sürükle'], 'Envanterde eşyayı slota bırak: taşı/birleştir; panelin dışına bırak: at'],
         [['Çift tık'], 'Ganimet panelinde eşyayı al (ya da "Hepsini al")'],
         [['1–8', 'Tekerlek'], 'Kısayol çubuğu'],
@@ -52,11 +53,12 @@ export const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readon
     [
       'Silahlar',
       [
-        [['Sol tık'], 'Ateş et (elde menzilli silah)'],
+        [['Sol tık'], 'Ateş et (elde menzilli silah; seri atışlıda basılı tut)'],
         [['Sağ tık'], 'Nişan al · dürbün'],
         [['R'], 'Doldur'],
         [['Shift'], 'Nişanda nefes tut (dürbün sallanmaz)'],
         [['I'], 'Envanterde silahı seç → Susturucu tak/çıkar'],
+        [['I'], 'Envanterde silahı seç → 2x/4x/8x/16x dürbün tak/çıkar'],
       ],
     ],
     [

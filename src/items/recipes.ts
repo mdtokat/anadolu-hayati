@@ -79,6 +79,17 @@ export const RECIPE_IDS = [
   'backpack_small',
   'backpack_medium',
   'backpack_large',
+  // ── Yeni silahlar ve harita (kullanıcı talimatı) ──
+  'revolver',
+  'smg',
+  'assault_rifle',
+  'marksman_rifle',
+  'lmg',
+  'crossbow',
+  'yatagan',
+  'war_axe',
+  'gurz',
+  'map',
 ] as const;
 export type RecipeId = (typeof RECIPE_IDS)[number];
 
@@ -742,6 +753,116 @@ export const RECIPES: Readonly<Record<RecipeId, Recipe>> = {
     ],
     station: 'workbench',
     output: { id: 'backpack_large', count: 1 },
+  },
+  // Yeni silahlar: ateşliler demirhanede (dürbün yalnızca ganimetten; silaha sonradan takılır), arbalet tezgâhta.
+  revolver: {
+    id: 'revolver',
+    name: 'Altıpatlar',
+    inputs: [
+      { id: 'iron_ingot', count: 3 },
+      { id: 'scrap_metal', count: 2 },
+      { id: 'log', count: 1 },
+    ],
+    station: 'forge',
+    output: { id: 'revolver', count: 1 },
+  },
+  smg: {
+    id: 'smg',
+    name: 'Hafif Makineli Tüfek',
+    inputs: [
+      { id: 'iron_ingot', count: 4 },
+      { id: 'scrap_metal', count: 4 },
+      { id: 'electronic_parts', count: 1 },
+    ],
+    station: 'forge',
+    output: { id: 'smg', count: 1 },
+  },
+  assault_rifle: {
+    id: 'assault_rifle',
+    name: 'Taarruz Tüfeği',
+    inputs: [
+      { id: 'iron_ingot', count: 5 },
+      { id: 'scrap_metal', count: 5 },
+      { id: 'electronic_parts', count: 1 },
+      { id: 'log', count: 1 },
+    ],
+    station: 'forge',
+    output: { id: 'assault_rifle', count: 1 },
+  },
+  marksman_rifle: {
+    id: 'marksman_rifle',
+    name: 'Yarı Otomatik Tüfek',
+    inputs: [
+      { id: 'iron_ingot', count: 6 },
+      { id: 'scrap_metal', count: 5 },
+      { id: 'log', count: 2 },
+    ],
+    station: 'forge',
+    output: { id: 'marksman_rifle', count: 1 },
+  },
+  lmg: {
+    id: 'lmg',
+    name: 'Makineli Tüfek',
+    inputs: [
+      { id: 'iron_ingot', count: 8 },
+      { id: 'scrap_metal', count: 6 },
+      { id: 'electronic_parts', count: 2 },
+    ],
+    station: 'forge',
+    output: { id: 'lmg', count: 1 },
+  },
+  crossbow: {
+    id: 'crossbow',
+    name: 'Arbalet',
+    inputs: [
+      { id: 'log', count: 2 },
+      { id: 'iron_ingot', count: 1 },
+      { id: 'hide', count: 2 },
+    ],
+    station: 'workbench',
+    output: { id: 'crossbow', count: 1 },
+  },
+  yatagan: {
+    id: 'yatagan',
+    name: 'Yatağan',
+    inputs: [
+      { id: 'iron_ingot', count: 2 },
+      { id: 'bone', count: 1 },
+    ],
+    station: 'forge',
+    output: { id: 'yatagan', count: 1 },
+  },
+  war_axe: {
+    id: 'war_axe',
+    name: 'Savaş Baltası',
+    inputs: [
+      { id: 'iron_ingot', count: 3 },
+      { id: 'log', count: 1 },
+    ],
+    station: 'forge',
+    output: { id: 'war_axe', count: 1 },
+  },
+  gurz: {
+    id: 'gurz',
+    name: 'Gürz',
+    inputs: [
+      { id: 'iron_ingot', count: 3 },
+      { id: 'scrap_metal', count: 2 },
+      { id: 'log', count: 1 },
+    ],
+    station: 'forge',
+    output: { id: 'gurz', count: 1 },
+  },
+  // Harita: ağaç kabuğuna kömürle çizilir (tezgâhta); envanterdeyken mini harita açılır.
+  map: {
+    id: 'map',
+    name: 'Harita',
+    inputs: [
+      { id: 'bark', count: 4 },
+      { id: 'charcoal', count: 1 },
+    ],
+    station: 'workbench',
+    output: { id: 'map', count: 1 },
   },
 };
 

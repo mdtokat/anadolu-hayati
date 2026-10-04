@@ -36,12 +36,13 @@ export type BanditState = (typeof BANDIT_STATES)[number];
 export type BanditRole = 'leader' | 'guard' | 'member';
 
 /** Eşkıya silahları (eşya kimlikleriyle aynı; ölünce üstünden çıkar). */
-export type BanditWeapon = 'pala' | 'club' | 'pistol' | 'shotgun' | 'rifle' | 'sniper_rifle';
-export type BanditMeleeWeapon = 'pala' | 'club';
-export type BanditRangedWeapon = 'pistol' | 'shotgun' | 'rifle' | 'sniper_rifle';
+export type BanditMeleeWeapon = 'pala' | 'club' | 'yatagan';
+export type BanditRangedWeapon =
+  'pistol' | 'shotgun' | 'rifle' | 'sniper_rifle' | 'revolver' | 'smg' | 'assault_rifle';
+export type BanditWeapon = BanditMeleeWeapon | BanditRangedWeapon;
 
 export function isMeleeWeapon(weapon: BanditWeapon): weapon is BanditMeleeWeapon {
-  return weapon === 'pala' || weapon === 'club';
+  return weapon === 'pala' || weapon === 'club' || weapon === 'yatagan';
 }
 
 /** Çizim ve etkileşim için bir eşkıyanın anlık görünümü. */

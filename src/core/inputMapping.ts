@@ -88,6 +88,8 @@ export function resolveContextAction(action: InputAction, context: ActionContext
 
 /** Sağ fare tuşunun `Input`'taki sözde kodu (`INPUT.bindings.aim`). */
 export const MOUSE_RIGHT_CODE = 'MouseRight';
+/** Sol fare tuşunun basılı tutulması için sözde kod (seri atış). */
+export const MOUSE_LEFT_CODE = 'MouseLeft';
 
 /** Kısayol tuşu → slot (0'dan; `INPUT.bindings.hotbar` sırası); kısayol tuşu değilse null. */
 export function hotbarSlotForKey(code: string): number | null {

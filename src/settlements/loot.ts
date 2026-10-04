@@ -88,6 +88,10 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
     e('bandage', 0.08, 1, 2),
     e('first_aid_kit', 0.03),
+    // ── Yeni silahlar ──
+    e('revolver', 0.03),
+    e('yatagan', 0.05),
+    e('map', 0.04),
   ],
   apartment: [
     e('bulgur', 0.4, 1, 3),
@@ -111,6 +115,10 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
     e('bandage', 0.1, 1, 2),
     e('first_aid_kit', 0.03),
+    // ── Yeni silahlar ve dürbün ──
+    e('revolver', 0.02),
+    e('smg', 0.008),
+    e('scope_2x', 0.015),
   ],
   lojman: [
     e('peksimet', 0.4, 1, 3),
@@ -121,6 +129,8 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
     e('bandage', 0.12, 1, 3),
     e('first_aid_kit', 0.04),
+    // ── Yeni silahlar ──
+    e('war_axe', 0.04),
   ],
   serender: [
     e('hazelnut', 0.8, 5, 15),
@@ -133,6 +143,8 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11: D (11.5): serenderde av yayı ve ok ──
     e('bow', 0.04),
     ammo('arrow', 0.08),
+    // ── Yeni silahlar ──
+    e('crossbow', 0.02),
   ],
   shop_row: [
     e('leblebi', 0.6, 2, 5),
@@ -166,6 +178,14 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
     e('first_aid_kit', 0.06),
     e('steel_vest', 0.015),
+    // ── Dürbünler (büyüdükçe nadir) ve yeni silahlar (kullanıcı talimatı; tablonun sonuna: eski zarlar kaymaz) ──
+    e('scope_2x', 0.04),
+    e('scope_8x', 0.008),
+    e('scope_16x', 0.003),
+    e('assault_rifle', 0.02),
+    e('marksman_rifle', 0.008),
+    e('smg', 0.015),
+    e('map', 0.08),
   ],
   han: [
     e('wool_blanket', 0.5),

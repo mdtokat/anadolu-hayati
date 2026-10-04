@@ -90,6 +90,7 @@ export const VENDOR_DEFS: Readonly<Record<VendorKind, VendorDef>> = {
       'propeller',
       'backpack_small',
       'backpack_medium',
+      'map',
     ],
     specialty: (id) =>
       (ITEMS[id].category === 'tool' || ITEMS[id].category === 'material') &&
@@ -121,6 +122,10 @@ export const VENDOR_DEFS: Readonly<Record<VendorKind, VendorDef>> = {
       'pistol_ammo',
       'rifle_ammo',
       'gunpowder',
+      'revolver',
+      'crossbow',
+      'yatagan',
+      'scope_2x',
       'hide_vest',
       'fur_cloak',
     ],

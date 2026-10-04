@@ -173,7 +173,10 @@ import { formatDebugInfo, formatLocation } from '../ui/hudFormat';
 import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
 import { ControlsPanel } from '../ui/ControlsPanel';
-import type { SuppressorState } from '../ui/InventoryPanel';
+import type { ScopeUiState, SuppressorState } from '../ui/InventoryPanel';
+import { Minimap } from '../ui/Minimap';
+import { BuildingWalk } from '../settlements/buildingWalk';
+import { minimapVisible } from '../ui/minimapView';
 import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
@@ -274,13 +277,17 @@ import type { PersonRole } from '../people/roles';
 import {
   WEAPON_IDS,
   WeaponState,
+  SCOPE_IDS,
+  canScope,
   canSuppress,
+  scopeFits,
+  type ScopeId,
   isWeaponId,
   type WeaponId,
 } from '../items/weaponState';
 import { resolveContextAction } from './inputMapping';
 // ── Faz 11: D (11.5 silahlar) ──
-import { CAMERA, STREAMING } from '../config';
+import { CAMERA, RANGED, STREAMING } from '../config';
 import { RangedSystem, aimCamera, type FireResult } from '../combat/RangedSystem';
 import { ammoOf } from '../combat/ammo';
 import type { PaneQuery, SolidQuery } from '../combat/ballistics';
@@ -309,6 +316,8 @@ const randomSeedInt = (): number => Math.floor(Math.random() * 2 ** 31);
 
 /** Kapıya `E` ile açılıp kapanma menzili: kapı yarıçapının kenarına en çok bu kadar (oyun m). */
 const DOOR_REACH = 2.5;
+/** Canlı panel açıkken oyuncunun hareket niyeti (durur). */
+const IDLE_INTENT: MoveIntent = { forward: 0, strafe: 0, run: false, jump: false };
 
 const PILOT_START_YAW = (PILOT.start.yawDeg * Math.PI) / 180;
 
@@ -572,6 +581,12 @@ export class Game {
   private rackTarget: Readonly<Structure> | null = null;
   /** Oyuncu yapılarının engel dizini (Faz 11, 11.3): canlılar, insanlar ve eşkıyalar çitlerden/duvarlardan geçmez. */
   private obstacles: StructureObstacles | null = null;
+  /**
+   * NPC'lerin (eşkıya, çete, yarışmacı) yerleşim yapılarında yürüyüşü ve onlara özel engel sorgusu (yapı ayak izi engel
+   * değildir: kapıdan girerler, duvarı `buildingWalk` keser). Yerleşim verisi yoksa null.
+   */
+  private buildingWalk: BuildingWalk | null = null;
+  private npcObstacles: StructureObstacles | null = null;
   /** `peopleWorld` + engel dizini (yapı kümesi/dünya değişmedikçe aynı nesne). */
   private peopleWorldGuarded: { base: PeopleWorld; guarded: PeopleWorld } | null = null;
   /** Kısayoldan açılan yerleştirme: yapı türü ve slotu (hayalet kapanınca seçim de kalkar). */
@@ -587,6 +602,8 @@ export class Game {
   /** Battle Royale arayüzü ve dünya katmanları (`setupBattleRoyale`; yerleşim verisi yoksa yok). */
   private brHud: BrHud | null = null;
   private brMap: BrMapPanel | null = null;
+  /** Mini harita (hayatta kalmada envanterde Harita varken, Son Kalan'da her zaman); gerçek dünya yoksa null. */
+  private minimap: Minimap | null = null;
   private brResult: BrResultScreen | null = null;
   private brSetupPanel: BrSetupPanel | null = null;
   private zoneWall: ZoneWall | null = null;
@@ -730,12 +747,15 @@ export class Game {
       onDrink: () => this.drinkContainer(),
       onDrop: (slot, count) => this.dropFromSlot(slot, count),
       onClose: () => this.closeInventory(),
+      onEscape: () => this.pauseFromOverlay(),
       getVitals: () => this.survival.state,
       getStations: () => this.stationsHere(),
       hotbar: this.hotbar,
       onAssignHotbar: (slot, item) => this.assignHotbar(slot, item),
       suppressorState: (item) => this.suppressorState(item),
       onToggleSuppressor: (item) => this.toggleSuppressor(item),
+      scopeState: (item) => this.scopeState(item),
+      onSetScope: (item, scope) => this.setScope(item, scope),
       onUseMedical: (item) => {
         this.closeInventory();
         this.startMedical(item);
@@ -749,11 +769,13 @@ export class Game {
       onStoreAll: () => this.moveAllStorage('store'),
       onTakeAll: () => this.moveAllStorage('take'),
       onClose: () => this.closeStorage(),
+      onEscape: () => this.pauseFromOverlay(),
     });
     this.lootPanel = new LootPanel(container, this.inventory, {
       onTake: (index) => this.takeLoot(index),
       onTakeAll: () => this.takeAllLoot(),
       onClose: () => this.closeLoot(),
+      onEscape: () => this.pauseFromOverlay(),
     });
     this.search.onLoot = (loot) => this.openLoot(loot.items, loot.title, () => loot.settle());
     this.shopPanel = new ShopPanel(container, () => this.shopDeps(), {
@@ -778,7 +800,11 @@ export class Game {
     this.loop.setPaused(true);
 
     this.offs.push(
-      this.events.on('input:pointerLockChanged', ({ locked }) => this.setPaused(!locked)),
+      // Envanter/sandık/ganimet paneli fare kilidini bırakır ama oyunu durdurmaz (Esc duraklatır: `pauseFromOverlay`).
+      this.events.on('input:pointerLockChanged', ({ locked }) => {
+        if (!locked && this.liveOverlayOpen) return;
+        this.setPaused(!locked);
+      }),
       // Envanter açıkken göstergeler görünür kalır (yemek yerken izlenir).
       this.events.on('game:paused', () => {
         this.ambient.stop();
@@ -816,6 +842,7 @@ export class Game {
         if (!this.droneWheel(step)) this.cycleHotbar(step);
       }),
       this.events.on('player:died', (death) => {
+        this.closeLiveOverlays();
         this.placement.cancel();
         this.medical.cancel();
         this.hud.setPrompt(null);
@@ -922,6 +949,9 @@ export class Game {
     this.setupStations();
     this.setupFarming();
     this.setupRanged();
+    if (this.world instanceof RegionWorld) {
+      this.minimap = new Minimap(this.hud.infoCard, this.world.minimapSource());
+    }
     this.setupBandits();
     this.setupDrone();
     this.setupBattleRoyale();
@@ -1279,6 +1309,7 @@ export class Game {
     this.deathScreen.dispose();
     this.brHud?.dispose();
     this.brMap?.dispose();
+    this.minimap?.dispose();
     this.brResult?.dispose();
     this.brSetupPanel?.dispose();
     this.zoneWall?.dispose();
@@ -1337,7 +1368,10 @@ export class Game {
 
     // Sabit adım: önce oyuncu hareketi (kinematik hedef), sonra fizik adımı.
     // Faz 11 (F): drone görüşünde WASD/Space/Z drone'u sürer, oyuncu yerinde durur.
-    const polled = this.droneIntercept(this.input.pollIntent());
+    // Canlı panel (envanter, sandık, ganimet) açıkken oyuncu durur; dünya işlemeye devam eder.
+    const panel = this.liveOverlayOpen;
+    const rawIntent = this.input.pollIntent();
+    const polled = this.droneIntercept(panel ? IDLE_INTENT : rawIntent);
     // Test modunda bitkinlik koşuyu/uçuşu kısıtlamaz.
     // Faz 11 (D): nişan alırken Shift nefes tutmadır, koşu değil (`rangedIntent`).
     const intent = this.rangedIntent(
@@ -1369,7 +1403,7 @@ export class Game {
     }
     this.updateMedical(step);
     // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
-    const held = this.input.interactHeld;
+    const held = !panel && this.input.interactHeld;
     const nearby = this.world.propsNear?.(feet.x, feet.z, INTERACT.reach) ?? [];
     const focus =
       nearby.length === 0
@@ -1432,7 +1466,7 @@ export class Game {
 
     // Sandık (Faz 9): `E`'yi başka eylem almadıysa bakılan sandık açılır (basış anında; basılı tutma değil).
     const structures = this.structureSystem.structures;
-    const interactPressed = this.input.consumeInteractPress();
+    const interactPressed = this.input.consumeInteractPress() && !panel;
     if (this.personTarget && interactPressed) {
       const vendor = this.vendorOf(this.personTarget);
       if (vendor) this.openShop(vendor);
@@ -1530,7 +1564,7 @@ export class Game {
         });
     this.dismantler.update(
       step,
-      this.input.dismantleHeld,
+      this.input.dismantleHeld && !panel,
       this.dismantleTarget,
       this.survival.alive,
     );
@@ -1624,7 +1658,10 @@ export class Game {
     };
   }
 
-  /** Envanter/üretim panelini açar: oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken (fare kilitli). */
+  /**
+   * Envanter/üretim panelini açar: fare serbest kalır, oyun sürer (kullanıcı talimatı: "envanter veya loot ekranı açıkken
+   * oyun durmasın, Esc ile dursun"). Yalnızca oyun kontrolündeyken (fare kilitli).
+   */
   private openInventory(): void {
     if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
     this.inventoryOpen = true; // önce bayrak: kilit bırakılınca duraklatma menüsü çıkmasın
@@ -1633,11 +1670,38 @@ export class Game {
   }
 
   /** Paneli kapatır ve fare kilidini ister; kilit verilmezse duraklatma menüsü devreye girer. */
-  private closeInventory(): void {
+  private closeInventory(resume = true): void {
     if (!this.inventoryOpen) return;
     this.inventoryOpen = false;
     this.inventoryPanel.hide();
-    this.resumeAfterOverlay();
+    if (resume) this.resumeAfterOverlay();
+  }
+
+  /**
+   * Oyunu durdurmayan paneller (envanter, sandık, ganimet) açık mı? Açıkken dünya işler (eşkıyalar, canlılar, bölge,
+   * göstergeler) ama oyuncu girdisi (hareket, `E`, sökme) yok sayılır; fare panel içindir.
+   */
+  private get liveOverlayOpen(): boolean {
+    return this.inventoryOpen || this.storageOpenId !== null || this.lootSession !== null;
+  }
+
+  /** Canlı paneli kapatır (fare kilidi istemeden). */
+  private closeLiveOverlays(): void {
+    this.closeInventory(false);
+    this.closeStorage(false);
+    this.closeLoot(false);
+  }
+
+  /** Canlı paneldeyken Esc: panel kapanır, oyun duraklar ve duraklatma menüsü açılır. */
+  private pauseFromOverlay(): void {
+    this.closeLiveOverlays();
+    if (this.lockFallback !== null) clearTimeout(this.lockFallback);
+    this.lockFallback = null;
+    if (this.loop.paused) {
+      if (!this.pauseMenu.visible) this.pauseMenu.show();
+      return;
+    }
+    this.setPaused(true); // `game:paused` duraklatma menüsünü açar
   }
 
   /** Envanter ya da sandık paneli açık mı (oyun duraklı ama duraklatma menüsü çıkmaz)? */
@@ -1659,11 +1723,13 @@ export class Game {
     if (this.lockFallback !== null) clearTimeout(this.lockFallback);
     this.lockFallback = setTimeout(() => {
       this.lockFallback = null;
-      if (this.loop.paused && !this.overlayOpen && !this.pauseMenu.visible) this.pauseMenu.show();
+      if (this.input.pointerLocked || this.overlayOpen || this.pauseMenu.visible) return;
+      // Canlı panel kapandı ama kilit gelmedi: oyun burada durur (duraklatma menüsü `game:paused` ile açılır).
+      if (!this.loop.paused) this.setPaused(true);
+      else this.pauseMenu.show();
     }, 500);
   }
 
-  /** Sandık panelini açar (Faz 9): oyun donar, fare serbest kalır. Yalnızca oyun kontrolündeyken. */
   /** Kişiyle konuşma panelini açar: oyun donar, kişi durur ve oyuncuya bakar. */
   private openDialog(person: Person): void {
     if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
@@ -1772,6 +1838,7 @@ export class Game {
     if (resume) this.resumeAfterOverlay();
   }
 
+  /** Sandık panelini açar (Faz 9): fare serbest kalır, oyun sürer (Esc duraklatır). Yalnızca oyun kontrolündeyken. */
   private openStorage(id: StructureId): void {
     if (this.overlayOpen || !this.survival.alive || this.loop.paused) return;
     const chest = this.structureSystem.structures.storageOf(id);
@@ -1786,7 +1853,7 @@ export class Game {
   // ── Ganimet paneli (eşkıya cesedi, kamp sandığı, bina kapları) ──
 
   /**
-   * Ganimet panelini açar: oyun donar, fare serbest kalır. `items` kaynağın tuttuğu liste (alınanlar düşer, sığmayanlar
+   * Ganimet panelini açar: fare serbest kalır, oyun sürer (Esc duraklatır). `items` kaynağın tuttuğu liste (alınanlar düşer, sığmayanlar
    * kalır); `onTaken` her alıştan sonra alınanlarla çağrılır (kaynak boşaldıysa kendini bitirir).
    */
   private openLoot(
@@ -2160,6 +2227,44 @@ export class Game {
     return this.inventory.has('suppressor') ? 'available' : 'missing';
   }
 
+  /** Seçili silahın dürbün düğmeleri (dürbün takılamayan eşyada null). */
+  private scopeState(item: ItemId): ScopeUiState | null {
+    if (!isWeaponId(item) || !canScope(item)) return null;
+    return {
+      attached: this.weapons.scope(item),
+      available: SCOPE_IDS.filter((id) => scopeFits(item, id) && this.inventory.has(id)),
+      builtIn: RANGED.weapons[item].scopeZoom,
+      max: RANGED.weapons[item].scopeMax,
+    };
+  }
+
+  /**
+   * Dürbün takar (envanterden alınır; takılı olan envantere döner) ya da çıkarır. Atomik: takılı dürbün envantere
+   * sığmazsa hiçbir şey değişmez.
+   */
+  private setScope(item: ItemId, scope: ScopeId | null): void {
+    if (!isWeaponId(item) || !canScope(item)) return;
+    const name = ITEMS[item].name;
+    const current = this.weapons.scope(item);
+    if (scope === current) return;
+    if (scope !== null && (!scopeFits(item, scope) || !this.inventory.has(scope))) return;
+    if (scope !== null) this.inventory.remove(scope, 1);
+    if (current !== null && this.inventory.add(current, 1) > 0) {
+      if (scope !== null) this.inventory.add(scope, 1); // geri al
+      this.hud.notify('Envanter dolu: dürbün çıkarılamadı', INTERACT.toastMs);
+      this.inventoryPanel.refresh();
+      return;
+    }
+    this.weapons.setScope(item, scope);
+    this.hud.notify(
+      scope === null
+        ? `Dürbün çıkarıldı: ${name}`
+        : `${RANGED.scopes[scope].zoom}x dürbün takıldı: ${name}`,
+      INTERACT.toastMs,
+    );
+    this.inventoryPanel.refresh();
+  }
+
   /** Susturucuyu takar (envanterden bir susturucu harcar) ya da çıkarır (envantere geri koyar). */
   private toggleSuppressor(item: ItemId): void {
     if (!isWeaponId(item) || !canSuppress(item)) return;
@@ -2389,6 +2494,7 @@ export class Game {
     this.drawStations(now / 1000, feet);
     this.drawFarming(now / 1000, feet);
     this.drawRanged(now / 1000, feet);
+    this.drawMinimap(now, feet);
     this.drawHeld(now, alpha);
     this.drawBandits(now / 1000, feet);
     this.drawDrone(now / 1000, feet);
@@ -3051,15 +3157,26 @@ export class Game {
   // ── Faz 11: B (11.2/11.3 yapılar, çit, engel sorgusu) ──
   private setupStations(): void {
     const settlements = this.world.settlementMap ?? null;
-    this.obstacles = new StructureObstacles(this.structureSystem.structures, {
-      heightAt: (x, z) => this.world.terrain.heightAt(x, z),
-      ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
+    const worldSolids = {
+      heightAt: (x: number, z: number) => this.world.terrain.heightAt(x, z),
       // Ağaç, kaya, çalı, köprü/tünel kutuları ve kamp çadırları canlıları, insanları ve eşkıyaları da keser.
-      solidBlocks: (x0, z0, x1, z1, r) =>
+      solidBlocks: (x0: number, z0: number, x1: number, z1: number, r: number) =>
         (this.world.walkBlocked?.(x0, z0, x1, z1, r) ?? false) ||
         this.campBlocksWalk(x0, z0, x1, z1, r),
-      solidContains: (x, z, r) => this.world.walkContains?.(x, z, r) ?? false,
+      solidContains: (x: number, z: number, r: number) =>
+        this.world.walkContains?.(x, z, r) ?? false,
+    };
+    this.obstacles = new StructureObstacles(this.structureSystem.structures, {
+      ...worldSolids,
+      ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
     });
+    if (settlements) {
+      // Kullanıcı talimatı: NPC'ler de binalara girebilir (kapıdan, katlara merdivenden).
+      this.buildingWalk = new BuildingWalk(settlements, (x, z) =>
+        this.world.terrain.heightAt(x, z),
+      );
+      this.npcObstacles = new StructureObstacles(this.structureSystem.structures, worldSolids);
+    }
   }
   private updateStations(_dt: number): void {}
 
@@ -3136,6 +3253,18 @@ export class Game {
       moving: speed > 0.5,
       running: !this.player.grounded || speed > PLAYER.walkSpeed * 1.15,
     });
+    // Seri atışlı silah (hafif makineli, taarruz, makineli tüfek): sol tık basılı tutuldukça ateş eder.
+    const weapon = this.ranged.weapon;
+    if (
+      !frozen &&
+      weapon !== null &&
+      RANGED.weapons[weapon].auto &&
+      this.input.fireHeld &&
+      this.placement.aiming === null &&
+      this.ranged.readyToFire
+    ) {
+      this.attack();
+    }
   }
 
   /**
@@ -3145,7 +3274,7 @@ export class Game {
   private applyAimCamera(alpha: number): void {
     const weapon = this.survival.alive ? this.ranged.weapon : null;
     const aim = weapon ? this.ranged.aimFractionAt(alpha) : 0;
-    const cam = aimCamera(weapon, aim, CAMERA.fov);
+    const cam = aimCamera(weapon, aim, CAMERA.fov, this.ranged.zoom);
     this.playerCamera.setAim(cam.fovDeg, cam.sensitivity, cam.firstPerson, aim);
     const sway = weapon ? this.ranged.swayAt(alpha) : { yaw: 0, pitch: 0 };
     this.playerCamera.setViewOffset(sway.yaw, sway.pitch);
@@ -3427,6 +3556,31 @@ export class Game {
     return true;
   }
 
+  /** Mini harita: Son Kalan'da her zaman, hayatta kalmada envanterde Harita varken; maçta güvenli bölge de çizilir. */
+  private drawMinimap(now: number, feet: { x: number; y: number; z: number }): void {
+    const minimap = this.minimap;
+    if (!minimap) return;
+    const on = minimapVisible({
+      battleRoyale: this.br !== null,
+      hasMap: this.inventory.has('map'),
+      alive: this.survival.alive,
+      paused: this.loop.paused,
+    });
+    if (on !== minimap.visible) {
+      minimap.setVisible(on);
+      // Son Kalan öldürme listesi mini haritanın altına iner (CSS).
+      if (on) this.container.dataset.minimap = '1';
+      else delete this.container.dataset.minimap;
+    }
+    if (!on) return;
+    const zone = this.br?.zone ?? null;
+    minimap.update(
+      now,
+      { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw },
+      zone ? { circle: zone.circle, next: zone.next } : null,
+    );
+  }
+
   /** Kare başı maç çizimi: bölge duvarı, yerdeki ganimet, HUD, pusula işareti, harita. */
   private drawBattleRoyale(now: number, feet: { x: number; y: number; z: number }): void {
     const session = this.br;
@@ -3671,8 +3825,13 @@ export class Game {
       darkness: darknessOf(clock.sun.altitudeDeg),
       now: (clock.day * 24 + clock.hour) * 3600,
       targets: this.targets,
-      // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser.
-      ...(this.obstacles ? { obstacles: this.obstacles } : {}),
+      // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser. Yerleşimlerde eşkıyalar
+      // binalara kapıdan girer (yapı ayak izi engel değildir; duvarları `walk` keser).
+      ...(this.buildingWalk && this.npcObstacles
+        ? { obstacles: this.npcObstacles, walk: this.buildingWalk }
+        : this.obstacles
+          ? { obstacles: this.obstacles }
+          : {}),
       // Bina duvarları görüşü ve mermiyi keser (şehirdeki sokak çeteleri).
       ...(this.shotSolidQuery ? { solids: this.shotSolidQuery } : {}),
       // Faz 11 (F): alçak uçan drone'a ateş ederler.

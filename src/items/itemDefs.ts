@@ -124,6 +124,20 @@ export const ITEM_IDS = [
   'bandage',
   'first_aid_kit',
   'steel_vest',
+  // ── Dürbünler (kullanıcı talimatı: 2x/4x/8x/16x; mevcut `scope` 4x dürbündür), yeni silahlar ve harita ──
+  'scope_2x',
+  'scope_8x',
+  'scope_16x',
+  'revolver',
+  'smg',
+  'assault_rifle',
+  'marksman_rifle',
+  'lmg',
+  'crossbow',
+  'yatagan',
+  'war_axe',
+  'gurz',
+  'map',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -441,7 +455,7 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
   battery: { id: 'battery', name: 'Pil', weightG: 300, stackMax: 5, category: 'material' },
   propeller: { id: 'propeller', name: 'Pervane', weightG: 100, stackMax: 8, category: 'material' },
   // Dürbün yalnızca ganimetten çıkar (tarifi yok); keskin nişancı tüfeğinin malzemesidir.
-  scope: { id: 'scope', name: 'Dürbün', weightG: 600, stackMax: 1, category: 'material' },
+  scope: { id: 'scope', name: 'Dürbün (4x)', weightG: 600, stackMax: 1, category: 'material' },
   // ── Faz 11: A (11.1) modüler inşa II parçaları: modüler parçalar gibi yığınlanır, eşya sürdükçe art arda kurulur ──
   stairs: { id: 'stairs', name: 'Merdiven', weightG: 7000, stackMax: 2, category: 'placeable' },
   entry_step: {
@@ -688,6 +702,53 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     stackMax: 1,
     category: 'tool',
   },
+  // Dürbünler: envanterde silah seçiliyken "Dürbün tak" ile takılır (`items/weaponState.ts`, `RANGED.scopes`). Büyütme
+  // arttıkça nadirleşir (ganimet tabloları); yalnızca ganimetten çıkar.
+  scope_2x: {
+    id: 'scope_2x',
+    name: 'Dürbün (2x)',
+    weightG: 350,
+    stackMax: 1,
+    category: 'material',
+  },
+  scope_8x: {
+    id: 'scope_8x',
+    name: 'Dürbün (8x)',
+    weightG: 800,
+    stackMax: 1,
+    category: 'material',
+  },
+  scope_16x: {
+    id: 'scope_16x',
+    name: 'Dürbün (16x)',
+    weightG: 1100,
+    stackMax: 1,
+    category: 'material',
+  },
+  // Yeni silahlar (sayılar `RANGED.weapons` / `COMBAT.weapons`).
+  revolver: { id: 'revolver', name: 'Altıpatlar', weightG: 1200, stackMax: 1, category: 'tool' },
+  smg: { id: 'smg', name: 'Hafif Makineli Tüfek', weightG: 3000, stackMax: 1, category: 'tool' },
+  assault_rifle: {
+    id: 'assault_rifle',
+    name: 'Taarruz Tüfeği',
+    weightG: 4100,
+    stackMax: 1,
+    category: 'tool',
+  },
+  marksman_rifle: {
+    id: 'marksman_rifle',
+    name: 'Yarı Otomatik Tüfek',
+    weightG: 4800,
+    stackMax: 1,
+    category: 'tool',
+  },
+  lmg: { id: 'lmg', name: 'Makineli Tüfek', weightG: 9000, stackMax: 1, category: 'tool' },
+  crossbow: { id: 'crossbow', name: 'Arbalet', weightG: 3200, stackMax: 1, category: 'tool' },
+  yatagan: { id: 'yatagan', name: 'Yatağan', weightG: 1100, stackMax: 1, category: 'tool' },
+  war_axe: { id: 'war_axe', name: 'Savaş Baltası', weightG: 2200, stackMax: 1, category: 'tool' },
+  gurz: { id: 'gurz', name: 'Gürz', weightG: 2600, stackMax: 1, category: 'tool' },
+  // Harita: envanterdeyken mini harita görünür (hayatta kalma; Son Kalan'da harita her zaman verilir).
+  map: { id: 'map', name: 'Harita', weightG: 150, stackMax: 1, category: 'tool' },
 };
 
 export function isItemId(value: unknown): value is ItemId {

@@ -454,6 +454,11 @@ export class Hud {
     this.root.hidden = !visible;
   }
 
+  /** Sağ üstteki konum/saat kartı: mini harita onun altına eklenir. */
+  get infoCard(): HTMLElement {
+    return this.info;
+  }
+
   /** Konum bilgisini gösterir (il adı ve rakım); `null` gizler. */
   setLocation(location: { title: string; detail: string } | null): void {
     this.location.hidden = location === null;

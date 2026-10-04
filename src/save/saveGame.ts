@@ -3,7 +3,7 @@ import { isCropId, type CropId } from '../farming/kinds';
 import { Hotbar, type HotbarSave } from '../items/hotbar';
 import { Inventory, type InventorySave, type ItemStack } from '../items/Inventory';
 import { isItemId } from '../items/itemDefs';
-import { WEAPON_IDS, type WeaponId } from '../items/weaponState';
+import { WEAPON_IDS, isScopeId, type ScopeId, type WeaponId } from '../items/weaponState';
 import { StructureSet, type StructureSave } from '../placement/structures';
 import type { VitalsState } from '../survival/vitals';
 import { legacyCellKeyToAbsolute, legacyPropIdToAbsolute } from '../world/chunkKeys';
@@ -136,6 +136,8 @@ export interface WeaponsSave {
   loaded: Partial<Record<WeaponId, number>>;
   /** Susturucu takılı silahlar (v7). */
   suppressed: WeaponId[];
+  /** Takılı dürbünler (eklemeli alan; sürüm değişmedi, yoksa dürbünsüz). */
+  scopes?: Partial<Record<WeaponId, ScopeId>>;
 }
 
 export interface BanditsSave {
@@ -496,7 +498,17 @@ function parseWeapons(raw: unknown): WeaponsSave {
   if (new Set(suppressed).size !== suppressed.length) {
     throw invalid('weapons.suppressed yinelenen silah içeriyor');
   }
-  return { loaded: out, suppressed };
+  if (o.scopes === undefined) return { loaded: out, suppressed };
+  const rawScopes = record(o.scopes, 'weapons.scopes');
+  const scopes: Partial<Record<WeaponId, ScopeId>> = {};
+  for (const [key, value] of Object.entries(rawScopes)) {
+    if (!(WEAPON_IDS as readonly string[]).includes(key)) {
+      throw invalid(`weapons.scopes.${key} tanınmayan silah`);
+    }
+    if (!isScopeId(value)) throw invalid(`weapons.scopes.${key} tanınmayan dürbün`);
+    scopes[key as WeaponId] = value;
+  }
+  return { loaded: out, suppressed, scopes };
 }
 
 function parseBandits(raw: unknown): BanditsSave {

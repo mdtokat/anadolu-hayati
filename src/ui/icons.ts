@@ -247,6 +247,29 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
     '<rect x="3" y="6.5" width="18" height="13.5" rx="2.2" fill="#c8323c"/><path d="M9 6.5V4.5h6v2" stroke="#8f1f27" stroke-width="1.6" fill="none"/><path d="M12 9.5v7M8.5 13h7" stroke="#fbf5ea" stroke-width="2.6" stroke-linecap="round"/>',
   steel_vest:
     '<path d="M8 3h2.2c.4 1.4 1 2 1.8 2s1.4-.6 1.8-2H16l4 3-1.6 4-1.4-.8V21H7V9.2l-1.4.8L4 6z" fill="#5b646c"/><path d="M8.5 10.5h7v4h-7zM8.5 16h7v3.5h-7z" fill="#76808a"/><path d="M12 6v15" stroke="#3e454b" stroke-width="1.1"/><path d="M9.5 12.5h5M9.5 17.8h5" stroke="#9aa4ad" stroke-width="1" stroke-linecap="round"/>',
+  // Dürbünler: gövde boyu ve mercek sayısı büyütmeyi gösterir; köşede büyütme yazısı.
+  scope_2x:
+    '<rect x="6" y="9.5" width="12" height="5" rx="2.5" fill="#2a2e32"/><rect x="5" y="9" width="3" height="6" rx="1.2" fill="#3c4146"/><circle cx="18.2" cy="12" r="1.8" fill="#6fb3d9"/><text x="12" y="21.5" font-size="6" text-anchor="middle" fill="#e8dcc0" font-family="sans-serif" font-weight="700">2x</text>',
+  scope_8x:
+    '<rect x="2" y="7.5" width="20" height="6" rx="3" fill="#22262a"/><rect x="1.5" y="6.5" width="4.4" height="8" rx="1.4" fill="#3c4146"/><rect x="17.8" y="7" width="4.4" height="7" rx="1.4" fill="#3c4146"/><circle cx="21.4" cy="10.5" r="2" fill="#7fc0e6"/><text x="12" y="22" font-size="6" text-anchor="middle" fill="#e8b04a" font-family="sans-serif" font-weight="700">8x</text>',
+  scope_16x:
+    '<rect x="1" y="7" width="22" height="6.6" rx="3.3" fill="#1b1e21"/><rect x="0.8" y="6" width="5" height="8.6" rx="1.4" fill="#3c4146"/><rect x="17.4" y="6.4" width="5.6" height="7.8" rx="1.4" fill="#4a3a20"/><circle cx="21.6" cy="10.3" r="2.3" fill="#9ad3f2"/><text x="12" y="22" font-size="6" text-anchor="middle" fill="#e05a4a" font-family="sans-serif" font-weight="700">16x</text>',
+  revolver:
+    '<path d="M3 8h13.5v3H3z" fill="#4a4f55"/><circle cx="12.2" cy="11.6" r="3" fill="#6b7278"/><circle cx="12.2" cy="11.6" r="1" fill="#2a2e32"/><path d="M14 11.5h4l-1.6 8.5h-3.6z" fill="#7a4a26"/><path d="M10 13.5c0 2 .9 2.8 2.2 2.8" stroke="#3c4146" stroke-width="1.1" fill="none"/>',
+  smg: '<path d="M3 9h14v3.4H3z" fill="#2f3438"/><path d="M15 9h5l1.5 3.4-2 .8-1-1.4H15z" fill="#3c4146"/><path d="M8 12.4h2.6l-.6 8H7.6z" fill="#22262a"/><path d="M12.5 12.4h2.2l.6 4.8h-1.8z" fill="#3c4146"/><path d="M2 10.2h2" stroke="#6b7278" stroke-width="1.2"/>',
+  assault_rifle:
+    '<path d="M1 10.5h14v2.2H1z" fill="#3a3f2e"/><path d="M13 10h5.5l4 4.5-1.8 2-3.4-3.2H13z" fill="#5a4a2e"/><path d="M8.5 12.7c.4 2.6 1.4 4.6 2.8 6l1.6-1c-1-1.4-1.6-3.2-1.8-5z" fill="#2a2e32"/><path d="M5 9.2h6" stroke="#6b7278" stroke-width="1.2" stroke-linecap="round"/><path d="M13.4 12.7v3" stroke="#3a3f2e" stroke-width="1.4"/>',
+  marksman_rifle:
+    '<path d="M1 11.5h14v1.8H1z" fill="#3c4146"/><path d="M12.5 11h5.5l4.5 4.6-1.8 2.2-3.6-3.2h-4.6z" fill="#6b4a2a"/><rect x="6.5" y="7.6" width="6.6" height="2.4" rx="1.1" fill="#22262a"/><path d="M9 13.3v3.6l1.6-.2v-3.4" fill="#2a2e32"/><path d="M8 10v1.5M11.6 10v1.5" stroke="#22262a" stroke-width="1"/>',
+  lmg: '<path d="M1 10h15v2.6H1z" fill="#2f3438"/><path d="M14 9.6h5l3 4.4-1.8 1.8-2.6-2.8H14z" fill="#3c4146"/><rect x="7.5" y="12.6" width="5" height="4" rx=".8" fill="#4a5a3a"/><path d="M3.5 12.6 2 18M5 12.6l1.5 5.4" stroke="#3c4146" stroke-width="1.1" stroke-linecap="round"/><path d="M4 8.6h7" stroke="#6b7278" stroke-width="1.2"/>',
+  crossbow:
+    '<path d="M3 12h15" stroke="#8a5a2e" stroke-width="2.6" stroke-linecap="round"/><path d="M15 5c2.6 2.2 2.6 11.8 0 14" stroke="#4a4f55" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 5 6.5 12 15 19" stroke="#e8dcc0" stroke-width=".9" fill="none"/><path d="M20.5 12l-3-1.6v3.2z" fill="#8f979e"/><path d="M7 12v5" stroke="#6e4522" stroke-width="2" stroke-linecap="round"/>',
+  yatagan:
+    '<path d="M8 15.5c3.4-.6 8.2-3.6 11.5-10.5-.2 3.6-1.6 9-10 12.2z" fill="#d4d9de"/><path d="M9.4 16.2c3.4-1 7.4-4 9.4-9" stroke="#f0f2f4" stroke-width=".8" fill="none"/><path d="M6.4 14.4l3.2 3.2" stroke="#c9a640" stroke-width="2.2" stroke-linecap="round"/><path d="M3.5 20.5 7 17" stroke="#3a2412" stroke-width="2.6" stroke-linecap="round"/><circle cx="3.6" cy="20.4" r="1.4" fill="#c9a640"/>',
+  war_axe:
+    '<path d="M5 21 16 5" stroke="#6e4522" stroke-width="2.6" stroke-linecap="round"/><path d="M13 3c4 0 7.5 2.6 8 6.8l-4.5 1.2-1.8-3.4-3.2-1z" fill="#8f979e"/><path d="M14.6 4.2c2.6.4 4.6 2 5.2 4.4" stroke="#d4d9de" stroke-width="1.1" fill="none"/><path d="M12 6.4 9.6 4.8l1-1.6 2.6 1.4" fill="#6b7278"/>',
+  gurz: '<path d="M5 21 13 9.5" stroke="#5a3a1f" stroke-width="2.6" stroke-linecap="round"/><circle cx="15.5" cy="7" r="4.4" fill="#6b7278"/><path d="M15.5 1.6v2M15.5 10.4v2M10.1 7h2M18.9 7h2M11.6 3.1l1.4 1.4M18 9.5l1.4 1.4M19.4 3.1 18 4.5M13 9.5l-1.4 1.4" stroke="#8f979e" stroke-width="1.6" stroke-linecap="round"/><circle cx="14.3" cy="5.8" r="1.2" fill="#a9b0b6"/>',
+  map: '<path d="M3 5.5 8.5 3.5l7 2 5.5-2v15l-5.5 2-7-2L3 20.5z" fill="#e8d9b0"/><path d="M8.5 3.5v15M15.5 5.5v15" stroke="#b8a378" stroke-width="1"/><path d="M5 14c2-1 3.4.6 5.4-.8s3.6-3 6.2-2.2" stroke="#4f8fbf" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M17.6 7.4l1.4 1.4m0-1.4-1.4 1.4" stroke="#c8402e" stroke-width="1.2" stroke-linecap="round"/><path d="M5.5 8.5l2 .5 1.5-1.4" stroke="#6fae5c" stroke-width="1.2" fill="none"/>',
 };
 
 /** Eşya kategorisinin vurgu rengi (slot kenarı ve çip rengi için CSS değişkeni). */

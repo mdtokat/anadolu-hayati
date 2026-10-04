@@ -76,6 +76,13 @@ export interface BanditSenses {
   prey: (Point & { id: string; dist: number }) | null;
   /** `travel` etkinliğinde `home`'a gidiş hızı (oyun m/sn; yoksa yürüme hızı). */
   travelSpeed?: number;
+  /**
+   * Kanat payı (−1…1; eşkıyaya özgü, sabit): saldırırken hedefe doğrudan değil bu yana açılarak yaklaşır (grup hedefi
+   * çevreler). Yoksa 0 (doğrudan).
+   */
+  flank?: number;
+  /** Siper noktası (tehdidin görüş hattının dışında; `BanditSystem` bulur); yoksa yana kaçış. */
+  cover?: Point | null;
 }
 
 export type BanditAction =
@@ -90,6 +97,11 @@ export interface BanditIntent {
   speed: number;
   /** Hareket etmese de bakılacak yön (yoksa heading). */
   face?: number;
+  /**
+   * Gidilen nokta (varsa): yürüyüş bunu yol bulmaya verir (kapı, merdiven, engel çevresi); yoksa `heading` yönünde
+   * serbest yürüyüş (yana kaçış, geri çekilme).
+   */
+  target?: Point;
 }
 
 export interface BanditStep {
@@ -128,6 +140,14 @@ const STRIKE_GRACE = 0.6;
 const DWELL_SECONDS = 6;
 /** Yolculukta varış payı (oyun m). */
 const TRAVEL_ARRIVE = 1.5;
+/** Kanattan yaklaşmada yana açılmanın uzaklığa oranı ve en büyük değeri (oyun m). */
+const FLANK_RATIO = 0.35;
+const FLANK_MAX = 12;
+/** Ateş altında (son hasardan bu yana sn) atıcı yerinde durmaz, yana kayar. */
+const STRAFE_WINDOW = 5;
+/** Kayıp hedefi arama yarıçapı (oyun m) ve noktada bekleme (sn). */
+const SEARCH_RADIUS = 7;
+const SEARCH_DWELL = 1.5;
 
 export function createBrain(
   x: number,
@@ -350,6 +370,9 @@ function enter(c: BanditBrain, state: BanditState, actions: BanditAction[]): voi
   c.state = state;
   c.stateTime = 0;
   c.struck = false;
+  // Yürüyüş/arama hedefi yeni durumda baştan seçilir (uyarıda önce sesin yerine gidilir, sonra aranır).
+  c.waypoint = null;
+  c.dwell = 0;
   if (FIGHTING.includes(state) && wasCalm && !c.noticed) {
     c.noticed = true;
     actions.push({ type: 'noticed' });
@@ -374,7 +397,30 @@ const STOP: BanditIntent = { heading: 0, speed: 0 };
 function goTo(c: BanditBrain, target: Point, speed: number, arrive = 0.6): BanditIntent {
   const d = Math.hypot(target.x - c.x, target.z - c.z);
   if (d <= arrive) return { heading: c.yaw, speed: 0 };
-  return { heading: yawTo(c.x, c.z, target.x, target.z), speed: Math.min(speed, d * 4) };
+  return {
+    heading: yawTo(c.x, c.z, target.x, target.z),
+    speed: Math.min(speed, d * 4),
+    target: { x: target.x, z: target.z },
+  };
+}
+
+/**
+ * Kanat noktası: hedefin, eşkıya–hedef doğrusuna dik yönde `flank` tarafına kaydırılmış hâli (uzaklıkla orantılı; yakına
+ * gelince hedefin kendisi). Birden çok eşkıya böylece hedefi farklı yönlerden sarar.
+ */
+export function flankPoint(c: Point, target: Point, flank: number): Point {
+  const dx = target.x - c.x;
+  const dz = target.z - c.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 1e-6 || flank === 0) return { x: target.x, z: target.z };
+  const off = Math.min(d * FLANK_RATIO, FLANK_MAX) * flank;
+  return { x: target.x + (-dz / d) * off, z: target.z + (dx / d) * off };
+}
+
+/** Hedefin son görüldüğü yerin çevresinde arama: noktadan noktaya yürür, her birinde biraz bekler. */
+function search(c: BanditBrain, center: Point, dt: number, rng: Random): BanditIntent {
+  const move = roam(c, center, SEARCH_RADIUS, dt, rng, SEARCH_DWELL);
+  return move.speed > 0 ? move : { ...STOP, face: c.yaw + Math.sin(c.stateTime) * 1.2 };
 }
 
 function randomAround(rng: Random, center: Point, radius: number): Point {
@@ -451,13 +497,19 @@ function behave(
     case 'alert': {
       const target = c.investigate ?? c.lastSeen;
       if (!target) return { ...STOP, face: c.yaw + Math.sin(c.stateTime) * 1.2 };
-      const move = goTo(c, target, BANDITS.walkSpeed, 2);
-      return move.speed > 0 ? move : { ...STOP, face: c.yaw + Math.sin(c.stateTime) * 1.2 };
+      // Sesin/son görülen yerin yanına varınca orada durup bakınmak yerine çevresini arar.
+      if (c.waypoint === null) {
+        const move = goTo(c, target, BANDITS.walkSpeed, 2);
+        if (move.speed > 0) return move;
+      }
+      return search(c, target, dt, rng);
     }
     case 'chase': {
       const target = player?.visible ? player : c.lastSeen;
       if (!target) return STOP;
-      return goTo(c, target, BANDITS.runSpeed, 0.8);
+      // Görünen hedefe uzaktan kanattan yaklaşır (yakında doğrudan saldırır).
+      const aim = player?.visible && player.dist > 6 ? flankPoint(c, player, s.flank ?? 0) : target;
+      return goTo(c, aim, BANDITS.runSpeed, 0.8);
     }
     case 'attack': {
       if (
@@ -479,26 +531,59 @@ function behave(
       const spec = BANDITS.ranged[c.weapon];
       const range = Math.min(RANGED.weapons[c.weapon].range, BANDITS.sightRange * 1.5);
       if (!player?.visible) {
-        return c.lastSeen ? goTo(c, c.lastSeen, BANDITS.runSpeed, 2) : STOP;
+        if (!c.lastSeen) return STOP;
+        // Son görülen yere koşar; varınca çevresini arar.
+        if (c.waypoint === null) {
+          const move = goTo(c, c.lastSeen, BANDITS.runSpeed, 2);
+          if (move.speed > 0) return move;
+        }
+        return search(c, c.lastSeen, dt, rng);
       }
+      c.waypoint = null;
+      c.dwell = 0;
       if (c.cooldown <= 0 && player.dist <= range) {
         c.cooldown = spec.interval;
         actions.push({ type: 'shoot', target: 'player', x: player.x, z: player.z });
       }
       if (player.dist > spec.preferred * 1.3) {
-        return { heading: toPlayer, speed: BANDITS.runSpeed * 0.7, face: toPlayer };
+        // Kanattan yaklaşır (grup hedefi farklı yönlerden sarar).
+        const aim = flankPoint(c, player, s.flank ?? 0);
+        return {
+          heading: yawTo(c.x, c.z, aim.x, aim.z),
+          speed: BANDITS.runSpeed * 0.7,
+          face: toPlayer,
+          target: aim,
+        };
       }
       if (player.dist < spec.preferred * 0.5) {
         return { heading: toPlayer + Math.PI, speed: BANDITS.walkSpeed, face: toPlayer };
       }
+      // Ateş altındayken yerinde durmaz: yana kayarak (yön birkaç saniyede bir değişir) ateş eder.
+      if (c.sinceHurt < STRAFE_WINDOW) {
+        const side = Math.sin(c.stateTime * 0.8 + (s.flank ?? 0) * 3) >= 0 ? 1 : -1;
+        return {
+          heading: toPlayer + (side * Math.PI) / 2,
+          speed: BANDITS.walkSpeed * 0.8,
+          face: toPlayer,
+        };
+      }
       return { ...STOP, face: toPlayer };
     }
     case 'cover': {
-      // Siper: oyuncuya dik yönde koşarak yer değiştirir (yan taraf kimliğe göre değil, zamana göre seçilir).
+      // Siper noktası varsa oraya koşar ve tehdide bakarak bekler; yoksa tehdide dik yönde yer değiştirir.
+      if (s.cover) {
+        const move = goTo(c, s.cover, BANDITS.runSpeed, 0.5);
+        return move.speed > 0 ? { ...move, face: toPlayer } : { ...STOP, face: toPlayer };
+      }
       const side = Math.floor(c.stateTime / COVER_SECONDS + c.x) % 2 === 0 ? 1 : -1;
       return { heading: toPlayer + (side * Math.PI) / 2, speed: BANDITS.runSpeed, face: toPlayer };
     }
     case 'retreat':
+      if (s.cover) {
+        const move = goTo(c, s.cover, BANDITS.runSpeed, 0.5);
+        if (move.speed > 0) return move;
+        return { ...STOP, face: toPlayer };
+      }
       return {
         heading: player ? toPlayer + Math.PI : yawTo(c.x, c.z, s.camp.x, s.camp.z),
         speed: BANDITS.runSpeed,

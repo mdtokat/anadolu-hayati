@@ -53,6 +53,8 @@ import { findSafeSpawn } from './spawn';
 import { createTerrainMaterial, terrainUniforms, type TerrainUniforms } from './TerrainMaterial';
 import { buildRoadOverlay, buildTerrainOverlay, landBorderSegments } from './terrainOverlay';
 import { LandCoverMap } from './LandCoverMap';
+import type { MinimapSource } from '../ui/Minimap';
+import { BUILDING_SHAPES, isMosque } from '../settlements/kinds';
 import { PropLayer, type PropLayerStats } from './PropLayer';
 import type { PropId, PropRef } from './propKinds';
 import { Water } from './Water';
@@ -644,6 +646,26 @@ export class RegionWorld implements GameWorld {
    * Tüm hedef illerin yer merkezleri: `PROVINCE_PLACES` (pilot il önce), en yakın yürünebilir noktaya
    * oturtulmuş (bulunamazsa ham konum).
    */
+  /** Mini haritanın okuduğu dünya bilgisi (arazi, örtü, su, yollar, yapı ayak izleri). */
+  minimapSource(): MinimapSource {
+    const map = this.settlementMap;
+    return {
+      heightAt: (x, z) => this.terrain.heightAt(x, z),
+      coverAt: (x, z) => this.cover?.classAt(x, z) ?? 'none',
+      water: this.region.features?.water ?? null,
+      roads: map?.roadLines ?? [],
+      buildingsNear: (x, z, radius) =>
+        (map?.buildingsNear(x, z, radius) ?? []).map((b) => ({
+          x: b.x,
+          z: b.z,
+          yaw: b.yaw,
+          w: BUILDING_SHAPES[b.kind].width,
+          d: BUILDING_SHAPES[b.kind].depth,
+          mosque: isMosque(b.kind),
+        })),
+    };
+  }
+
   placeCenters(): readonly PlaceCenter[] {
     this.placeCentersCache ??= Object.values(PROVINCE_PLACES)
       .flat()
