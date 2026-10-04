@@ -192,6 +192,8 @@ export class BanditSystem implements TargetProvider {
   private solids: SolidQuery | null = null;
   /** Battle Royale ateşkesi: yarışmacılar kimseyi (oyuncu dahil) hedef almaz. */
   private truce = false;
+  /** Kamplar, sokak çeteleri ve serbest eşkıyalar (Battle Royale maçında kapalı; yarışmacılar etkilenmez). */
+  private wildEnabled = true;
   /** Battle Royale: ölü yarışmacının üstündeki ganimet (maç kimliği, silah); verilmezse eşkıya ganimeti. */
   private contestantLootFn: ((contestant: number, weapon: BanditWeapon) => ItemStack[]) | null =
     null;
@@ -603,6 +605,17 @@ export class BanditSystem implements TargetProvider {
     return rollBanditLoot(m.id, m.brain.weapon, this.seed);
   }
 
+  /**
+   * Battle Royale: kampları, sokak çetelerini ve serbest eşkıyaları açar/kapatır (kapatınca mevcutlar kalkar, yenisi
+   * canlanmaz); yarışmacılar etkilenmez.
+   */
+  setWildEnabled(on: boolean): void {
+    this.wildEnabled = on;
+    if (on) return;
+    for (const m of [...this.members.values()])
+      if (m.contestant === null) this.members.delete(m.id);
+  }
+
   /** Battle Royale ateşkesi (maç başı): açıkken yarışmacılar kimseye saldırmaz, yalnız yürür. */
   setContestantTruce(on: boolean): void {
     this.truce = on;
@@ -677,7 +690,7 @@ export class BanditSystem implements TargetProvider {
     this.solids = ctx.solids ?? null;
     this.reoccupy(ctx.now);
     this.sinceActivation += dt;
-    if (this.sinceActivation >= ACTIVATION_SECONDS) {
+    if (this.sinceActivation >= ACTIVATION_SECONDS && this.wildEnabled) {
       this.sinceActivation = 0;
       this.activate(ctx.player);
       this.activateGangs(ctx);

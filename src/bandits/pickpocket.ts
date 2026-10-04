@@ -77,6 +77,10 @@ export class PickpocketSystem implements TargetProvider {
     return [...this.people.values()];
   }
 
+  get enabled(): boolean {
+    return this.enabledFlag;
+  }
+
   setEnabled(on: boolean): void {
     this.enabledFlag = on;
     if (!on) this.people.clear();

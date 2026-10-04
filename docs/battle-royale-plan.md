@@ -286,6 +286,25 @@ başlangıç aralığı, bölge hasarı.
     18 m arayla): silah kesin, olasılıklar ×1,8. Ölü yarışmacının üstü `contestantLoot` (silahı, teçhizatla artan
     mühimmat, sağlık, yelek; `BanditSystem.setContestantLoot`), uzakta ölenin çantası `dropLoot`. Yerdeki ganimetler
     `BrPickups` (sandık + çanta; içerik ilk açılışta zarlanır, boşalan kalkar).
-- [ ] BR.5 — `Game` entegrasyonu
+- [x] **BR.5 — `Game` entegrasyonu** (`battleRoyale/BrSession.ts`, `core/Game.ts`; testler `tests/brSession`).
+  - `BrSession` (Three.js'siz): maç planı, uzak/yakın kademe, sandıklar ve çantalar (`BrPickups`), bölge hasarı,
+    öldürme kayıtları, aşama bildirimleri, bitiş; olaylar `br:started`, `br:phase`, `br:eliminated`, `br:ended`.
+    Oyuncuya son 15 sn içinde isabet eden yarışmacı ölümüne yazılır (`notePlayerHit`; hedef sağlayıcısı `from`'u
+    iletir). Oyuncu ölünce yakındakiler uzak kademeye döner ve maç kare başına 30 maç-saniyelik dilimlerle hızla
+    sonuçlanır (`finishStep`); oyuncu tek kalırsa kazanır. Akış alanları maç başında önceden kurulur (`FarSim.prepare`).
+  - `Game.startBattleRoyale(setup, seed?)`: hayatta kalma durumu bellekte saklanır ve otomatik kayda yazılır, maç
+    planlanır, oyuncu eli boş başlangıç noktasına konur (yeni oyunla aynı yükleme yolu). **Maç kayda girmez:**
+    `createSave()` maçta null (otomatik kayıt ve yuvaya kayıt çalışmaz). `exitBattleRoyale()` maçtan önceki durumu
+    geri yükler; maç sırasında yuva yüklemek ya da yeni oyun da önce maçtan çıkar.
+  - Maçta kapalı: kamp eşkıyaları, sokak çeteleri ve serbest eşkıyalar (`BanditSystem.setWildEnabled`; yarışmacılar
+    eşkıya ayarından bağımsız), yankesiciler, gezgin insanlar ve satıcılar, tapu, inşa (kısayoldan da), seçilmezse
+    vahşi hayvanlar. Tokluk/su/vücut ısısı donuk, sabit gündüz seçiliyse saat donuk (`SurvivalSystem.setFreeze`).
+    Bölge hasarı yeni hasar kaynağıdır (`'zone'`, ölüm nedeni "Güvenli bölgenin dışında kaldın").
+  - Cami: camide silah kullanılmaz (oyuncu), yarışmacılar camideki oyuncuyu algılamaz (mevcut kutsal alan kuralı), son
+    iki dairenin merkezi caminin 15 m yakınına düşmez.
+  - Sağlık eşyaları oyunda (her iki kipte): kısayoldan kullanılır, ilerleme halkası; hasar alınca, saldırınca ya da
+    elde başka eşya seçilince yarıda kalır (bölge hasarı kesmez).
+  - Plandan sapma: 3 sn'lik geri sayım yerine maç başındaki 90 sn'lik ateşkes yeterli görüldü (herkes eli boş).
+  - Henüz menüden açılamaz (BR.6); oyun içi doğrulama BR.7'de başsız tarayıcıyla.
 - [ ] BR.6 — arayüz
 - [ ] BR.7 — ölçüm ve belgeler

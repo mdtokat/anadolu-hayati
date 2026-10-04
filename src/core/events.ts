@@ -63,7 +63,11 @@ export interface GameEvents {
 
   // ── Faz 5: Oyuncu tarafı (Hesap B yayınlar; bu bölüme yalnızca B ekler) ──
   /** Oyuncu hasar alınca (savunma sonrası). */
-  'player:damaged': { amount: number; cause: 'creature' | 'shot'; sourceKind?: CreatureKind };
+  'player:damaged': {
+    amount: number;
+    cause: 'creature' | 'shot' | 'zone';
+    sourceKind?: CreatureKind;
+  };
   /** Oyuncu saldırınca; `hitId` isabet ettiği canlı (ıskaladıysa null). */
   'player:attacked': { weapon: ItemId | 'fist'; hitId: CreatureId | null };
   /** Bir leş kesilince alınan eşyalar. */
@@ -154,6 +158,22 @@ export interface GameEvents {
    * Bir eşkıya hasar aldı (`killed`: bu vuruşla öldü). `by`/`attacker`/`weapon`: vuran (oyuncu, eşkıya kimliğiyle ya da
    * başka — ör. Battle Royale bölge hasarı), bilinmiyorsa yok.
    */
+  /** Battle Royale maçı başladı (`players`: oyuncu dahil). */
+  'br:started': { players: number; area: string };
+  /** Güvenli bölge yeni aşamaya geçti (`phase` 0'dan; `shrinking`: daralma başladı mı). */
+  'br:phase': { phase: number; shrinking: boolean };
+  /** Bir yarışmacı elendi (`victim`/`killer`: adlar; `player`: oyuncu mu elendi, `byPlayer`: oyuncu mu öldürdü). */
+  'br:eliminated': {
+    victim: string;
+    killer: string | null;
+    cause: 'kill' | 'zone' | 'animal' | 'other';
+    weapon: string | null;
+    left: number;
+    player: boolean;
+    byPlayer: boolean;
+  };
+  /** Maç oyuncu için bitti (`placement` 1 = kazandı). */
+  'br:ended': { placement: number; total: number; kills: number; winner: string | null };
   'bandit:damaged': {
     id: number;
     amount: number;

@@ -362,6 +362,15 @@ export class FarSim {
   }
 
   /**
+   * Bütün aşamaların akış alanlarını (ve kaba yürüme ızgarasını) önceden kurar: maç başında yükleme ekranında çağrılır
+   * ki aşama değişiminde kare takılmasın.
+   */
+  prepare(): void {
+    const plan = this.zone.plan;
+    for (const phase of plan.phases) this.flowFor(zoneAt(plan, phase.start));
+  }
+
+  /**
    * Yakın kademe (BR.3) için rehberlik: oyuncunun yakınında tam yapay zekâyla yaşayan yarışmacının soyut kaydını
    * (`take` ile alınmış; konumu/canı çağıran günceller) uzak NPC'lerle aynı kurallarla düşündürür. Dönüş: yürüme hedefi
    * ve hızı, ya da null (ganimet yerinde bekliyor — teçhizat artar — ya da hedefi yok).

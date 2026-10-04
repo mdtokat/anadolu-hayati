@@ -10,6 +10,9 @@ import { isBackpack } from '../items/backpack';
 import { PerspectiveCamera, PointLight, Vector2, WebGLRenderer, type Camera } from 'three';
 import {
   BANDITS,
+  BATTLE_ROYALE,
+  REGION_PLAYER,
+  SPAWN_SEARCH,
   GANGS,
   COMBAT,
   DRONE,
@@ -218,6 +221,11 @@ import {
   playerTargetProvider,
 } from '../combat/targets';
 import { BanditSystem } from '../bandits/BanditSystem';
+import { BrSession } from '../battleRoyale/BrSession';
+import { lootSpotsOf } from '../battleRoyale/farSim';
+import type { BrSetup } from '../battleRoyale/kinds';
+import { rollBuildingBrLoot } from '../battleRoyale/loot';
+import { MedicalUse, isMedical } from '../items/medical';
 import { campSiteQuery, placeCamps } from '../bandits/camps';
 import { placeGangSites } from '../bandits/gangs';
 import { SURRENDER_TEXT, WARNING_QUESTION, banditWarning, campAnswer } from '../bandits/dialog';
@@ -232,7 +240,13 @@ import { DroneLayer } from '../world/DroneLayer';
 import { DroneHud } from '../ui/DroneHud';
 import { batteryPercent } from '../ui/droneFormat';
 import { rayTerrain } from '../combat/ranged';
-import { BUILDING_NAMES, BUILDING_SHAPES, indoorCeiling, shapeVariant } from '../settlements/kinds';
+import {
+  BUILDING_NAMES,
+  BUILDING_SHAPES,
+  indoorCeiling,
+  isMosque,
+  shapeVariant,
+} from '../settlements/kinds';
 import type { BuildingInterior } from '../settlements/SettlementMap';
 import { CREATURE_NAMES } from '../combat/promptText';
 import { CampColliders } from '../world/CampColliders';
@@ -362,6 +376,11 @@ async function loadRegionData() {
 }
 
 /** Oyunun kök nesnesi: renderer, fizik, dünya, oyuncu ve sabit adımlı döngüyü bir araya getirir. */
+/** Battle Royale başlangıç/sandık/bölge merkezi için en dik eğim (oyun derecesi). */
+const BATTLE_ROYALE_OPEN_SLOPE = 40;
+/** Son bölge dairelerinin merkezi camiden bu kadar (oyun m) uzak olmalı. */
+const BATTLE_ROYALE_MOSQUE_CLEARANCE = 15;
+
 export class Game {
   readonly events = new EventBus<GameEvents>();
   /** Hayatta kalma durumu: saat, iklim, göstergeler (saf mantık; dev araçları da okur). */
@@ -540,6 +559,12 @@ export class Game {
   private heldPlacement: { kind: StructureKind; slot: number } | null = null;
   /** Test modu (Ayarlar): uçma, sınırsız malzeme (`TEST_MODE`). */
   private testMode = false;
+  /** Battle Royale maçı (yoksa hayatta kalma modu). */
+  private br: BrSession | null = null;
+  /** Maçtan önceki hayatta kalma durumu (maçtan çıkınca geri yüklenir; kayda girmez). */
+  private brSnapshot: SaveGame | null = null;
+  /** Süren sağlık eşyası kullanımı (sargı bezi, ilk yardım çantası). */
+  private readonly medical = new MedicalUse(this.inventory);
   private lastHotbarSignature = '';
   private lockFallback: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void> = [];
@@ -748,10 +773,25 @@ export class Game {
       }),
       this.events.on('player:died', (death) => {
         this.placement.cancel();
+        this.medical.cancel();
         this.hud.setPrompt(null);
+        if (this.br) {
+          // Battle Royale: yeniden doğma yok; maç hızla sonuçlanır, sonuç `br:ended` ile gösterilir.
+          this.br.onPlayerDied(death.cause);
+          this.input.exitLock();
+          return;
+        }
         this.deathScreen.show(death);
         this.input.exitLock(); // fareyle "Yeniden Doğ"a tıklanabilsin
       }),
+      this.events.on('player:damaged', ({ cause }) => {
+        // Hasar alan sağlık eşyası kullanımı yarıda kalır (bölge hasarı kesmez: dışarıda sargı sarılabilsin).
+        if (cause !== 'zone' && this.medical.active) {
+          this.medical.cancel();
+          this.hud.notify('İyileşme yarıda kaldı', INTERACT.toastMs);
+        }
+      }),
+      this.events.on('bandit:damaged', (e) => this.br?.onBanditDamaged(e)),
       this.events.on('item:collected', ({ item, count, propId, removed }) => {
         if (removed) this.world.setPropDepleted?.(propId, true);
         this.hud.notify(collectedToast(item, count), INTERACT.toastMs);
@@ -826,7 +866,10 @@ export class Game {
           position: () => (this.survival.alive ? this.player.position : null),
           radius: PLAYER.radius,
           height: PLAYER.height,
-          damage: (amount) => this.combat.receiveShot(amount),
+          damage: (amount, from) => {
+            this.br?.notePlayerHit(from);
+            this.combat.receiveShot(amount);
+          },
         }),
       ),
       this.events.on('noise:made', ({ x, z, radius }) => this.creatures.hearNoise(x, z, radius)),
@@ -971,7 +1014,8 @@ export class Game {
    * (`?world=test`) kayıt alınamaz: null.
    */
   createSave(): SaveGame | null {
-    if (!(this.world instanceof RegionWorld) || !this.survival.alive) return null;
+    // Battle Royale maçı kayda girmez (hayatta kalma kaydının üstüne yazılmasın).
+    if (!(this.world instanceof RegionWorld) || !this.survival.alive || this.br) return null;
     return captureSave(this.saveTargets());
   }
 
@@ -994,6 +1038,7 @@ export class Game {
 
     this.placement.cancel();
     this.heldPlacement = null;
+    this.medical.cancel();
     this.butcher.reset();
     this.filler.reset();
     this.dismantler.reset();
@@ -1029,6 +1074,7 @@ export class Game {
 
   /** Yeni oyun: durumu başlangıca döndürür (kayıtlara dokunmaz) ve fare kilidi ister. */
   newGame(): void {
+    this.exitBattleRoyale(false);
     if (this.world instanceof RegionWorld) {
       // Rastgele il/ilçe merkezi başlangıcı; yerleşim verisi yoksa pilot il başlangıcı.
       const city = this.world.cityStart?.(createRandom(seedFrom(Date.now(), randomSeedInt())));
@@ -1061,6 +1107,7 @@ export class Game {
   async loadFromSlot(slot: SlotId): Promise<boolean> {
     const save = await this.saves.load(slot);
     if (!save) return false;
+    this.exitBattleRoyale(false);
     this.loadSave(save);
     this.autosaver.reset();
     return true;
@@ -1232,7 +1279,10 @@ export class Game {
   }
 
   private update(step: number): void {
-    if (!this.survival.alive) return; // ölü: oyun donar, ölüm ekranı gösterilir
+    if (!this.survival.alive) {
+      this.br?.finishStep(); // Battle Royale: oyuncu öldü, maç hızla sonuçlanır
+      return; // ölü: oyun donar, ölüm ekranı gösterilir
+    }
     if (!this.worldReady()) return; // karo akışı: oyuncunun altındaki zemin henüz yüklenmedi
     this.autosaver.update(step);
     this.structureColliders.sync(); // yeni/sökülen katı yapılar oyuncu hareketinden önce
@@ -1253,7 +1303,9 @@ export class Game {
     this.syncHeldPlacement();
     this.placement.update({ ...pose, y: feet.y, pitch: this.playerCamera.pitch });
     this.structureSystem.update(step);
-    this.creatures.update(step, this.creatureContext(activityFromIntent(intent)));
+    if (!this.br || this.br.setup.animals) {
+      this.creatures.update(step, this.creatureContext(activityFromIntent(intent)));
+    }
     this.combat.update(step);
     // Faz 11 akışları (her akış yalnızca kendi yönteminin gövdesini yazar).
     this.updateBuilding2(step);
@@ -1262,6 +1314,8 @@ export class Game {
     this.updateRanged(step);
     this.updateBandits(step);
     this.updateDrone(step);
+    this.updateBattleRoyale(step);
+    this.updateMedical(step);
     // Toplama: bakılan nesneye E basılı tutulur. Nesne toplanabiliyorsa su içmeye göre önceliklidir.
     const held = this.input.interactHeld;
     const nearby = this.world.propsNear?.(feet.x, feet.z, INTERACT.reach) ?? [];
@@ -1313,12 +1367,12 @@ export class Game {
     );
 
     // Diğer insanlar (Faz 10): kinematik yürüyüş; bakılan kişiyle `E` ile konuşulur (basış anında).
-    const peopleWorld = this.guardedPeopleWorld();
+    const peopleWorld = this.br ? null : this.guardedPeopleWorld();
     if (peopleWorld) {
       this.people.update(step, { x: feet.x, z: feet.z, alive: this.survival.alive }, peopleWorld);
     }
     // Satıcılar (dükkân önündeki esnaf): yakındakiler oyuncuya döner; `E` ile dükkân paneli açılır.
-    this.nearbyVendors = this.updateVendors(feet);
+    this.nearbyVendors = this.br ? [] : this.updateVendors(feet);
     this.personTarget =
       interaction.taker === null && this.survival.alive
         ? personInView([...this.people.list(), ...this.nearbyVendors], pose)
@@ -1368,6 +1422,7 @@ export class Game {
     // Tapu: kapısına bakılan satılık (ya da sahip olunan) yerleşim yapısı; `E` basışında tapu konuşması açılır.
     this.propertyFocus =
       settlements &&
+      !this.br &&
       interaction.taker === null &&
       this.personTarget === null &&
       this.storageTarget === null &&
@@ -2085,6 +2140,7 @@ export class Game {
       this.hud.notify(unusableHotbarText(id), INTERACT.toastMs);
       return;
     }
+    this.cancelMedical();
     this.hotbar.select(this.hotbar.selected === slot ? null : slot);
     this.onHeldChanged();
   }
@@ -2092,6 +2148,7 @@ export class Game {
   /** Fare tekerleği: seçimi kaydırır. */
   private cycleHotbar(step: 1 | -1): void {
     if (!this.survival.alive) return;
+    this.cancelMedical();
     this.hotbar.cycle(step);
     this.onHeldChanged(false);
   }
@@ -2104,7 +2161,13 @@ export class Game {
     const slot = this.hotbar.selected;
     const id = this.hotbar.selectedItem;
     // Faz 11 (F): drone hem eşya hem yapı türüdür ama alettir (elde tutulur, kurulmaz): kısayol kuralı belirler.
-    if (slot !== null && id !== null && isStructureKind(id) && hotbarUse(id) === 'place') {
+    if (
+      slot !== null &&
+      id !== null &&
+      isStructureKind(id) &&
+      hotbarUse(id) === 'place' &&
+      !this.br // Battle Royale maçında inşa yok
+    ) {
       if (this.placement.aiming !== id) {
         const result = this.placement.toggle(id);
         const text = toggleToast(result, id);
@@ -2131,6 +2194,10 @@ export class Game {
   private consumeFromHotbar(id: ItemId): void {
     if (!this.inventory.has(id)) {
       this.hud.notify(`Envanterinde ${ITEMS[id].name} yok`, INTERACT.toastMs);
+      return;
+    }
+    if (isMedical(id)) {
+      this.startMedical(id);
       return;
     }
     if (id === 'water_container_full') {
@@ -2475,6 +2542,13 @@ export class Game {
       this.hud.setPrompt(aimPrompt(ghost, cancelKey));
       return;
     }
+    // Sağlık eşyası kullanılıyor: ilerleme halkası.
+    const healing = alive ? this.medical.active : null;
+    if (healing) {
+      this.hud.setPrompt(`${ITEMS[healing.item].name} kullanılıyor…`);
+      this.hud.setProgress(this.medical.progress);
+      return;
+    }
     // Sökme (Faz 9): `X` basılıyken ilerleme ya da engel nedeni her şeyden önce.
     const dismantle = alive && this.input.dismantleHeld ? this.dismantler.offer : null;
     if (dismantle) {
@@ -2632,6 +2706,10 @@ export class Game {
 
   /** C/G: yerleştirme hayaletini aç/kapa; eşya yoksa kısa bildirim. */
   private togglePlacement(kind: StructureKind): void {
+    if (this.br) {
+      this.hud.notify('Maçta yapı kurulmaz', INTERACT.toastMs);
+      return;
+    }
     const text = toggleToast(this.placement.toggle(kind), kind);
     if (text) this.hud.notify(text, INTERACT.toastMs);
   }
@@ -2670,6 +2748,11 @@ export class Game {
   /** Sol tık saldırısı (ölüyken, envanter açıkken ya da duraklatılmışken yok). */
   private attack(): void {
     if (!this.survival.alive || this.overlayOpen || this.loop.paused) return;
+    this.cancelMedical();
+    if (this.br && this.inSanctuary) {
+      this.hud.notify('Camide silah kullanılmaz', INTERACT.toastMs);
+      return;
+    }
     // Faz 11 (D): elde menzilli silah varsa sol tık ateş eder (yakın dövüş yok).
     if (this.fireRanged()) return;
     const result = this.combat.attack(this.meleeAim());
@@ -3072,6 +3155,139 @@ export class Game {
   /** Kamp ateşlerinin zemin yüksekliği (kamp kimliğine göre; bir kez hesaplanır). */
   private readonly campFireY = new Map<number, number>();
 
+  // ── Battle Royale ("Son Kalan"; `src/battleRoyale/`) ──
+
+  /** Süren Battle Royale maçı (yoksa null; arayüz okur). */
+  get battleRoyale(): BrSession | null {
+    return this.br;
+  }
+
+  /**
+   * Battle Royale maçı başlatır: hayatta kalma durumu bellekte saklanır (maç kayda girmez; çıkınca geri yüklenir), maç
+   * planlanır, oyuncu eli boş başlangıç noktasına konur ve fare kilidi istenir. Yerleşim verisi yoksa false.
+   */
+  startBattleRoyale(setup: BrSetup, seed: number = randomSeedInt()): boolean {
+    const world = this.world;
+    const map = world.settlementMap ?? null;
+    const bandits = this.bandits;
+    if (!(world instanceof RegionWorld) || !map || !bandits) return false;
+    if (this.br) this.exitBattleRoyale(false);
+    this.brSnapshot = this.createSave();
+    // Tarayıcı maç sırasında kapanırsa hayatta kalma ilerlemesi kaybolmasın.
+    if (this.brSnapshot) void this.autosave();
+    const terrain = world.terrain;
+    const land = (x: number, z: number, slope: number): boolean =>
+      terrain.contains(x, z) &&
+      terrain.elevationAt(x, z) >= SPAWN_SEARCH.minElevation &&
+      terrain.slopeDegAt(x, z) <= slope;
+    const open = (x: number, z: number): boolean =>
+      land(x, z, BATTLE_ROYALE_OPEN_SLOPE) &&
+      map.buildingAt(x, z, 1) === null &&
+      (world.freshWaterNear?.(x, z) ?? null) === null;
+    const session = new BrSession(
+      setup,
+      seed,
+      {
+        provinces: world.region.provinces,
+        spawnOpen: open,
+        // Son iki daire camiye kapanmaz (camide silah kullanılmaz; orada saklanıp kazanılmasın).
+        zoneCenterOk: (x, z, phase) => {
+          if (!open(x, z)) return false;
+          if (phase < BATTLE_ROYALE.zone.phases.length - 2) return true;
+          const b = map.buildingAt(x, z, BATTLE_ROYALE_MOSQUE_CLEARANCE);
+          return b === null || !isMosque(b.kind);
+        },
+        walkable: (x, z) => land(x, z, REGION_PLAYER.maxSlopeDeg),
+        ready: (x, z) => world.isReadyAt(x, z),
+        lootSpots: lootSpotsOf(
+          map.settlements.map((s) => ({
+            x: s.data.x,
+            z: s.data.z,
+            rank: s.data.rank,
+            radius: s.radius,
+          })),
+        ),
+      },
+      bandits,
+      this.events,
+    );
+    this.br = session;
+    const spawn = session.spawn;
+    const point = world.safePointAt(spawn.x, spawn.z) ?? {
+      x: spawn.x,
+      y: terrain.heightAt(spawn.x, spawn.z) + 0.05,
+      z: spawn.z,
+    };
+    // Eli boş, taze göstergelerle başlanır (yükleme yolu: tek kaynaklı başlangıç durumu).
+    this.loadSave(createNewGameSave(WORLD.id, point, new Date(), spawn.yaw));
+    this.settlePending = true;
+    this.survival.setFreeze({ needs: true, clock: setup.fixedDaylight });
+    this.search.lootSource = (target, key) =>
+      rollBuildingBrLoot(key, target.building, seedFrom(seed, 9));
+    this.search.secondsScale = BATTLE_ROYALE.loot.searchScale;
+    this.autosaver.reset();
+    this.input.requestLock();
+    return true;
+  }
+
+  /**
+   * Maçtan çıkar: yarışmacılar kalkar, sistemler hayatta kalma kipine döner ve maçtan önceki durum geri yüklenir
+   * (`restore` false ise yüklenmez: yeni maç hemen başlayacak).
+   */
+  exitBattleRoyale(restore = true): void {
+    const session = this.br;
+    if (!session) return;
+    session.dispose();
+    this.br = null;
+    this.search.lootSource = null;
+    this.search.secondsScale = 1;
+    this.survival.setFreeze({ needs: false, clock: false });
+    this.medical.cancel();
+    if (!restore) return;
+    const snapshot = this.brSnapshot;
+    this.brSnapshot = null;
+    if (snapshot) this.loadSave(snapshot);
+    else if (this.world instanceof RegionWorld) {
+      this.loadSave(createNewGameSave(WORLD.id, this.world.spawn, new Date(), PILOT_START_YAW));
+      this.settlePending = true;
+    }
+  }
+
+  /** Maç adımı: bölge hasarı oyuncuya işler. */
+  private updateBattleRoyale(dt: number): void {
+    const session = this.br;
+    if (!session) return;
+    const feet = this.player.position;
+    const damage = session.update(dt, { x: feet.x, z: feet.z });
+    if (damage > 0) this.survival.applyDamage(damage, 'zone');
+  }
+
+  /** Sağlık eşyası kullanımı (kısayol ya da envanter): süreli, hasar/saldırı/eşya değişimiyle yarıda kalır. */
+  private startMedical(id: ItemId): void {
+    if (!isMedical(id)) return;
+    const result = this.medical.start(id, this.survival.state.health);
+    const text = {
+      started: `${ITEMS[id].name} kullanılıyor…`,
+      missing: `Envanterinde ${ITEMS[id].name} yok`,
+      full: 'Canın yeterince dolu',
+      busy: 'Zaten iyileşiyorsun',
+    }[result];
+    this.hud.notify(text, INTERACT.toastMs);
+  }
+
+  private cancelMedical(): void {
+    if (!this.medical.active) return;
+    this.medical.cancel();
+    this.hud.notify('İyileşme yarıda kaldı', INTERACT.toastMs);
+  }
+
+  private updateMedical(dt: number): void {
+    const done = this.medical.update(dt, this.survival.state.health);
+    if (!done) return;
+    this.survival.consume({ health: done.heal });
+    this.hud.notify(`${ITEMS[done.item].name}: +${Math.round(done.heal)} can`, INTERACT.toastMs);
+  }
+
   private setupBandits(): void {
     const world = this.world;
     const map = world.settlementMap ?? null;
@@ -3208,10 +3424,11 @@ export class Game {
   private updateBandits(dt: number): void {
     const bandits = this.bandits;
     if (!bandits) return;
-    if (bandits.enabled !== this.banditsEnabled) {
-      bandits.setEnabled(this.banditsEnabled);
-      this.pickpockets.setEnabled(this.banditsEnabled);
-    }
+    // Battle Royale maçında yarışmacılar eşkıya ayarından bağımsızdır; yankesiciler kapalıdır.
+    const enabled = this.br !== null || this.banditsEnabled;
+    if (bandits.enabled !== enabled) bandits.setEnabled(enabled);
+    const pickpockets = this.br === null && this.banditsEnabled;
+    if (this.pickpockets.enabled !== pickpockets) this.pickpockets.setEnabled(pickpockets);
     const feet = this.player.position;
     const clock = this.survival.clock;
     const v = this.player.currentVelocity;
@@ -3242,7 +3459,7 @@ export class Game {
           .filter((c) => (c.kind === 'roe_deer' || c.kind === 'red_deer') && !c.dead)
           .map((c) => ({ id: `${CREATURE_TARGET_PREFIX}${c.id}`, x: c.x, z: c.z })),
     });
-    if (this.pickpocketWorld) {
+    if (this.pickpocketWorld && !this.br) {
       const ctx = {
         player: { x: feet.x, z: feet.z, alive, sanctuary: this.inSanctuary },
         inventory: this.inventory,
