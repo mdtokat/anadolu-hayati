@@ -33,10 +33,13 @@ import { SettlementColliders } from '../src/world/SettlementColliders';
 const DT = 1 / 60;
 const MULTI: ReadonlyArray<{ kind: BuildingKind; floors?: number }> = [
   { kind: 'konak' },
+  { kind: 'konak', floors: 3 },
   { kind: 'lojman' },
   { kind: 'government' },
+  { kind: 'apartment', floors: 2 },
   { kind: 'apartment', floors: 3 },
   { kind: 'apartment', floors: 6 },
+  { kind: 'apartment', floors: 10 },
 ];
 
 const building = (kind: BuildingKind, floors = 4, id = 7): Building =>
@@ -68,7 +71,7 @@ describe('üst kat camları', () => {
   });
 
   it('balkon kapısı ile ön cephe camları çakışmaz', () => {
-    for (const floors of [3, 4, 5, 6]) {
+    for (const floors of [2, 3, 4, 5, 6, 8, 10]) {
       const shape = shapeVariant('apartment', floors);
       expect(shape.balconies).toHaveLength((floors - 1) * 2);
       const holes = windowPanes('apartment', floors).map((p) => paneHole(p, 0));

@@ -1,7 +1,8 @@
-import { ROADS, SETTLEMENT_LAYOUT, SETTLEMENT_STYLES } from '../config';
+import { CITY_SIZE, ROADS, SETTLEMENT_LAYOUT, SETTLEMENT_STYLES } from '../config';
 import type { LandmarkData, RoadClass, SettlementData, SettlementRank } from '../data/settlements';
 import { createRandom, seedFrom } from '../utils/random';
 import { LATTICE_CELL, latticeCol, latticeRow, latticeX, latticeZ } from '../world/lattice';
+import { apartmentFloors, bySize, konakFloors, paintIndex, urbanScale } from './citySize';
 import { FootprintRegistry, type OrientedBox } from './footprints';
 import { BUILDING_OVERHANG, BUILDING_SHAPES, MAX_BURY, isMosque, type BuildingKind } from './kinds';
 import { qiblaAzimuthDeg, yawFacingBackTo } from './qibla';
@@ -69,8 +70,13 @@ export interface Building {
   ruined: boolean;
   /** Renk/doku çeşitlemesi [0, 1). */
   tone: number;
-  /** Apartman kat sayısı (diğerleri 1). */
+  /**
+   * Kat sayısı (zemin dahil): apartman 2–10 ve konak 2–3 kentin büyüklüğüne göre (`citySize.ts`); diğerleri 1 (katlı
+   * diğer yapıların kat sayısı türün sabitidir, `kinds.ts` `storeyCount`).
+   */
   floors: number;
+  /** Apartman cephe boyası: 0 (ya da yok) boyasız beton, 1…n `BUILDING_LOOK.paints` sırası. */
+  paint?: number;
   /** Simge yapının adı (yoksa null). */
   name: string | null;
   /** Kapı önü merdiveni için ayrılan en uzun yer (oyun m; merdiven yoksa 0): merdiven bunu aşmaz. */
@@ -191,8 +197,12 @@ export function layoutSettlement(
   const rank: SettlementRank = settlement.rank;
   const village = rank === 'koy';
   const random = createRandom(seedFrom(seed, settlement.id));
+  // Kentleşme ölçeği (0 küçük kasaba … 1 metropol): kat, karışım, doluluk, harabelik. Köylerde etkisiz (çarpan 1).
+  const urban = urbanScale(settlement);
+  const sized = (pair: readonly [number, number]): number => (village ? 1 : bySize(pair, urban));
   const scale = L.footprintScale[rank];
-  const pitch = L.lotPitch[rank];
+  // Büyük kentte parseller geniş: apartman (10 m) ve dükkân sıraları yan yana sığar.
+  const pitch = L.lotPitch[rank] * sized(CITY_SIZE.lotPitchScale);
   const cells = new Map<number, number>();
   for (let i = 0; i + 2 < settlement.cells.length; i += 3) {
     const c = settlement.cells;
@@ -262,7 +272,7 @@ export function layoutSettlement(
         z: p.z,
         r,
         n,
-        wanted: roll < Math.min(1, n / L.fullDensity[rank]),
+        wanted: roll < Math.min(1, n / (L.fullDensity[rank] * sized(CITY_SIZE.fullDensityScale))),
       });
     }
   }
@@ -396,6 +406,11 @@ export function layoutSettlement(
     return { body, stair, x: p.x, z: p.z, y: floor, base, pad: padLevel };
   };
 
+  const denseThreshold = village ? L.denseThreshold : bySize(CITY_SIZE.denseThreshold, urban);
+  const maxBuildings = Math.min(
+    Math.round(L.maxBuildings[rank] * sized(CITY_SIZE.maxBuildingsScale)),
+    MAX_PER_SETTLEMENT,
+  );
   const add = (
     kind: BuildingKind,
     u: number,
@@ -404,19 +419,34 @@ export function layoutSettlement(
     name: string | null,
     ignore: number | null = null,
   ): Building | null => {
-    if (placed.length >= Math.min(L.maxBuildings[rank], MAX_PER_SETTLEMENT)) return reject('cap');
+    if (placed.length >= maxBuildings) return reject('cap');
     if (isMosque(kind) && mosqueCrowded(u, v)) return reject('mosque_spacing');
     const s = site(kind, u, v, yaw, ignore);
     if (!s) return null;
     const ruinRoll = random.next();
     const tone = random.next();
     const floorsRoll = random.next();
-    const ruined = RUINABLE.has(kind) && ruinRoll < L.ruinChance[rank];
+    const ruined = RUINABLE.has(kind) && ruinRoll < L.ruinChance[rank] * sized(CITY_SIZE.ruinScale);
     const n = densityAt(s.x, s.z);
+    // Kat sayısı kentin büyüklüğüne, merkeze yakınlığa ve yoğunluğa göre (`citySize.ts`).
     const floors =
       kind === 'apartment'
-        ? clamp(Math.round(3 + floorsRoll * 2 + (n >= L.denseThreshold * 2 ? 1 : 0)), 3, 6)
-        : 1;
+        ? apartmentFloors(
+            rank,
+            urban,
+            floorsRoll,
+            1 - Math.hypot(u, v) / radius,
+            n / (2 * denseThreshold),
+          )
+        : kind === 'konak'
+          ? konakFloors(urban, settlement.style === 'osmanli', floorsRoll)
+          : 1;
+    // Cephe boyası ayrı tohumdan: düzenin zar sırasını değiştirmez.
+    let paint = 0;
+    if (kind === 'apartment') {
+      const pr = createRandom(seedFrom(seed, settlement.id, placed.length, 0x9a17));
+      paint = paintIndex(urban, pr.next(), pr.next());
+    }
     placedUV.push({ u, v });
     if (s.pad !== null) {
       const shape = BUILDING_SHAPES[kind];
@@ -450,6 +480,7 @@ export function layoutSettlement(
       ruined,
       tone,
       floors,
+      paint,
       name,
       stairRun: s.stair ? s.stair.hz * 2 : 0,
     };
@@ -652,7 +683,11 @@ export function layoutSettlement(
     if (!curated.has('clock_tower') && rank === 'il') placeNear('clock_tower', 0, 0, null);
     placeNear('fountain', 0, 0, null); // meydan çeşmesi
   }
-  const coffee = rank === 'il' ? 2 : rank === 'ilce' ? 2 : random.next() < 0.6 ? 1 : 0;
+  const coffee = village
+    ? random.next() < 0.6
+      ? 1
+      : 0
+    : Math.round(bySize(CITY_SIZE.kahvehane, urban));
   for (let k = 0; k < coffee; k++) placeNear('kahvehane', 0, 0, null);
   if ((rank === 'il' || settlement.style === 'osmanli') && !village && !curated.has('hamam')) {
     placeNear('hamam', 0, 0, null);
@@ -668,7 +703,7 @@ export function layoutSettlement(
 
   // 3. Konutlar: köyde sayı gerçek binalardan, il/ilçede yoğunluk zarıyla.
   const style = SETTLEMENT_STYLES[settlement.style];
-  const coreRadius = radius * 0.3;
+  const coreRadius = radius * (village ? 0.3 : bySize(CITY_SIZE.coreRadius, urban));
   if (village) {
     const houses = clamp(
       Math.round(settlement.buildings / L.villageBuildingsPerHouse),
@@ -688,10 +723,20 @@ export function layoutSettlement(
       if (usedLots.has(lot) || !lot.wanted) continue;
       const roll = random.next();
       const shopRoll = random.next();
+      const mixRoll = random.next();
       let kind: BuildingKind;
-      if (lot.r < coreRadius && shopRoll < 0.55) kind = 'shop_row';
-      else kind = pickWeighted(lot.n >= L.denseThreshold ? style.dense : style.sparse, roll);
-      if (!tryLot(kind, lot, null) && kind !== 'house') tryLot('house', lot, null);
+      const dense = lot.n >= denseThreshold;
+      if (lot.r < coreRadius && shopRoll < bySize(CITY_SIZE.shopShare, urban)) kind = 'shop_row';
+      else if (!dense && mixRoll < bySize(CITY_SIZE.sparseApartment, urban)) kind = 'apartment';
+      else kind = pickWeighted(dense ? style.dense : style.sparse, roll);
+      // Küçük kasabada yoğun doku da alçak kalır: apartmanın bir kısmı ev/konak olur.
+      if (kind === 'apartment' && dense && mixRoll < bySize(CITY_SIZE.smallTownHouse, urban)) {
+        kind = settlement.style === 'osmanli' ? 'konak' : 'house';
+      }
+      if (tryLot(kind, lot, null) || kind === 'house') continue;
+      // Büyük kentte sığmayan apartmanın yerine ev kurulmayabilir (parsel boş kalır).
+      if (kind === 'apartment' && mixRoll < bySize(CITY_SIZE.skipHouseFallback, urban)) continue;
+      tryLot('house', lot, null);
     }
   }
 

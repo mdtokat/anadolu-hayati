@@ -20,8 +20,10 @@ import {
   ROOMS,
   SHAPE_DIMS,
   WALL_THICKNESS,
+  hasVariableStoreys,
   mosqueOffset,
   shapeVariant,
+  storeyCount,
   storeyPlanOf,
   type BuildingKind,
   type LocalBox,
@@ -29,6 +31,7 @@ import {
 import { BALCONY, balconyDoorHole, type Balcony } from '../settlements/balconies';
 import { PARAPET, SLAB, slabBoxes, stepCount, type StoreyPlan } from '../settlements/storeys';
 import {
+  KONAK_SILL,
   boxesOverlap,
   paneHole,
   subtractHoles,
@@ -927,7 +930,7 @@ function houseParts(random: Random, ruined: boolean): Part[] {
   ];
 }
 
-function konakParts(random: Random, ruined: boolean): Part[] {
+function konakParts(random: Random, ruined: boolean, floors: number): Part[] {
   const { w, d } = D.konak;
   const r = room('konak');
   const ground = r.room;
@@ -938,7 +941,9 @@ function konakParts(random: Random, ruined: boolean): Part[] {
       ...containerParts('konak'),
     ];
   }
-  const plan = storeyPlanOf('konak')!;
+  const plan = storeyPlanOf('konak', floors)!;
+  // Üst kat pencere satırları (her katta bir; `windows.ts` camlarıyla aynı).
+  const upperRows = plan.floorY.slice(1, plan.storeys).map((y) => y + KONAK_SILL);
   const { hw, hd } = innerHalf(w, d);
   const parts: Part[] = [
     // taş zemin kat (oda) ve çıkmalı ahşap üst kat (bağdadi: badanalı sıva + ahşap dikmeler); tavan 1. döşemedir
@@ -965,19 +970,10 @@ function konakParts(random: Random, ruined: boolean): Part[] {
     ...band(w + over - 0.1, d + over - 0.1, ground - 0.1, 0.2, C.timber, 0.05),
     ...windows('front', w, d / 2 + 0.02, [1], 2, [0.6, 0.8], random, 0.4, false, [r.doorX]),
     // üst kat: sık, dikdörtgen pencereler (kafesli görünüm: koyu)
-    ...windows(
-      'front',
-      w + over,
-      (d + over) / 2 + 0.02,
-      [ground + 0.7],
-      5,
-      [0.7, 1.2],
-      random,
-      0.25,
-    ),
-    ...windows('left', d + over, (w + over) / 2 + 0.02, [ground + 0.7], 3, [0.7, 1.2], random),
-    ...windows('right', d + over, (w + over) / 2 + 0.02, [ground + 0.7], 3, [0.7, 1.2], random),
-    ...windows('back', w + over, (d + over) / 2 + 0.02, [ground + 0.7], 4, [0.7, 1.2], random),
+    ...windows('front', w + over, (d + over) / 2 + 0.02, upperRows, 5, [0.7, 1.2], random, 0.25),
+    ...windows('left', d + over, (w + over) / 2 + 0.02, upperRows, 3, [0.7, 1.2], random),
+    ...windows('right', d + over, (w + over) / 2 + 0.02, upperRows, 3, [0.7, 1.2], random),
+    ...windows('back', w + over, (d + over) / 2 + 0.02, upperRows, 4, [0.7, 1.2], random),
     // iç: ocak, sedir, kilim, sini
     ...placeParts(hearth(), 0, -hd + 0.25, 0),
     ...placeParts(sedir(3.4), hw - 0.36, 0.3, -Math.PI / 2),
@@ -995,6 +991,12 @@ function konakParts(random: Random, ruined: boolean): Part[] {
   for (let i = 0; i <= 4; i++) {
     const x = -(w + over) / 2 + ((w + over) / 4) * i;
     parts.push(box(0.12, plan.roofY - ground, 0.06, x, ground, (d + over) / 2 + 0.03, C.timber));
+  }
+  // Ara katlar arası kuşak (3 katlı konak) ve üst kuşak.
+  for (let k = 2; k < plan.storeys; k++) {
+    parts.push(
+      ...band(w + over, d + over, (plan.floorY[k] as number) - 0.16, 0.16, C.timber, 0.03),
+    );
   }
   parts.push(...band(w + over, d + over, plan.roofY - 0.12, 0.12, C.timber, 0.03));
   return parts;
@@ -2001,7 +2003,7 @@ function nearBaseParts(
     case 'house':
       return houseParts(random, ruined);
     case 'konak':
-      return konakParts(random, ruined);
+      return konakParts(random, ruined, floors);
     case 'apartment':
       return apartmentParts(random, floors);
     case 'lojman':
@@ -2162,7 +2164,9 @@ export function buildBuildingGeometry(
   options: { ruined?: boolean; floors?: number } = {},
 ): BufferGeometry {
   const ruined = options.ruined ?? false;
-  const floors = options.floors ?? D.apartment.floors;
+  // Kat sayısı verilmezse türün varsayılanı (apartman 4, konak 2); katsız türlerde yalnız tohuma girer.
+  const floors =
+    options.floors ?? (hasVariableStoreys(kind) ? storeyCount(kind) : D.apartment.floors);
   const random = createRandom(0xb1d + kind.length * 131 + floors * 7 + (ruined ? 3 : 0));
   let parts =
     lod === 'far' ? farParts(kind, ruined, floors) : nearParts(kind, ruined, floors, random);
@@ -2285,8 +2289,10 @@ export function farGenericSpec(
   const h =
     kind === 'apartment'
       ? floors * (s.floorH ?? 2.9)
-      : kind === 'cemetery'
-        ? 0.7
-        : (s.h ?? 4) * (ruined ? 0.55 : 1);
+      : kind === 'konak' && !ruined
+        ? (storeyPlanOf(kind, floors)?.parapetTop ?? s.h ?? 4)
+        : kind === 'cemetery'
+          ? 0.7
+          : (s.h ?? 4) * (ruined ? 0.55 : 1);
   return { w: s.w, h, d: s.d, roofed: !ruined && !flat.includes(kind), tint };
 }

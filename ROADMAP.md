@@ -498,6 +498,19 @@ Elle doğrulanacak:
 - [ ] Kent sokaklarının (Safranbolu, Zonguldak, Amasra, Kastamonu gibi dik kentler) yan yatmadan düz göründüğü; yapıların temel/merdivenlerinin bozulmadığı
 - [ ] Yön levhalarının okunurluğu (gündüz/gece), hedeflerin ve km'lerin mantıklı olduğu; giriş levhalarının yerleri
 
+## Faz 12 sonrası — Bina çeşitliliği ve kent büyüklüğü (kullanıcı talimatı)
+_(Kullanıcı talimatı: "Binaları biraz daha çeşitlendir. Büyük illerin küçük illerden farkı olsun. Yapı olarak, kat sayısı olarak vb.")_
+
+- [x] **Kentleşme ölçeği** (`settlements/citySize.ts`, `config.ts` → `CITY_SIZE`): her il/ilçe merkezine 0 (küçük kasaba) … 1 (metropol) arası ölçek. İl merkezi ilin nüfusundan (yaklaşık TÜİK 2023 tablosu; `settlements.json`'daki nüfus il/kent karışık olduğundan), ilçe il ölçeği + kendi gerçek bina sayısının karışımından (Keçiören/Gebze kentsel, Ankara'nın kırsal ilçeleri orta). Ankara 1, Kocaeli 0,73, Samsun 0,60, Sakarya 0,53, Zonguldak 0,34 … Çankırı 0. Köyler etkilenmez (düzenleri aynı kaldı)
+- [x] **Kat sayısı:** apartman 2–10 kat (önce her yerde 3–6): küçük il merkezi 3–5, metropol 6–10; küçük ilçe 2–4, büyük ilçe 4–8; merkeze yakın ve yoğun dokuda daha yüksek. Konak 2 ya da 3 katlı (büyük kentte ve Osmanlı üslubunda 3 kat daha sık; `kinds.ts` `VARIABLE_STOREYS`/`storeyCount`, üç katlı konakta her katta pencere sırası ve ara kuşak). Her katın camı, merdiveni, kapları ve balkonları mevcut kat sistemiyle gelir
+- [x] **Konut karışımı ve doku:** büyük kentte parseller geniş (`lotPitchScale`: apartman komşusuyla yan yana sığar), "yoğun doku" eşiği düşük, seyrek parselde de apartman, sığmayan apartmanın yerine her zaman ev kurulmaz, daha dolu (`fullDensityScale`), daha çok yapı (`maxBuildingsScale`), daha az harabe (`ruinScale`), daha geniş çarşı çekirdeği ve 3 kahvehane; küçük kasabada yoğun doku da alçak kalır (apartmanın bir kısmı ev/konak). Örnek: Ankara merkezi 7–9 katlı, Kocaeli 6–9, Sincan 5–7; Çankırı, Bilecik, Sinop merkezleri ev ve konak dokusu
+- [x] **Cephe boyası** (`BUILDING_LOOK.paints`, `Building.paint`): apartmanların bir kısmı açık pastel boyalı (krem, şeftali, açık mavi, sarı, açık yeşil, gül); büyük kentte %70'e kadar, küçük kasabada %15. Örnek rengiyle çarpılır: ek draw call yok
+- [x] Testler: `tests/citySize.test.ts` (ölçek, kat aralıkları, sınırlar), `tests/settlementMap.test.ts` (gerçek dünyada büyük illerin kentleri küçüklerinkinden ortalama ≥ 1,5 kat yüksek, en yükseği ≥ 9 kat; küçük illerde ≤ 6), `tests/storeys`/`upperFloors` (2, 10 katlı apartman, 3 katlı konak). Bake yeniden üretildi
+
+Elle doğrulanacak:
+- [ ] Ankara/Kocaeli merkezinin yüksek apartman dokusu ile Çankırı/Sinop/Bilecik gibi küçük merkezlerin alçak ev-konak dokusunun gerçekten farklı göründüğü; cephe boyalarının doğal durduğu (iç mekân da hafif boyaya bürünür)
+- [ ] 8–10 katlı apartmanların merdiven/çatı terasına çıkış ve FPS (yeni kat varyantları: yakında görünen varyant başına +1–2 draw call)
+
 ---
 
 ## Fikir Havuzu

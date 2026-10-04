@@ -4,6 +4,7 @@ import {
   SHAPE_DIMS,
   WALL_THICKNESS,
   mosqueOffset,
+  storeyCount,
   storeyPlanOf,
   type BuildingKind,
   type LocalBox,
@@ -59,6 +60,9 @@ export function paneId(buildingId: number, index: number): number {
   return buildingId * MAX_PANES + index;
 }
 
+/** Konağın üst kat pencerelerinin katın zemininden yüksekliği (oyun m). */
+export const KONAK_SILL = 0.4;
+
 /** Katlı yapının üst kat pencere satırları (görsel `windows()` çağrılarıyla aynı düzen; `buildingGeometry.ts`). */
 function upperRowsOf(kind: BuildingKind, floors: number | undefined): WindowRow[] {
   const D = SHAPE_DIMS;
@@ -69,7 +73,8 @@ function upperRowsOf(kind: BuildingKind, floors: number | undefined): WindowRow[
       const { w, d } = D.konak;
       const over = ROOMS.konak!.over ?? 0;
       const walls = { w: w + over, d: d + over };
-      const rows = [ROOMS.konak!.room + 0.7];
+      // Her üst katta bir sıra (katın zemininden `KONAK_SILL` yukarıda; `buildingGeometry.ts` aynı satırlar).
+      const rows = plan.floorY.slice(1, plan.storeys).map((y) => y + KONAK_SILL);
       const size = [0.7, 1.2] as const;
       return [
         { face: 'front', span: w + over, rows, cols: 5, size, walls },
@@ -208,7 +213,7 @@ const cache = new Map<string, readonly WindowPane[]>();
  * Önbellekli.
  */
 export function windowPanes(kind: BuildingKind, floors?: number): readonly WindowPane[] {
-  const key = kind === 'apartment' ? `${kind}:${floors ?? SHAPE_DIMS.apartment.floors}` : kind;
+  const key = `${kind}:${storeyCount(kind, floors)}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const panes: WindowPane[] = [];

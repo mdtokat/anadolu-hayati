@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { FRESH_WATER, SETTLEMENT_LAYOUT } from '../src/config';
+import { CITY_SIZE, FRESH_WATER, SETTLEMENT_LAYOUT } from '../src/config';
 import type { RegionData } from '../src/data/region';
 import { BUILDING_OVERHANG, BUILDING_SHAPES, MAX_BURY, isMosque } from '../src/settlements/kinds';
 import { boxCorners, quadsOverlap, type OrientedBox } from '../src/settlements/footprints';
@@ -9,6 +9,7 @@ import {
   SettlementMap,
 } from '../src/settlements/SettlementMap';
 import type { Building } from '../src/settlements/layout';
+import { provinceScale } from '../src/settlements/citySize';
 import { noMosqueTowns, targetProvinces } from './helpers/groups';
 import { loadRealWorld } from './helpers/realRegion';
 import { buildSettlementWorld, type SettlementWorld } from './helpers/settlementWorld';
@@ -52,7 +53,10 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
       console.log(`toplam ${map.buildings.length} bina, düzen ${buildMs.toFixed(0)} ms`);
     }
     for (const s of map.settlements) {
-      expect(s.buildings.length).toBeLessThanOrEqual(SETTLEMENT_LAYOUT.maxBuildings[s.data.rank]);
+      // Büyük kentlerde sınır `CITY_SIZE.maxBuildingsScale` kadar yükselir.
+      expect(s.buildings.length).toBeLessThanOrEqual(
+        Math.round(SETTLEMENT_LAYOUT.maxBuildings[s.data.rank] * CITY_SIZE.maxBuildingsScale[1]),
+      );
       // Zonguldak dik kıyı kasabasıdır ve büyütülmüş ayak izi Kozlu'yla örtüşür: üst üste binme yasaklanınca ~23 yapı.
       // Samsun (13) ve Ankara (41) gibi büyükşehirlerde ilçeler çekirdeği önce alır (düzen sırası ilçe → il): alt sınır 12.
       if (s.data.rank === 'il') expect(s.buildings.length).toBeGreaterThanOrEqual(12);
@@ -61,6 +65,49 @@ describe('SettlementMap — gerçek dünya (Faz 10)', () => {
     const provinceCount = targetProvinces(world).length;
     expect(map.buildings.length).toBeGreaterThan(90 * provinceCount);
     expect(map.buildings.length).toBeLessThan(720 * provinceCount);
+  });
+
+  it('büyük illerin kentleri küçük illerinkinden yüksek katlı ve daha apartmanlı (kent büyüklüğü)', () => {
+    const stats = (big: boolean) => {
+      let apartments = 0;
+      let homes = 0;
+      let floors = 0;
+      let maxFloors = 0;
+      let painted = 0;
+      for (const s of map.settlements) {
+        if (s.data.rank === 'koy') continue;
+        const scale = provinceScale(s.data.province);
+        if (big ? scale < 0.5 : scale > 0.1) continue;
+        for (const b of s.buildings) {
+          if (b.kind === 'apartment') {
+            apartments++;
+            floors += b.floors;
+            maxFloors = Math.max(maxFloors, b.floors);
+            if (b.paint) painted++;
+          }
+          if (['apartment', 'house', 'konak', 'lojman'].includes(b.kind)) homes++;
+        }
+      }
+      return {
+        meanFloors: floors / Math.max(1, apartments),
+        maxFloors,
+        apartmentShare: apartments / Math.max(1, homes),
+        paintShare: painted / Math.max(1, apartments),
+      };
+    };
+    const big = stats(true); // Ankara, Kocaeli, Samsun, Sakarya
+    const small = stats(false); // Kırıkkale, Karabük, Bartın, Bilecik, Sinop, Çankırı
+    if (process.env.SETTLEMENT_REPORT) console.log('büyük', big, 'küçük', small);
+    expect(big.meanFloors).toBeGreaterThan(small.meanFloors + 1.5);
+    expect(big.maxFloors).toBeGreaterThanOrEqual(9);
+    expect(small.maxFloors).toBeLessThanOrEqual(6);
+    expect(big.apartmentShare).toBeGreaterThan(small.apartmentShare);
+    expect(big.paintShare).toBeGreaterThan(small.paintShare);
+    // Konaklar 2–3 katlı; diğer türlerde kat alanı 1.
+    for (const b of map.buildings) {
+      if (b.kind === 'konak') expect([2, 3]).toContain(b.floors);
+      else if (b.kind !== 'apartment') expect(b.floors).toBe(1);
+    }
   });
 
   it('her il ve ilçe merkezinde cami var (ayak izi çoğunlukla deniz/dik kıyı olan kıyı kasabaları hariç), camiler kıbleye döner', () => {

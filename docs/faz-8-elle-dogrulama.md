@@ -378,3 +378,12 @@ Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup 
 - [ ] **Giriş levhaları:** il/ilçe merkezine girerken sağda ad, NÜFUS ve RAKIM yazan beyaz levha çıkıyor mu? Kentten çıkarken arka yüzde kırmızı çizgili ad görünüyor mu? Levha yolun üstünde/binanın içinde değil mi?
 - [ ] **Çarpışma ve performans:** levha direklerinin içinden geçilmiyor mu? Levhaların yakınında FPS düşüşü/takılma var mı (yeni levha görünürken atlas yeniden boyanır)?
 - Notlar: ____________________
+
+## 25. Bina çeşitliliği ve kent büyüklüğü (Faz 12 sonrası)
+
+- [ ] **Büyük kent – küçük kasaba farkı:** Ankara (Kızılay çevresi), Kocaeli (İzmit), Sakarya (Adapazarı), Keçiören/Sincan/Gebze 6–10 katlı apartman ağırlıklı mı? Çankırı, Sinop, Bilecik, Bartın merkezleri alçak ev ve konak dokusunda mı? Fark ilk bakışta seçiliyor mu?
+- [ ] **Yüksek apartmanlar:** 8–10 katlı apartmanda merdivenle çatı terasına kadar çıkılabiliyor mu? Üst kat camları, balkonları ve kapları her katta var mı? Uzaktan (uzak kademe) yükseklik doğru mu?
+- [ ] **Üç katlı konaklar:** Safranbolu, Kastamonu, Amasya gibi Osmanlı üsluplu kentlerde bazı konaklar üç katlı mı; her katta pencere sırası ve ara ahşap kuşak görünüyor mu, merdiven çatıya çıkıyor mu?
+- [ ] **Cephe boyaları:** apartmanların bir kısmının pastel boyası (krem, şeftali, açık mavi, sarı, açık yeşil, gül) doğal duruyor mu, gece/gündüz aşırı doygun ya da soluk mu? İç mekânın da hafif boyaya bürünmesi göze batıyor mu?
+- [ ] **Performans:** büyük kent merkezinde draw call (F3) ve FPS; yeni kat varyantları yakında görünen varyant başına +1–2 draw call getirir.
+- Notlar: ____________________
