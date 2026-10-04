@@ -251,7 +251,23 @@ başlangıç aralığı, bölge hasarı.
     başına ≤ 0,3 ms (saniyede 2 adım); tüm haritayı baştan sona hızlı sonuçlandırma ~3 sn (BR.5'te kare bütçesine
     dilimlenecek).
   - Yan düzeltme: `vitest.config.ts` `hookTimeout` 30 sn (tam pakette 4 dosyanın `beforeAll`'u 10 sn'yi aşıyordu).
-- [ ] BR.3 — yakın kademe (yarışmacı üye türü)
+- [x] **BR.3 — yakın kademe** (`battleRoyale/nearTier.ts` `BrNearTier`; `BanditSystem` yarışmacı üye türü; `config.ts`
+  → `BATTLE_ROYALE.near`; testler `tests/brNearTier` (düz dünya + `ai.ts` eklemeleri), `tests/brNearRegion` (gerçek
+  arazi)).
+  - `BanditSystem`: `spawnContestant`/`removeContestant`/`contestantState`/`setContestantGoal`/`setContestantWeapon`/
+    `drainContestant` (bölge hasarı: saldırgansız, kimseyi aramaz)/`setContestantTruce`. Yarışmacı için **her yarışmacı
+    rakiptir** (sokak çetesinin rakip hedeflemesi `isRival` ile genellendi), atışı yalnız kendini vurmaz, nişan hatası
+    zorlukla çarpılır (kolay ×1,7, normal ×1, zor ×0,65), teslim olmaz (`BanditBrain.noSurrender`). Kimlik
+    `CONTESTANT_ID_BASE` (2⁴¹) + maç kimliği.
+  - `ai.ts` (yalnız ekleme): sakin etkinlik `travel` (`BANDIT_ACTIVITIES` sonuna; `home`'a `travelSpeed` hızla gider),
+    `noSurrender`. `HitSource.attacker` ve `bandit:damaged` `by`/`attacker`/`weapon`: öldüren bulunur.
+  - Kademe geçişi: oyuncuya 320 m içindeki, karosu hazır uzak NPC'ler (yakından uzağa, en çok 16) yarışmacıya
+    dönüşür (teçhizat → silah, can aynen); 380 m (çatışıyorsa 500 m) ötesinde soyut kayda döner (teçhizat silahın
+    altına inmez). Sakin yarışmacının hedefini uzak simülasyonla aynı kurallar verir (`FarSim.guide`: ganimet yeri,
+    bölge, akış alanı); ganimet yerinde bekleyenin silahı yükselir; 3 sn'de 0,8 m ilerleyemeyen kaçış noktası seçer
+    (`FarSim.nudge`). Uzak kademenin 90 sn'lik ateşkesi yakında da geçerlidir. Ceset 420 m'ye kadar kalır.
+  - Ölçüm (Zonguldak, 40 kişi, oyuncu il merkezinde dinleniyor, 5 dk): 17 NPC yakına geçti, aynı anda en çok 13,
+    17 elenme (4'ü yakında çatışmada), oyuncuya 139 isabet; üç sistem birlikte adım başına ~0,05 ms.
 - [ ] BR.4 — ganimet ve yeni eşyalar
 - [ ] BR.5 — `Game` entegrasyonu
 - [ ] BR.6 — arayüz

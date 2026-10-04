@@ -13,6 +13,8 @@ export const BANDIT_ACTIVITIES = [
   'hunt',
   'wood',
   'ambush',
+  /** Battle Royale yarışmacısı: verilen hedefe (ganimet yeri, güvenli bölge) yürür/koşar. */
+  'travel',
 ] as const;
 export type BanditActivity = (typeof BANDIT_ACTIVITIES)[number];
 
@@ -68,4 +70,6 @@ export interface BanditView {
   faction?: number;
   /** Görünüm çeşidi (`bandits/styles.ts`; kimlikten türetilir); verilmezse dağ eşkıyası / deri ceket. */
   style?: BanditStyle;
+  /** Battle Royale yarışmacısının maç kimliği (yarışmacı değilse yok). */
+  contestant?: number;
 }

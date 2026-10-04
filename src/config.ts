@@ -3640,6 +3640,31 @@ export const BATTLE_ROYALE = {
       { below: Infinity, weapon: 'sniper_rifle' },
     ],
   },
+  /**
+   * Yakın kademe (BR.3, `battleRoyale/nearTier.ts`): oyuncuya `radius` (oyun m) içindeki ve karosu hazır uzak NPC'ler
+   * tam yapay zekâlı yarışmacıya (`BanditSystem`) dönüşür, `radius + margin` ötesinde (çatışmıyorsa; çatışıyorsa
+   * `radius + 3 · margin`) soyut kayda döner. Aynı anda en çok `maxAgents` (çizim ve atış ışını bütçesi).
+   */
+  near: {
+    radius: 320,
+    margin: 60,
+    maxAgents: 16,
+    /** Hedef yenileme aralığı (sn). */
+    guideInterval: 0.5,
+    /** Hedefi olan yarışmacı `progressWindow` sn'de `minProgress` m'den az ilerlerse kaçış noktası seçer. */
+    progressWindow: 3,
+    minProgress: 0.8,
+    /** Yarışmacının can üst sınırı (oyuncuyla aynı). */
+    maxHealth: 100,
+    /** Ceset oyuncudan bu kadar (oyun m) uzaklaşınca kalkar. */
+    corpseRadius: 420,
+    /** Zorluk: nişan hatası çarpanı (eşkıya = 1). */
+    difficulty: {
+      easy: { aimScale: 1.7 },
+      normal: { aimScale: 1 },
+      hard: { aimScale: 0.65 },
+    },
+  },
   /** Maç başı geri sayım (sn): hareket serbest, silah kapalı. */
   countdownSeconds: 3,
   /** Öldürme listesinde (kill feed) tutulan son olay sayısı. */

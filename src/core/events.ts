@@ -147,11 +147,21 @@ export interface GameEvents {
   /** Bir eşkıya yakın dövüş silahını savurdu (görsel ve ses için): konum (ayak) ve bakış yönü (yaw). */
   'bandit:swung': { id: number; weapon: ItemId; x: number; y: number; z: number; yaw: number };
   /** Bir eşkıya oyuncuyu fark edip saldırıya geçti (çatışma başına bir kez). */
-  'bandit:noticed': { id: number; name: string; gang?: boolean };
+  'bandit:noticed': { id: number; name: string; gang?: boolean; contestant?: boolean };
   /** Şehirde iki rakip sokak çetesi çatışmaya başladı (`site`: yerleşim adı; gün ve yer başına bir kez). */
   'gang:clash': { site: string };
-  /** Bir eşkıya hasar aldı (`killed`: bu vuruşla öldü). */
-  'bandit:damaged': { id: number; amount: number; killed: boolean };
+  /**
+   * Bir eşkıya hasar aldı (`killed`: bu vuruşla öldü). `by`/`attacker`/`weapon`: vuran (oyuncu, eşkıya kimliğiyle ya da
+   * başka — ör. Battle Royale bölge hasarı), bilinmiyorsa yok.
+   */
+  'bandit:damaged': {
+    id: number;
+    amount: number;
+    killed: boolean;
+    by?: 'player' | 'bandit' | 'other';
+    attacker?: number;
+    weapon?: string;
+  };
   /** Ağır yaralı eşkıya teslim oldu ("Aman ağam, canımı bağışla"). */
   'bandit:surrendered': { id: number; name: string };
   /** Teslim olan eşkıya bağışlandı: silahını bıraktı (`weapon`), kaçıyor. */

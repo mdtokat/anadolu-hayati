@@ -88,6 +88,16 @@ export function weaponForGear(gear: number): BanditWeapon {
   return 'sniper_rifle';
 }
 
+/** Silahın teçhizat düzeyi (o silahı veren aralığın alt sınırı; yakın kademeden dönüşte teçhizat bunun altına inmez). */
+export function gearOfWeapon(weapon: BanditWeapon): number {
+  let below = 0;
+  for (const g of BATTLE_ROYALE.far.gearWeapons) {
+    if (g.weapon === weapon) return below;
+    below = g.below;
+  }
+  return 0;
+}
+
 /** Güç: teçhizat ve canla artar. */
 export function fightStrength(agent: Pick<FarAgent, 'gear' | 'health'>): number {
   const f = BATTLE_ROYALE.far;
@@ -125,8 +135,11 @@ export class FarSim {
     private readonly world: FarWorld,
     seed: number,
     starts: ReadonlyArray<{ id: number; x: number; z: number }>,
+    /** Başlangıç saati (maç saniyesi; testlerde ateşkes sonrasından başlamak için). */
+    startTime = 0,
   ) {
     this.rng = createRandom(seed);
+    this.time = startTime;
     for (const s of starts) {
       this.agents.set(s.id, {
         id: s.id,
@@ -348,32 +361,56 @@ export class FarSim {
     a.target = this.pointIn({ x: s.x, z: s.z, r: s.radius });
   }
 
-  private move(a: FarAgent, dt: number, zone: ReturnType<typeof zoneAt>): void {
+  /**
+   * Yakın kademe (BR.3) için rehberlik: oyuncunun yakınında tam yapay zekâyla yaşayan yarışmacının soyut kaydını
+   * (`take` ile alınmış; konumu/canı çağıran günceller) uzak NPC'lerle aynı kurallarla düşündürür. Dönüş: yürüme hedefi
+   * ve hızı, ya da null (ganimet yerinde bekliyor — teçhizat artar — ya da hedefi yok).
+   */
+  guide(a: FarAgent, dt: number, t: number): { x: number; z: number; speed: number } | null {
+    const zone = zoneAt(this.zone.plan, t);
+    this.think(a, zone, t);
+    return this.steering(a, dt, zone);
+  }
+
+  /** Yakın kademe: ilerleyemeyen yarışmacıya kaçış noktası seçtirir (`unstick`). */
+  nudge(a: FarAgent): void {
+    this.unstick(a);
+  }
+
+  /** Hedefe doğru bir sonraki ara nokta ve hız; ganimet yerinde bekliyorsa (teçhizat artar) ya da hedef yoksa null. */
+  private steering(
+    a: FarAgent,
+    dt: number,
+    zone: ReturnType<typeof zoneAt>,
+  ): { x: number; z: number; speed: number } | null {
     const f = BATTLE_ROYALE.far;
     if (a.dwell > 0) {
       a.dwell -= dt;
       const spot = this.world.lootSpots[a.spot];
       if (spot) a.gear += f.lootRate * spot.richness * dt * (1 - a.gear);
-      return;
+      return null;
     }
     const target = a.target;
-    if (!target) return;
-    const d = Math.hypot(target.x - a.x, target.z - a.z);
-    if (d <= ARRIVE) {
+    if (!target) return null;
+    if (Math.hypot(target.x - a.x, target.z - a.z) <= ARRIVE) {
       a.target = null;
       if (a.intent === 'loot' && a.spot >= 0) a.dwell = this.rng.range(f.dwell[0], f.dwell[1]);
-      return;
+      return null;
     }
     if (a.escape && Math.hypot(a.escape.x - a.x, a.escape.z - a.z) <= ARRIVE) a.escape = null;
     // Önce kaçış noktası; bölgeye giderken akış alanının ara noktası (daireye varınca ya da ızgara dışında hedef).
     const steer =
       a.escape ?? ((a.intent === 'zone' && this.flowFor(zone).nextWaypoint(a.x, a.z)) || target);
+    return { x: steer.x, z: steer.z, speed: a.intent === 'zone' ? f.zoneSpeed : f.lootSpeed };
+  }
+
+  private move(a: FarAgent, dt: number, zone: ReturnType<typeof zoneAt>): void {
+    const f = BATTLE_ROYALE.far;
+    const steer = this.steering(a, dt, zone);
+    if (!steer) return;
     const dx = steer.x - a.x;
     const dz = steer.z - a.z;
-    const stepLength = Math.min(
-      Math.max(Math.hypot(dx, dz), 0.01),
-      (a.intent === 'zone' ? f.zoneSpeed : f.lootSpeed) * dt,
-    );
+    const stepLength = Math.min(Math.max(Math.hypot(dx, dz), 0.01), steer.speed * dt);
     const heading = Math.atan2(dz, dx);
     for (const offset of [0, ...f.detourDeg]) {
       const h = heading + (offset * Math.PI) / 180;

@@ -23,6 +23,7 @@ import {
   isMeleeWeapon,
   type BanditActivity,
   type BanditRole,
+  type BanditState,
   type BanditView,
   type BanditWeapon,
 } from './kinds';
@@ -99,6 +100,36 @@ interface Member {
   fight: number | null;
   /** Sokak çetesi: oyuncuyu hedef aldığı bildirildi mi (görüşten çıkınca sıfırlanır)? */
   playerNoticed: boolean;
+  /** Battle Royale yarışmacısının maç kimliği (yarışmacı değilse null): herkes herkese rakiptir. */
+  contestant: number | null;
+  /** Yarışmacının sakin hâldeki hedefi (`travel`); yoksa yerinde durur. */
+  travel: { x: number; z: number; speed: number } | null;
+  /** Nişan hatası çarpanı (Battle Royale zorluğu; 1 = eşkıya). */
+  aimScale: number;
+}
+
+/** Battle Royale yarışmacısını doğurma bilgisi. */
+export interface ContestantSpawn {
+  contestant: number;
+  name: string;
+  x: number;
+  z: number;
+  yaw: number;
+  weapon: BanditWeapon;
+  health: number;
+  maxHealth: number;
+  /** Nişan hatası çarpanı (zorluk). */
+  aimScale: number;
+}
+
+/** Yarışmacının anlık durumu (kademe geçişi, bölge hasarı için). */
+export interface ContestantState {
+  contestant: number;
+  x: number;
+  z: number;
+  health: number;
+  weapon: BanditWeapon;
+  state: BanditState;
 }
 
 /** Bir kampın oturumluk hafızası: ölen/kaçan üyeler (kayda girmez; temizlenen kamp girer). */
@@ -117,9 +148,11 @@ const DRONE_WATCH_STATES: ReadonlySet<string> = new Set([
   'alert',
 ]);
 
-/** Eşkıya kimliği: kamp · 8 + sıra (serbest eşkıyalar büyük ayrı aralıkta). */
+/** Eşkıya kimliği: kamp · 8 + sıra (serbest eşkıyalar ve yarışmacılar büyük ayrı aralıklarda). */
 const MEMBERS_PER_CAMP = 8;
 const FREE_ID_BASE = 2 ** 40;
+/** Battle Royale yarışmacısının eşkıya kimliği = taban + maç kimliği. */
+export const CONTESTANT_ID_BASE = 2 ** 41;
 const TURN_RATE = 6;
 /** Etkinleşme denetimi aralığı (sn). */
 const ACTIVATION_SECONDS = 0.5;
@@ -157,6 +190,8 @@ export class BanditSystem implements TargetProvider {
   private readonly styles = new Map<string, BanditStyle>();
   /** Bu adımın katıları (görüş hattı); `update` doldurur. */
   private solids: SolidQuery | null = null;
+  /** Battle Royale ateşkesi: yarışmacılar kimseyi (oyuncu dahil) hedef almaz. */
+  private truce = false;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
@@ -241,6 +276,7 @@ export class BanditSystem implements TargetProvider {
       searched: m.searched,
       faction: m.gang?.faction ?? -1,
       style: this.styleOf(m),
+      ...(m.contestant !== null ? { contestant: m.contestant } : {}),
     }));
   }
 
@@ -308,7 +344,15 @@ export class BanditSystem implements TargetProvider {
       m.speed = 0;
       this.remember(m, true);
     }
-    this.events.emit('bandit:damaged', { id, amount, killed });
+    const source = from as Partial<HitSource>;
+    this.events.emit('bandit:damaged', {
+      id,
+      amount,
+      killed,
+      ...(source.by ? { by: source.by } : {}),
+      ...(source.attacker !== undefined ? { attacker: source.attacker } : {}),
+      ...(source.weapon ? { weapon: source.weapon } : {}),
+    });
     // Kamp arkadaşları duyar (yakın dövüş sessizdir, ama vurulan bağırır).
     this.hearNoise(m.brain.x, m.brain.z, HURT_CALL_RADIUS);
     this.checkCleared(m.camp);
@@ -463,8 +507,123 @@ export class BanditSystem implements TargetProvider {
       gang: null,
       fight: null,
       playerNoticed: false,
+      contestant: null,
+      travel: null,
+      aimScale: 1,
     });
     return id;
+  }
+
+  // ── Battle Royale yarışmacıları ──
+
+  /** Yarışmacıyı (oyuncuya yakın kademeye geçen NPC) doğurur; aynı kimlikli varsa yenisiyle değişir. */
+  spawnContestant(spec: ContestantSpawn): number {
+    const id = CONTESTANT_ID_BASE + spec.contestant;
+    const brain = createBrain(spec.x, spec.z, spec.yaw, spec.weapon, 'member', 'travel');
+    brain.maxHealth = spec.maxHealth;
+    brain.health = Math.min(spec.health, spec.maxHealth);
+    brain.noSurrender = true;
+    this.members.set(id, {
+      id,
+      camp: null,
+      index: 0,
+      name: spec.name,
+      brain,
+      rng: createRandom(seedFrom(this.seed, spec.contestant, 7)),
+      y: this.world.heightAt(spec.x, spec.z),
+      speed: 0,
+      stride: 0,
+      hitFlash: 0,
+      searched: false,
+      noise: null,
+      freeActivity: 'travel',
+      droneCooldown: 0,
+      gang: null,
+      fight: null,
+      playerNoticed: false,
+      contestant: spec.contestant,
+      travel: null,
+      aimScale: spec.aimScale,
+    });
+    return id;
+  }
+
+  private contestantMember(contestant: number): Member | null {
+    const m = this.members.get(CONTESTANT_ID_BASE + contestant);
+    return m && m.contestant === contestant ? m : null;
+  }
+
+  /** Yarışmacının durumu (yoksa null; ölüyse `state: 'dead'`). */
+  contestantState(contestant: number): ContestantState | null {
+    const m = this.contestantMember(contestant);
+    if (!m) return null;
+    const b = m.brain;
+    return { contestant, x: b.x, z: b.z, health: b.health, weapon: b.weapon, state: b.state };
+  }
+
+  /** Yarışmacıları (canlı ya da ölü) listeler. */
+  contestants(): ContestantState[] {
+    const out: ContestantState[] = [];
+    for (const m of this.members.values()) {
+      if (m.contestant === null) continue;
+      const b = m.brain;
+      out.push({
+        contestant: m.contestant,
+        x: b.x,
+        z: b.z,
+        health: b.health,
+        weapon: b.weapon,
+        state: b.state,
+      });
+    }
+    return out;
+  }
+
+  /** Yarışmacının sakin hâldeki hedefi (null: yerinde durur). */
+  setContestantGoal(
+    contestant: number,
+    goal: { x: number; z: number; speed: number } | null,
+  ): void {
+    const m = this.contestantMember(contestant);
+    if (m) m.travel = goal;
+  }
+
+  /** Battle Royale ateşkesi (maç başı): açıkken yarışmacılar kimseye saldırmaz, yalnız yürür. */
+  setContestantTruce(on: boolean): void {
+    this.truce = on;
+  }
+
+  /** Yarışmacının silahını değiştirir (ganimetle yükselme). */
+  setContestantWeapon(contestant: number, weapon: BanditWeapon): void {
+    const m = this.contestantMember(contestant);
+    if (m && m.brain.state !== 'dead') m.brain.weapon = weapon;
+  }
+
+  /**
+   * Yarışmacıyı dünyadan kaldırır (uzak kademeye dönüş ya da cesedin kalkması); son durumunu döner. Yoksa null.
+   */
+  removeContestant(contestant: number): ContestantState | null {
+    const state = this.contestantState(contestant);
+    if (state) this.members.delete(CONTESTANT_ID_BASE + contestant);
+    return state;
+  }
+
+  /**
+   * Çevresel hasar (Battle Royale bölgesi): saldırgan yoktur — yarışmacı kimseyi aramaz, kaçmaz. Öldüyse true,
+   * yarışmacı yoksa/ölüyse null. Olay `bandit:damaged` (`by: 'other'`).
+   */
+  drainContestant(contestant: number, amount: number): boolean | null {
+    const m = this.contestantMember(contestant);
+    if (!m || m.brain.state === 'dead' || !(amount > 0)) return null;
+    m.brain.health = Math.max(0, m.brain.health - amount);
+    const killed = m.brain.health <= 0;
+    if (killed) {
+      m.brain.state = 'dead';
+      m.brain.stateTime = 0;
+      m.speed = 0;
+    }
+    this.events.emit('bandit:damaged', { id: m.id, amount, killed, by: 'other' });
+    return killed;
   }
 
   // ── Kayıt ──
@@ -556,26 +715,45 @@ export class BanditSystem implements TargetProvider {
     // Sokak çetesi: görüş hattındaki en yakın rakip, oyuncudan yakınsa (ya da oyuncu görünmüyorsa) hedeftir; yapay
     // zekâ rakibi "oyuncu" yerine koyar, vuruş ve atış `act`/`shoot` içinde ona yönlenir.
     m.fight = null;
-    if (m.gang && !sleeping) {
+    if (m.contestant !== null && this.truce) player = null;
+    if ((m.gang || (m.contestant !== null && !this.truce)) && !sleeping) {
       const rival = this.nearestRival(m);
       if (rival && (!player?.visible || rival.dist < player.dist)) {
         player = { x: rival.x, z: rival.z, dist: rival.dist, visible: true, heard: true };
         m.fight = rival.id;
-        const site = this.gangSites[m.gang.site];
-        const key = `${m.gang.site}:${Math.floor(ctx.now / SECONDS_PER_DAY)}`;
+        const site = m.gang ? this.gangSites[m.gang.site] : undefined;
+        const key = `${m.gang?.site}:${Math.floor(ctx.now / SECONDS_PER_DAY)}`;
         if (site && !this.gangClashed.has(key)) {
           this.gangClashed.add(key);
           this.events.emit('gang:clash', { site: site.name });
         }
       }
     }
-    if (m.gang) {
-      // Çete oyuncuyu hedef aldığında bir kez uyarır (rakip çeteyle çatışma bildirim üretmez).
+    if (m.gang || m.contestant !== null) {
+      // Çete/yarışmacı oyuncuyu hedef aldığında bir kez uyarır (rakiple çatışma bildirim üretmez).
       const targetsPlayer = player?.visible === true && m.fight === null;
       if (targetsPlayer && !m.playerNoticed) {
-        this.events.emit('bandit:noticed', { id: m.id, name: m.name, gang: true });
+        this.events.emit('bandit:noticed', {
+          id: m.id,
+          name: m.name,
+          ...(m.gang ? { gang: true } : { contestant: true }),
+        });
       }
       m.playerNoticed = targetsPlayer;
+    }
+    if (m.contestant !== null) {
+      // Yarışmacı: sakin hâlde verilen hedefe yürür/koşar (hedef yoksa yerinde durur).
+      const goal = m.travel;
+      const home = goal ? { x: goal.x, z: goal.z, yaw: b.yaw } : { x: b.x, z: b.z, yaw: b.yaw };
+      return {
+        player,
+        noise: m.noise,
+        activity: 'travel',
+        home,
+        camp: home,
+        prey: null,
+        ...(goal ? { travelSpeed: goal.speed } : {}),
+      };
     }
     const camp = m.camp;
     const layout = camp ? this.layoutOf(camp.id) : null;
@@ -638,6 +816,7 @@ export class BanditSystem implements TargetProvider {
       z: b.z,
       by: 'bandit',
       weapon: b.weapon,
+      attacker: m.id,
     });
   }
 
@@ -664,18 +843,21 @@ export class BanditSystem implements TargetProvider {
     return true;
   }
 
-  /** `m`nin görüş hattındaki en yakın rakip çete üyesi (aynı yerde, farklı çete, canlı ve silahlı/savaşabilir). */
+  /**
+   * `m`nin görüş hattındaki en yakın rakibi: sokak çetesinde aynı yerdeki başka çetenin üyesi, Battle Royale'de başka
+   * herhangi bir yarışmacı (canlı ve savaşabilir).
+   */
   private nearestRival(m: Member): { id: number; x: number; z: number; dist: number } | null {
     const b = m.brain;
     const eye = { x: b.x, y: m.y + BANDITS.eyeHeight, z: b.z };
+    const sight = m.contestant !== null ? BANDITS.sightRange : GANGS.rivalSight;
     let best: { id: number; x: number; z: number; dist: number } | null = null;
     for (const o of this.members.values()) {
-      if (!o.gang || !m.gang || o.gang.site !== m.gang.site || o.gang.faction === m.gang.faction)
-        continue;
+      if (o === m || !isRival(m, o)) continue;
       const s = o.brain.state;
       if (s === 'dead' || s === 'surrender' || s === 'flee') continue;
       const dist = Math.hypot(o.brain.x - b.x, o.brain.z - b.z);
-      if (dist > GANGS.rivalSight || (best && dist >= best.dist)) continue;
+      if (dist > sight || (best && dist >= best.dist)) continue;
       if (!this.lineOfSight(eye, { x: o.brain.x, y: o.y + 1.2, z: o.brain.z })) continue;
       best = { id: o.id, x: o.brain.x, z: o.brain.z, dist };
     }
@@ -684,11 +866,19 @@ export class BanditSystem implements TargetProvider {
 
   private act(m: Member, action: BanditAction, ctx: BanditContext): void {
     const b = m.brain;
-    const from: HitSource = { x: b.x, y: m.y, z: b.z, by: 'bandit', weapon: b.weapon };
+    const from: HitSource = {
+      x: b.x,
+      y: m.y,
+      z: b.z,
+      by: 'bandit',
+      weapon: b.weapon,
+      attacker: m.id,
+    };
     switch (action.type) {
       case 'noticed':
-        // Sokak çetesinin bildirimi `sensesFor`'dadır (rakip çeteyi fark etmek oyuncuya tehlike değildir).
-        if (!m.gang) this.events.emit('bandit:noticed', { id: m.id, name: m.name });
+        // Sokak çetesinin/yarışmacının bildirimi `sensesFor`'dadır (rakibi fark etmek oyuncuya tehlike değildir).
+        if (!m.gang && m.contestant === null)
+          this.events.emit('bandit:noticed', { id: m.id, name: m.name });
         break;
       case 'surrender':
         this.events.emit('bandit:surrendered', { id: m.id, name: m.name });
@@ -738,19 +928,16 @@ export class BanditSystem implements TargetProvider {
     const horizontal = Math.hypot(dx, dz);
     const baseYaw = Math.atan2(dz, dx);
     const basePitch = Math.atan2(targetY - origin.y, horizontal);
-    const errorDeg = BANDITS.ranged[weapon].aimErrorDeg * (m.speed > 0.2 ? 2 : 1) + spec.spreadDeg;
+    const errorDeg =
+      BANDITS.ranged[weapon].aimErrorDeg * m.aimScale * (m.speed > 0.2 ? 2 : 1) + spec.spreadDeg;
     // Atanın kendisi ve diğer eşkıyalar vurulmaz: hedefler eşkıyasız süzülür. Sokak çetesi yalnızca kendi çetesini
-    // korur: rakip çete üyeleri vurulabilir.
-    const gang = m.gang;
+    // korur (rakip çete üyeleri vurulabilir); Battle Royale yarışmacısı herkesi vurabilir (kendisi hariç).
     const targets = {
       targetsNear: (x: number, z: number, r: number) =>
         ctx.targets.targetsNear(x, z, r).filter((t) => {
           if (t.kind !== 'bandit') return true;
-          if (!gang) return false;
           const other = this.members.get(Number(t.id.slice(BANDIT_TARGET_PREFIX.length)));
-          return (
-            other?.gang !== null && other?.gang !== undefined && other.gang.faction !== gang.faction
-          );
+          return other !== undefined && other !== m && isRival(m, other);
         }),
     };
     const shots: Array<{ path?: Array<{ x: number; y: number; z: number }>; time?: number }> = [];
@@ -832,7 +1019,7 @@ export class BanditSystem implements TargetProvider {
     }
     // Serbest (dev) eşkıyalar da çok uzaklaşınca kalkar.
     for (const m of [...this.members.values()]) {
-      if (m.camp || m.gang) continue;
+      if (m.camp || m.gang || m.contestant !== null) continue;
       const d = Math.hypot(m.brain.x - player.x, m.brain.z - player.z);
       if (d > BANDITS.activeRadius + BANDITS.despawnMargin) this.members.delete(m.id);
     }
@@ -877,6 +1064,9 @@ export class BanditSystem implements TargetProvider {
         gang: null,
         fight: null,
         playerNoticed: false,
+        contestant: null,
+        travel: null,
+        aimScale: 1,
       });
     }
   }
@@ -949,6 +1139,9 @@ export class BanditSystem implements TargetProvider {
           gang: { site: siteIndex, faction },
           fight: null,
           playerNoticed: false,
+          contestant: null,
+          travel: null,
+          aimScale: 1,
         });
       });
     }
@@ -1013,6 +1206,17 @@ export class BanditSystem implements TargetProvider {
     }
     return chest;
   }
+}
+
+/** `o`, `m`nin rakibi mi? Sokak çetesi: aynı yerde başka çete; yarışmacı: başka yarışmacı. */
+function isRival(m: Member, o: Member): boolean {
+  if (m.contestant !== null) return o.contestant !== null && o.contestant !== m.contestant;
+  return (
+    m.gang !== null &&
+    o.gang !== null &&
+    o.gang.site === m.gang.site &&
+    o.gang.faction !== m.gang.faction
+  );
 }
 
 /** `items` envantere hep birlikte sığar mı (deneme kopyasında)? */
