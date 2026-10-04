@@ -21,8 +21,10 @@ export const BUILD_BUDGET = {
      * 740 → 850 kB (~%14 pay; uyarı eşiği %90'ın altında kalsın). Faz 12 sonrası (savaş görünümü, ganimet paneli;
      * ardından üst kat camları/kapları, balkonlar, asma köprü, kıyı biçimlendirme: ~+3,6 kB gzip): taban ~269 kB'de
      * bütçenin %99'una dayanmıştı, ölçülen 272,7 kB → 270 → 310 kB gzip (%88: uyarı eşiğinin altında), ham 850 → 950 kB.
+     * Son Kalan sonrası (Son Kalan ~+30 kB; ardından NPC bina yürüyüşü + A* yol bulma, mini harita, dürbünler ve 9 yeni
+     * silahın modelleri/simgeleri: ölçülen 315 kB gzip, ham 938 kB) → 360 kB gzip, ham 1050 kB (%88: uyarı eşiğinin altında).
      */
-    'index.js': { gzipKB: 310, rawKB: 950 },
+    'index.js': { gzipKB: 360, rawKB: 1050 },
     /** Three.js; sürüm yükseltmesinde büyüyebilir. */
     'three.js': { gzipKB: 180, rawKB: 700 },
     /** Rapier: WASM base64 gömülüdür (~4,3 MB ham); `vite.config.ts` uyarı eşiği de bu `rawKB`'dir. */

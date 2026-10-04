@@ -1158,8 +1158,9 @@
   z-index: 1500;
   display: grid;
   place-items: center;
-  background: radial-gradient(ellipse at center, rgba(6, 10, 8, 0.45), rgba(4, 7, 5, 0.78));
-  backdrop-filter: blur(3px);
+  /* Envanter/sandık/ganimet açıkken oyun sürer: arkadaki sahne her karede değişir, bu yüzden bulanıklık
+     (`backdrop-filter`) yok ve perde hafif (çevrede olan biten görülebilsin). */
+  background: radial-gradient(ellipse at center, rgba(6, 10, 8, 0.3), rgba(4, 7, 5, 0.62));
   font: 14px/1.4 var(--ui-font);
   color: var(--ui-text);
 }

@@ -13,6 +13,7 @@ import {
   createBrain,
   scheduledActivity,
   stepBandit,
+  yawTo,
   type BanditAction,
   type BanditBrain,
   type BanditIntent,
@@ -41,6 +42,7 @@ import {
 import { banditName, gangName } from './names';
 import { campStyle, gangStyle, type BanditStyle } from './styles';
 import { perceivePlayer, type BanditPlayer } from './perception';
+import { planPath, type Point } from './navigation';
 
 /**
  * Eşkıyalar (Faz 11, 11.6; saf mantık, kinematik — Rapier'siz): kamplar yakına gelince canlanır, saatlerine göre kamp
@@ -48,6 +50,27 @@ import { perceivePlayer, type BanditPlayer } from './perception';
  * hamle ya da `fireShot` ile atış), siper alır, geri çekilir, ağır yaralıyken teslim olur. Temizlenen kamp kayda girer
  * ve `reoccupyDays` sonra yeniden dolar; kamp sandığının içeriği kayıtlıdır. Hedef sağlayıcısıdır (`bandit:<id>`).
  */
+
+/**
+ * Yerleşim yapılarında yürüyüş (`settlements/buildingWalk.ts` `BuildingWalk` karşılar): kapıdan girilir, duvardan
+ * geçilmez, döşeme/merdiven yüksekliğinde yürünür; hedef başka yapıda/katta ise ara hedef (kapı, merdiven) verir.
+ */
+export interface BanditWalk {
+  surfaceAt(x: number, z: number, prevY: number): number;
+  blocked(x0: number, z0: number, x1: number, z1: number, radius: number, feetY: number): boolean;
+  route(
+    from: { x: number; y: number; z: number },
+    to: { x: number; y: number; z: number },
+  ): { x: number; z: number } | null;
+  /** (x, y, z) girilebilir bir yapının içinde mi (içerideki hedef kanattan sarılmaz, kapıdan girilir)? */
+  locate?(x: number, y: number, z: number): unknown;
+  /** Yakındaki girilebilir yapıların iç noktaları (Son Kalan yarışmacısı içlerine girip ganimet arar). */
+  enterableNear?(
+    x: number,
+    z: number,
+    radius: number,
+  ): ReadonlyArray<{ id: number; x: number; z: number; y: number }>;
+}
 
 /** Eşkıyaların dünyadan istediği (RegionWorld karşılar; testte sahte). */
 export interface BanditWorld {
@@ -73,6 +96,41 @@ export interface BanditContext {
   drone?: { x: number; y: number; z: number } | null;
   /** Mermiyi ve görüşü kesen katılar (bina duvarları, oyuncu yapıları); yoksa yalnızca arazi keser. */
   solids?: SolidQuery;
+  /**
+   * Yerleşim yapılarında yürüyüş (verilirse eşkıyalar kapıdan binalara girer, katlara çıkar; `obstacles` yapı ayak
+   * izlerini engel saymamalı). Yoksa yürüyüş arazidedir.
+   */
+  walk?: BanditWalk;
+}
+
+/** Yürüyüş ve taktik hafızası (oturumluk; ilk hareketle kurulur). */
+interface NavState {
+  /** A* ile bulunan yol (sıradaki noktalar) ve bulunduğu hedef. */
+  path: Point[] | null;
+  pathGoal: Point | null;
+  pathAge: number;
+  /** Doğrudan ilerleyemediği süre (sn) ve yeniden planlamaya kalan süre. */
+  stuck: number;
+  planWait: number;
+  /** İlerleme izleme: hedefe en yakın uzaklık, ölçülen hedef ve yaklaşmadan geçen süre (yana sapıp duruyorsa yol ara). */
+  bestDist: number;
+  progressGoal: Point | null;
+  noProgress: number;
+  /** Son adım engelden sapma ya da durma mıydı (doğrudan yürüyen, hedef kaçsa da yol aramaz)? */
+  lastDetour: boolean;
+  /** Engelden sapma yönü (yapışkan: iki yana titremesin). */
+  side: 1 | -1;
+  /** Bina duvarlarını yok sayan kurtulma süresi (duvarın içinde doğduysa). */
+  unstick: number;
+  /** Siper noktası ve yaşı (sn). */
+  cover: (Point & { y: number }) | null;
+  coverAge: number;
+  /** Oyuncunun son görüldüğü ayak yüksekliği (bina katı). */
+  lastPlayerY: number;
+  /** Son Kalan yarışmacısının girip aradığı yapı. */
+  loot: { id: number; x: number; z: number; y: number; dwell: number } | null;
+  looted: Set<number>;
+  lootWait: number;
 }
 
 /** Bir eşkıyanın simülasyon kaydı. */
@@ -106,6 +164,8 @@ interface Member {
   travel: { x: number; z: number; speed: number } | null;
   /** Nişan hatası çarpanı (Battle Royale zorluğu; 1 = eşkıya). */
   aimScale: number;
+  /** Yürüyüş/taktik hafızası (ilk hareketle kurulur). */
+  nav?: NavState;
 }
 
 /** Battle Royale yarışmacısını doğurma bilgisi. */
@@ -163,6 +223,29 @@ export const BANDIT_RADIUS = 0.38;
 export const BANDIT_HEIGHT = 1.8;
 const SECONDS_PER_DAY = 86_400;
 export const BANDIT_TARGET_PREFIX = 'bandit:';
+/**
+ * Yürünebilen en dik arazi (derece). Oyuncu 60°'ye kadar tırmanır (dikey ölçek gerçek yamaçları ×3,3 dikleştirir);
+ * NPC'ler biraz daha az: kent teraslarının şevlerinde (55°'ye kadar) oyuncuyu izleyebilsinler.
+ */
+const MAX_SLOPE_DEG = 55;
+/** Bir adımda inilebilecek en büyük yükseklik (oyun m; merdiven boşluğundan düşme gibi). */
+const STEP_DOWN = 3.2;
+/** Engelde denenecek sapma açıları (radyan; yapışkan taraf önce). */
+const DETOURS = [0.5, 1.0, 1.6] as const;
+/** Bu kadar (sn) ilerleyemeyince yol aranır; aramalar arası bekleme ve yolun ömrü (sn). */
+const STUCK_PLAN = 0.35;
+const PLAN_WAIT = 1.2;
+const PATH_LIFETIME = 6;
+/** Bu kadar (sn) hiç ilerleyemeyen gövde bina duvarlarını kısa süre yok sayar (duvarın içinde kalmış). */
+const STUCK_UNSTICK = 3;
+/** Siper araması: halkalar (oyun m), halka başına yön ve siperin yenilenme süresi (sn). */
+const COVER_RINGS = [3.5, 6, 9] as const;
+const COVER_DIRECTIONS = 12;
+const COVER_REFRESH = 2.5;
+/** Son Kalan yarışmacısının yapı arama yarıçapı, arama aralığı ve içeride bekleme (sn). */
+const LOOT_RADIUS = 28;
+const LOOT_INTERVAL = 14;
+const LOOT_DWELL = 3;
 
 export class BanditSystem implements TargetProvider {
   private readonly members = new Map<number, Member>();
@@ -190,6 +273,7 @@ export class BanditSystem implements TargetProvider {
   private readonly styles = new Map<string, BanditStyle>();
   /** Bu adımın katıları (görüş hattı); `update` doldurur. */
   private solids: SolidQuery | null = null;
+  private walk: BanditWalk | null = null;
   /** Battle Royale ateşkesi: yarışmacılar kimseyi (oyuncu dahil) hedef almaz. */
   private truce = false;
   /** Kamplar, sokak çeteleri ve serbest eşkıyalar (Battle Royale maçında kapalı; yarışmacılar etkilenmez). */
@@ -688,6 +772,7 @@ export class BanditSystem implements TargetProvider {
     if (!this.enabledFlag) return;
     this.startNow ??= ctx.now;
     this.solids = ctx.solids ?? null;
+    this.walk = ctx.walk ?? null;
     this.reoccupy(ctx.now);
     this.sinceActivation += dt;
     if (this.sinceActivation >= ACTIVATION_SECONDS && this.wildEnabled) {
@@ -701,7 +786,10 @@ export class BanditSystem implements TargetProvider {
   private updateMember(m: Member, dt: number, ctx: BanditContext): void {
     m.hitFlash = Math.max(0, m.hitFlash - dt * 4);
     if (m.brain.state === 'dead') return;
-    const senses = this.sensesFor(m, ctx);
+    const nav = this.navOf(m);
+    nav.coverAge += dt;
+    nav.lootWait = Math.max(0, nav.lootWait - dt);
+    const senses = this.sensesFor(m, ctx, dt);
     m.noise = null;
     const struckBefore = m.brain.struck;
     const result = stepBandit(m.brain, senses, dt, m.rng);
@@ -718,7 +806,7 @@ export class BanditSystem implements TargetProvider {
     }
     for (const action of result.actions) this.act(m, action, ctx);
     this.watchDrone(m, dt, ctx);
-    this.move(m, result.intent, dt, ctx.obstacles ?? NO_OBSTACLES);
+    this.move(m, result.intent, dt, ctx.obstacles ?? NO_OBSTACLES, ctx);
     // Bağışlanıp kaçan eşkıya süre dolunca ya da uzaklaşınca kaybolur.
     if (m.brain.state === 'flee') {
       const far =
@@ -730,7 +818,36 @@ export class BanditSystem implements TargetProvider {
     }
   }
 
-  private sensesFor(m: Member, ctx: BanditContext): BanditSenses {
+  private sensesFor(m: Member, ctx: BanditContext, dt = 0): BanditSenses {
+    const senses = this.baseSenses(m, ctx, dt);
+    const b = m.brain;
+    const nav = this.navOf(m);
+    if (senses.player?.visible) nav.lastPlayerY = m.fight !== null ? this.rivalY(m) : ctx.player.y;
+    // Kanattan sarma açık arazide: hedef ya da kendisi bir binanın içindeyse kapıya doğrudan gider.
+    const p = senses.player;
+    const indoors =
+      this.walk?.locate !== undefined &&
+      ((p !== null && this.walk.locate(p.x, nav.lastPlayerY, p.z) !== null) ||
+        this.walk.locate(b.x, m.y, b.z) !== null);
+    senses.flank = indoors ? 0 : flankOf(m.id);
+    // Siper: vurulup siper alan ya da geri çekilen tehdidin görüş hattı dışında bir nokta arar (yenilenir).
+    if ((b.state === 'cover' || b.state === 'retreat') && senses.player) {
+      if (!nav.cover || nav.coverAge >= COVER_REFRESH || b.stateTime < dt * 1.5) {
+        nav.coverAge = 0;
+        nav.cover = this.findCover(m, {
+          x: senses.player.x,
+          y: nav.lastPlayerY,
+          z: senses.player.z,
+        });
+      }
+      senses.cover = nav.cover;
+    } else if (nav.cover) {
+      nav.cover = null;
+    }
+    return senses;
+  }
+
+  private baseSenses(m: Member, ctx: BanditContext, dt: number): BanditSenses {
     const b = m.brain;
     const sleeping = b.state === 'sleep';
     let player = perceivePlayer(
@@ -770,8 +887,10 @@ export class BanditSystem implements TargetProvider {
       m.playerNoticed = targetsPlayer;
     }
     if (m.contestant !== null) {
-      // Yarışmacı: sakin hâlde verilen hedefe yürür/koşar (hedef yoksa yerinde durur).
-      const goal = m.travel;
+      // Yarışmacı: sakin hâlde verilen hedefe yürür/koşar (hedef yoksa yerinde durur). Acelesi yoksa yolundaki
+      // binalara girip ganimet arar (kapıdan girer, biraz bekler, çıkar).
+      const loot = this.contestantLoot(m, dt);
+      const goal = loot ? { x: loot.x, z: loot.z, speed: BANDITS.walkSpeed } : m.travel;
       const home = goal ? { x: goal.x, z: goal.z, yaw: b.yaw } : { x: b.x, z: b.z, yaw: b.yaw };
       return {
         player,
@@ -1006,32 +1125,287 @@ export class BanditSystem implements TargetProvider {
     });
   }
 
-  /** Kinematik yürüyüş: yürünebilir (eğim, deniz, engel) değilse yana sapar, olmazsa durur. */
-  private move(m: Member, intent: BanditIntent, dt: number, obstacles: ObstacleQuery): void {
+  /**
+   * Kinematik yürüyüş (kullanıcı talimatı: "NPC'lerin hareketleri daha akıllı olsun"): hedef başka bir binanın içindeyse
+   * ya da başka kattaysa yapı yürüyüşünün ara hedefine (kapı önü, kapı içi, merdiven), takılınca A* ile bulunan yola
+   * gider; engelde yapışkan bir yana sapar. Yürüme yüzeyi arazi ya da bina döşemesi/merdivenidir.
+   */
+  private move(
+    m: Member,
+    intent: BanditIntent,
+    dt: number,
+    obstacles: ObstacleQuery,
+    ctx?: BanditContext,
+  ): void {
     const b = m.brain;
     const face = intent.speed > 0 ? intent.heading : (intent.face ?? b.yaw);
     b.yaw = turnToward(b.yaw, face, TURN_RATE * dt);
     m.speed = 0;
-    if (intent.speed <= 0) return;
+    const nav = this.navOf(m);
+    nav.pathAge += dt;
+    nav.planWait = Math.max(0, nav.planWait - dt);
+    nav.unstick = Math.max(0, nav.unstick - dt);
+    if (intent.speed <= 0) {
+      nav.stuck = 0;
+      return;
+    }
+    const walk = this.walk;
+    // Gidilen nokta: niyetin hedefi; yoksa yön boyunca birkaç metre ileri (yana kaçış, geri çekilme).
+    const goal: Point = intent.target ?? {
+      x: b.x - Math.sin(intent.heading) * 6,
+      z: b.z - Math.cos(intent.heading) * 6,
+    };
+    let aim: Point = goal;
+    if (walk && intent.target) {
+      const goalY = this.targetY(m, intent.target, ctx);
+      aim = walk.route({ x: b.x, y: m.y, z: b.z }, { x: goal.x, y: goalY, z: goal.z }) ?? goal;
+    }
+    const routeAim = aim;
+    // A* yolu: aynı hedefe gidiyorsa sıradaki noktası izlenir.
+    if (nav.path && nav.pathGoal && nav.pathAge < PATH_LIFETIME) {
+      if (Math.hypot(nav.pathGoal.x - routeAim.x, nav.pathGoal.z - routeAim.z) > 2.5) {
+        nav.path = null;
+      } else {
+        while (nav.path.length > 0 && Math.hypot(nav.path[0]!.x - b.x, nav.path[0]!.z - b.z) < 0.6)
+          nav.path.shift();
+        if (nav.path.length > 0) aim = nav.path[0]!;
+        else nav.path = null;
+      }
+    } else {
+      nav.path = null;
+    }
+    // İlerleme: hedefe (ara hedef dahil) yaklaşmıyorsa (engelin önünde yana kayıp duruyorsa) yol aranır.
+    if (
+      !nav.progressGoal ||
+      Math.hypot(nav.progressGoal.x - routeAim.x, nav.progressGoal.z - routeAim.z) > 2
+    ) {
+      nav.progressGoal = { x: routeAim.x, z: routeAim.z };
+      nav.bestDist = Infinity;
+      nav.noProgress = 0;
+    }
+    const toAim = Math.hypot(routeAim.x - b.x, routeAim.z - b.z);
+    if (toAim < nav.bestDist - 0.05) {
+      nav.bestDist = toAim;
+      nav.noProgress = 0;
+    } else if (intent.target && nav.lastDetour) {
+      nav.noProgress += dt;
+    }
+    if (nav.noProgress >= STUCK_PLAN * 2 && nav.planWait <= 0 && !nav.path) {
+      this.planRoute(m, nav, routeAim, obstacles);
+      if (nav.path) aim = nav.path[0]!;
+      nav.noProgress = 0;
+    }
+    const heading = aim === goal && !intent.target ? intent.heading : yawTo(b.x, b.z, aim.x, aim.z);
     const stepLen = intent.speed * dt;
-    for (const offset of [0, 0.6, -0.6, 1.2, -1.2]) {
-      const heading = intent.heading + offset;
-      const nx = b.x - Math.sin(heading) * stepLen;
-      const nz = b.z - Math.cos(heading) * stepLen;
-      if (!this.walkable(nx, nz)) continue;
-      if (obstacles.blocked(b.x, b.z, nx, nz, BANDIT_RADIUS)) continue;
+    const offsets: number[] = [0];
+    for (const d of nav.path ? [0.35] : DETOURS) offsets.push(d * nav.side, -d * nav.side);
+    for (const offset of offsets) {
+      const h = heading + offset;
+      const nx = b.x - Math.sin(h) * stepLen;
+      const nz = b.z - Math.cos(h) * stepLen;
+      const y = this.stepFrom(b.x, b.z, m.y, nx, nz, obstacles, nav.unstick > 0);
+      if (y === null) continue;
       b.x = nx;
       b.z = nz;
-      m.y = this.world.heightAt(nx, nz);
+      m.y = y;
       m.speed = intent.speed;
       m.stride += stepLen;
-      if (offset !== 0) b.yaw = turnToward(b.yaw, heading, TURN_RATE * dt);
+      nav.lastDetour = offset !== 0;
+      if (offset !== 0) {
+        b.yaw = turnToward(b.yaw, h, TURN_RATE * dt);
+        if (!nav.path) nav.side = offset > 0 ? 1 : -1;
+      }
+      nav.stuck = Math.max(0, nav.stuck - dt * 2);
       return;
+    }
+    // Hiçbir yöne gidemedi: kısa süre sonra çevrede yol arar; bulamazsa sapma tarafını değiştirir.
+    nav.lastDetour = true;
+    nav.stuck += dt;
+    if (nav.stuck >= STUCK_PLAN && nav.planWait <= 0) this.planRoute(m, nav, routeAim, obstacles);
+    if (nav.stuck >= STUCK_UNSTICK && walk) {
+      nav.unstick = 0.6;
+      nav.stuck = 0;
     }
   }
 
-  private walkable(x: number, z: number): boolean {
-    return !this.world.isSea(x, z) && this.world.slopeDegAt(x, z) <= 45;
+  /**
+   * (x0, z0)'da ayağı `y0`'da olan gövde (x1, z1)'e adım atabilir mi: deniz, oyuncu yapıları/ağaç/kaya, bina duvarları
+   * (`ignoreWalls` değilse), arazide eğim; çıkılamayacak kadar yüksek ya da düşülemeyecek kadar alçak yüzey. Atabiliyorsa
+   * yeni ayak yüksekliği.
+   */
+  private stepFrom(
+    x0: number,
+    z0: number,
+    y0: number,
+    x1: number,
+    z1: number,
+    obstacles: ObstacleQuery,
+    ignoreWalls: boolean,
+  ): number | null {
+    if (this.world.isSea(x1, z1)) return null;
+    if (obstacles.blocked(x0, z0, x1, z1, BANDIT_RADIUS)) return null;
+    const walk = this.walk;
+    if (!walk) {
+      if (this.world.slopeDegAt(x1, z1) > MAX_SLOPE_DEG) return null;
+      return this.world.heightAt(x1, z1);
+    }
+    if (!ignoreWalls && walk.blocked(x0, z0, x1, z1, BANDIT_RADIUS, y0)) return null;
+    const ground = this.world.heightAt(x1, z1);
+    const y = walk.surfaceAt(x1, z1, y0);
+    // Arazide (yapı yüzeyi değil) eğim kuralı geçerlidir.
+    if (y <= ground + 0.05 && this.world.slopeDegAt(x1, z1) > MAX_SLOPE_DEG) return null;
+    if (y < y0 - STEP_DOWN && !ignoreWalls) return null;
+    return y;
+  }
+
+  /** A* ile `aim`'e yol arar (bulunamazsa sapma tarafını değiştirir). */
+  private planRoute(m: Member, nav: NavState, aim: Point, obstacles: ObstacleQuery): void {
+    const b = m.brain;
+    nav.planWait = PLAN_WAIT;
+    const path = planPath({ x: b.x, y: m.y, z: b.z }, aim, (x0, z0, y0, x1, z1) =>
+      this.stepFrom(x0, z0, y0, x1, z1, obstacles, false),
+    );
+    if (path && path.length > 0) {
+      nav.path = path;
+      nav.pathGoal = { x: aim.x, z: aim.z };
+      nav.pathAge = 0;
+    } else {
+      nav.side = nav.side > 0 ? -1 : 1;
+    }
+  }
+
+  private navOf(m: Member): NavState {
+    m.nav ??= {
+      path: null,
+      pathGoal: null,
+      pathAge: 0,
+      stuck: 0,
+      planWait: 0,
+      bestDist: Infinity,
+      progressGoal: null,
+      noProgress: 0,
+      lastDetour: false,
+      side: (m.id & 1) === 0 ? 1 : -1,
+      unstick: 0,
+      cover: null,
+      coverAge: Infinity,
+      lastPlayerY: m.y,
+      loot: null,
+      looted: new Set(),
+      lootWait: LOOT_INTERVAL * 0.5,
+    };
+    return m.nav;
+  }
+
+  /** Niyetin hedef noktasının ayak yüksekliği (oyuncu/rakip/siper/ganimet yapısı; değilse arazi). */
+  private targetY(m: Member, target: Point, ctx?: BanditContext): number {
+    const near = (p: { x: number; z: number } | null | undefined): boolean =>
+      !!p && Math.abs(p.x - target.x) < 0.6 && Math.abs(p.z - target.z) < 0.6;
+    const nav = this.navOf(m);
+    if (m.fight !== null) {
+      const rival = this.members.get(m.fight);
+      if (rival && near(rival.brain)) return rival.y;
+    }
+    if (ctx && near(ctx.player)) return ctx.player.y;
+    // Saldırırken oyuncunun çevresindeki nokta (kanat) oyuncunun katındadır.
+    const fighting = m.brain.state === 'chase' || m.brain.state === 'shoot';
+    if (
+      ctx &&
+      m.fight === null &&
+      fighting &&
+      Math.hypot(ctx.player.x - target.x, ctx.player.z - target.z) < 14
+    ) {
+      return ctx.player.y;
+    }
+    if (near(m.brain.lastSeen)) return nav.lastPlayerY;
+    if (nav.cover && near(nav.cover)) return nav.cover.y;
+    if (nav.loot && near(nav.loot)) return nav.loot.y;
+    return this.world.heightAt(target.x, target.z);
+  }
+
+  private rivalY(m: Member): number {
+    const rival = m.fight !== null ? this.members.get(m.fight) : undefined;
+    return rival ? rival.y : m.y;
+  }
+
+  /**
+   * Tehdidin (`threat`, ayak yüksekliğiyle) görüş hattının dışında kalan yakın bir nokta (arazi, bina duvarı, oyuncu
+   * yapısı keser); bulunamazsa null (yapay zekâ yana kaçar). Tehdide yaklaştıran noktalar seçilmez.
+   */
+  private findCover(
+    m: Member,
+    threat: { x: number; y: number; z: number },
+  ): (Point & { y: number }) | null {
+    const b = m.brain;
+    const eye = { x: threat.x, y: threat.y + BANDITS.eyeHeight, z: threat.z };
+    const current = Math.hypot(b.x - threat.x, b.z - threat.z);
+    const walk = this.walk;
+    const start = m.rng.next() * Math.PI * 2;
+    for (const r of COVER_RINGS) {
+      for (let k = 0; k < COVER_DIRECTIONS; k++) {
+        const a = start + (k * 2 * Math.PI) / COVER_DIRECTIONS;
+        const x = b.x + Math.cos(a) * r;
+        const z = b.z + Math.sin(a) * r;
+        if (Math.hypot(x - threat.x, z - threat.z) < Math.max(4, current * 0.75)) continue;
+        if (this.world.isSea(x, z)) continue;
+        const ground = this.world.heightAt(x, z);
+        const y = walk ? walk.surfaceAt(x, z, m.y) : ground;
+        if (y <= ground + 0.05 && this.world.slopeDegAt(x, z) > MAX_SLOPE_DEG) continue;
+        if (Math.abs(y - m.y) > 3) continue;
+        if (this.lineOfSight(eye, { x, y: y + 1.2, z })) continue;
+        return { x, z, y };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Son Kalan yarışmacısının yapı araması: acelesi yokken (yürüyerek gidiyorsa) ara sıra yakındaki aranmamış bir
+   * binanın içine girer, biraz bekler (ganimet), sonra yoluna döner. Çatışmada ya da koşarken yok.
+   */
+  private contestantLoot(m: Member, dt: number): { x: number; z: number } | null {
+    const nav = this.navOf(m);
+    const walk = this.walk;
+    const b = m.brain;
+    if (!walk?.enterableNear || b.state !== 'travel' || this.truce) {
+      nav.loot = null;
+      return null;
+    }
+    const goal = m.travel;
+    if (goal && goal.speed > BANDITS.walkSpeed * 1.2) {
+      nav.loot = null;
+      return null;
+    }
+    if (nav.loot) {
+      if (
+        Math.hypot(nav.loot.x - b.x, nav.loot.z - b.z) < 1.4 &&
+        Math.abs(nav.loot.y - m.y) < 1.2
+      ) {
+        nav.loot.dwell += dt;
+        if (nav.loot.dwell >= LOOT_DWELL) {
+          nav.looted.add(nav.loot.id);
+          nav.loot = null;
+          nav.lootWait = LOOT_INTERVAL;
+          return null;
+        }
+      }
+      return nav.loot;
+    }
+    if (nav.lootWait > 0) return null;
+    nav.lootWait = LOOT_INTERVAL;
+    let best: { id: number; x: number; z: number; y: number } | null = null;
+    let bestD = Infinity;
+    for (const c of walk.enterableNear(b.x, b.z, LOOT_RADIUS)) {
+      if (nav.looted.has(c.id)) continue;
+      const d = Math.hypot(c.x - b.x, c.z - b.z);
+      if (d < bestD) {
+        best = c;
+        bestD = d;
+      }
+    }
+    if (!best || m.rng.next() > 0.65) return null;
+    nav.loot = { ...best, dwell: 0 };
+    return nav.loot;
   }
 
   /** Oyuncuya yakın kampları canlandırır, uzaktakileri kaldırır. */
@@ -1258,4 +1632,10 @@ function turnToward(from: number, to: number, maxStep: number): number {
   delta = Math.atan2(Math.sin(delta), Math.cos(delta));
   if (Math.abs(delta) <= maxStep) return to;
   return from + Math.sign(delta) * maxStep;
+}
+
+/** Eşkıyaya özgü sabit kanat payı (−1…1; kimlikten): grup hedefi farklı yönlerden sarar. */
+function flankOf(id: number): number {
+  const h = Math.imul((id % 2 ** 31) ^ 0x5bd1e995, 0x9e3779b1) >>> 0;
+  return (h / 2 ** 32) * 2 - 1;
 }

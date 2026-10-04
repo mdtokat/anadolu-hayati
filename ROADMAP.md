@@ -544,6 +544,24 @@ Kabul kriterleri:
 
 ---
 
+## Son Kalan sonrası — NPC'ler binalarda, dürbünler, yeni silahlar, mini harita (kullanıcı talimatı)
+_(Kullanıcı talimatı: "Tüm modlarda NPC'ler de binalara girebiliyor olsun. NPC'lerin hareketleri daha da akıllı olsun. Silahlara takılan dürbünler 2x 4x 8x 16x olsun ve 16x'e doğru bulunabilirlik azalsın. Silah çeşitlerini arttır. Oyuna minimap ekle, survival modda üretilerek elde edilsin, battle royal modda map verilsin; kullanıcı konumu ve battle royale'de bölge görünsün. Envanter veya loot ekranı açıkken oyun durmasın, Esc ile dursun.")_
+
+- [x] **Canlı paneller:** envanter, sandık ve ganimet paneli açıkken dünya işler (oyuncu durur, girdisi yok sayılır); Esc paneli kapatıp oyunu duraklatır
+- [x] **Dürbünler:** 2x/4x (eski "Dürbün")/8x/16x, envanterden silaha takılır (`scopeMax`), nişanda görüş açısı büyütmeyle daralır, büyük dürbün daha çok sallanır; ganimette büyütme arttıkça nadir
+- [x] **Yeni silahlar:** altıpatlar, hafif makineli, taarruz tüfeği, yarı otomatik tüfek, makineli tüfek, arbalet (seri atış: sol tık basılı), yatağan, savaş baltası, gürz; eşkıya/çete/yarışmacı silahlarına altıpatlar, hafif makineli, taarruz tüfeği, yatağan
+- [x] **Mini harita:** hayatta kalmada üretilen Harita (tezgâh: kabuk + kömür) envanterdeyken, Son Kalan'da her zaman; arazi, su, yol, yapılar, oyuncu oku; maçta güvenli bölge ve sonraki daire
+- [x] **NPC'ler binalarda:** eşkıya, sokak çetesi ve yarışmacı kapıdan girer, duvardan geçmez, merdivenle katlara çıkar (`settlements/buildingWalk.ts`); yarışmacılar yollarındaki binalara girip arar
+- [x] **Akıllı hareket:** takılınca/ilerleyemeyince A* yol bulma (`bandits/navigation.ts`), yapışkan sapma, kanattan sarma, ateş altında yana kayma, görüş hattı dışında siper noktası, kayıp hedefi arama
+
+Kabul kriterleri:
+- [x] Eşkıya binadaki oyuncuya kapıdan, katlı yapıda merdivenden ulaşır _(otomatik: `tests/npcBuildings`; gerçek dünyada 24 yapının 23'ü `tests/npcBuildingsReal`)_
+- [x] Dürbün büyütmesi, salınım, kayıt; seri atış _(otomatik: `tests/rangedSystem`, `tests/weaponHud`)_
+- [x] Mini harita görünürlük kuralı ve dönüşüm _(otomatik: `tests/minimap`)_
+- [ ] Gerçek oyunda his: NPC'lerin bina içi kovalamacası, siper/kanat davranışı, 16x dürbün, seri atış dengesi, mini harita okunaklılığı _(elle)_
+
+---
+
 ## Fikir Havuzu
 Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 

@@ -175,6 +175,7 @@ import { GameMenu } from '../ui/GameMenu';
 import { ControlsPanel } from '../ui/ControlsPanel';
 import type { ScopeUiState, SuppressorState } from '../ui/InventoryPanel';
 import { Minimap } from '../ui/Minimap';
+import { BuildingWalk } from '../settlements/buildingWalk';
 import { minimapVisible } from '../ui/minimapView';
 import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
@@ -580,6 +581,12 @@ export class Game {
   private rackTarget: Readonly<Structure> | null = null;
   /** Oyuncu yapılarının engel dizini (Faz 11, 11.3): canlılar, insanlar ve eşkıyalar çitlerden/duvarlardan geçmez. */
   private obstacles: StructureObstacles | null = null;
+  /**
+   * NPC'lerin (eşkıya, çete, yarışmacı) yerleşim yapılarında yürüyüşü ve onlara özel engel sorgusu (yapı ayak izi engel
+   * değildir: kapıdan girerler, duvarı `buildingWalk` keser). Yerleşim verisi yoksa null.
+   */
+  private buildingWalk: BuildingWalk | null = null;
+  private npcObstacles: StructureObstacles | null = null;
   /** `peopleWorld` + engel dizini (yapı kümesi/dünya değişmedikçe aynı nesne). */
   private peopleWorldGuarded: { base: PeopleWorld; guarded: PeopleWorld } | null = null;
   /** Kısayoldan açılan yerleştirme: yapı türü ve slotu (hayalet kapanınca seçim de kalkar). */
@@ -3150,15 +3157,26 @@ export class Game {
   // ── Faz 11: B (11.2/11.3 yapılar, çit, engel sorgusu) ──
   private setupStations(): void {
     const settlements = this.world.settlementMap ?? null;
-    this.obstacles = new StructureObstacles(this.structureSystem.structures, {
-      heightAt: (x, z) => this.world.terrain.heightAt(x, z),
-      ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
+    const worldSolids = {
+      heightAt: (x: number, z: number) => this.world.terrain.heightAt(x, z),
       // Ağaç, kaya, çalı, köprü/tünel kutuları ve kamp çadırları canlıları, insanları ve eşkıyaları da keser.
-      solidBlocks: (x0, z0, x1, z1, r) =>
+      solidBlocks: (x0: number, z0: number, x1: number, z1: number, r: number) =>
         (this.world.walkBlocked?.(x0, z0, x1, z1, r) ?? false) ||
         this.campBlocksWalk(x0, z0, x1, z1, r),
-      solidContains: (x, z, r) => this.world.walkContains?.(x, z, r) ?? false,
+      solidContains: (x: number, z: number, r: number) =>
+        this.world.walkContains?.(x, z, r) ?? false,
+    };
+    this.obstacles = new StructureObstacles(this.structureSystem.structures, {
+      ...worldSolids,
+      ...(settlements ? { solidAt: (x, z, r) => settlements.buildingAt(x, z, r) !== null } : {}),
     });
+    if (settlements) {
+      // Kullanıcı talimatı: NPC'ler de binalara girebilir (kapıdan, katlara merdivenden).
+      this.buildingWalk = new BuildingWalk(settlements, (x, z) =>
+        this.world.terrain.heightAt(x, z),
+      );
+      this.npcObstacles = new StructureObstacles(this.structureSystem.structures, worldSolids);
+    }
   }
   private updateStations(_dt: number): void {}
 
@@ -3538,7 +3556,6 @@ export class Game {
     return true;
   }
 
-  /** Kare başı maç çizimi: bölge duvarı, yerdeki ganimet, HUD, pusula işareti, harita. */
   /** Mini harita: Son Kalan'da her zaman, hayatta kalmada envanterde Harita varken; maçta güvenli bölge de çizilir. */
   private drawMinimap(now: number, feet: { x: number; y: number; z: number }): void {
     const minimap = this.minimap;
@@ -3564,6 +3581,7 @@ export class Game {
     );
   }
 
+  /** Kare başı maç çizimi: bölge duvarı, yerdeki ganimet, HUD, pusula işareti, harita. */
   private drawBattleRoyale(now: number, feet: { x: number; y: number; z: number }): void {
     const session = this.br;
     if (!session) return;
@@ -3807,8 +3825,13 @@ export class Game {
       darkness: darknessOf(clock.sun.altitudeDeg),
       now: (clock.day * 24 + clock.hour) * 3600,
       targets: this.targets,
-      // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser.
-      ...(this.obstacles ? { obstacles: this.obstacles } : {}),
+      // Faz 11 (B): oyuncu yapıları (çit, duvar, kapalı kapı) eşkıyaların yürüyüşünü keser. Yerleşimlerde eşkıyalar
+      // binalara kapıdan girer (yapı ayak izi engel değildir; duvarları `walk` keser).
+      ...(this.buildingWalk && this.npcObstacles
+        ? { obstacles: this.npcObstacles, walk: this.buildingWalk }
+        : this.obstacles
+          ? { obstacles: this.obstacles }
+          : {}),
       // Bina duvarları görüşü ve mermiyi keser (şehirdeki sokak çeteleri).
       ...(this.shotSolidQuery ? { solids: this.shotSolidQuery } : {}),
       // Faz 11 (F): alçak uçan drone'a ateş ederler.
