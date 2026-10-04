@@ -1,0 +1,206 @@
+# Battle Royale Modu — Plan (onay bekliyor)
+
+> Kullanıcı talimatı: "Oyuna battle royale modu getirelim. Şu an sadece NPC'lerle oynansın. Harita kapsamı ister tüm
+> harita ister il il olacak şekilde, oyuncu sayısını kullanıcı seçsin. Bunu planla, onayladığımda uygulayacağız."
+>
+> Bu belge yalnızca plandır; kod yazılmadı. Onaydan sonra alt görevler (BR.1 … BR.7) sırayla, her biri ayrı commit
+> olarak uygulanır. §8'deki kararlar onayla birlikte netleşir (her birinde önerilen varsayılan yazılı).
+
+## 1. Özet
+
+- Ana menüye yeni giriş: **"Son Kalan (Battle Royale)"**. Hayatta kalma oyunundan ayrı, kayda girmeyen bir **maç**tır.
+- Maç kurulumu (kullanıcı seçer):
+  - **Alan:** *Tüm harita* (16 hedef il) ya da *tek il* (Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı,
+    Sinop, Sakarya, Kocaeli, Bilecik, Samsun, Çorum, Amasya, Ankara, Kırıkkale).
+  - **Oyuncu sayısı:** 2–100 (oyuncu dahil; geri kalanı NPC). Varsayılan: il 24, tüm harita 64.
+  - **Maç süresi:** Kısa / Orta / Uzun (bölge daralma takvimini ölçekler).
+  - **NPC zorluğu:** Kolay / Normal / Zor (isabet, tepki süresi, cesaret).
+  - Ek seçenekler: vahşi hayvanlar (açık/kapalı), saat (sabit gündüz / gerçek akış).
+- Herkes alanın içinde rastgele, birbirinden uzak noktalarda **eli boş** başlar; silah, mermi, zırh ve sağlık eşyası
+  binalardaki kaplardan, ganimet sandıklarından ve ölülerin üstünden toplanır.
+- **Güvenli bölge** aşamalarla daralır; dışında kalan (oyuncu ve NPC) giderek artan hasar alır. Son kalan kazanır.
+- Oyuncu ölünce maç biter (yeniden doğma yok): sonuç ekranı sırayı, öldürme sayısını ve süreyi gösterir.
+
+## 2. Mevcut koddan yararlanılanlar
+
+| İhtiyaç | Var olan | Not |
+|---|---|---|
+| NPC dövüş yapay zekâsı | `bandits/ai.ts` `stepBandit` (siper, geri çekilme, yakın/uzak saldırı), `BanditSystem` (algı, görüş hattı, atış `fireShot`, `bandit:fired/swung` efektleri) | Sokak çetelerinin **rakip hedefleme** (`nearestRival`, `Member.fight`) mantığı herkesin herkese rakip olduğu duruma genellenir |
+| NPC çizimi | `world/BanditLayer.ts`, `bandits/styles.ts` | Yarışmacılara ayrı görünüm çeşitleri |
+| Silahlar, mermi, isabet | `combat/RangedSystem`, `combat/ranged.ts`, `TargetProvider` (`bandit:<id>`) | Değişmez |
+| Ganimet paneli | `ui/LootPanel.ts`, `BanditSystem.corpseLoot/commitCorpse`, `BuildingSearch.onLoot` | Ölü yarışmacı ve bina kapları aynı panelle |
+| Başlangıç noktası arama | `survival/cityStart.ts`, `RegionWorld.safePointAt/clearOfBuildings` | Alan içinde çoklu, aralıklı nokta |
+| İl çokgenleri | `provinces.geojson`, `world/provinces.ts` `provinceAt`, `world/pilot.ts` `isInProvince` | Alan sınırı ve kıyı tamponu |
+| Uzak arazi | `RegionHeightSource` genel bakış (her 8. örnek, hep bellekte), `LandCoverMap` | Uzaktaki NPC'ler karo yüklenmeden de hareket eder |
+| Karo bekleme | `RegionWorld.isReadyAt`, "Harita yükleniyor…" akışı | Maç başlangıcında aynı yol |
+
+## 3. Mimari
+
+### 3.1 Yeni klasör `src/battleRoyale/` (saf mantık, Three.js'siz, Vitest'li)
+
+| Dosya | Görev |
+|---|---|
+| `kinds.ts` | Sözleşme: `BrSetup` (alan, sayı, süre, zorluk, seçenekler), `BrArea`, `BrPhase`, `Contestant` görünümü, sonuç |
+| `area.ts` | Alan tanımı: tüm harita = 16 hedef ilin birleşimi; il = o ilin çokgeni (+ `PILOT.coastBufferM` kıyı tamponu). `contains(x, z)`, kara örneklemesi (deniz/göl dışı, eğim sınırı), çevreleyen daire |
+| `zone.ts` | Güvenli bölge takvimi: aşamalar (bekleme → daralma), her yeni dairenin merkezi bir öncekinin içinde ve **karada / alanın içinde** seçilir; `zoneAt(t)` → merkez, yarıçap, sonraki daire, aşama sayacı, saniye başı hasar. Süreler alanın yarıçapına ve "maç süresi" seçimine göre ölçeklenir |
+| `spawn.ts` | Başlangıç noktaları: alan içinde N nokta, en küçük aralık (alan / N'den türetilir), deniz/su/bina/dik yamaç dışı; seed'li |
+| `match.ts` | `BrMatch`: saat, kalanlar, öldürme listesi (kill feed), sıralama, bitiş koşulu (≤ 1 kalan ya da oyuncu öldü), sonuç |
+| `farSim.ts` | **Soyut (uzak) simülasyon** — §3.3 |
+| `loot.ts` | BR ganimet tabloları: bina kapları, ganimet sandıkları, NPC'nin "teçhizat düzeyi"nden silah/mermi/zırh üretimi |
+| `crates.ts` | Ganimet sandığı yerleri: yerleşimlerde, köylerde, kamp yerlerinde, yol kenarlarında seed'li; maç başına yeniden zarlanır |
+| `brain.ts` | BR davranış katmanı: bölgeye göç, ganimete yönelme, çatışmaya girme/kaçma kararları; `stepBandit`'e hedef/ev noktası verir |
+
+Bütün rastgelelik maç tohumundan (`seedFrom(maçTohumu, …)`) gelir; aynı tohum + aynı kurulum = aynı maç (oyuncunun
+eylemleri hariç). Tohum sonuç ekranında gösterilir.
+
+### 3.2 İki kademeli NPC simülasyonu
+
+Tüm harita 13,3 × 6,3 km'dir ve karolar yalnız oyuncunun çevresinde yüklenir; 100 NPC'yi tam fizikle/yapay zekâyla
+her yerde koşturmak ne mümkün (arazi, yapı, collider yok) ne de gerekli. Bu yüzden:
+
+- **Yakın kademe (tam simülasyon):** oyuncuya `nearRadius` (≈ 320 m) içindeki ve karosu hazır (`isReadyAt`) NPC'ler.
+  `BanditSystem`'e yeni üye türü **yarışmacı** eklenir (kamp/çete gibi; `Member.contestant`). Yarışmacılar için her
+  canlı yarışmacı rakiptir (sokak çetesindeki rakip hedefleme genellenir: "taraf = kendi kimliği"); oyuncu da rakiptir.
+  Cami/teslim olma/bağışlanma gibi eşkıya diyalogları yarışmacıda kapalıdır (teslim olmaz, kaçabilir). Aynı anda en
+  çok `maxNearAgents` (≈ 16; çizim ve atış ışınları için bütçe) — fazlası uzak kademede kalır.
+- **Uzak kademe (soyut):** konum, can, teçhizat düzeyi, mermi, öldürme sayısı ve niyet (bölgeye git / ganimet / pusu)
+  tutulur. 0,5 sn'de bir adım: genel bakış arazisi üstünde yürüme hızıyla hedefe ilerler (deniz/göl geçmez), yerleşime
+  yakınken teçhizat düzeyi zamanla artar, bölge dışında hasar alır. İki uzak NPC `engageRadius` içine girerse
+  karşılaşma **istatistiksel** çözülür (teçhizat + can + zorluk + seed'li zar; kaybeden ölür, kazanan can kaybeder,
+  ganimet kazanır). Sonuç kill feed'e düşer ("Hasan, Mehmet'i alt etti").
+- **Geçiş:** uzak → yakın: oyuncu yaklaşınca soyut durum tam üyeye çevrilir (teçhizat düzeyi → silah + mermi + zırh,
+  can aynen). Yakın → uzak: `nearRadius + margin` ötesinde tam üye soyut kayda döner (silahı → teçhizat düzeyi).
+  Ölü yarışmacının cesedi yakın kademede kalır ve aranabilir; uzakta ölen soyut NPC'nin ganimeti bir ganimet çantası
+  olarak yerinde kalır (oyuncu oraya gidince görünür).
+- **Görünmeyerek doğma yok:** geçiş yalnız konumu korur; NPC "ışınlanmaz". Oyuncunun görüş konisinde uzaktan yakına
+  geçen NPC zaten oradaydı (soyut kayıtta yürüyordu).
+
+### 3.3 Güvenli bölge
+
+- Aşama tablosu `config.ts` → `BATTLE_ROYALE.zone.phases`: her aşama `{ wait, shrink, radiusFactor, damagePerSec }`.
+  Örnek (Orta süre, il ölçeği): 6 aşama, toplam ≈ 22 dk; tüm harita ≈ 45 dk (yürüme 4 m/s, koşu 7 m/s ile en uzak
+  noktadan bölgeye yetişilebilir olacak şekilde ölçülür; testle kilitlenir).
+- İlk daire: alanın çevreleyen dairesi; alanın dışı (komşu il, deniz) **her zaman** bölge dışı sayılır (il modunda
+  sınırı aşan hasar alır).
+- Son dairelerin merkezi karada, yürünebilir ve yapı/su içinde olmayan noktada seçilir.
+- Görsel: bölge sınırı yarı saydam, aşağıdan yukarı solan bir silindir duvar (tek mesh, tek draw call; arazide
+  sınırın izi `terrainOverlay`'e değil shader'a uniform olarak: merkez + yarıçap). Bölge dışındayken ekran kenarında
+  mor/kızıl vinyet (var olan hasar vinyeti altyapısı).
+- Hasar `SurvivalSystem.applyDamage` ile, ölüm nedeni "Güvenli bölge dışında kaldı".
+
+### 3.4 Ganimet ve eşyalar
+
+- **Bina kapları:** BR maçında `BuildingSearch` BR ganimet tablosunu kullanır (silah, mermi, sağlık, zırh ağırlıklı;
+  yiyecek/inşa malzemesi yok). Arama süreleri BR'de kısalır (`BATTLE_ROYALE.searchScale`). "Aranmış" bilgisi maç
+  boyunca tutulur, kayda girmez.
+- **Ganimet sandıkları:** maç başında yerleşimlere ve yol kenarlarına dağıtılır; bölgenin içine düşenler yoğunlaştırılır.
+- **Ölüler:** yakın kademede ölen yarışmacının üstü `LootPanel` ile alınır; uzakta ölenin ganimeti çanta olarak kalır.
+- **Yeni eşyalar** (`ITEM_IDS` sonuna; simge `ui/icons.ts`, değer `economy/prices.ts`, elde model gerekmez):
+  `bandage` (Sargı Bezi: 3 sn'de +15 can), `first_aid_kit` (İlk Yardım Çantası: 6 sn'de +60 can), `steel_vest`
+  (Çelik Yelek: %35 savunma, deri yelekle birleşmez — en iyisi geçerli). Hayatta kalma modunda da bulunabilirler
+  (hastane/eczane yok; yalnız bina kaplarında nadir) — **karar §8-5**.
+- Silahlar mevcut olanlardır (sapan, yay, tabanca, av tüfeği, piyade tüfeği, keskin nişancı; susturucu; yakın dövüş
+  silahları). Yeni silah eklenmez.
+
+### 3.5 Oyun içi mod ayrımı (`Game`)
+
+- `Game.mode: 'survival' | 'battleRoyale'`. BR maçında:
+  - **Kayıt kapalı:** `createSave()` null döner → otomatik kayıt ve yuvaya kayıt çalışmaz (BR durumu hayatta kalma
+    kaydının üstüne yazılmasın — en önemli kural, testle kilitlenir). Maça girmeden önce açık hayatta kalma oturumu
+    `auto` yuvasına yazılır (ana menüye dönüşteki gibi); maçtan çıkınca ana menü "Devam" ile oradan sürülür.
+  - **Kapatılanlar:** eşkıya kampları, sokak çeteleri, yankesiciler, gezgin insanlar ve satıcılar (alışveriş, tapu),
+    drone, tarım, inşa/yerleştirme (kamp ateşi dahil), dev ışınlanma tuşları (test modu dışında), ipuçları (BR'ye özgü
+    3–4 ipucu hariç).
+  - **Açık kalanlar:** yerleşimler, bina içleri ve kapları, yollar, hava, (seçilirse) vahşi hayvanlar, silahlar ve
+    yakın dövüş, ganimet paneli, envanter/kısayol çubuğu.
+  - **Hayatta kalma göstergeleri:** önerilen varsayılan: tokluk/su/vücut ısısı **donuk** (maç 20–45 dk; susuzluk ~20 dk'da
+    öldürürdü), sağlık ve enerji (koşu) çalışır — **karar §8-1**.
+  - Ölüm → `DeathScreen` yerine `BrResultScreen`; kazanma da aynı ekran.
+- Başlatma akışı: kurulum → maç tohumu → alan/bölge/başlangıç noktaları/sandıklar hesaplanır → oyuncunun noktasında
+  karolar beklenir ("Harita yükleniyor…") → geri sayım (3 sn, hareket serbest, silah kapalı) → maç.
+
+### 3.6 Arayüz
+
+- `ui/BrSetupPanel.ts`: alan seçimi (Tüm harita + 16 il; seçili alanın küçük haritası: il çokgenleri, genel bakış
+  arazisinden gölgeli), oyuncu sayısı (kaydırıcı + sayı kutusu, 2–100), süre, zorluk, seçenekler, "Başlat". Son
+  kurulum `localStorage`'da hatırlanır (ayrı anahtar; ayar sürümüne dokunmaz).
+- HUD (`ui/BrHud.ts`, var olan tasarım değişkenleriyle): üst ortada pusulanın altında **kalan oyuncu**, **öldürme**,
+  **bölge sayacı** ("Bölge daralıyor 1:24" / "Güvenli bölgeye 340 m"); pusulada güvenli bölge merkezinin yönü; sağ
+  üstte kill feed (son 5 olay, 6 sn).
+- **Harita paneli** (`M`, `ui/BrMapPanel.ts`; oyun donmaz): alan, il sınırları, şimdiki ve sonraki bölge daireleri,
+  oyuncunun konumu/yönü, düşen sandıklar (yalnız görülmüşler). Tuval 2D, genel bakış verisinden bir kez boyanır.
+- Duraklatma menüsü BR'de: Devam Et / Kontroller / Ayarlar / **Maçtan Çık** (iki adımlı onay). Kaydet/Yükle yok.
+- `ui/BrResultScreen.ts`: "Kazandın!" ya da "#7 / 32", öldürme, hayatta kalma süresi, en çok öldüren NPC, maç tohumu;
+  "Tekrar Oyna" (aynı kurulum, yeni tohum) / "Kurulum" / "Ana Menü". Oyuncu ölünce kalan maç uzak kademede hızlıca
+  sonuçlandırılır (kazananın adı yazılır).
+- `ui/controls.ts` `CONTROL_GROUPS`'a BR grubu (`M` harita).
+
+### 3.7 Olaylar (`core/events.ts`, sona eklenir)
+
+`br:started`, `br:phase` (aşama, yeni daire), `br:eliminated` (kurban, öldüren, silah, oyuncu mu), `br:ended`
+(sıra, kazanan). HUD, ses ve kill feed bunları dinler; sistemler birbirini doğrudan çağırmaz.
+
+### 3.8 Ayarlar (`config.ts` → `BATTLE_ROYALE`)
+
+Oyuncu sayısı aralığı ve varsayılanları, `nearRadius`/`margin`/`maxNearAgents`, uzak adım aralığı, karşılaşma
+yarıçapı ve olasılık ağırlıkları, aşama tablosu ve süre çarpanları (Kısa ×0,7 / Orta ×1 / Uzun ×1,4), zorluk tablosu
+(isabet sapması, tepki gecikmesi, geri çekilme eşiği), ganimet tabloları ve yoğunlukları, arama süresi çarpanı,
+başlangıç aralığı, bölge hasarı.
+
+## 4. Alt görevler (her biri bir commit, her birinin sonunda `npm run check`)
+
+| # | İş | Başlıca dosyalar |
+|---|---|---|
+| BR.1 | Saf çekirdek: alan, bölge takvimi, başlangıç noktaları, maç durumu + testler | `battleRoyale/{kinds,area,zone,spawn,match}.ts`, `config.ts` |
+| BR.2 | Uzak kademe simülasyonu + testler (determinizm, tek kazanana yakınsama, bölge ölümleri) | `battleRoyale/farSim.ts` |
+| BR.3 | Yakın kademe: `BanditSystem`'e yarışmacı üye türü, herkes-herkese rakip hedefleme, BR davranış katmanı, kademe geçişi + testler | `bandits/BanditSystem.ts`, `bandits/ai.ts` (yalnız ekleme), `battleRoyale/brain.ts` |
+| BR.4 | Ganimet: BR tabloları, sandıklar, yeni eşyalar (sargı, ilk yardım, çelik yelek), bina kaplarının BR kipi | `battleRoyale/{loot,crates}.ts`, `items/itemDefs.ts`, `ui/icons.ts`, `economy/prices.ts`, `settlements/search.ts` |
+| BR.5 | `Game` entegrasyonu: mod durumu, kapatılan sistemler, kayıt yalıtımı, başlatma/bitiş akışı, bölge hasarı | `core/Game.ts`, `core/events.ts`, `battleRoyale/BrSession.ts` (Game'i şişirmemek için oturum sınıfı) |
+| BR.6 | Arayüz: menü girişi, kurulum paneli, HUD, harita paneli, bölge duvarı görseli, sonuç ekranı, kontroller | `ui/Br*.ts`, `ui/GameMenu.ts`, `ui/ui.css`, `world/ZoneWall.ts` |
+| BR.7 | Ölçüm ve belgeler: başsız tam maç koşusu, `npm run perf` BR senaryosu, elle doğrulama kılavuzu bölüm 27, CLAUDE.md "Mevcut Durum", ROADMAP | `scripts/perfWalk.ts`, `docs/` |
+
+## 5. Testler
+
+- `zone`: her daire bir öncekinin içinde, merkez karada ve alanda; aşama süreleri toplamı seçilen süreye uyar; en uzak
+  başlangıç noktasından koşarak bölgeye yetişilebilir (her il + tüm harita, gerçek dünya verisi).
+- `spawn`: N nokta (2–100) her ilde ve tüm haritada alanın içinde, karada, yapı dışında, en küçük aralıkla; aynı tohum
+  aynı noktalar.
+- `farSim`: aynı tohum aynı sonuç; hiç oyuncu müdahalesi olmadan maç süresi içinde tek kazanan kalır; bölge dışındaki
+  NPC ölür; öldürme listesi tutarlı (her ölümün bir nedeni var).
+- Kademe geçişi: uzak → yakın → uzak dönüşünde can/teçhizat/öldürme korunur; görüş konisinde "doğma" yok.
+- Yakın kademe: iki yarışmacı birbirini görünce çatışır; oyuncuya da saldırır; yarışmacı teslim olmaz.
+- Kayıt yalıtımı: BR maçı sırasında `createSave()` null; `auto` yuvası maçtan önceki hayatta kalma kaydı olarak kalır.
+- Ganimet: BR tablolarının hepsi geçerli eşya; ekonomi kâr döngüsü testi yeni eşyalarla geçer; yeni eşyaların
+  simgesi/değeri var (derleme zaten zorlar).
+- Uçtan uca (başsız, hızlandırılmış zaman): il ve tüm harita maçı açılır, oyuncu bekler; bölge onu öldürür, sonuç
+  ekranı doğru sırayı gösterir.
+
+## 6. Performans
+
+- Yakın kademe en çok 16 yarışmacı: `BanditLayer` çizimi (örnekli) + atış ışınları; mevcut çete çatışmalarıyla aynı
+  ölçekte. Uzak kademe 100 NPC × 2 adım/sn, kare zaman bütçesine (`core/FrameBudget`) bağlanır; ölçülen hedef
+  < 0,3 ms/kare.
+- Bölge duvarı +1 draw call. Kapatılan sistemler (eşkıya, insanlar, satıcılar) birkaç draw call geri kazandırır.
+- Tüm haritada oyuncu hızla yer değiştirmez (ışınlanma yok), karo akışı mevcut bütçesinde kalır.
+- Gerçek GPU'da FPS elle ölçülecek (kılavuz bölüm 27).
+
+## 7. Kapsam dışı (şimdilik)
+
+- Gerçek çok oyunculu (ağ) — kullanıcı "şimdilik NPC'lerle" dedi; mimari (yarışmacı = kimlik + durum) ileride ağ
+  oyuncusunu aynı listeye eklemeye uygun tutulur ama ağ kodu yazılmaz.
+- Takımlı mod (ikili/dörtlü), araçlar, uçaktan/paraşütle iniş, izleyici (spectate) kamerası, ikmal uçağı. Fikir
+  Havuzu'na not düşülür.
+- Birden çok il seçme (ör. "Zonguldak + Bartın") — istenirse BR.1'de alan tanımı çokgen birleşimi olduğundan kolay
+  eklenir (§8-6).
+
+## 8. Onayda netleşecek kararlar (önerilen varsayılan **kalın**)
+
+1. **Hayatta kalma göstergeleri BR'de:** **tokluk/su/ısı donuk, sağlık+enerji çalışır** · hepsi normal · hepsi yavaş.
+2. **Başlangıç:** **rastgele dağıtım** · haritadan iniş noktası seçme (ek iş; BR.6'ya eklenir).
+3. **Oyuncu sayısı sınırı:** **2–100** (varsayılan il 24, harita 64).
+4. **Cami:** hayatta kalma modunda camideki oyuncuya saldırılmaz. BR'de öneri: **camide silah kullanılmaz (oyuncu ve
+   NPC), NPC camideki oyuncuyu hedef almaz, ama bölge dışında kalan camide de hasar alır; son iki dairenin merkezi cami
+   ayak izine düşmez** · camiler BR'de sıradan yapı gibi.
+5. **Yeni sağlık/zırh eşyaları:** **hem BR'de hem (nadir) hayatta kalma modunda** · yalnız BR'de.
+6. **Alan seçimi:** **tüm harita ya da tek il** · birden çok il seçilebilsin.
+7. **Mod adı:** **"Son Kalan (Battle Royale)"** · "Battle Royale" · başka bir ad.
