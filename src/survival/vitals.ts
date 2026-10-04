@@ -13,7 +13,9 @@ export type DeathCause =
   | 'hyperthermia'
   | 'mauled'
   /** Faz 11: vurularak (eşkıya atışı). */
-  | 'shot';
+  | 'shot'
+  /** Battle Royale: güvenli bölgenin dışında kalarak. */
+  | 'zone';
 
 export interface VitalsState {
   /** Can, tokluk (açlığın tersi), su (susuzluğun tersi), enerji (yorgunluğun tersi): 0–100. */

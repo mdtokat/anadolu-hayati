@@ -22,6 +22,10 @@ export interface GameMenuHost {
   canSave(): boolean;
   /** Ana menüye dönmeden önce ilerlemeyi otomatik yuvaya yazar (hata sessizce yutulur). */
   autosaveNow(): Promise<void>;
+  /** Battle Royale maçı sürüyor mu (duraklatma menüsü maça göre değişir)? */
+  inBattleRoyale?(): boolean;
+  /** Maçtan çıkar; maçtan önceki hayatta kalma oturumu geri geldiyse true. */
+  exitBattleRoyale?(): boolean;
 }
 
 export interface GameMenuOptions {
@@ -31,12 +35,16 @@ export interface GameMenuOptions {
   openCredits: () => void;
   /** Tuş göstergelerini (kontroller penceresi) açar. */
   openControls: () => void;
+  /** Battle Royale kurulum penceresini açar (verilmezse menüde giriş yok). */
+  openBattleRoyale?: () => void;
   /** Menü şu an gösterilmemeli mi (ör. envanter paneli açıkken oyun duraklıdır ama menü çıkmaz)? */
   isSuppressed?: () => boolean;
 }
 
 type View = 'main' | 'pause';
-type Confirm = 'newGame';
+type Confirm = 'newGame' | 'leaveMatch';
+
+const CONFIRM_LABELS: ReadonlySet<string> = new Set(['Onayla: Yeni Oyun', 'Onayla: Maçtan Çık']);
 
 /**
  * Ana menü ve duraklatma menüsü. Oyun açılınca ana menü (Devam / Yeni Oyun / Yükle / Ayarlar), oyun
@@ -55,6 +63,7 @@ export class GameMenu {
   private readonly openSettings: () => void;
   private readonly openCredits: () => void;
   private readonly openControls: () => void;
+  private readonly openBattleRoyale: (() => void) | null;
   private readonly isSuppressed: () => boolean;
   private readonly offs: Array<() => void> = [];
 
@@ -72,6 +81,7 @@ export class GameMenu {
     this.openSettings = options.openSettings;
     this.openCredits = options.openCredits;
     this.openControls = options.openControls;
+    this.openBattleRoyale = options.openBattleRoyale ?? null;
     this.isSuppressed = options.isSuppressed ?? (() => false);
 
     this.root.className = 'pause-menu';
@@ -225,10 +235,26 @@ export class GameMenu {
           false,
           () => this.onNewGame(),
         ),
+        ...(this.openBattleRoyale
+          ? [this.button('Son Kalan (Battle Royale)', false, false, this.openBattleRoyale)]
+          : []),
         this.button('Yükle', !hasSave, false, () => this.picker.open('load')),
         this.button('Kontroller', false, false, this.openControls),
         this.button('Ayarlar', false, false, this.openSettings),
         this.button('Krediler', false, false, this.openCredits),
+      );
+    } else if (this.host.inBattleRoyale?.()) {
+      // Maç kayda girmez: Kaydet/Yükle yok; çıkış iki adımlı (maç kaybolur).
+      items.push(
+        this.button('Devam Et', false, true, () => this.host.resume()),
+        this.button('Kontroller', false, false, this.openControls),
+        this.button('Ayarlar', false, false, this.openSettings),
+        this.button(
+          this.confirm === 'leaveMatch' ? 'Onayla: Maçtan Çık' : 'Maçtan Çık',
+          false,
+          false,
+          () => this.onLeaveMatch(),
+        ),
       );
     } else {
       items.push(
@@ -262,13 +288,38 @@ export class GameMenu {
     button.disabled = disabled || this.busy;
     if (!primary) button.className = 'secondary';
     button.addEventListener('click', () => {
-      if (this.confirm !== null && label !== 'Onayla: Yeni Oyun') {
+      if (this.confirm !== null && !CONFIRM_LABELS.has(label)) {
         this.confirm = null;
         this.hint.textContent = '';
       }
       onClick();
     });
     return button;
+  }
+
+  /** Maçtan çık: iki adımlı; maçtan önceki oturum geri geldiyse ana menüde "Oyuna Dön" görünür. */
+  private onLeaveMatch(): void {
+    if (this.confirm !== 'leaveMatch') {
+      this.confirm = 'leaveMatch';
+      this.hint.textContent = 'Maç kaybolur (kayda girmez). Çıkmak için tekrar tıkla.';
+      this.render();
+      return;
+    }
+    this.confirm = null;
+    this.hint.textContent = '';
+    this.session = this.host.exitBattleRoyale?.() ?? false;
+    this.view = 'main';
+    this.render();
+  }
+
+  /** Battle Royale sonucundan ana menüye dönüş (Game çağırır). */
+  showMain(session: boolean): void {
+    this.session = session;
+    this.view = 'main';
+    this.confirm = null;
+    this.root.hidden = false;
+    this.render();
+    void this.refreshSlots();
   }
 
   /** Yeni Oyun: ilerleme ya da otomatik kayıt kaybolabilecekse önce onay ister. */

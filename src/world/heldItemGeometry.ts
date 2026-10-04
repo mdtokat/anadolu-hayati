@@ -296,6 +296,11 @@ export function buildHeldModel(id: ItemId): HeldModel | null {
       return model([box(0.22, 0.06, 0.3, 0, -0.02, -0.15, 0x7a5a38)]);
     case 'fur_cloak':
       return model([box(0.24, 0.08, 0.3, 0, -0.02, -0.15, 0x5a4636)]);
+    case 'steel_vest':
+      return model([
+        box(0.22, 0.07, 0.3, 0, -0.02, -0.15, 0x4f575e),
+        box(0.16, 0.02, 0.1, 0, 0.02, -0.1, 0x7a848d),
+      ]);
     default:
       return null;
   }

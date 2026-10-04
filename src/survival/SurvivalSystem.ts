@@ -36,12 +36,22 @@ export interface SurvivalContext {
 }
 
 /** Dışarıdan gelen hasarın kaynağı (`applyDamage`); her kaynağın bir ölüm nedeni vardır. */
-export type DamageSource = 'creature' | 'shot';
+export type DamageSource = 'creature' | 'shot' | 'zone';
 
 const DAMAGE_DEATH_CAUSE: Readonly<Record<DamageSource, DeathCause>> = {
   creature: 'mauled',
   shot: 'shot',
+  zone: 'zone',
 };
+
+/**
+ * Battle Royale kipi: `needs` donukken tokluk, su ve vücut ısısı değişmez (maç 20–80 dk; susuzluk ~20 dk'da
+ * öldürürdü), can ve enerji çalışır; `clock` donukken oyun saati ilerlemez (sabit gündüz).
+ */
+export interface SurvivalFreeze {
+  needs: boolean;
+  clock: boolean;
+}
 
 export interface DeathInfo {
   cause: DeathCause;
@@ -100,11 +110,18 @@ export class SurvivalSystem {
     return this.drinkingNow;
   }
 
+  private freeze: SurvivalFreeze = { needs: false, clock: false };
+
+  /** Battle Royale: ihtiyaçları ve/veya saati dondurur (`SurvivalFreeze`); hayatta kalma modunda ikisi de kapalı. */
+  setFreeze(freeze: SurvivalFreeze): void {
+    this.freeze = { ...freeze };
+  }
+
   /** Sabit adım (dt sn): saati, iklimi ve göstergeleri ilerletir. Ölüyken işlem yapmaz. */
   update(dt: number, context: SurvivalContext): void {
     if (this.death) return;
 
-    this.clock.advance(dt);
+    if (!this.freeze.clock) this.clock.advance(dt);
     this.ambient = this.ambientAt(context.elevationM) - (context.weatherCoolingC ?? 0);
     this.aliveSeconds += dt;
     this.trackDrinking(context.drinking && this.canKeepDrinking());
@@ -122,7 +139,14 @@ export class SurvivalSystem {
       },
       dt,
     );
-    this.vitals = step.state;
+    this.vitals = this.freeze.needs
+      ? {
+          ...step.state,
+          satiety: this.vitals.satiety,
+          hydration: this.vitals.hydration,
+          bodyTemp: this.vitals.bodyTemp,
+        }
+      : step.state;
 
     if (step.dead && step.cause) this.die(step.cause);
   }

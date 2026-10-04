@@ -525,6 +525,23 @@ _(Kullanıcı talimatı: "Tünellerde köprülerde yollar şeritli ve güzel gö
 Elle doğrulanacak:
 - [ ] Zemindeki anayolda orta şerit ve kenar çizgilerinin her uzaklıkta düzgün göründüğü (kavşaklarda kısa, yanlış yerde orta şerit parçası kalıp kalmadığı); köprü/tünele girerken çizgilerin ve yolun kesintisiz sürdüğü
 
+## Son Kalan (Battle Royale) — kullanıcı talimatı
+_(Kullanıcı talimatı: "Oyuna battle royale mod getirelim. Şu an sadece NPC'lerle oynansın. Harita kapsamını ister tüm harita ister il il olacak şekilde ve oyuncu sayısını kullanıcı seçsin." Onay: "önerilen varsayılanlarla … Tüm harita, 1 veya birden fazla il seçilebilsin. 1'den fazla il seçilirken birbiri ile sınır bağlantısı olacak şekilde seçilsin." Plan ve ölçümler [docs/battle-royale-plan.md](docs/battle-royale-plan.md).)_
+
+- [x] **BR.1 saf çekirdek:** il komşuluğu (il çokgenlerinden), bağlı il seçimi, alan maskesi, güvenli bölge planı (7 aşama, sınır hızı sınırlı), başlangıç noktaları, maç durumu (`src/battleRoyale/`)
+- [x] **BR.2 uzak kademe:** oyuncudan uzaktaki NPC'lerin soyut simülasyonu (ganimet, bölgeye göç, zarla karşılaşma) ve bölgeye akış alanı
+- [x] **BR.3 yakın kademe:** oyuncunun 320 m yakınındaki NPC'ler eşkıya yapay zekâsıyla yarışmacı (herkes herkese rakip, teslim olmaz), kademe geçişleri
+- [x] **BR.4 ganimet:** maç ganimet tabloları, sandıklar, ölü yarışmacının üstü; yeni eşyalar sargı bezi, ilk yardım çantası, çelik yelek (hayatta kalma modunda da nadir)
+- [x] **BR.5 oyuna bağlama:** maç oturumu, kayıt yalıtımı (maç kayda girmez), maçta kapalı sistemler, bölge hasarı, cami kuralı, sağlık eşyası kullanımı
+- [x] **BR.6 arayüz:** menü girişi ve kurulum, maç göstergeleri, öldürme listesi, `M` haritası, bölge duvarı, yerdeki ganimet, sonuç ekranı, "Maçtan Çık"
+- [x] **BR.7 ölçüm ve belgeler:** başsız ölçüm (draw call, adım maliyeti), elle doğrulama kılavuzu bölüm 27
+
+Kabul kriterleri:
+- [x] Tüm harita ya da sınır komşuluğuyla bağlı bir/birden çok il seçilebiliyor; oyuncu sayısı 2–100 _(otomatik: `tests/brCore`, `tests/brRegion`, `tests/brFormat`)_
+- [x] NPC'ler ganimet toplar, bölgeye yetişir, birbirleriyle ve oyuncuyla çatışır; maç tek kazananla biter _(otomatik: `tests/brFarRegion`, `tests/brNearRegion`, `tests/brSession`)_
+- [x] Maç hayatta kalma kaydına dokunmaz; çıkınca önceki oturum geri gelir _(otomatik + başsız tarayıcı)_
+- [ ] Gerçek GPU'lu masaüstünde 60 FPS ve oyun hissi (silahlı NPC çatışmaları, bölge baskısı, maç süresi) _(elle; kılavuz bölüm 27)_
+
 ---
 
 ## Fikir Havuzu
@@ -545,5 +562,6 @@ Kapsam dışı ama ileride değerlendirilebilecek fikirler:
 - Hayvanların ağaç/kaya arkasında görüş hattı (ağaç/kaya collider'ı ve engel sorgusu geldi), üst katlarda cam ve ganimet kapları, merdiven/kat sesleri, çetelerin sokakta yol bulması
 - Hayvan tuzağı/oltası, kurutulmuş et (yiyecek bozulması), deri işleme
 - Ses: adım sesleri (zemine göre), kamp ateşi çıtırtısı, yağmur/fırtına, su kenarı ve nehir sesi, iç/dış mekân yankısı, ses kanalları için ayrı kaydırıcılar (müzik/efekt/ortam)
+- Son Kalan (Battle Royale) sonrası: gerçek çok oyunculu (ağ), takımlı maç (ikili/dörtlü), haritadan iniş noktası seçme / paraşüt, izleyici (spectate) kamerası, ikmal uçağı ve havadan sandık, araçlar, maç istatistikleri/sıralama tablosu, uzak çatışmaların silah sesleri, yarışmacılara ad etiketi
 - Kayıt: canlıları ve leşleri kaydetme, kaydı dosya olarak dışa/içe aktarma, bulut kaydı, kayıt küçük resmi (ekran görüntüsü), yuva adlandırma
 - Ayarlar: tuş atama, görüş alanı (FOV), gölge/anti-aliasing seçenekleri, sürüş mesafesi kaydırıcısı; ilk açılışta GPU'ya göre otomatik kalite

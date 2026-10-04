@@ -396,3 +396,20 @@ Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup 
 - [ ] **Tünel ağızları:** tünele girerken/çıkarken yol ve çizgiler kesintisiz mi; ağız önündeki beton zemin ile boyalı yol arasında basamak var mı?
 - [ ] **Köy yolu:** yamalı aşınma azaltıldı; köy yolu çevresindeki çayır/tarladan yeterince seçiliyor mu?
 - Notlar: ____________________
+
+## 27. Son Kalan (Battle Royale)
+
+- [ ] **Kurulum:** ana menü → "Son Kalan (Battle Royale)". "İl seç"te haritada/listede il tıklanınca seçiliyor mu; yalnız seçime komşu iller eklenebiliyor, seçimi ikiye bölecek il (ör. Zonguldak–Karabük–Kastamonu'da Karabük) çıkarılamıyor mu, uyarı anlaşılır mı? Oyuncu sayısı kaydırıcısı ve kutusu 2–100 arasında mı? Sayfa yenilenince son kurulum hatırlanıyor mu?
+- [ ] **Başlangıç:** "Başlat"tan sonra maç kaç saniyede açılıyor (tek il; tüm harita 100 kişi)? Eli boş, il içinde, karada, binanın dışında mı başlıyorsun? İlk 90 sn ateşkes sayacı görünüyor mu, bu sürede kimse saldırmıyor mu?
+- [ ] **NPC'ler:** çevrende yarışmacılar görünüyor mu (eşkıya görünümünde), yürüyor, binalara/kasabalara gidiyor mu? Ateşkesten sonra birbirleriyle ve seninle çatışıyorlar mı, siper alıyorlar mı? Zorluk "Kolay/Zor" nişanı belirgin değiştiriyor mu? Dağ yamacına/kıyıya takılıp kalan NPC var mı?
+- [ ] **Ganimet:** bina kaplarında (sandık/dolap) silah, mühimmat, sargı bezi çıkıyor mu, arama kısa mı (≈1,5 sn kapı)? Yerdeki tahta sandıklar ve ölülerin çantaları görünüyor mu, `E` ile açılıyor mu? Öldürdüğün yarışmacının üstünden silahı çıkıyor mu?
+- [ ] **Sağlık eşyaları:** kısayoldan (1–8) ya da envanterde "Kullan" ile sargı bezi (3 sn, 75'e kadar) ve ilk yardım çantası (6 sn) çalışıyor mu, ilerleme halkası görünüyor mu? Vurulunca yarıda kalıyor mu (eşya harcanmadan)? Çelik yelek hasarı azaltıyor mu (savunma çipi %35)?
+- [ ] **Güvenli bölge:** mor bölge duvarı uzaktan seçiliyor mu, gökyüzünü fazla kaplıyor mu? Pusuladaki "Bölge" işareti doğru yönü gösteriyor mu? Dışarıdayken bölge satırı mor ve uzaklıklı mı, hasar artıyor mu? Koşarak bölgeye yetişilebiliyor mu (tüm haritada ilk aşamalar uzak)?
+- [ ] **Harita (`M`):** iller, maç alanı, şimdiki/sonraki daire ve okun yönü doğru mu? Açıkken oyun sürüyor mu?
+- [ ] **Öldürme listesi:** Türkçe cümleler doğal mı ("…'yı alt etti", "bölgede kaldı")? Kendi öldürmelerin vurgulu mu?
+- [ ] **Cami:** maçta camide silah kullanılamıyor mu ("Camide silah kullanılmaz"), NPC'ler camideki seni hedef almıyor mu? Son dairelerde bölge camiye kapanmıyor mu?
+- [ ] **Bitiş:** ölünce "Maç sonuçlanıyor…" kısa sürüp sonuç ekranı geliyor mu (sıra, öldürme, kazanan)? Kazanınca "Son Kalan Sensin!"? "Tekrar Oyna", "Kurulum", "Ana Menü" doğru çalışıyor mu? Maç sırasında Esc → "Maçtan Çık" iki adımlı mı?
+- [ ] **Kayıt güvenliği:** maçtan önceki hayatta kalma oyununa ana menüden "Oyuna Dön"/"Devam" ile dönülüyor mu (envanter, konum, saat aynı)? Maç sırasında otomatik kayıt yazılmıyor mu (maçtan sonra "Devam" eski oyunu açıyor mu)?
+- [ ] **Performans:** F3 → "son kalan" bölümü ve draw call; 12 yarışmacı (yakın kademe sınırı) çevrendeyken, kalabalık şehir merkezinde ve tüm haritada 100 kişiyle FPS (hedef ≥ 60, alt sınır 30); draw call ≤ 250 mü?
+- Notlar: ____________________
+

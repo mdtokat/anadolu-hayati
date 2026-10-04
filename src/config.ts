@@ -207,6 +207,8 @@ export const INPUT = {
     droneHome: ['KeyH'],
     /** Performans göstergesini aç/kapa (`PERF_OVERLAY`; ayar olarak saklanır). */
     togglePerformance: ['F3'],
+    /** Battle Royale haritası (yalnız maçta). */
+    toggleMap: ['KeyM'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,
@@ -1790,8 +1792,12 @@ export const COMBAT = {
     iron_dagger: { damage: 17, reach: 1.7, cooldownSeconds: 0.5, energyCost: 2 },
     pala: { damage: 32, reach: 2.4, cooldownSeconds: 0.85, energyCost: 4 },
   },
-  /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
-  defense: { hide_vest: 0.2, fur_cloak: 0.1 },
+  /**
+   * Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). Yelekler (`vests`) birbiriyle toplanmaz:
+   * yalnız en iyisi sayılır (Battle Royale: çelik yelek).
+   */
+  defense: { hide_vest: 0.2, fur_cloak: 0.1, steel_vest: 0.35 },
+  vests: ['hide_vest', 'steel_vest'] as readonly string[],
   /**
    * İsabet testi (`combat/melee.ts`; `INTERACT` gibi gevşek, çünkü gerçek yamaçlar ×3,3 dikleşir): yatay
    * koni (canlının açısal genişliği ayrıca eklenir), bakış eğimi ile hedefe yükselti açısı arasındaki en
@@ -3512,4 +3518,230 @@ export const PROPERTY = {
   extensionReach: 3,
   /** İç mekâna eşya konurken oyuncunun döşemeyle en çok dikey farkı (oyun m). */
   indoorVerticalReach: 1.5,
+} as const;
+
+/**
+ * Sağlık eşyaları (Battle Royale ile geldi; hayatta kalma modunda da nadir bulunur; `items/medical.ts`): kısayoldan
+ * ya da envanterden kullanılır, `seconds` boyunca sürer (hasar alınca, saldırınca ya da başka eşya seçilince yarıda
+ * kalır, eşya harcanmaz), bitince can `heal` artar ama `cap`'i aşmaz (sargı bezi ancak 75'e kadar iyileştirir).
+ */
+export const MEDICAL = {
+  bandage: { heal: 15, seconds: 3, cap: 75 },
+  first_aid_kit: { heal: 60, seconds: 6, cap: 100 },
+} as const;
+
+/**
+ * Battle Royale — "Son Kalan" (kullanıcı talimatı; plan `docs/battle-royale-plan.md`): oyuncu ve NPC'ler seçilen alanda
+ * (tüm harita ya da sınır komşuluğuyla bağlı bir ya da birden çok il) eli boş başlar, güvenli bölge aşamalarla daralır,
+ * son kalan kazanır. Maç kayda girmez. Saf mantık `src/battleRoyale/`.
+ */
+export const BATTLE_ROYALE = {
+  /** Oyuncu sayısı (oyuncu dahil): aralık ve alan türüne göre varsayılan. */
+  players: { min: 2, max: 100, defaultProvinces: 24, defaultWorld: 64 },
+  area: {
+    /** Alan maskesinin hücresi (oyun m): `contains` ve rastgele nokta seçimi bu ızgarada çalışır. */
+    maskCell: 8,
+    /** İl çokgenleri kıyıdan içeride kaldığından ilsiz kıyı şeridi bu kadar (oyun m) içindeyse en yakın ile sayılır. */
+    coastBufferM: PILOT.coastBufferM,
+    /**
+     * İl komşuluğu: iki ilin sınırı, köşeleri birbirine `tolerance` (oyun m) yakın kenarlardan en az `minSharedLength`
+     * (oyun m; ≈ 250 gerçek m) uzunlukta ortak çizgi taşıyorsa komşudur (köşe teması komşuluk sayılmaz).
+     */
+    adjacency: { tolerance: 0.5, minSharedLength: 5 },
+  },
+  zone: {
+    /**
+     * Güvenli bölge aşamaları (sırayla): `wait` bekleme ve `shrink` daralma süresi (sn; maç süresi çarpanıyla), yeni
+     * dairenin yarıçapı bir öncekinin `radiusFactor` katı (son aşama 0: bölge tamamen kapanır), dışarıda saniye başı
+     * hasar (can), sınırın en hızlı noktasının en çok hızı (oyun m/sn; yürüme 4, koşu 7; kısa maçta ÷ 0,7 ile bile
+     * NPC koşusunu — `far.zoneSpeed` 4,6 — aşmaz). Daralma, sınır bu hızı
+     * aşmayacak kadar uzar: büyük alanda (tüm harita) maç kendiliğinden uzar. Ölçülen (100 kişi; kısa / orta / uzun): il ≈ 17–24 /
+     * 24–35 / 33–49 dk, tüm harita ≈ 52 / 75 / 105 dk.
+     */
+    phases: [
+      { wait: 120, shrink: 300, radiusFactor: 0.6, damage: 0.4, edgeSpeed: 3.2 },
+      { wait: 90, shrink: 180, radiusFactor: 0.55, damage: 0.8, edgeSpeed: 3 },
+      { wait: 75, shrink: 150, radiusFactor: 0.5, damage: 1.5, edgeSpeed: 2.5 },
+      { wait: 60, shrink: 120, radiusFactor: 0.5, damage: 3, edgeSpeed: 2.2 },
+      { wait: 45, shrink: 90, radiusFactor: 0.45, damage: 5, edgeSpeed: 2 },
+      { wait: 40, shrink: 75, radiusFactor: 0.4, damage: 8, edgeSpeed: 1.5 },
+      { wait: 30, shrink: 60, radiusFactor: 0, damage: 12, edgeSpeed: 1.5 },
+    ],
+    /** Maç süresi seçimi: aşama sürelerinin çarpanı (sınır hızı bu çarpana bölünür). */
+    durationScale: { short: 0.7, medium: 1, long: 1.4 },
+    /** Seçili alanın dışında (komşu il, deniz) saniye başı en az hasar (bölge içinde olsa da). */
+    outsideAreaDamage: 1,
+    /** Yeni daire merkezi için deneme sayısı (karada, alanda, uygun noktada). */
+    centerTries: 80,
+  },
+  spawn: {
+    /** Başlangıç noktaları arası hedef uzaklık = `spacingFactor · √(alan / oyuncu)`, [min, max] aralığında (oyun m). */
+    spacingFactor: 0.6,
+    minSpacing: 25,
+    maxSpacing: 600,
+    /** Aralık tutmazsa bu kadar denemeden sonra aralık `relax` katına iner. */
+    attemptsPerRound: 1500,
+    relax: 0.8,
+    rounds: 12,
+  },
+  /**
+   * Uzak kademe (soyut) simülasyon (BR.2, `battleRoyale/farSim.ts`): oyuncudan uzaktaki NPC'ler tam yapay zekâ ve
+   * fizikle değil, sabit adımlı bir modelle yaşar: ganimet yerlerinde teçhizat toplar, bölgeye göç eder, birbirine
+   * rastlayınca karşılaşma zarla çözülür.
+   */
+  far: {
+    /** Sabit adım (sn). */
+    step: 0.5,
+    /** Yürüme hızı (oyun m/sn): ganimet ararken ve bölgeye koşarken (eşkıya yürüme 1,3, koşu 4,6). */
+    lootSpeed: 2.2,
+    zoneSpeed: 4.6,
+    /** Bir ganimet yerinde kalış süresi aralığı (sn). */
+    dwell: [25, 70],
+    /** Teçhizat kazanımı: zenginliği 1 olan yerde saniyede (1 − teçhizat)'ın bu oranı. */
+    lootRate: 0.006,
+    /** Ganimet yeri seçiminde en çok bakılan uzaklık (oyun m; içinden en yakın birkaçı arasından seçilir). */
+    lootSearchRadius: 900,
+    lootChoices: 4,
+    /**
+     * Bölgeye göç: hedef daireye varış süresi, kalan sürenin (`stageEnds − t`, beklemedeyse daralma süresi de eklenir)
+     * `zoneMargin` katını aşarsa ya da güvenli dairenin dışındaysa NPC bölgeye yönelir.
+     */
+    zoneMargin: 0.7,
+    /**
+     * Karşılaşma: `engageRadius + engageReachPerGear · (iki tarafın büyük teçhizatı)` uzaklıktaki (oyun m; tüfekli uzaktan
+     * görür/vurur) iki NPC saniyede `engageRate` olasılıkla çatışır; ikisi de eli boşsa (teçhizat 0) olasılık
+     * `unarmedEngage` katına iner, teçhizat `armedGear`'a varınca tamdır. Maçın ilk `graceSeconds`'ında kimse
+     * çatışmaz (herkes ilk silahını arar).
+     */
+    engageRadius: 40,
+    engageReachPerGear: 110,
+    engageRate: 0.05,
+    unarmedEngage: 0.15,
+    armedGear: 0.5,
+    graceSeconds: 90,
+    /** Çatışmanın ölümle bitme olasılığı (kalanında iki taraf yaralanıp ayrılır). */
+    killChance: 0.8,
+    /** Güç = (`gearBase` + teçhizat) · √(can/100); kazanma olasılığı güç^`strengthExponent` oranı. */
+    gearBase: 0.2,
+    strengthExponent: 2,
+    /** Kazananın aldığı hasar aralığı (can), rakibin göreli gücüyle çarpılır (×2 en çok). */
+    fightDamage: [10, 40],
+    /** Kazanan, yenilenin teçhizatından bu oranı alır (kendi teçhizatından büyükse). */
+    lootTransfer: 0.8,
+    /** Çatışma sonrası iki tarafın yeniden çatışamadığı süre (sn). */
+    cooldown: 20,
+    /** İyileşme: son hasardan `calmSeconds` sonra, teçhizatı `healGear` üstündeyse saniyede `healPerSec` can. */
+    calmSeconds: 40,
+    healGear: 0.25,
+    healPerSec: 0.3,
+    /**
+     * Bölgeye giderken yol: bu hücreli (oyun m) kaba yürüme ızgarasında güvenli daire başına bir akış alanı
+     * (`flowField.ts`; dağ sırtına/kıyıya takılmasınlar diye).
+     */
+    flowCell: 24,
+    /** Yürünemeyen yere çarpınca denenen sapma açıları (derece) ve bu kadar adım takılınca yeni hedef. */
+    detourDeg: [35, -35, 70, -70, 110, -110],
+    stuckSteps: 6,
+    /** Takılan NPC'nin yöneldiği rastgele kaçış noktasının uzaklık aralığı (oyun m). */
+    escapeRadius: [20, 70],
+    /** Ganimet yeri zenginliği yerleşim rütbesine göre (il merkezi en zengin). */
+    richness: { il: 1, ilce: 0.75, koy: 0.4 },
+    /** Teçhizat düzeyi → silah (eşkıya silahları; eşik altındaki ilk silah). */
+    gearWeapons: [
+      { below: 0.15, weapon: 'club' },
+      { below: 0.3, weapon: 'pala' },
+      { below: 0.5, weapon: 'pistol' },
+      { below: 0.7, weapon: 'shotgun' },
+      { below: 0.9, weapon: 'rifle' },
+      { below: Infinity, weapon: 'sniper_rifle' },
+    ],
+  },
+  /**
+   * Yakın kademe (BR.3, `battleRoyale/nearTier.ts`): oyuncuya `radius` (oyun m) içindeki ve karosu hazır uzak NPC'ler
+   * tam yapay zekâlı yarışmacıya (`BanditSystem`) dönüşür, `radius + margin` ötesinde (çatışmıyorsa; çatışıyorsa
+   * `radius + 3 · margin`) soyut kayda döner. Aynı anda en çok `maxAgents` (çizim ve atış ışını bütçesi: yarışmacı başına
+   * 5 draw call ölçüldü; en kalabalık şehir sahnesi 185 + 12 · 5 ≈ 245 < 250 hedefi).
+   */
+  near: {
+    radius: 320,
+    margin: 60,
+    maxAgents: 12,
+    /** Hedef yenileme aralığı (sn). */
+    guideInterval: 0.5,
+    /** Hedefi olan yarışmacı `progressWindow` sn'de `minProgress` m'den az ilerlerse kaçış noktası seçer. */
+    progressWindow: 3,
+    minProgress: 0.8,
+    /** Yarışmacının can üst sınırı (oyuncuyla aynı). */
+    maxHealth: 100,
+    /** Ceset oyuncudan bu kadar (oyun m) uzaklaşınca kalkar. */
+    corpseRadius: 420,
+    /** Zorluk: nişan hatası çarpanı (eşkıya = 1). */
+    difficulty: {
+      easy: { aimScale: 1.7 },
+      normal: { aimScale: 1 },
+      hard: { aimScale: 0.65 },
+    },
+  },
+  /**
+   * Ganimet (BR.4, `battleRoyale/loot.ts`). Maçta bina kapları hayatta kalma tablosu yerine bu tabloyu zarlar (silah,
+   * mühimmat, sağlık, zırh, çanta); her kap/sandık maç tohumu ve kimliğiyle deterministiktir.
+   */
+  loot: {
+    /** Kapta silah çıkma olasılığı ve silah ağırlıkları (çıkan menzilli silahın mühimmatı da yanında). */
+    weaponChance: 0.4,
+    weapons: {
+      club: 10,
+      iron_dagger: 8,
+      pala: 6,
+      slingshot: 3,
+      bow: 4,
+      pistol: 14,
+      shotgun: 11,
+      rifle: 7,
+      sniper_rifle: 2,
+    },
+    /** Silahla gelen mühimmat çarpanı (`AMMO.lootCount` aralığının katı). */
+    weaponAmmoScale: 1.5,
+    /** Ayrıca mühimmat çıkma olasılığı ve tür ağırlıkları. */
+    ammoChance: 0.35,
+    ammo: { pistol_ammo: 4, shotgun_shell: 3, rifle_ammo: 3, arrow: 1 },
+    /** Diğer satırlar: olasılık ve adet aralığı. */
+    extras: [
+      { item: 'bandage', chance: 0.35, min: 1, max: 3 },
+      { item: 'first_aid_kit', chance: 0.08, min: 1, max: 1 },
+      { item: 'hide_vest', chance: 0.06, min: 1, max: 1 },
+      { item: 'steel_vest', chance: 0.035, min: 1, max: 1 },
+      { item: 'backpack_small', chance: 0.06, min: 1, max: 1 },
+      { item: 'backpack_medium', chance: 0.035, min: 1, max: 1 },
+      { item: 'backpack_large', chance: 0.012, min: 1, max: 1 },
+      { item: 'suppressor', chance: 0.03, min: 1, max: 1 },
+    ],
+    /** Yapı türüne göre olasılık çarpanı (listede olmayan 1). */
+    kindScale: {
+      government: 1.6,
+      factory: 1.3,
+      mine_tower: 1.2,
+      han: 1.2,
+      konak: 1.15,
+      shop_row: 1.1,
+      kahvehane: 0.8,
+      hamam: 0.7,
+      serender: 0.5,
+    },
+    /** Yıkık yapı çarpanı. */
+    ruinedScale: 0.6,
+    /** Ganimet sandıkları: her `crateAreaM2` (oyun m²) alana bir sandık; `crateNearTownShare`'ı yerleşimlerin yakınında. */
+    crateAreaM2: 30_000,
+    crateNearTownShare: 0.6,
+    /** Sandığın olasılık çarpanı (silah kesin). */
+    crateScale: 1.8,
+    /** Sandıklar arası en küçük uzaklık (oyun m). */
+    crateSpacing: 18,
+    /** Maçta bina arama süresi çarpanı (kapı 3 sn → 1,5 sn). */
+    searchScale: 0.5,
+  },
+  /** Maç başı geri sayım (sn): hareket serbest, silah kapalı. */
+  countdownSeconds: 3,
+  /** Öldürme listesinde (kill feed) tutulan son olay sayısı. */
+  killFeedSize: 5,
 } as const;

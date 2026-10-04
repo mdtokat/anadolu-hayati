@@ -71,6 +71,15 @@ export const CONTROL_GROUPS: ReadonlyArray<readonly [title: string, rows: readon
       ],
     ],
     [
+      'Son Kalan (Battle Royale)',
+      [
+        [['M'], 'Harita: güvenli bölge, sonraki bölge, konumun'],
+        [['E'], 'Ganimet sandığını ya da yerdeki çantayı aç'],
+        [['1–8'], 'Sargı bezi / ilk yardım çantası kullan (süreli; hasar alınca yarıda kalır)'],
+        [['Esc'], 'Duraklat · maçtan çık'],
+      ],
+    ],
+    [
       'Diğer',
       [
         [['B'], 'İl sınırları'],
@@ -87,7 +96,7 @@ export const DEV_CONTROLS: readonly ControlRow[] = [
   [['P', 'O'], 'Malzeme / inşa eşyası ver'],
   [['L', 'N'], 'Erzak ver / önüne bir yolcu çıkar'],
   [['J'], 'Silah, mühimmat, susturucu ve büyük çanta ver'],
-  [['M'], 'Drone ve pil ver'],
+  [['M'], 'Drone ve pil ver (maçta değil: maçta harita)'],
   [['Shift', 'M'], 'Cüzdana 1000 ₺'],
   [['[', ']'], 'Saati ±1 saat'],
   [['K'], 'Canı sıfırla'],

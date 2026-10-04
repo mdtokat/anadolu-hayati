@@ -30,6 +30,8 @@ export interface HitSource {
   by: 'player' | 'bandit' | 'other';
   /** Silah kimliği (eşya kimliği ya da `fist`); bilinmiyorsa boş. */
   weapon?: string;
+  /** Atan eşkıyanın kimliği (`by: 'bandit'`; Battle Royale'de öldüreni bulmak için). */
+  attacker?: number;
 }
 
 /** Hedef sağlayıcısı: yakındaki hedefleri verir, isabeti uygular. */

@@ -1,6 +1,7 @@
 import { isBackpack } from './backpack';
 import { HOTBAR } from '../config';
 import { ITEMS, isItemId, type ItemId } from './itemDefs';
+import { isMedical } from './medical';
 
 /** Kayıt biçimi: slotlara bağlı eşya kimlikleri ve seçili slot (yoksa null). */
 export interface HotbarSave {
@@ -24,6 +25,7 @@ export function hotbarUse(id: ItemId): HotbarUse {
   const { category } = ITEMS[id];
   if (category === 'placeable') return 'place';
   if ((category === 'food' && ITEMS[id].edible) || id === 'water_container_full') return 'consume';
+  if (isMedical(id)) return 'consume'; // sağlık eşyası: süreli kullanılır (`items/medical.ts`)
   if (category === 'food') return 'none'; // çiğ erzak (bulgur, tarhana…): pişirilir
   if (id === 'water_container_empty') return 'none';
   if (isBackpack(id)) return 'none'; // sırtta taşınır, ele alınmaz

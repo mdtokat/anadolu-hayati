@@ -120,6 +120,10 @@ export const ITEM_IDS = [
   'backpack_small',
   'backpack_medium',
   'backpack_large',
+  // ── Battle Royale (kullanıcı talimatı): sağlık eşyaları ve çelik yelek; hayatta kalma modunda da (nadir) bulunur ──
+  'bandage',
+  'first_aid_kit',
+  'steel_vest',
 ] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -664,6 +668,23 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     id: 'backpack_large',
     name: 'Büyük Sırt Çantası',
     weightG: 1800,
+    stackMax: 1,
+    category: 'tool',
+  },
+  // Battle Royale: sağlık eşyaları süreli kullanılır (`items/medical.ts`, `MEDICAL`); çelik yelek deri yelekle
+  // toplanmaz, ikisinden iyisi geçerlidir (`combat/damage.ts`).
+  bandage: { id: 'bandage', name: 'Sargı Bezi', weightG: 100, stackMax: 10, category: 'tool' },
+  first_aid_kit: {
+    id: 'first_aid_kit',
+    name: 'İlk Yardım Çantası',
+    weightG: 600,
+    stackMax: 3,
+    category: 'tool',
+  },
+  steel_vest: {
+    id: 'steel_vest',
+    name: 'Çelik Yelek',
+    weightG: 5000,
     stackMax: 1,
     category: 'tool',
   },

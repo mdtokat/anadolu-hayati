@@ -50,8 +50,18 @@
 }
 
 /* Gizli öğeler: bileşen kuralları `display` verse de `hidden` kazanır. */
-:where(.hud, .pause-menu, .inv-panel, .settings-panel, .death-screen)[hidden],
-:where(.hud, .pause-menu, .inv-panel, .settings-panel, .death-screen) [hidden] {
+:where(
+  .hud,
+  .pause-menu,
+  .inv-panel,
+  .settings-panel,
+  .death-screen,
+  .br-hud,
+  .br-feed,
+  .br-map
+)[hidden],
+:where(.hud, .pause-menu, .inv-panel, .settings-panel, .death-screen, .br-hud, .br-feed, .br-map)
+  [hidden] {
   display: none !important;
 }
 
@@ -2760,4 +2770,276 @@
 }
 .inv-panel button.inv-slot[data-dragging='true'] {
   opacity: 0.35;
+}
+
+/* ───────────────────── Son Kalan (Battle Royale) ───────────────────── */
+
+/* Kurulum penceresi (ayarlar penceresinin görünümünü paylaşır). */
+.br-setup-body {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.br-setup-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 4px 0 12px;
+}
+@media (max-width: 640px) {
+  .br-setup-area {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.br-setup-map,
+.br-map-svg {
+  width: 100%;
+  height: auto;
+  background: rgba(20, 44, 60, 0.55);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+.br-map-province {
+  fill: rgba(143, 207, 107, 0.16);
+  stroke: rgba(244, 239, 228, 0.45);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  transition: fill 120ms ease;
+}
+.br-setup-map[data-mode='world'] .br-map-province,
+.br-map-province[data-state='world'],
+.br-map-province[data-state='area'] {
+  fill: rgba(232, 176, 74, 0.38);
+}
+.br-map-province[data-state='selected'],
+.br-map-province[data-state='locked'] {
+  fill: rgba(232, 176, 74, 0.55);
+  stroke: var(--ui-accent-hi);
+  stroke-width: 2;
+}
+.br-map-province[data-state='addable']:hover {
+  fill: rgba(232, 176, 74, 0.28);
+}
+.br-map-province[data-state='blocked'],
+.br-map-province[data-state='out'] {
+  fill: rgba(255, 248, 230, 0.04);
+  cursor: not-allowed;
+}
+.br-map-label {
+  fill: var(--ui-text);
+  font-family: var(--ui-font);
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.br-setup-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+}
+.br-setup-province {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.br-setup-province[data-state='selected'],
+.br-setup-province[data-state='locked'] {
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent);
+  border-color: var(--ui-accent-hi);
+}
+.br-setup-province[data-state='locked'] {
+  opacity: 0.85;
+  cursor: help;
+}
+.br-setup-province[data-state='addable'] {
+  border-color: var(--ui-accent-lo);
+}
+.br-setup-players {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.br-setup-range {
+  width: 200px;
+  accent-color: var(--ui-accent);
+}
+.br-setup-number {
+  width: 64px;
+  padding: 4px 6px;
+  color: var(--ui-text);
+  background: var(--ui-surface-3);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-s);
+}
+.br-setup-summary {
+  color: var(--ui-text);
+}
+.br-setup-warning:empty {
+  display: none;
+}
+.br-setup-warning {
+  color: var(--ui-warn);
+}
+.br-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Maç göstergesi (pusulanın altında) ve öldürme listesi (sağ üstte, konum kartının altında). */
+.br-hud {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  text-shadow: var(--ui-text-shadow);
+}
+.br-hud-counts {
+  padding: 4px 12px;
+  font: 600 14px var(--ui-font);
+  color: var(--ui-text);
+  background: linear-gradient(180deg, var(--ui-surface-top), var(--ui-surface-bottom));
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  box-shadow: var(--ui-shadow-hud);
+}
+.br-hud-zone {
+  font: 500 13px var(--ui-font);
+  color: var(--ui-text-muted);
+}
+.br-hud-zone[data-danger='true'] {
+  color: #e98af7;
+  font-weight: 700;
+}
+.br-hud-truce {
+  font: 600 12px var(--ui-font);
+  color: var(--ui-tile);
+}
+.br-feed {
+  position: absolute;
+  top: 150px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.br-feed li {
+  max-width: 340px;
+  padding: 3px 10px;
+  font: 500 13px var(--ui-font);
+  color: var(--ui-text);
+  background: rgba(18, 22, 20, 0.72);
+  border-left: 3px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-s);
+  animation: br-feed-in 200ms ease-out;
+}
+.br-feed li[data-mine='true'] {
+  border-left-color: var(--ui-accent);
+  color: var(--ui-accent-hi);
+}
+@keyframes br-feed-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* Harita (M): oyun donmaz, ekranın ortasında yarı saydam pano. */
+.br-map {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.br-map-svg {
+  width: min(86vw, 1100px);
+  max-height: 78vh;
+  background: rgba(14, 30, 42, 0.82);
+  box-shadow: var(--ui-shadow);
+}
+.br-map-zone,
+.br-map-next {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.br-map-zone {
+  stroke: #e98af7;
+  stroke-width: 3;
+}
+.br-map-next {
+  stroke: #fbf5ea;
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+.br-map-player {
+  fill: var(--ui-accent-hi);
+  stroke: #21180a;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.br-map-caption {
+  margin: 0;
+  padding: 4px 12px;
+  font: 600 14px var(--ui-font);
+  color: var(--ui-text);
+  background: rgba(18, 22, 20, 0.8);
+  border-radius: 999px;
+}
+
+/* Sonuç ekranı (ölüm ekranının görünümü; kazanınca kehribar). */
+.br-result[data-win='true'] {
+  background: radial-gradient(ellipse at center, rgba(74, 52, 12, 0.94), rgba(10, 8, 2, 0.98) 70%);
+}
+.br-result[data-win='true'] .death-screen-panel h1 {
+  color: var(--ui-accent-hi);
+}
+.br-result[data-win='true'] .death-screen-panel button:not(.secondary) {
+  color: var(--ui-accent-ink);
+  background: linear-gradient(180deg, var(--ui-accent-hi), var(--ui-accent-lo));
+  border-color: var(--ui-accent-hi);
+}
+.br-result-detail {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.br-result-seed {
+  margin: 0;
+  font: 12px var(--ui-font-mono);
+  color: var(--ui-text-faint);
+}
+.br-result-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.br-result .death-screen-panel button.secondary {
+  color: var(--ui-text);
+  background: var(--ui-surface-3);
+  border-color: var(--ui-border-strong);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .br-feed li {
+    animation: none;
+  }
 }

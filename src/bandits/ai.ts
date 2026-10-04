@@ -49,6 +49,8 @@ export interface BanditBrain {
   noticed: boolean;
   /** Yakın vuruş bu hamlede yapıldı mı? */
   struck: boolean;
+  /** Teslim olmaz (Battle Royale yarışmacısı); yoksa teslim olabilir. */
+  noSurrender?: boolean;
 }
 
 /** Oyuncu algısı (ölü ya da camideyse null: eşkıya onu algılamaz, saldırmaz). */
@@ -72,6 +74,8 @@ export interface BanditSenses {
   camp: Point;
   /** Av (yalnızca `hunt`): menzildeki karaca. */
   prey: (Point & { id: string; dist: number }) | null;
+  /** `travel` etkinliğinde `home`'a gidiş hızı (oyun m/sn; yoksa yürüme hızı). */
+  travelSpeed?: number;
 }
 
 export type BanditAction =
@@ -94,7 +98,16 @@ export interface BanditStep {
   actions: BanditAction[];
 }
 
-const CALM: readonly BanditState[] = ['sit', 'sleep', 'guard', 'patrol', 'hunt', 'wood', 'ambush'];
+const CALM: readonly BanditState[] = [
+  'sit',
+  'sleep',
+  'guard',
+  'patrol',
+  'hunt',
+  'wood',
+  'ambush',
+  'travel',
+];
 const FIGHTING: readonly BanditState[] = ['chase', 'attack', 'shoot', 'cover'];
 const ALIVE: readonly BanditState[] = [
   ...CALM,
@@ -113,6 +126,8 @@ const COVER_SECONDS = 2.5;
 const STRIKE_GRACE = 0.6;
 /** Odun toplama/avda bir noktada bekleme (sn). */
 const DWELL_SECONDS = 6;
+/** Yolculukta varış payı (oyun m). */
+const TRAVEL_ARRIVE = 1.5;
 
 export function createBrain(
   x: number,
@@ -198,7 +213,7 @@ export const TRANSITIONS: readonly Transition[] = [
     name: 'surrender',
     from: ALIVE.filter((s) => s !== 'surrender' && s !== 'flee'),
     to: fixed('surrender'),
-    when: ({ c }) => fraction(c) < BANDITS.surrenderHealthFraction,
+    when: ({ c }) => !c.noSurrender && fraction(c) < BANDITS.surrenderHealthFraction,
   },
   {
     name: 'retreat',
@@ -415,6 +430,10 @@ function behave(
     }
     case 'patrol':
       return roam(c, s.camp, BANDITS.patrolRadius, dt, rng, 2);
+    case 'travel': {
+      const move = goTo(c, s.home, s.travelSpeed ?? BANDITS.walkSpeed, TRAVEL_ARRIVE);
+      return move.speed > 0 ? move : { ...STOP, face: s.home.yaw };
+    }
     case 'wood':
       return roam(c, s.camp, BANDITS.woodRadius, dt, rng, DWELL_SECONDS);
     case 'hunt': {

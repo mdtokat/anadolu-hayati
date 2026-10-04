@@ -41,7 +41,7 @@ export interface BuildingLoot {
 }
 
 /** Hedefin kalan-ganimet anahtarı (kapı için eksi, kap için kap kimliği: kimlik uzayları çakışmasın). */
-function leftoverKey(target: SearchTarget): number {
+export function leftoverKey(target: SearchTarget): number {
   return target.type === 'door' ? -1 - target.id : target.id;
 }
 
@@ -186,6 +186,13 @@ export class BuildingSearch {
    * (testler) ganimet eskisi gibi atomik olarak envantere eklenir.
    */
   onLoot: ((loot: BuildingLoot) => void) | null = null;
+  /**
+   * Ganimet kaynağı (Battle Royale: maç tablosu, `battleRoyale/loot.ts`; `key`: `leftoverKey`). Null ise hayatta
+   * kalma tablosu (`lootOf`).
+   */
+  lootSource: ((target: SearchTarget, key: number) => ItemStack[]) | null = null;
+  /** Arama süresi çarpanı (Battle Royale'de aramalar kısadır). */
+  secondsScale = 1;
   private currentId: number | null = null;
   private elapsed = 0;
   private currentOffer: SearchOffer | null = null;
@@ -206,6 +213,11 @@ export class BuildingSearch {
     return offer?.status === 'ready' && this.currentId !== null
       ? Math.min(this.elapsed / offer.seconds, 1)
       : 0;
+  }
+
+  /** Hedefin ganimeti (takılı kaynak ya da hayatta kalma tablosu). */
+  private lootFor(target: SearchTarget): ItemStack[] {
+    return this.lootSource ? this.lootSource(target, leftoverKey(target)) : lootOf(target);
   }
 
   /** Yapı (kapıdan) aranmış mı? */
@@ -267,10 +279,10 @@ export class BuildingSearch {
     // Panel kipinde sığmayan ganimet de açılır (sığan alınır); eski kipte hepsi sığmalı.
     const status: SearchOffer['status'] = this.isTargetSearched(target)
       ? 'searched'
-      : this.onLoot !== null || fitsAll(this.inventory, lootOf(target))
+      : this.onLoot !== null || fitsAll(this.inventory, this.lootFor(target))
         ? 'ready'
         : 'full';
-    const seconds = searchSeconds(target);
+    const seconds = searchSeconds(target) * this.secondsScale;
     this.currentOffer = { status, target, building: target.building, seconds };
     if (status !== 'ready' || !held) {
       this.currentId = null;
@@ -302,7 +314,7 @@ export class BuildingSearch {
     const key = leftoverKey(target);
     let list = this.leftovers.get(key);
     if (!list) {
-      list = lootOf(target);
+      list = this.lootFor(target);
       this.leftovers.set(key, list);
       const b = target.building;
       const money = this.wallet ? searchMoney(target.type, target.id, b) : 0;
@@ -335,7 +347,7 @@ export class BuildingSearch {
       this.open(target, this.onLoot);
       return;
     }
-    const items = lootOf(target);
+    const items = this.lootFor(target);
     if (!fitsAll(this.inventory, items)) return;
     for (const s of items) this.inventory.add(s.id, s.count);
     if (target.type === 'door') this.searched.add(target.id);
