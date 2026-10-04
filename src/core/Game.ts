@@ -174,6 +174,8 @@ import { formatDay } from '../ui/survivalFormat';
 import { GameMenu } from '../ui/GameMenu';
 import { ControlsPanel } from '../ui/ControlsPanel';
 import type { ScopeUiState, SuppressorState } from '../ui/InventoryPanel';
+import { Minimap } from '../ui/Minimap';
+import { minimapVisible } from '../ui/minimapView';
 import { CreditsPanel } from '../ui/CreditsPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { createSettingsStore, type SettingsStore } from '../settings/SettingsStore';
@@ -593,6 +595,8 @@ export class Game {
   /** Battle Royale arayüzü ve dünya katmanları (`setupBattleRoyale`; yerleşim verisi yoksa yok). */
   private brHud: BrHud | null = null;
   private brMap: BrMapPanel | null = null;
+  /** Mini harita (hayatta kalmada envanterde Harita varken, Son Kalan'da her zaman); gerçek dünya yoksa null. */
+  private minimap: Minimap | null = null;
   private brResult: BrResultScreen | null = null;
   private brSetupPanel: BrSetupPanel | null = null;
   private zoneWall: ZoneWall | null = null;
@@ -938,6 +942,9 @@ export class Game {
     this.setupStations();
     this.setupFarming();
     this.setupRanged();
+    if (this.world instanceof RegionWorld) {
+      this.minimap = new Minimap(this.hud.infoCard, this.world.minimapSource());
+    }
     this.setupBandits();
     this.setupDrone();
     this.setupBattleRoyale();
@@ -1295,6 +1302,7 @@ export class Game {
     this.deathScreen.dispose();
     this.brHud?.dispose();
     this.brMap?.dispose();
+    this.minimap?.dispose();
     this.brResult?.dispose();
     this.brSetupPanel?.dispose();
     this.zoneWall?.dispose();
@@ -2479,6 +2487,7 @@ export class Game {
     this.drawStations(now / 1000, feet);
     this.drawFarming(now / 1000, feet);
     this.drawRanged(now / 1000, feet);
+    this.drawMinimap(now, feet);
     this.drawHeld(now, alpha);
     this.drawBandits(now / 1000, feet);
     this.drawDrone(now / 1000, feet);
@@ -3530,6 +3539,31 @@ export class Game {
   }
 
   /** Kare başı maç çizimi: bölge duvarı, yerdeki ganimet, HUD, pusula işareti, harita. */
+  /** Mini harita: Son Kalan'da her zaman, hayatta kalmada envanterde Harita varken; maçta güvenli bölge de çizilir. */
+  private drawMinimap(now: number, feet: { x: number; y: number; z: number }): void {
+    const minimap = this.minimap;
+    if (!minimap) return;
+    const on = minimapVisible({
+      battleRoyale: this.br !== null,
+      hasMap: this.inventory.has('map'),
+      alive: this.survival.alive,
+      paused: this.loop.paused,
+    });
+    if (on !== minimap.visible) {
+      minimap.setVisible(on);
+      // Son Kalan öldürme listesi mini haritanın altına iner (CSS).
+      if (on) this.container.dataset.minimap = '1';
+      else delete this.container.dataset.minimap;
+    }
+    if (!on) return;
+    const zone = this.br?.zone ?? null;
+    minimap.update(
+      now,
+      { x: feet.x, z: feet.z, yaw: this.playerCamera.yaw },
+      zone ? { circle: zone.circle, next: zone.next } : null,
+    );
+  }
+
   private drawBattleRoyale(now: number, feet: { x: number; y: number; z: number }): void {
     const session = this.br;
     if (!session) return;

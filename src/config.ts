@@ -3707,6 +3707,44 @@ export const MEDICAL = {
  * (tüm harita ya da sınır komşuluğuyla bağlı bir ya da birden çok il) eli boş başlar, güvenli bölge aşamalarla daralır,
  * son kalan kazanır. Maç kayda girmez. Saf mantık `src/battleRoyale/`.
  */
+/**
+ * Mini harita (`ui/Minimap.ts`, saf görünüm `ui/minimapView.ts`; kullanıcı talimatı: "hayatta kalmada üretilerek elde
+ * edilsin, Son Kalan'da verilsin; oyuncunun konumu, Son Kalan'da bölge görünsün"). Kuzey yukarıdadır; oyuncu ortada ok.
+ * Hayatta kalmada envanterde `map` (Harita) varken görünür; Son Kalan'da her zaman.
+ */
+export const MINIMAP = {
+  /** Ekrandaki çap (CSS px). */
+  sizePx: 176,
+  /** Ortadan kenara gösterilen uzaklık (oyun m; 220 oyun m = 11 gerçek km). */
+  radius: 220,
+  /** Arazi taban görüntüsünün kenarı (örnek) ve kapsadığı alanın gösterilen çapa oranı (kaydırma payı). */
+  rasterCells: 144,
+  rasterSpan: 1.6,
+  /** Taban görüntüsü kare başına bu kadar satır örnekler (yeniden çizim takılma yapmasın). */
+  rowsPerFrame: 18,
+  /** Çizim aralığı (ms; harita her karede değil, saniyede ~12 kez yenilenir). */
+  drawIntervalMs: 80,
+  /** Yol/su/yapı listelerinin yenilendiği yer değiştirme (oyun m). */
+  vectorRefresh: 60,
+  /** Gölgelendirme gücü (eğim ışığı) ve rakım parlaklığı (oyun m başına). */
+  hillshade: 0.9,
+  /** Renkler (0xRRGGBB). Arazi örtüsü renkleri `TERRAIN_LOOK.cover`'dan. */
+  colors: {
+    sea: 0x245a78,
+    seaDeep: 0x173e57,
+    bare: 0x8a8f72,
+    water: 0x4f9fd0,
+    road: 0xe6dcc0,
+    trunk: 0xf2c46a,
+    street: 0xc9c2b0,
+    building: 0x5a4636,
+    mosque: 0x2f8a7e,
+    zone: 0xffffff,
+    next: 0x7fd1ff,
+    player: 0xffd25e,
+  },
+} as const;
+
 export const BATTLE_ROYALE = {
   /** Oyuncu sayısı (oyuncu dahil): aralık ve alan türüne göre varsayılan. */
   players: { min: 2, max: 100, defaultProvinces: 24, defaultWorld: 64 },

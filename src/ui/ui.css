@@ -2902,6 +2902,34 @@
   margin-top: 8px;
 }
 
+/* Mini harita (konum/saat kartının altında; kuzey yukarı). */
+.minimap {
+  position: relative;
+  align-self: center;
+  width: 176px;
+  height: 176px;
+  margin-top: 2px;
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.minimap-canvas {
+  display: block;
+  border-radius: 50%;
+}
+.minimap-north {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 11px var(--ui-font-display, sans-serif);
+  color: #fff6dc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+[data-minimap='1'] .br-feed {
+  top: 336px;
+}
+
 /* Maç göstergesi (pusulanın altında) ve öldürme listesi (sağ üstte, konum kartının altında). */
 .br-hud {
   position: absolute;
