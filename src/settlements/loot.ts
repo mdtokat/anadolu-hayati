@@ -63,6 +63,8 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11 sonrası: sırt çantaları ──
     e('backpack_small', 0.06),
     e('backpack_medium', 0.025),
+    // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
+    e('bandage', 0.08, 1, 2),
   ],
   konak: [
     e('bulgur', 0.4, 1, 2),
@@ -83,6 +85,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11 sonrası: sırt çantaları ──
     e('backpack_medium', 0.05),
     e('backpack_large', 0.02),
+    // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
+    e('bandage', 0.08, 1, 2),
+    e('first_aid_kit', 0.03),
   ],
   apartment: [
     e('bulgur', 0.4, 1, 3),
@@ -103,6 +108,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11 sonrası: sırt çantaları ──
     e('backpack_small', 0.05),
     e('backpack_medium', 0.04),
+    // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
+    e('bandage', 0.1, 1, 2),
+    e('first_aid_kit', 0.03),
   ],
   lojman: [
     e('peksimet', 0.4, 1, 3),
@@ -110,6 +118,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('bulgur', 0.3, 1, 2),
     e('miner_lamp', 0.25),
     e('wool_blanket', 0.2),
+    // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
+    e('bandage', 0.12, 1, 3),
+    e('first_aid_kit', 0.04),
   ],
   serender: [
     e('hazelnut', 0.8, 5, 15),
@@ -152,6 +163,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     // ── Faz 11 sonrası: susturucu ve büyük çanta ──
     e('suppressor', 0.04),
     e('backpack_large', 0.03),
+    // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
+    e('first_aid_kit', 0.06),
+    e('steel_vest', 0.015),
   ],
   han: [
     e('wool_blanket', 0.5),
@@ -178,6 +192,9 @@ export const BUILDING_LOOT: Partial<Record<BuildingKind, readonly LootEntry[]>> 
     e('propeller', 0.15, 1, 2),
     // ── Faz 11: D (11.5): fabrikada demir kama ──
     e('iron_dagger', 0.05),
+    // ── Battle Royale ile gelen sağlık eşyaları ve çelik yelek (hayatta kalma modunda nadir) ──
+    e('bandage', 0.08, 1, 2),
+    e('first_aid_kit', 0.03),
   ],
 };
 

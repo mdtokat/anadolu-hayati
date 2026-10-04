@@ -268,7 +268,24 @@ başlangıç aralığı, bölge hasarı.
     (`FarSim.nudge`). Uzak kademenin 90 sn'lik ateşkesi yakında da geçerlidir. Ceset 420 m'ye kadar kalır.
   - Ölçüm (Zonguldak, 40 kişi, oyuncu il merkezinde dinleniyor, 5 dk): 17 NPC yakına geçti, aynı anda en çok 13,
     17 elenme (4'ü yakında çatışmada), oyuncuya 139 isabet; üç sistem birlikte adım başına ~0,05 ms.
-- [ ] BR.4 — ganimet ve yeni eşyalar
+- [x] **BR.4 — ganimet ve yeni eşyalar** (`battleRoyale/loot.ts`, `items/medical.ts`; `config.ts` →
+  `BATTLE_ROYALE.loot`, `MEDICAL`, `COMBAT.defense/vests`; testler `tests/brLoot`).
+  - Yeni eşyalar (`ITEM_IDS` sonuna; ad, ağırlık, simge, değer, elde model): **Sargı Bezi** (`bandage`; 3 sn, +15 can,
+    ancak 75'e kadar), **İlk Yardım Çantası** (`first_aid_kit`; 6 sn, +60 can, 100'e kadar), **Çelik Yelek**
+    (`steel_vest`; %35 savunma). Yelekler toplanmaz (deri + çelik = çelik), diğer giysiler eklenir. Sağlık eşyası
+    kısayolda "kullan" (`consume`) türüdür; süreli kullanım `MedicalUse` (başlat, ilerlet, bitince bir tane harcanır;
+    yarıda kalan harcamaz) — oyuna bağlanması BR.5'te. Hayatta kalma modunda bina tablolarının **sonuna** nadir satırlar
+    eklendi (sargı %8–12, ilk yardım %3–6, çelik yelek yalnız hükümet konağında %1,5; önceki satırların zarları
+    değişmedi). `itemDefs` testinde "alet yığını 1" kuralına sağlık eşyaları istisna eklendi (tüketilir, yığınlanır).
+  - Maç ganimeti `rollBrLoot` (maç tohumu + kalıcı anahtar; deterministik): kapta %40 silah (sopa, kama, pala, sapan,
+    yay, tabanca, av tüfeği, piyade tüfeği, nadir keskin nişancı; menzilli silah mühimmatıyla), %35 ek mühimmat, sargı
+    %35, ilk yardım %8, deri/çelik yelek %6/%3,5, çantalar, susturucu; yapı türü çarpanı (hükümet konağı ×1,6 …
+    serender ×0,5), yıkık ×0,6. `BuildingSearch.lootSource`/`secondsScale` takılabilir: maçta bina kapları bu tabloyu
+    zarlar, arama yarı sürede biter.
+  - Ganimet sandıkları `planCrates` (her 30 000 oyun m²'ye bir; %60'ı yerleşimlerin yakınında, zenginliğe göre; en az
+    18 m arayla): silah kesin, olasılıklar ×1,8. Ölü yarışmacının üstü `contestantLoot` (silahı, teçhizatla artan
+    mühimmat, sağlık, yelek; `BanditSystem.setContestantLoot`), uzakta ölenin çantası `dropLoot`. Yerdeki ganimetler
+    `BrPickups` (sandık + çanta; içerik ilk açılışta zarlanır, boşalan kalkar).
 - [ ] BR.5 — `Game` entegrasyonu
 - [ ] BR.6 — arayüz
 - [ ] BR.7 — ölçüm ve belgeler

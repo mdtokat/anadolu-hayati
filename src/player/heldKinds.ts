@@ -40,6 +40,7 @@ const KINDS: Partial<Record<ItemId, HeldKind>> = {
   copper_pot: 'carry',
   wool_blanket: 'carry',
   hide_vest: 'carry',
+  steel_vest: 'carry',
   fur_cloak: 'carry',
   drone: 'drone',
 };

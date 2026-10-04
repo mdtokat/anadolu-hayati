@@ -192,6 +192,9 @@ export class BanditSystem implements TargetProvider {
   private solids: SolidQuery | null = null;
   /** Battle Royale ateşkesi: yarışmacılar kimseyi (oyuncu dahil) hedef almaz. */
   private truce = false;
+  /** Battle Royale: ölü yarışmacının üstündeki ganimet (maç kimliği, silah); verilmezse eşkıya ganimeti. */
+  private contestantLootFn: ((contestant: number, weapon: BanditWeapon) => ItemStack[]) | null =
+    null;
 
   constructor(
     private readonly events: EventBus<GameEvents>,
@@ -378,7 +381,7 @@ export class BanditSystem implements TargetProvider {
   lootOf(id: number): ItemStack[] {
     const m = this.members.get(id);
     if (!m || m.brain.state !== 'dead' || m.searched) return [];
-    return rollBanditLoot(id, m.brain.weapon, this.seed);
+    return this.rollLoot(m);
   }
 
   /**
@@ -410,7 +413,7 @@ export class BanditSystem implements TargetProvider {
     if (!m || m.brain.state !== 'dead' || m.searched) return null;
     let list = this.corpseLeft.get(id);
     if (!list) {
-      list = rollBanditLoot(id, m.brain.weapon, this.seed);
+      list = this.rollLoot(m);
       this.corpseLeft.set(id, list);
     }
     return list;
@@ -586,6 +589,18 @@ export class BanditSystem implements TargetProvider {
   ): void {
     const m = this.contestantMember(contestant);
     if (m) m.travel = goal;
+  }
+
+  /** Battle Royale: ölü yarışmacının ganimet kaynağı (null: eşkıya ganimeti). */
+  setContestantLoot(fn: ((contestant: number, weapon: BanditWeapon) => ItemStack[]) | null): void {
+    this.contestantLootFn = fn;
+  }
+
+  /** Üyenin ölünce üstünden çıkan ganimet (deterministik). */
+  private rollLoot(m: Member): ItemStack[] {
+    if (m.contestant !== null && this.contestantLootFn)
+      return this.contestantLootFn(m.contestant, m.brain.weapon);
+    return rollBanditLoot(m.id, m.brain.weapon, this.seed);
   }
 
   /** Battle Royale ateşkesi (maç başı): açıkken yarışmacılar kimseye saldırmaz, yalnız yürür. */

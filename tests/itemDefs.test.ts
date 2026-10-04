@@ -4,6 +4,7 @@ import { FOOD, INVENTORY } from '../src/config';
 import { ITEM_IDS, ITEMS, isItemId } from '../src/items/itemDefs';
 import { PIECE_KINDS } from '../src/placement/pieces';
 import { FENCE_KINDS } from '../src/placement/structures';
+import { isMedical } from '../src/items/medical';
 
 describe('eşya tablosu', () => {
   it('her kimliğin tanımı var ve tanım kendi kimliğini taşıyor', () => {
@@ -20,10 +21,11 @@ describe('eşya tablosu', () => {
     }
   });
 
-  it('alet ve yerleştirilebilir yapıların yığın sınırı 1 (modüler parçalar ve çitler hariç: art arda kurulur)', () => {
+  it('alet ve yerleştirilebilir yapıların yığın sınırı 1 (modüler parçalar ve çitler hariç: art arda kurulur; sağlık eşyaları tüketilir)', () => {
     for (const id of ITEM_IDS) {
       if ((PIECE_KINDS as readonly string[]).includes(id)) continue;
       if ((FENCE_KINDS as readonly string[]).includes(id)) continue;
+      if (isMedical(id)) continue;
       if (ITEMS[id].category === 'tool' || ITEMS[id].category === 'placeable') {
         expect(ITEMS[id].stackMax, id).toBe(1);
       }

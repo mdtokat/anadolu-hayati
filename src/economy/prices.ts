@@ -113,6 +113,9 @@ export const ITEM_VALUES: Readonly<Record<ItemId, number>> = {
   backpack_small: 120,
   backpack_medium: 350,
   backpack_large: 800,
+  bandage: 25,
+  first_aid_kit: 140,
+  steel_vest: 1800,
 };
 
 /** Silah, mühimmat ve barut (av bayiinin uzmanlığı). */

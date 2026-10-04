@@ -11,10 +11,14 @@ const DEFENSE_ITEMS = Object.keys(COMBAT.defense) as Array<keyof typeof COMBAT.d
  */
 export function defenseFor(inventory: Pick<Inventory, 'has'>): number {
   let total = 0;
+  let vest = 0;
   for (const id of DEFENSE_ITEMS) {
-    if (inventory.has(id as ItemId)) total += COMBAT.defense[id];
+    if (!inventory.has(id as ItemId)) continue;
+    // Yelekler toplanmaz: yalnız en iyisi (deri + çelik = çelik).
+    if (COMBAT.vests.includes(id)) vest = Math.max(vest, COMBAT.defense[id]);
+    else total += COMBAT.defense[id];
   }
-  return Math.min(Math.max(total, 0), COMBAT.maxDefense);
+  return Math.min(Math.max(total + vest, 0), COMBAT.maxDefense);
 }
 
 /** Ham hasardan savunma düşülmüş hasar. */

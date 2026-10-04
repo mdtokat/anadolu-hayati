@@ -241,6 +241,12 @@ export const ITEM_ICONS: Readonly<Record<ItemId, string>> = {
     '<rect x="5" y="5.5" width="14" height="15.5" rx="3.2" fill="#6c7a3a"/><path d="M9 5.5V4a3 3 0 0 1 6 0v1.5" fill="none" stroke="#3f4a1e" stroke-width="1.5"/><rect x="7.5" y="12.5" width="9" height="6" rx="1.4" fill="#556226"/><path d="M5 10h14" stroke="#3f4a1e" stroke-width="1.2"/>',
   backpack_large:
     '<rect x="4" y="3.5" width="16" height="18" rx="3.4" fill="#3f5a6e"/><path d="M8.5 3.5V2.4h7v1.1" stroke="#25384a" stroke-width="1.5" fill="none"/><rect x="6.5" y="12" width="11" height="7.5" rx="1.5" fill="#304759"/><path d="M4 9h16M12 3.5v5.5" stroke="#25384a" stroke-width="1.2"/><rect x="2.5" y="8" width="2" height="9" rx="1" fill="#7a5a3a"/>',
+  bandage:
+    '<rect x="3" y="8.5" width="18" height="7" rx="3.5" fill="#efe9dc" transform="rotate(-30 12 12)"/><path d="M7.5 15.5 16.5 8.5" stroke="#d6cdb8" stroke-width="1" stroke-dasharray="1.6 1.6"/><circle cx="17.6" cy="7.5" r="3" fill="#e4dccb"/><circle cx="17.6" cy="7.5" r="1.1" fill="#c9bfa8"/>',
+  first_aid_kit:
+    '<rect x="3" y="6.5" width="18" height="13.5" rx="2.2" fill="#c8323c"/><path d="M9 6.5V4.5h6v2" stroke="#8f1f27" stroke-width="1.6" fill="none"/><path d="M12 9.5v7M8.5 13h7" stroke="#fbf5ea" stroke-width="2.6" stroke-linecap="round"/>',
+  steel_vest:
+    '<path d="M8 3h2.2c.4 1.4 1 2 1.8 2s1.4-.6 1.8-2H16l4 3-1.6 4-1.4-.8V21H7V9.2l-1.4.8L4 6z" fill="#5b646c"/><path d="M8.5 10.5h7v4h-7zM8.5 16h7v3.5h-7z" fill="#76808a"/><path d="M12 6v15" stroke="#3e454b" stroke-width="1.1"/><path d="M9.5 12.5h5M9.5 17.8h5" stroke="#9aa4ad" stroke-width="1" stroke-linecap="round"/>',
 };
 
 /** Eşya kategorisinin vurgu rengi (slot kenarı ve çip rengi için CSS değişkeni). */

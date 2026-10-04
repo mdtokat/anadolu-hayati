@@ -95,6 +95,11 @@ export class BrNearTier {
     return this.records.has(contestant);
   }
 
+  /** Yakın yarışmacının teçhizat düzeyi (ganimet için; yakında değilse 0). */
+  gearOf(contestant: number): number {
+    return this.records.get(contestant)?.agent.gear ?? 0;
+  }
+
   /**
    * Bir adım (sabit adım, `t`: maç saniyesi): durum eşitleme, bölge hasarı, hedefler, kademe geçişleri. Bu adımda olan
    * elenmeleri (bölge) döner; çatışma ölümleri `onKilled`'dan gelir.

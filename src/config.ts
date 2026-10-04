@@ -1790,8 +1790,12 @@ export const COMBAT = {
     iron_dagger: { damage: 17, reach: 1.7, cooldownSeconds: 0.5, energyCost: 2 },
     pala: { damage: 32, reach: 2.4, cooldownSeconds: 0.85, energyCost: 4 },
   },
-  /** Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). */
-  defense: { hide_vest: 0.2, fur_cloak: 0.1 },
+  /**
+   * Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). Yelekler (`vests`) birbiriyle toplanmaz:
+   * yalnız en iyisi sayılır (Battle Royale: çelik yelek).
+   */
+  defense: { hide_vest: 0.2, fur_cloak: 0.1, steel_vest: 0.35 },
+  vests: ['hide_vest', 'steel_vest'] as readonly string[],
   /**
    * İsabet testi (`combat/melee.ts`; `INTERACT` gibi gevşek, çünkü gerçek yamaçlar ×3,3 dikleşir): yatay
    * koni (canlının açısal genişliği ayrıca eklenir), bakış eğimi ile hedefe yükselti açısı arasındaki en
@@ -3515,6 +3519,16 @@ export const PROPERTY = {
 } as const;
 
 /**
+ * Sağlık eşyaları (Battle Royale ile geldi; hayatta kalma modunda da nadir bulunur; `items/medical.ts`): kısayoldan
+ * ya da envanterden kullanılır, `seconds` boyunca sürer (hasar alınca, saldırınca ya da başka eşya seçilince yarıda
+ * kalır, eşya harcanmaz), bitince can `heal` artar ama `cap`'i aşmaz (sargı bezi ancak 75'e kadar iyileştirir).
+ */
+export const MEDICAL = {
+  bandage: { heal: 15, seconds: 3, cap: 75 },
+  first_aid_kit: { heal: 60, seconds: 6, cap: 100 },
+} as const;
+
+/**
  * Battle Royale — "Son Kalan" (kullanıcı talimatı; plan `docs/battle-royale-plan.md`): oyuncu ve NPC'ler seçilen alanda
  * (tüm harita ya da sınır komşuluğuyla bağlı bir ya da birden çok il) eli boş başlar, güvenli bölge aşamalarla daralır,
  * son kalan kazanır. Maç kayda girmez. Saf mantık `src/battleRoyale/`.
@@ -3664,6 +3678,64 @@ export const BATTLE_ROYALE = {
       normal: { aimScale: 1 },
       hard: { aimScale: 0.65 },
     },
+  },
+  /**
+   * Ganimet (BR.4, `battleRoyale/loot.ts`). Maçta bina kapları hayatta kalma tablosu yerine bu tabloyu zarlar (silah,
+   * mühimmat, sağlık, zırh, çanta); her kap/sandık maç tohumu ve kimliğiyle deterministiktir.
+   */
+  loot: {
+    /** Kapta silah çıkma olasılığı ve silah ağırlıkları (çıkan menzilli silahın mühimmatı da yanında). */
+    weaponChance: 0.4,
+    weapons: {
+      club: 10,
+      iron_dagger: 8,
+      pala: 6,
+      slingshot: 3,
+      bow: 4,
+      pistol: 14,
+      shotgun: 11,
+      rifle: 7,
+      sniper_rifle: 2,
+    },
+    /** Silahla gelen mühimmat çarpanı (`AMMO.lootCount` aralığının katı). */
+    weaponAmmoScale: 1.5,
+    /** Ayrıca mühimmat çıkma olasılığı ve tür ağırlıkları. */
+    ammoChance: 0.35,
+    ammo: { pistol_ammo: 4, shotgun_shell: 3, rifle_ammo: 3, arrow: 1 },
+    /** Diğer satırlar: olasılık ve adet aralığı. */
+    extras: [
+      { item: 'bandage', chance: 0.35, min: 1, max: 3 },
+      { item: 'first_aid_kit', chance: 0.08, min: 1, max: 1 },
+      { item: 'hide_vest', chance: 0.06, min: 1, max: 1 },
+      { item: 'steel_vest', chance: 0.035, min: 1, max: 1 },
+      { item: 'backpack_small', chance: 0.06, min: 1, max: 1 },
+      { item: 'backpack_medium', chance: 0.035, min: 1, max: 1 },
+      { item: 'backpack_large', chance: 0.012, min: 1, max: 1 },
+      { item: 'suppressor', chance: 0.03, min: 1, max: 1 },
+    ],
+    /** Yapı türüne göre olasılık çarpanı (listede olmayan 1). */
+    kindScale: {
+      government: 1.6,
+      factory: 1.3,
+      mine_tower: 1.2,
+      han: 1.2,
+      konak: 1.15,
+      shop_row: 1.1,
+      kahvehane: 0.8,
+      hamam: 0.7,
+      serender: 0.5,
+    },
+    /** Yıkık yapı çarpanı. */
+    ruinedScale: 0.6,
+    /** Ganimet sandıkları: her `crateAreaM2` (oyun m²) alana bir sandık; `crateNearTownShare`'ı yerleşimlerin yakınında. */
+    crateAreaM2: 30_000,
+    crateNearTownShare: 0.6,
+    /** Sandığın olasılık çarpanı (silah kesin). */
+    crateScale: 1.8,
+    /** Sandıklar arası en küçük uzaklık (oyun m). */
+    crateSpacing: 18,
+    /** Maçta bina arama süresi çarpanı (kapı 3 sn → 1,5 sn). */
+    searchScale: 0.5,
   },
   /** Maç başı geri sayım (sn): hareket serbest, silah kapalı. */
   countdownSeconds: 3,
