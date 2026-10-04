@@ -207,6 +207,8 @@ export const INPUT = {
     droneHome: ['KeyH'],
     /** Performans göstergesini aç/kapa (`PERF_OVERLAY`; ayar olarak saklanır). */
     togglePerformance: ['F3'],
+    /** Battle Royale haritası (yalnız maçta). */
+    toggleMap: ['KeyM'],
   },
   /** Fare hassasiyeti: piksel başına radyan. */
   mouseSensitivity: 0.0022,

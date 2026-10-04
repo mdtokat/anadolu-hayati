@@ -22,7 +22,9 @@ export type InputAction =
   /** F: drone'u eve döndür ve indir (`H`). */
   | 'droneHome'
   /** Performans göstergesini aç/kapa (`F3`). */
-  | 'togglePerformance';
+  | 'togglePerformance'
+  /** Battle Royale haritası (`M`; yalnız maçta). */
+  | 'toggleMap';
 
 /** Tuş durumundan türetilen hareket niyeti. */
 export interface MoveIntent {
@@ -65,6 +67,7 @@ export function actionForKey(code: string): InputAction | null {
   if ((bindings.droneView as readonly string[]).includes(code)) return 'droneView';
   if ((bindings.droneHome as readonly string[]).includes(code)) return 'droneHome';
   if ((bindings.togglePerformance as readonly string[]).includes(code)) return 'togglePerformance';
+  if ((bindings.toggleMap as readonly string[]).includes(code)) return 'toggleMap';
   return null;
 }
 

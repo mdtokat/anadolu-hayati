@@ -27,6 +27,7 @@ import {
 import { RECIPES } from '../items/recipes';
 import { attachSlotDrag } from './slotDrag';
 import { closeButton, el, loadMeter, moneyBadge, slotButton } from './widgets';
+import { isMedical, medicalStatus } from '../items/medical';
 
 export interface InventoryPanelCallbacks {
   /** Seçili slottaki yiyeceği ye. */
@@ -53,6 +54,8 @@ export interface InventoryPanelCallbacks {
   onToggleSuppressor?(item: ItemId): void;
   /** Cüzdandaki para (₺); verilmezse gösterilmez. */
   getMoney?(): number;
+  /** Sağlık eşyasını kullan (sargı bezi, ilk yardım çantası; panel kapanır, kullanım süreli). */
+  onUseMedical?(item: ItemId): void;
 }
 
 /** Yeniden çizimde konumu korunan kaydırma bölgeleri. */
@@ -275,6 +278,16 @@ export class InventoryPanel {
         eat.disabled = !canEat(vitals, stack.id);
         eat.addEventListener('click', () => this.callbacks.onEat(slot));
         buttons.append(eat);
+      }
+      if (isMedical(stack.id) && this.callbacks.onUseMedical) {
+        const item = stack.id;
+        const ok = medicalStatus(item, vitals.health) === 'ok';
+        const use = el('button', 'inv-eat', ok ? 'Kullan' : 'Canın dolu');
+        use.type = 'button';
+        use.disabled = !ok;
+        use.title = 'Süreli kullanılır; hasar alınca yarıda kalır';
+        use.addEventListener('click', () => this.callbacks.onUseMedical?.(item));
+        buttons.append(use);
       }
       if (view.drinkable) {
         const ok = canDrinkContainer(vitals, this.inventory);

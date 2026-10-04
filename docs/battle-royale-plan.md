@@ -306,5 +306,29 @@ başlangıç aralığı, bölge hasarı.
     elde başka eşya seçilince yarıda kalır (bölge hasarı kesmez).
   - Plandan sapma: 3 sn'lik geri sayım yerine maç başındaki 90 sn'lik ateşkes yeterli görüldü (herkes eli boş).
   - Henüz menüden açılamaz (BR.6); oyun içi doğrulama BR.7'de başsız tarayıcıyla.
-- [ ] BR.6 — arayüz
+- [x] **BR.6 — arayüz** (`ui/BrSetupPanel.ts`, `ui/BrHud.ts`, `ui/BrMapPanel.ts`, `ui/BrResultScreen.ts`, saf metin ve
+  görünüm modeli `ui/brFormat.ts`; dünya `world/ZoneWall.ts`, `world/PickupLayer.ts`; testler `tests/brFormat`).
+  - Ana menüde **"Son Kalan (Battle Royale)"** → kurulum penceresi: Tüm harita / İl seç (SVG il haritasında ya da listede
+    tıklanır; seçili il dolu, eklenebilir il kehribar çerçeveli, komşu olmayan il kapalı, seçimi bölecek il kilitli ve
+    uyarı verir), oyuncu sayısı (kaydırıcı + sayı, 2–100), süre, zorluk, hayvanlar, sabit gündüz; son kurulum
+    tarayıcıda hatırlanır (`anadolu-hayati.br-setup`; kayıtla ilgisi yok).
+  - Maç göstergeleri: pusulanın altında "Kalan 23 · Öldürme 2", bölge satırı ("Bölge 1:24 sonra daralıyor", "Bölge
+    daralıyor 0:40", dışarıdayken mor "· Güvenli bölgeye 340 m"), ateşkes sayacı; pusulada "Bölge" işareti (sonraki
+    dairenin merkezi); sağ üstte öldürme listesi (Türkçe belirtme eki: "Mehmet Yılmaz, Ayşe Kaya'yı alt etti (Piyade
+    Tüfeği)"; oyuncununkiler vurgulu); aşama bildirimleri.
+  - `M` haritası (oyun donmaz): iller, maç alanı, şimdiki (mor) ve sonraki (kesikli) daire, oyuncu oku. Bölge duvarı:
+    yarı saydam mor silindir (+1 draw call). Yerdeki ganimet: sandık ve çantalar oyuncuya 150 m içinde çizilir (+2 draw
+    call), 2,4 m'de "E: Ganimet sandığını aç" → ganimet paneli. Envanterde sağlık eşyasına "Kullan" düğmesi.
+  - Duraklatma menüsü maçta: Devam Et / Kontroller / Ayarlar / Maçtan Çık (iki adımlı; maçtan önceki oturum geri gelir).
+    Sonuç ekranı: "Son Kalan Sensin!" (kehribar) ya da "#7 / 32", sıra, öldürme, hayatta kalınan süre, kazanan, en çok
+    öldüren NPC, maç tohumu; Tekrar Oyna (aynı kurulum, yeni tohum; ilk maçtan önceki hayatta kalma durumu korunur) /
+    Kurulum / Ana Menü. Kontroller penceresine "Son Kalan" grubu.
+  - **Başsız tarayıcıyla uçtan uca denendi** (yazılımsal WebGL, Zonguldak + Bartın, 24 kişi): kurulum → maç → harita →
+    ölüm → hızlı sonuçlandırma → sonuç → Tekrar Oyna → sandık aç (tabanca, 22 mermi, sargı bezi) → zafer → ana menü;
+    konsol hatası yok, maçta kayıt alınmıyor, ana menüye dönünce alınıyor. Bu deneme iki hatayı yakaladı ve düzeltti:
+    oyuncu ölünce oyun duraklıyordu ve maçı sonuçlandıran adım (`update` içinde) hiç çalışmıyordu (artık çizim
+    döngüsünde, kare başına ~10 ms bütçeyle), ve ölünce duraklatma menüsü sonuç ekranının arkasında açılıyordu.
+  - Maç kurulum süresi (başsız, tarayıcı içinde): Zonguldak + Bartın 0,3 sn; tüm harita 100 kişi 2,3 sn (2,0 sn'si
+    bütün aşamaların akış alanları; tek seferlik, "Maç hazırlanıyor…" sırasında).
+  - Bütçe: `index.js` 294 → 302 kB gzip (sınır 310 kB, %98 uyarı; sınır yükseltilmedi).
 - [ ] BR.7 — ölçüm ve belgeler

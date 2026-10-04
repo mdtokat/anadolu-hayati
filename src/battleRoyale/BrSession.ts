@@ -45,14 +45,16 @@ interface PlayerHit {
 
 /** Oyuncu son isabetten bu kadar sn içinde ölürse ölüm isabet edene yazılır. */
 const KILL_CREDIT_SECONDS = 15;
-/** Oyuncu öldükten sonra kare başına hızlı sonuçlandırma dilimi (maç saniyesi). */
-const FINISH_SLICE_SECONDS = 30;
+/** Oyuncu öldükten sonra hızlı sonuçlandırma dilimi (maç saniyesi) ve kare başına süre bütçesi (ms). */
+const FINISH_SLICE_SECONDS = 10;
+const FINISH_BUDGET_MS = 10;
 
 export class BrSession {
   readonly plan: MatchPlan;
   readonly far: FarSim;
   readonly tier: BrNearTier;
   readonly pickups: BrPickups;
+  readonly timings: { plan: number; flow: number; crates: number };
   private time = 0;
   private lastPhase = -1;
   private lastShrinking = false;
@@ -69,7 +71,9 @@ export class BrSession {
     private readonly events: EventBus<GameEvents>,
     playerName = 'Sen',
   ) {
+    const t0 = performance.now();
     this.plan = planMatch(setup, seed, world, playerName);
+    const t1 = performance.now();
     const zone = { plan: this.plan.zone, area: this.plan.area };
     this.far = new FarSim(
       this.plan.match,
@@ -78,7 +82,9 @@ export class BrSession {
       seedFrom(seed, 5),
       this.plan.spawns.slice(1).map((s, i) => ({ id: i + 1, x: s.x, z: s.z })),
     );
+    const t2 = performance.now();
     this.far.prepare();
+    const t3 = performance.now();
     this.tier = new BrNearTier(
       this.plan.match,
       this.far,
@@ -94,6 +100,12 @@ export class BrSession {
       (x, z) => world.spawnOpen(x, z),
     );
     this.pickups = new BrPickups(crates, seedFrom(seed, 7));
+    /** Kurulum süreleri (ms; ölçüm ve performans göstergesi için). */
+    this.timings = {
+      plan: t1 - t0,
+      flow: t3 - t2,
+      crates: performance.now() - t3,
+    };
     bandits.setWildEnabled(false);
     bandits.setContestantLoot((contestant, weapon) =>
       contestantLoot(
@@ -209,18 +221,21 @@ export class BrSession {
   }
 
   /**
-   * Oyuncu öldükten sonra kare başına çağrılır: maçı kazanan belli olana dek dilim dilim hızlı ilerletir. Bittiyse
-   * true (`br:ended` bir kez yayınlanır).
+   * Oyuncu öldükten sonra kare başına çağrılır: maçı kazanan belli olana dek `budgetMs` boyunca dilim dilim hızlı
+   * ilerletir (en az bir dilim). Bittiyse true (`br:ended` bir kez yayınlanır).
    */
-  finishStep(): boolean {
+  finishStep(budgetMs: number = FINISH_BUDGET_MS): boolean {
     if (this.ended) return true;
     const match = this.plan.match;
     const limit = this.plan.zone.total + 600;
-    if (match.aliveCount > 1 && this.far.now < limit) {
+    const started = performance.now();
+    // Kare bütçesi dolana dek dilim dilim (en az bir dilim).
+    do {
+      if (match.aliveCount <= 1 || this.far.now >= limit) break;
       for (const e of this.far.runToEnd(FINISH_SLICE_SECONDS)) this.announce(e);
       this.time = Math.max(this.time, this.far.now);
       this.collectDrops();
-    }
+    } while (performance.now() - started < budgetMs);
     if (match.aliveCount <= 1 || this.far.now >= limit) {
       this.end();
       return true;
