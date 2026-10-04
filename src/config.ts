@@ -2057,6 +2057,91 @@ export const SETTLEMENT_STYLES = {
   },
 } as const;
 
+/**
+ * Kent büyüklüğü (kullanıcı talimatı: "binaları çeşitlendir; büyük illerin küçük illerden farkı olsun — yapı olarak,
+ * kat sayısı olarak"; saf mantık `settlements/citySize.ts`). Her il/ilçe merkezine 0 (küçük kasaba) … 1 (metropol)
+ * arası bir **kentleşme ölçeği** verilir; düzen (`settlements/layout.ts`) apartman kat sayısını, konut karışımını,
+ * çarşı payını, doluluğu, harabeliği ve cephe boyasını bu ölçekle ara değerler (`[küçük, büyük]` çiftleri). Köyler
+ * etkilenmez (ölçek 0, düzenleri değişmez).
+ */
+export const CITY_SIZE = {
+  /**
+   * İl nüfusu (yaklaşık, TÜİK ADNKS 2023): `settlements.json`'daki nüfus il ve kent nüfusunu karışık taşıdığından
+   * ilin büyüklüğü buradan okunur. Tabloda olmayan il küçük sayılır (yeni il eklenirse buraya da eklenmeli;
+   * `tests/citySize` denetler).
+   */
+  provincePopulation: {
+    Ankara: 5_803_000,
+    Kocaeli: 2_103_000,
+    Samsun: 1_378_000,
+    Sakarya: 1_101_000,
+    Zonguldak: 589_000,
+    Çorum: 524_000,
+    Düzce: 410_000,
+    Kastamonu: 389_000,
+    Amasya: 338_000,
+    Bolu: 321_000,
+    Kırıkkale: 279_000,
+    Karabük: 252_000,
+    Bartın: 229_000,
+    Bilecik: 228_000,
+    Sinop: 221_000,
+    Çankırı: 200_000,
+  } as Readonly<Record<string, number>>,
+  /** İl ölçeği: nüfus `smallPop`'ta 0, `largePop`'ta 1 (logaritmik ara değer). */
+  smallPop: 200_000,
+  largePop: 5_000_000,
+  /**
+   * İlçe ölçeği = `ilceProvinceWeight` × il ölçeği + (1 − …) × ilçenin kendi ölçeği; kendi ölçeği gerçek bina sayısından
+   * (`smallTown` binada 0, `largeTown`'da 1, logaritmik): Keçiören/Gebze kentsel, Ankara'nın kırsal ilçeleri orta.
+   */
+  ilceProvinceWeight: 0.5,
+  smallTown: 1500,
+  largeTown: 15000,
+  /**
+   * Apartman kat sayısı aralığı (zemin dahil) rütbeye göre, `[küçük, büyük]` uçları ölçekle ara değerlenir: küçük il
+   * merkezi 3–5, metropol 6–10; küçük ilçe 2–4, büyük ilçe 4–8. Aralık içindeki yer `floorRoll` (zar), merkeze
+   * yakınlık `floorCore` ve yoğunluk `floorDensity` ağırlıklarıyla seçilir (kent merkezi yüksek, kenarlar alçak).
+   */
+  apartmentFloors: {
+    il: { min: [3, 6], max: [5, 10] },
+    ilce: { min: [2, 4], max: [4, 8] },
+  },
+  floorRoll: 0.6,
+  floorCore: 0.35,
+  floorDensity: 0.2,
+  /** Konak 3 katlı olma olasılığı (yoksa 2); Osmanlı üslubunda `konakOsmanli` eklenir. */
+  konakTall: [0.15, 0.45],
+  konakOsmanli: 0.15,
+  /** "Yoğun doku" eşiği (100 m hücredeki gerçek bina; `SETTLEMENT_LAYOUT.denseThreshold` yerine). */
+  denseThreshold: [8, 3],
+  /** Seyrek parselde apartman olasılığı (büyük kentte banliyö de apartmandır). */
+  sparseApartment: [0, 0.55],
+  /** Yoğun parselde apartman yerine ev (Osmanlı üslubunda konak) olasılığı: küçük kasaba alçak kalır. */
+  smallTownHouse: [0.25, 0],
+  /**
+   * Parsel aralığı çarpanı (`SETTLEMENT_LAYOUT.lotPitch`): 10 m'lik parsele 10 m genişliğindeki apartman komşusuyla
+   * yan yana sığmaz; büyük kentte parseller geniştir (apartman bloğu), küçük kasabada sık (evler).
+   */
+  lotPitchScale: [1, 1.3],
+  /** Çekirdekte (merkeze `coreRadius` × yarıçap) dükkân sırası olasılığı. */
+  shopShare: [0.5, 0.7],
+  coreRadius: [0.28, 0.38],
+  /** `SETTLEMENT_LAYOUT.fullDensity`, `maxBuildings` ve `ruinChance` çarpanları: büyük kent dolu ve bakımlı. */
+  fullDensityScale: [1.1, 0.7],
+  maxBuildingsScale: [1, 1.4],
+  ruinScale: [1.25, 0.45],
+  /**
+   * Büyük kentte apartman sığmayan parsel bu olasılıkla boş kalır (yerine ev kurulmaz): apartman mahalleleri arasında
+   * açık alan, gecekondu yerine düzenli doku.
+   */
+  skipHouseFallback: [0, 0.5],
+  /** Kahvehane sayısı (il/ilçe). */
+  kahvehane: [2, 3],
+  /** Apartmanın boyalı cephe olasılığı (renkler `BUILDING_LOOK.paints`); yoksa çıplak beton. */
+  paintChance: [0.15, 0.7],
+} as const;
+
 /** Yollar (Faz 10): sınıf başına genişlik (oyun m; gerçek genişlikler abartılı), yumuşatma, ağ düzeni ve zemin düzeltme. */
 export const ROADS = {
   /**
@@ -2475,6 +2560,11 @@ export const BUILDING_LOOK = {
   refreshDistance: 20,
   /** Örnek başına ton çarpanı aralığı (solgunluk çeşitlemesi). */
   toneRange: [0.82, 1.06],
+  /**
+   * Apartman cephe boyaları (örnek rengiyle çarpılır; açık pastel: krem, şeftali, açık mavi, sarı, açık yeşil, gül).
+   * `Building.paint` 1…n bu listenin sırasıdır (0 = boyasız beton; `CITY_SIZE.paintChance`).
+   */
+  paints: [0xfff1d6, 0xffd9c2, 0xd6e6f2, 0xfbe7a6, 0xdcebcf, 0xf6d3d0],
   /** Yıkık yapılar bu kadar koyulaşır (is, yosun). */
   ruinDarken: 0.8,
   /** Taş temelin zemin altına inen payı (oyun m). */

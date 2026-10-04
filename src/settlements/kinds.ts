@@ -388,12 +388,43 @@ export function mosqueOffset(kind: BuildingKind): number {
   return 0;
 }
 
-/** Katlı yapının kat planı (apartmanda kat sayısı binaya göre); katsız türde null. */
+/**
+ * Kat sayısı binadan gelen türler ve kat sınırları (zemin dahil; apartman 2–10, konak 2–3; `citySize.ts`); diğer
+ * katlı türlerde kat sayısı sabittir. Apartmanın üst sınırı `windows.ts` `MAX_PANES` ve üst kat kap kimliklerine sığar.
+ */
+export const VARIABLE_STOREYS: Readonly<
+  Partial<Record<BuildingKind, { min: number; max: number }>>
+> = {
+  apartment: { min: 2, max: 10 },
+  konak: { min: 2, max: 3 },
+};
+
+/** Kat sayısı binaya göre değişen tür mü (geometri/şekil varyantı kat sayısıyla ayrılır)? */
+export function hasVariableStoreys(kind: BuildingKind): boolean {
+  return VARIABLE_STOREYS[kind] !== undefined;
+}
+
+/**
+ * Yapının kat sayısı (zemin dahil): apartmanda `floors` (yoksa varsayılan), konakta `floors` ≥ 2 ise o (eski kayıt ve
+ * baked haritada 1: türün sabiti), diğer türlerde `ROOMS` sabiti (katsızda 1).
+ */
+export function storeyCount(kind: BuildingKind, floors?: number): number {
+  const room = ROOMS[kind];
+  if (!room) return 1;
+  const range = VARIABLE_STOREYS[kind];
+  if (range) {
+    const fallback = kind === 'apartment' ? SHAPE_DIMS.apartment.floors : (room.storeys ?? 2);
+    const n = floors !== undefined && floors >= range.min ? Math.round(floors) : fallback;
+    return Math.min(n, range.max);
+  }
+  return room.storeys ?? 1;
+}
+
+/** Katlı yapının kat planı (apartman ve konakta kat sayısı binaya göre); katsız türde null. */
 export function storeyPlanOf(kind: BuildingKind, floors?: number): StoreyPlan | null {
   const room = ROOMS[kind];
   if (!room) return null;
-  const storeys =
-    kind === 'apartment' ? (floors ?? SHAPE_DIMS.apartment.floors) : (room.storeys ?? 1);
+  const storeys = storeyCount(kind, floors);
   if (storeys < 2) return null;
   const dims = SHAPE_DIMS[kind] as { w: number; d: number };
   return storeyPlan({
@@ -757,13 +788,13 @@ export const BUILDING_SHAPES: Readonly<Record<BuildingKind, BuildingShape>> = Ob
 const variants = new Map<string, BuildingShape>();
 
 /**
- * Bir binanın gerçek şekli: katlı yapılarda kat sayısına (apartman 3–6) göre; yıkık katlı yapı yalnızca zemin katıdır
+ * Bir binanın gerçek şekli: katlı yapılarda kat sayısına (apartman 2–10, konak 2–3) göre; yıkık katlı yapı yalnızca zemin katıdır
  * (üst katlar ve merdiven yok). Diğer türlerde `BUILDING_SHAPES[kind]`.
  */
 export function shapeVariant(kind: BuildingKind, floors?: number, ruined = false): BuildingShape {
   const room = ROOMS[kind];
   if (!room || (kind !== 'apartment' && (room.storeys ?? 1) < 2)) return BUILDING_SHAPES[kind];
-  const n = kind === 'apartment' ? (floors ?? SHAPE_DIMS.apartment.floors) : (room.storeys ?? 1);
+  const n = storeyCount(kind, floors);
   const key = `${kind}:${n}:${ruined ? 1 : 0}`;
   let shape = variants.get(key);
   if (!shape) {

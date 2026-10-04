@@ -18,7 +18,9 @@ import type { FrameBudget } from '../core/FrameBudget';
 import {
   BUILDING_SHAPES,
   GOVERNMENT_FLAG,
+  hasVariableStoreys,
   isMosque,
+  storeyCount,
   type BuildingKind,
 } from '../settlements/kinds';
 import type { Building } from '../settlements/layout';
@@ -49,16 +51,18 @@ interface Tier {
   count: number;
 }
 
-/** Yapının geometri varyantı: tür (+ yıkık) (+ apartman kat sayısı). */
+/** Yapının geometri varyantı: tür (+ yıkık) (+ apartman/konak kat sayısı; yıkık katlı yapı yalnız zemin kattır). */
 export function variantKey(b: Building): string {
-  if (b.kind === 'apartment') return `apartment:${b.floors}`;
-  return b.ruined ? `${b.kind}:ruined` : b.kind;
+  if (b.ruined) return `${b.kind}:ruined`;
+  if (hasVariableStoreys(b.kind)) return `${b.kind}:${storeyCount(b.kind, b.floors)}`;
+  return b.kind;
 }
 
 function parseKey(key: string): { kind: BuildingKind; ruined: boolean; floors?: number } {
   const [kind, extra] = key.split(':') as [BuildingKind, string | undefined];
-  if (kind === 'apartment') return { kind, ruined: false, floors: Number(extra) };
-  return { kind, ruined: extra === 'ruined' };
+  if (extra === 'ruined') return { kind, ruined: true };
+  if (extra !== undefined) return { kind, ruined: false, floors: Number(extra) };
+  return { kind, ruined: false };
 }
 
 const tmpMatrix = new Matrix4();
@@ -223,8 +227,10 @@ export class SettlementLayer {
       tier.mesh.setMatrixAt(tier.count, tmpMatrix);
       let tone = toneLo + b.tone * (toneHi - toneLo);
       if (b.ruined) tone *= BUILDING_LOOK.ruinDarken;
-      if (far) tier.mesh.setColorAt(tier.count, tintOf(far.tint, tone));
-      else tier.mesh.setColorAt(tier.count, colorOf(tone));
+      // Boyalı apartman cephesi: örnek rengi boyayla çarpılır (ek draw call yok; `BUILDING_LOOK.paints`).
+      const paint = paintOf(b);
+      if (far) tier.mesh.setColorAt(tier.count, tintOf(far.tint, tone, paint));
+      else tier.mesh.setColorAt(tier.count, tintOf(0xffffff, tone, paint));
       tier.count++;
       if (lod === 'far') this.farCount++;
       else this.nearCount++;
@@ -292,9 +298,18 @@ function hasInterior(kind: BuildingKind): boolean {
 const FAR_ROOFED = 'far-roofed';
 const FAR_FLAT = 'far-flat';
 
-/** Duvar tonu × solgunluk (uzak ortak mesh'in örnek rengi). */
-function tintOf(hex: number, tone: number): Color {
-  return sharedColor.setHex(hex).multiplyScalar(tone);
+const paintColor = new Color();
+
+/** Yapının cephe boyası (yoksa null). */
+function paintOf(b: Building): number | null {
+  if (b.kind !== 'apartment' || !b.paint) return null;
+  return BUILDING_LOOK.paints[b.paint - 1] ?? null;
+}
+
+/** Duvar tonu × solgunluk (× cephe boyası): örnek rengi (uzak ortak mesh'te `hex` yapının duvar tonu, yakında beyaz). */
+function tintOf(hex: number, tone: number, paint: number | null = null): Color {
+  sharedColor.setHex(hex).multiplyScalar(tone);
+  return paint === null ? sharedColor : sharedColor.multiply(paintColor.setHex(paint));
 }
 function colorOf(tone: number): Color {
   return sharedColor.setRGB(tone, tone, tone);

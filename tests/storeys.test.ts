@@ -27,11 +27,14 @@ import { SettlementColliders } from '../src/world/SettlementColliders';
 const DT = 1 / 60;
 const MULTI: ReadonlyArray<{ kind: BuildingKind; floors?: number }> = [
   { kind: 'konak' },
+  { kind: 'konak', floors: 3 },
   { kind: 'lojman' },
   { kind: 'government' },
+  { kind: 'apartment', floors: 2 },
   { kind: 'apartment', floors: 3 },
   { kind: 'apartment', floors: 4 },
   { kind: 'apartment', floors: 6 },
+  { kind: 'apartment', floors: 10 },
 ];
 
 beforeAll(async () => {
@@ -46,7 +49,7 @@ describe('kat planı', () => {
       expect(plan.parapetTop).toBeCloseTo(SHAPE_DIMS[kind].h, 6);
       expect(shapeVariant(kind).height).toBeCloseTo(plan.parapetTop, 6);
     }
-    for (const floors of [3, 4, 5, 6]) {
+    for (const floors of [2, 3, 4, 5, 6, 8, 10]) {
       const plan = storeyPlanOf('apartment', floors)!;
       expect(plan.storeys).toBe(floors);
       expect(plan.roofY).toBeCloseTo(floors * SHAPE_DIMS.apartment.floorH, 6);
