@@ -511,6 +511,20 @@ Elle doğrulanacak:
 - [ ] Ankara/Kocaeli merkezinin yüksek apartman dokusu ile Çankırı/Sinop/Bilecik gibi küçük merkezlerin alçak ev-konak dokusunun gerçekten farklı göründüğü; cephe boyalarının doğal durduğu (iç mekân da hafif boyaya bürünür)
 - [ ] 8–10 katlı apartmanların merdiven/çatı terasına çıkış ve FPS (yeni kat varyantları: yakında görünen varyant başına +1–2 draw call)
 
+## Faz 12 sonrası — Zemindeki yolların şeritleri ve köprü/tünel başları (kullanıcı talimatı)
+_(Kullanıcı talimatı: "Tünellerde köprülerde yollar şeritli ve güzel görünürken diğer yerlerde net belli olmuyor. Zeminle aynı seviyede olduğu için olabilir, bunu incele ve düzelt. Ayrıca köprü ve tünellerde yollar arasında kesiklik var, bunları da düzelt.")_
+
+- [x] **İnceleme:** zemindeki yollar arazi shader'ında uzaklık alanından boyanır (`world/terrainOverlay.ts`); seviye değil, iki şey farklıydı. (1) Anayolun **orta şeridi** kenar uzaklığından çiziliyordu: uzaklık eksende bir sırttır, 2 m'lik hücrelerde doğrusal aradeğerleme sırtı düzleştirir ve eksen hücre merkezinden geçmedikçe ortadaki değer şerit genişliğinden büyük kalır — zemindeki anayolda orta şerit çoğu yerde hiç görünmüyordu. (2) Kenar çizgileri bilerek soluktu (görünürlük 0,35; köprüde tam)
+- [x] **Orta şerit** (`terrainOverlay.ts` `segmentLane`, `ROAD_CHANNEL`, `TerrainMaterial`): yol dokusunun B kanalı artık anayol ekseninden **işaretli yanal konum** (eksende doğrusal, aradeğerlemede bozulmaz), A kanalı kesik çizgi evresi (üçgen dalga `dashWave`; önceki kosinüs/sinüs çifti yerine). Kenar çizgileri köprü yüzeyindeki ölçüde (`ROAD_STRUCTURES.edgeLineWidth`) ve `TERRAIN_OVERLAY.edgeLineStrength` 0,35 → 0,9. Köy yolunun yamalı aşınması azaldı (köprüdeki düz asfalta yakın). Ek doku/draw call yok
+- [x] **Kesik çizgi evresi kesintisiz:** zemindeki boyalı kesimler planlı yolun başından ölçülen konumla başlar (`RoadData.along`, `groundRuns`); köprü/tünel yüzeyindeki kesik çizgiler aynı evrede (`roadStructureGeometry.ts`): çizgiler yapıya girerken kaymaz
+- [x] **Köprü başındaki çukur ve basamak** (`roadGrading.ts` `bridgeCeiling`): köprü altı oyulurken ayağa yakın hücreler bir sonraki parçanın başına (t = 0) en yakın olduğundan "tam açıklıkta" sayılıyor, eğimli köprüde de ayakların ötesindeki hücreler ayağın yatağına kırpılıyordu: yaklaşım yolu ayaktan ~4 m önce 0,5–0,9 m çukurlaşıyor, güvertenin ön yüzü ve ayak bloğu basamak gibi görünüyordu. Artık köprü boyu konum kırpılmamış izdüşümden ölçülür, ayakların ötesi koridorda değildir
+- [x] **Yaklaşım rampası** (`roadProfile.ts` `rampToFixed`): yükseltilen köprü ayağı/tünel sınırı eğim sınırından sonra uygulandığından komşu zemin noktası geride kalabiliyordu (tek adımda 2 m'ye varan basamak); zemin noktaları artık sabit noktalardan eğimle uzaklaşır
+- [x] **Yaklaşım plakası** (`roadStructureGeometry.ts`, `ROAD_STRUCTURES.approachPad`): her köprü ayağından önceki yol parçasında, güverteyle aynı üst yüzde, yolun renginde ve çizgileriyle plaka (tünel ağzı önündeki beton zemin gibi); ayak dibindeki kalan küçük çukuru örter
+- [x] Ölçüm (gerçek dünya, 1 574 köprü ucu; `tests/roadSurface.test.ts`): ayaktan 3 m önce zemin yatağa ≤ 0,15 m yakın olan uç %30 → %97, 1 m önce ≤ 0,3 m %8 → %95. Bake yeniden üretildi (yol planı ve zemin düzeltmesi değişti)
+
+Elle doğrulanacak:
+- [ ] Zemindeki anayolda orta şerit ve kenar çizgilerinin her uzaklıkta düzgün göründüğü (kavşaklarda kısa, yanlış yerde orta şerit parçası kalıp kalmadığı); köprü/tünele girerken çizgilerin ve yolun kesintisiz sürdüğü
+
 ---
 
 ## Fikir Havuzu

@@ -431,9 +431,12 @@ export const TERRAIN_OVERLAY = {
   /** Asfalt (terk edilmiş: koyu, lekeli) ve aşınmış yaması; banket (yol kenarı çakıl şeridi) genişliği ve rengi. */
   asphalt: 0x3d3e3c,
   asphaltWorn: 0x5b5a55,
-  /** Asfaltın soluk kenar çizgisi: kenardan içeri uzaklık (oyun m) ve görünürlük (0–1). */
+  /**
+   * Anayolun kenar çizgisi: kenardan içeri uzaklık (oyun m) ve görünürlük (0–1); genişliği köprü/tünel yüzeyindekiyle aynı
+   * (`ROAD_STRUCTURES.edgeLineWidth`). Önce 0,35'ti: zemindeki yolda çizgiler köprüdekine göre silik kalıyordu.
+   */
   edgeLineInset: 0.35,
-  edgeLineStrength: 0.35,
+  edgeLineStrength: 0.9,
   edgeLine: 0xc9c4b4,
   shoulder: 0x8a7f6c,
   shoulderWidth: 0.7,
@@ -2478,6 +2481,11 @@ export const ROAD_STRUCTURES = {
   markingLift: 0.012,
   /** Anayol kenar çizgisinin genişliği (oyun m). */
   edgeLineWidth: 0.14,
+  /**
+   * Köprü yaklaşım plakası: ayaktan önceki bir yol parçası boyunca güverteyle aynı üst yüzde, yolun renginde plaka;
+   * yol genişliğine (her yana) eklenen pay (oyun m). Zemindeki boyalı yol ile güverte arasında basamak kalmasın.
+   */
+  approachPad: 0.15,
   /** Ahşap köprüde toprak yolun güverteye oranı (kalas kenarları görünür kalsın). */
   woodenTrailShare: 0.75,
   /** Renkler 0xRRGGBB (tür başına). */

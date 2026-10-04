@@ -387,3 +387,12 @@ Ayrıntı [faz-12-olcumler.md](faz-12-olcumler.md) (birleşik ölçüm) ve grup 
 - [ ] **Cephe boyaları:** apartmanların bir kısmının pastel boyası (krem, şeftali, açık mavi, sarı, açık yeşil, gül) doğal duruyor mu, gece/gündüz aşırı doygun ya da soluk mu? İç mekânın da hafif boyaya bürünmesi göze batıyor mu?
 - [ ] **Performans:** büyük kent merkezinde draw call (F3) ve FPS; yeni kat varyantları yakında görünen varyant başına +1–2 draw call getirir.
 - Notlar: ____________________
+
+## 26. Zemindeki yolların şeritleri ve köprü/tünel başları (Faz 12 sonrası)
+
+- [ ] **Zemindeki anayol:** kesik orta şerit ve beyaz kenar çizgileri köprü/tünel üstündeki kadar net mi? Yakından (birinci şahıs) ve 100–400 m uzaktan bak; virajlarda orta şerit yolun ortasında mı kalıyor, titreme/kırpışma var mı?
+- [ ] **Kavşaklar:** iki anayolun birleştiği yerlerde yanlış yerde kısa orta şerit parçası ya da kesik çizgi artığı kalıyor mu?
+- [ ] **Köprü başları:** anayol, köy yolu (taş kemer) ve patika (ahşap) köprülerine yaklaşırken yolla güverte arasında basamak, çukur, gri ayak bloğu ya da kesinti görünüyor mu? Kesik orta şerit köprüye girerken kayıyor mu? Yaklaşım plakasının kenarı zeminden belirgin taşıyor mu?
+- [ ] **Tünel ağızları:** tünele girerken/çıkarken yol ve çizgiler kesintisiz mi; ağız önündeki beton zemin ile boyalı yol arasında basamak var mı?
+- [ ] **Köy yolu:** yamalı aşınma azaltıldı; köy yolu çevresindeki çayır/tarladan yeterince seçiliyor mu?
+- Notlar: ____________________

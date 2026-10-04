@@ -8,7 +8,7 @@ import {
   RGBAFormat,
   UnsignedByteType,
 } from 'three';
-import { BORDERS, ROADS, TERRAIN_LOOK, TERRAIN_OVERLAY, VERTICAL_SCALE } from '../config';
+import { BORDERS, ROAD_STRUCTURES, TERRAIN_LOOK, TERRAIN_OVERLAY, VERTICAL_SCALE } from '../config';
 import { buildCoverWeights, type CoverWeights } from './landCoverWeights';
 
 /** GLSL: dünya konumu ve normalden rakım/eğime bağlı arazi rengi. */
@@ -43,8 +43,7 @@ uniform vec3 uCoverSnow;
 uniform vec3 uCoverWetland;
 uniform float uRockCoverDamp;
 uniform sampler2D uOverlay;   // kaplama uzaklık alanı: R köy yolu, G dağ patikası, B su/kıyı, A il sınırı
-uniform sampler2D uRoads;     // yol dokusu: R anayol, G kent sokağı (uzaklık), B/A anayol evresi (cos, sin)
-uniform float uMainHalf;      // anayol yarı genişliği (orta şerit konumu)
+uniform sampler2D uRoads;     // yol dokusu: R anayol, G kent sokağı (uzaklık), B anayol yanal konumu, A kesik çizgi evresi
 uniform vec3 uCenterLine;
 uniform float uCenterLineHalf;
 uniform vec3 uVillageAsphalt;
@@ -64,7 +63,7 @@ uniform float uBorderOn;
 uniform vec3 uAsphalt;
 uniform vec3 uAsphaltWorn;
 uniform vec3 uEdgeLine;
-uniform vec2 uEdgeLineParams;  // (içeri uzaklık, görünürlük)
+uniform vec3 uEdgeLineParams;  // (içeri uzaklık, görünürlük, genişlik)
 uniform vec3 uShoulder;
 uniform float uShoulderWidth;
 uniform vec3 uDirt;
@@ -173,8 +172,8 @@ vec3 applyOverlay(vec3 color, vec3 world, float viewDistance) {
   terrainWet = water;
 
   vec4 rt = texture2D(uRoads, uv);
-  vec2 dr = (rt.rg * 255.0 - 128.0) / uOverlayScale;   // x anayol, y kent sokağı
-  vec2 wr = max(fwidth(dr), vec2(0.04)) * 0.75;
+  vec3 dr = (rt.rgb * 255.0 - 128.0) / uOverlayScale;   // x anayol, y kent sokağı (uzaklık), z anayol yanal konumu
+  vec3 wr = max(fwidth(dr), vec3(0.04)) * 0.75;
   // Patika kenarı düzensiz (doğal iz): uzaklık gürültüyle kaydırılır.
   float trailD = d.g + (valueNoise(world.xz * 0.9) - 0.5) * 2.0 * uTrailWobble * fade;
 
@@ -193,18 +192,22 @@ vec3 applyOverlay(vec3 color, vec3 world, float viewDistance) {
   // Köy yolu: açık, yamalı, çatlak eski asfalt; çizgi yok.
   float village = coverage(d.r, w.r);
   float wear = smoothstep(0.45, 0.75, valueNoise(world.xz * 0.35 + 9.0));
-  vec3 villageColor = mix(uVillageAsphalt, uVillageWorn, wear * 0.85) * (0.9 + 0.2 * n2 * fade);
+  vec3 villageColor = mix(uVillageAsphalt, uVillageWorn, wear * 0.5) * (0.9 + 0.2 * n2 * fade);
   color = mix(color, villageColor, village);
 
   // Anayol: koyu asfalt, kenar çizgileri ve kesik orta şerit.
   float mainRoad = coverage(dr.x, wr.x);
   vec3 asphalt = mix(uAsphalt, uAsphaltWorn, smoothstep(0.5, 0.85, n) * 0.6) * (0.94 + 0.12 * n2 * fade);
-  float edge = coverage(dr.x + uEdgeLineParams.x, wr.x) * (1.0 - coverage(dr.x + uEdgeLineParams.x + 0.18, wr.x));
+  // Kenar çizgileri ve orta şerit köprü/tünel yüzeyindekiyle aynı ölçü ve evrede (çizgiler yapıda kesilmeden sürer).
+  float edgeIn = dr.x + uEdgeLineParams.x;
+  float edge = coverage(edgeIn, wr.x) * (1.0 - coverage(edgeIn + uEdgeLineParams.z, wr.x));
   asphalt = mix(asphalt, uEdgeLine, edge * uEdgeLineParams.y * fade);
-  float centerDist = abs(dr.x + uMainHalf);
-  float centerLine = 1.0 - smoothstep(uCenterLineHalf - wr.x, uCenterLineHalf + wr.x, centerDist);
-  float dash = smoothstep(-0.15, 0.15, (rt.b * 255.0 - 128.0) / 127.0);
-  asphalt = mix(asphalt, uCenterLine, centerLine * dash * fade * 0.85);
+  // Orta şerit işaretli yanal konumdan (eksende doğrusal: aradeğerleme şeridi silmez); evre üçgen dalga, çizgi < 0,5.
+  float centerLine = 1.0 - smoothstep(uCenterLineHalf - wr.z, uCenterLineHalf + wr.z, abs(dr.z));
+  float wave = rt.a;
+  float waveW = max(fwidth(wave), 0.02);
+  float dash = 1.0 - smoothstep(0.5 - waveW, 0.5 + waveW, wave);
+  asphalt = mix(asphalt, uCenterLine, centerLine * dash * fade * 0.9);
   color = mix(color, asphalt, mainRoad);
 
   // Kent sokağı: parke / Arnavut kaldırımı (hücresel taş deseni, derz), kenarda kaldırım ve bordür.
@@ -403,7 +406,6 @@ export function createTerrainMaterial(
       uOverlaySize: { value: [overlay?.width ?? 1, overlay?.height ?? 1] },
       uOverlayScale: { value: overlay?.scale ?? o.scale },
       uRoads: { value: roadTexture },
-      uMainHalf: { value: (ROADS.width[0] as number) / 2 },
       uCenterLine: { value: toVec3(o.centerLine) },
       uCenterLineHalf: { value: o.centerLineHalf },
       uVillageAsphalt: { value: toVec3(o.villageAsphalt) },
@@ -418,7 +420,9 @@ export function createTerrainMaterial(
       uAsphalt: { value: toVec3(o.asphalt) },
       uAsphaltWorn: { value: toVec3(o.asphaltWorn) },
       uEdgeLine: { value: toVec3(o.edgeLine) },
-      uEdgeLineParams: { value: [o.edgeLineInset, o.edgeLineStrength] },
+      uEdgeLineParams: {
+        value: [o.edgeLineInset, o.edgeLineStrength, ROAD_STRUCTURES.edgeLineWidth],
+      },
       uShoulder: { value: toVec3(o.shoulder) },
       uShoulderWidth: { value: o.shoulderWidth },
       uDirt: { value: toVec3(o.dirt) },
@@ -466,6 +470,6 @@ export function createTerrainMaterial(
       );
   };
   // Aynı materyal örneği için program önbellek anahtarı sabit.
-  material.customProgramCacheKey = () => 'anadolu-terrain-v4';
+  material.customProgramCacheKey = () => 'anadolu-terrain-v5';
   return material;
 }

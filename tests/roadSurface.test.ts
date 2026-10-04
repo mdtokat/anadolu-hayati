@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { RegionData } from '../src/data/region';
-import { groundRuns } from '../src/settlements/roadProfile';
+import { SPAN_KIND, groundRuns } from '../src/settlements/roadProfile';
 import { signPosts, type EntranceSign } from '../src/settlements/roadSigns';
 import { byClass, roadSlopeStats, type SlopeStats } from './helpers/roadSlopeAudit';
 import { loadRealRegion } from './helpers/realRegion';
@@ -41,6 +41,45 @@ describe('yol yüzeyi', () => {
     const kent = stats.get('kent')!;
     expect(kent.cross15).toBeLessThan(0.18);
     expect(kent.cross30).toBeLessThan(0.08);
+  });
+});
+
+describe('köprü başları (gerçek dünya)', () => {
+  /**
+   * Kullanıcı talimatı: "köprü ve tünellerde yollar arasında kesiklik var". Köprü altı oyulurken ayağa yakın hücreler tam
+   * açıklıkta sayılıyor, yaklaşım yolu ayaktan ~4 m önce 0,5–0,9 m çukurlaşıyordu (ayaktan 3 m önce medyan −0,33 m);
+   * bazı köprülerde de yükseltilen ayakla komşu yatak arasında tek adımda 2 m'ye varan basamak vardı. Ölçü: köprü
+   * ucundan dışarı `u` yol adımı (3 m) uzaklıkta, yol ekseninde düzeltilmiş zemin − yatak.
+   */
+  const deviations = (u: number): number[] => {
+    const out: number[] = [];
+    const plan = sw.map.plan;
+    for (const span of plan.spans) {
+      if (span.kind !== SPAN_KIND.bridge) continue;
+      const road = plan.roads[span.road]!;
+      const n = road.xz.length / 2;
+      for (const k of [span.i0 - u, span.i1 + u]) {
+        if (k < 0 || k > n - 1.001 || road.kind[Math.round(k)] !== SPAN_KIND.ground) continue;
+        const a = Math.floor(k);
+        const t = k - a;
+        const lerp = (v: ArrayLike<number>, s: number, o: number) =>
+          (v[a * s + o] as number) * (1 - t) + (v[(a + 1) * s + o] as number) * t;
+        const h = sw.source.heightAt(lerp(road.xz, 2, 0), lerp(road.xz, 2, 1));
+        out.push(h - lerp(road.bed, 1, 0));
+      }
+    }
+    return out;
+  };
+  const share = (values: number[], limit: number) =>
+    values.filter((v) => Math.abs(v) <= limit).length / values.length;
+
+  it('yaklaşım yolu köprü ayağına kadar yatak yüksekliğinde (çukur yok)', () => {
+    // Ölçülen (1 574 köprü ucu): ayaktan 3 m önce %97'si ≤ 0,15 m (önce %30), 1 m önce %95'i ≤ 0,3 m (önce %8).
+    const far = deviations(1);
+    const near = deviations(0.35);
+    expect(far.length).toBeGreaterThan(1000);
+    expect(share(far, 0.15)).toBeGreaterThan(0.9);
+    expect(share(near, 0.3)).toBeGreaterThan(0.9);
   });
 });
 

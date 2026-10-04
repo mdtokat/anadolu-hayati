@@ -71,6 +71,11 @@ export interface RoadData {
   xz: Float32Array;
   /** Varsa sınıfın genişliği yerine bu genişlik (oyun m; ör. kentin ana caddesi). */
   width?: number;
+  /**
+   * Yalnız boyama (veri dosyasında yok): çizginin başının, kesildiği planlı yolun başından yol boyu uzaklığı (oyun m).
+   * Anayolun kesik orta şeridi köprü/tünel yüzeyiyle aynı evrede sürer (`groundRuns`).
+   */
+  along?: number;
 }
 
 export interface SettlementsData {
