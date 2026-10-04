@@ -1,6 +1,6 @@
 import { createRandom, seedFrom } from '../utils/random';
 import { pickWeighted } from './camps';
-import type { BanditRole, BanditWeapon } from './kinds';
+import { isMeleeWeapon, type BanditRole, type BanditWeapon } from './kinds';
 
 /**
  * Eşkıya ve sokak çetesi çeşitleri (kullanıcı talimatı: "eşkıya ve haydutların farklı çeşitleri olsun"; saf). Çeşit
@@ -33,7 +33,13 @@ export function campStyle(id: number, weapon: BanditWeapon, role: BanditRole): C
         ? pickWeighted(random, { highwayman: 3, mountain: 1 })
         : pickWeighted(random, { highwayman: 2, mountain: 2, smuggler: 1 });
     case 'pistol':
+    case 'revolver':
       return pickWeighted(random, { smuggler: 3, mountain: 2, highwayman: 1 });
+    case 'smg':
+    case 'assault_rifle':
+      return pickWeighted(random, { smuggler: 2, mountain: 2, highwayman: 2 });
+    case 'yatagan':
+      return pickWeighted(random, { brawler: 2, mountain: 1, highwayman: 1 });
     case 'pala':
       return pickWeighted(random, { brawler: 2, mountain: 2 });
     case 'club':
@@ -45,7 +51,7 @@ export function campStyle(id: number, weapon: BanditWeapon, role: BanditRole): C
 export function gangStyle(id: number, weapon: BanditWeapon, role: BanditRole): GangStyle {
   const random = createRandom(seedFrom(STYLE_SEED, id % 2 ** 31, 2));
   if (role === 'leader') return pickWeighted(random, { suit: 3, jacket: 2, hoodie: 1 });
-  if (weapon === 'pala' || weapon === 'club') {
+  if (isMeleeWeapon(weapon)) {
     return pickWeighted(random, { tank: 3, hoodie: 2, jacket: 1 });
   }
   return pickWeighted(random, { jacket: 3, hoodie: 2, tank: 1, suit: 1 });

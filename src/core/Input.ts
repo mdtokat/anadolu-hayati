@@ -3,6 +3,7 @@ import { EventBus } from './EventBus';
 import type { GameEvents } from './events';
 import {
   DEV_TELEPORT_KEY,
+  MOUSE_LEFT_CODE,
   MOUSE_RIGHT_CODE,
   actionForKey,
   hotbarSlotForKey,
@@ -112,6 +113,11 @@ export class Input {
   /** Nişan (sağ fare tuşu) şu an basılı mı? (Faz 11, D) */
   get aimHeld(): boolean {
     return INPUT.bindings.aim.some((code) => this.pressed.has(code));
+  }
+
+  /** Sol fare tuşu basılı mı (seri atışlı silah)? */
+  get fireHeld(): boolean {
+    return this.pressed.has(MOUSE_LEFT_CODE);
   }
 
   /** Nefes tutma tuşu (Shift) şu an basılı mı? (Faz 11, D: yalnızca nişan alırken anlamlıdır) */
@@ -237,11 +243,13 @@ export class Input {
       return;
     }
     if (event.button !== 0) return;
+    this.pressed.add(MOUSE_LEFT_CODE);
     this.events.emit('input:action', { action: 'primaryAction' });
   }
 
   private onMouseUp(event: ButtonLikeEvent): void {
     if (event.button === 2) this.pressed.delete(MOUSE_RIGHT_CODE);
+    if (event.button === 0) this.pressed.delete(MOUSE_LEFT_CODE);
   }
 
   private onPointerLockChange(): void {

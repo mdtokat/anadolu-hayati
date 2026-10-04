@@ -116,6 +116,19 @@ export const ITEM_VALUES: Readonly<Record<ItemId, number>> = {
   bandage: 25,
   first_aid_kit: 140,
   steel_vest: 1800,
+  scope_2x: 220,
+  scope_8x: 1100,
+  scope_16x: 2600,
+  revolver: 1400,
+  smg: 3200,
+  assault_rifle: 5200,
+  marksman_rifle: 6400,
+  lmg: 7800,
+  crossbow: 900,
+  yatagan: 260,
+  war_axe: 320,
+  gurz: 300,
+  map: 60,
 };
 
 /** Silah, mühimmat ve barut (av bayiinin uzmanlığı). */
@@ -126,6 +139,9 @@ export const WEAPON_ITEMS: ReadonlySet<ItemId> = new Set<ItemId>([
   'gunpowder',
   'suppressor',
   'scope',
+  'scope_2x',
+  'scope_8x',
+  'scope_16x',
 ]);
 
 /** Eşya alınıp satılabilir mi (değeri var mı)? */

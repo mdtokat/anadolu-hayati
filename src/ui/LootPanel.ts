@@ -6,6 +6,8 @@ import { slotUsageText } from './inventoryView';
 import { closeButton, el, loadMeter, slotButton } from './widgets';
 
 export interface LootPanelCallbacks {
+  /** Esc: panel kapanır ve oyun duraklar (verilmezse Esc de yalnızca kapatır). Panel açıkken oyun sürer. */
+  onEscape?(): void;
   /** `index`'teki yığına çift tıklandı: sığdığı kadarı envantere alınır. */
   onTake(index: number): void;
   /** "Hepsini al": sığan her şey alınır. */
@@ -18,7 +20,7 @@ export interface LootPanelCallbacks {
  * Ganimet paneli (Faz 11 sonrası; HTML overlay): bir aramadan (ölü eşkıya, kamp sandığı, bina kabı) çıkan eşyalar
  * otomatik alınmaz, burada listelenir. Eşyaya **çift tıklamak** onu envantere alır, "Hepsini al" sığan her şeyi alır;
  * sığmayanlar kaynakta kalır. Solda oyuncunun envanterinin özeti (yer ve yük) görünür. Liste kaynağın tuttuğu
- * değiştirilebilir diziye bakar (`items`); her eylemden sonra Game `refresh()` çağırır. Oyun panel açıkken donar.
+ * değiştirilebilir diziye bakar (`items`); her eylemden sonra Game `refresh()` çağırır. Panel açıkken oyun sürer (Esc duraklatır).
  */
 export class LootPanel {
   private readonly root = el('div', 'inv-panel');
@@ -35,7 +37,8 @@ export class LootPanel {
     ];
     if (!closers.includes(event.code) || event.repeat) return;
     event.preventDefault();
-    this.callbacks.onClose();
+    if (event.code === 'Escape' && this.callbacks.onEscape) this.callbacks.onEscape();
+    else this.callbacks.onClose();
   };
 
   constructor(

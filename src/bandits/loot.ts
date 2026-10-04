@@ -22,6 +22,9 @@ const AMMO_OF: Partial<Record<BanditWeapon, ItemId>> = {
   shotgun: 'shotgun_shell',
   rifle: 'rifle_ammo',
   sniper_rifle: 'rifle_ammo',
+  revolver: 'pistol_ammo',
+  smg: 'pistol_ammo',
+  assault_rifle: 'rifle_ammo',
 };
 
 /** Eşkıyanın üstünden çıkabilecekler (silahı ve mühimmatı ayrıca). */
@@ -59,6 +62,18 @@ export const CAMP_CHEST: readonly LootEntry[] = [
   // Faz 11 sonrası: eşkıya zulasında susturucu ve sırt çantası.
   e('suppressor', 0.12),
   e('backpack_medium', 0.1),
+  // Dürbünler (büyüdükçe nadir), yeni silahlar ve harita (sonuna: eski zarlar kaymaz).
+  e('scope_2x', 0.14),
+  e('scope_8x', 0.03),
+  e('scope_16x', 0.01),
+  e('revolver', 0.08),
+  e('smg', 0.05),
+  e('assault_rifle', 0.035),
+  e('crossbow', 0.05),
+  e('yatagan', 0.08),
+  e('war_axe', 0.06),
+  e('gurz', 0.05),
+  e('map', 0.12),
 ];
 
 /** Silahın üstten çıkma olasılığı (kalanında kırık/kaybolmuş sayılır). */

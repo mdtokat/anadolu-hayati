@@ -3,7 +3,7 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { Inventory } from '../items/Inventory';
 import type { ItemId } from '../items/itemDefs';
-import type { WeaponId, WeaponState } from '../items/weaponState';
+import { effectiveZoom, type WeaponId, type WeaponState } from '../items/weaponState';
 import type { SurvivalSystem } from '../survival/SurvivalSystem';
 import { isRangedWeapon, loadRounds, reloadCheck, reserveAmmo } from './ammo';
 import { damageAt, type PaneQuery, type SolidQuery, type Vec3Like } from './ballistics';
@@ -79,6 +79,8 @@ export interface RangedHudState {
   aim: number;
   /** Dürbün görüntüsü açık mı (dürbünlü silah tam nişanda)? */
   scoped: boolean;
+  /** Nişandaki büyütme (dürbün; 0 = dürbünsüz). */
+  zoom: number;
   /** Kalan nefes (0–1) ve nefes tükendi mi? */
   breath: number;
   breathExhausted: boolean;
@@ -128,7 +130,7 @@ export class RangedSystem {
     private readonly inventory: Inventory,
     private readonly weapons: Pick<
       WeaponState,
-      'loaded' | 'capacity' | 'set' | 'consume' | 'revision' | 'suppressed'
+      'loaded' | 'capacity' | 'set' | 'consume' | 'revision' | 'suppressed' | 'scope'
     >,
     private readonly survival: Pick<SurvivalSystem, 'alive' | 'state' | 'spendEnergy'>,
     private readonly random: () => number = Math.random,
@@ -149,10 +151,27 @@ export class RangedSystem {
     return this.aim;
   }
 
+  /** Eldeki silahın nişan büyütmesi (takılı dürbün ya da silahın kendi dürbünü; 0 = dürbünsüz). */
+  get zoom(): number {
+    const w = this.weapon;
+    return w === null ? 0 : effectiveZoom(w, this.weapons.scope(w));
+  }
+
   /** Dürbün görüntüsü açık mı? */
   get scoped(): boolean {
+    return this.zoom > 0 && this.aim >= AIMED_AT;
+  }
+
+  /** Eldeki silah hemen ateşlenebilir mi (dolu, atış arası bitti, doldurulmuyor)? Seri atış bunu bekler. */
+  get readyToFire(): boolean {
     const w = this.weapon;
-    return w !== null && RANGED.weapons[w].scope && this.aim >= AIMED_AT;
+    return (
+      w !== null &&
+      this.survival.alive &&
+      this.reloadState === null &&
+      this.cooldownLeft <= 0 &&
+      this.weapons.loaded(w) > 0
+    );
   }
 
   /** Nefes tutuluyor mu (salınım azalmış)? */
@@ -191,11 +210,12 @@ export class RangedSystem {
   swayAt(alpha: number): { yaw: number; pitch: number } {
     if (!this.scoped) return { yaw: 0, pitch: 0 };
     const s = RANGED.sway;
-    const k = this.steadyActive
-      ? RANGED.steadySwayScale
-      : this.breathOut
-        ? RANGED.exhaustedSwayScale
-        : 1;
+    const w = this.weapon;
+    const attached = w === null ? null : this.weapons.scope(w);
+    const scopeScale = attached ? RANGED.scopes[attached].swayScale : 1;
+    const k =
+      scopeScale *
+      (this.steadyActive ? RANGED.steadySwayScale : this.breathOut ? RANGED.exhaustedSwayScale : 1);
     const t = Math.min(Math.max(alpha, 0), 1);
     const time = this.time - this.lastDt * (1 - t);
     const a = s.amplitude * k * this.aimFractionAt(t);
@@ -210,7 +230,7 @@ export class RangedSystem {
     const s = RANGED.spreadScale;
     let k = 1;
     if (input.aiming && this.aim >= AIMED_AT)
-      k *= RANGED.weapons[weapon].scope ? s.scoped : s.aimed;
+      k *= effectiveZoom(weapon, this.weapons.scope(weapon)) > 0 ? s.scoped : s.aimed;
     if (input.running) k *= s.running;
     else if (input.moving) k *= s.moving;
     return k;
@@ -229,6 +249,7 @@ export class RangedSystem {
       reload,
       aim: this.aim,
       scoped: this.scoped,
+      zoom: this.zoom,
       breath: this.breathLeft / RANGED.steadySeconds,
       breathExhausted: this.breathOut,
       spreadDeg: RANGED.weapons[weapon].spreadDeg * this.spreadScale(weapon),
@@ -427,18 +448,26 @@ export class RangedSystem {
   }
 }
 
+/** Büyütmenin görüş açısı (derece): tan(FOV/2) büyütmeyle bölünür. */
+export function zoomFovDeg(baseFovDeg: number, zoom: number): number {
+  const half = (baseFovDeg * DEG) / 2;
+  return (2 * Math.atan(Math.tan(half) / zoom)) / DEG;
+}
+
 /**
- * Nişan geçişinde kamera (saf): görüş açısı normalden silahın `aimFovDeg`'ine, fare hassasiyeti de görüş açısıyla
- * orantılı (× `RANGED.aimSensitivity`) iner; geçişin yarısından sonra görüntü göz hizasına alınır.
+ * Nişan geçişinde kamera (saf): görüş açısı normalden silahın `aimFovDeg`'ine (dürbünde büyütmenin görüş açısına),
+ * fare hassasiyeti de görüş açısıyla orantılı (× `RANGED.aimSensitivity`) iner; geçişin yarısından sonra görüntü göz
+ * hizasına alınır. `zoom` verilmezse silahın kendi dürbünü kullanılır.
  */
 export function aimCamera(
   weapon: WeaponId | null,
   aim: number,
   baseFovDeg: number,
+  zoom: number = weapon ? RANGED.weapons[weapon].scopeZoom : 0,
 ): { fovDeg: number; sensitivity: number; firstPerson: boolean } {
   if (!weapon || aim <= 0) return { fovDeg: baseFovDeg, sensitivity: 1, firstPerson: false };
   const a = Math.min(aim, 1);
-  const target = RANGED.weapons[weapon].aimFovDeg;
+  const target = zoom > 0 ? zoomFovDeg(baseFovDeg, zoom) : RANGED.weapons[weapon].aimFovDeg;
   const fovDeg = baseFovDeg + (target - baseFovDeg) * a;
   const zoomed = (target / baseFovDeg) * RANGED.aimSensitivity;
   return { fovDeg, sensitivity: 1 + (zoomed - 1) * a, firstPerson: a >= 0.5 };

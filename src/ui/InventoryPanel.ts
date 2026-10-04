@@ -1,5 +1,5 @@
 import './ui.css';
-import { INPUT } from '../config';
+import { INPUT, RANGED } from '../config';
 import { canEat, isDrink } from '../items/consume';
 import { NO_STATIONS, type CraftContext } from '../items/craft';
 import { isHotbarItem, type Hotbar } from '../items/hotbar';
@@ -9,6 +9,7 @@ import type { RecipeId } from '../items/recipes';
 import { keyLabel } from '../placement/promptText';
 import { canDrinkContainer } from '../items/waterContainer';
 import type { VitalsState } from '../survival/vitals';
+import type { ScopeId } from '../items/weaponState';
 import { CATEGORY_ACCENT, itemIcon, uiIcon, type UiIcon } from './icons';
 import {
   CATEGORY_LABELS,
@@ -30,6 +31,8 @@ import { closeButton, el, loadMeter, moneyBadge, slotButton } from './widgets';
 import { isMedical, medicalStatus } from '../items/medical';
 
 export interface InventoryPanelCallbacks {
+  /** Esc: panel kapanır ve oyun duraklar (verilmezse Esc de yalnızca kapatır). Panel açıkken oyun sürer. */
+  onEscape?(): void;
   /** Seçili slottaki yiyeceği ye. */
   onEat(slot: number): void;
   /** Tarifi `count` kez art arda üret (yapılamayınca durur). */
@@ -52,6 +55,10 @@ export interface InventoryPanelCallbacks {
   suppressorState?(item: ItemId): SuppressorState | null;
   /** Susturucuyu tak/çıkar. */
   onToggleSuppressor?(item: ItemId): void;
+  /** Seçili silahın dürbün durumu (dürbün takılamayan eşyada null). */
+  scopeState?(item: ItemId): ScopeUiState | null;
+  /** Dürbünü tak (`null`: takılı dürbünü çıkar). */
+  onSetScope?(item: ItemId, scope: ScopeId | null): void;
   /** Cüzdandaki para (₺); verilmezse gösterilmez. */
   getMoney?(): number;
   /** Sağlık eşyasını kullan (sargı bezi, ilk yardım çantası; panel kapanır, kullanım süreli). */
@@ -61,13 +68,23 @@ export interface InventoryPanelCallbacks {
 /** Yeniden çizimde konumu korunan kaydırma bölgeleri. */
 const SCROLLERS = ['.inv-recipe-list', '.bag-slots-scroll'] as const;
 
+/** Dürbün düğmeleri: takılı dürbün ve envanterde bulunup bu silaha uyan dürbünler (büyütme sırasıyla). */
+export interface ScopeUiState {
+  attached: ScopeId | null;
+  available: readonly ScopeId[];
+  /** Silahın kendi dürbünü (büyütme; 0 = yok). */
+  builtIn: number;
+  /** Takılabilen en büyük büyütme. */
+  max: number;
+}
+
 /** Susturucu düğmesi: takılı, takılabilir (envanterde var) ya da yok. */
 export type SuppressorState = 'attached' | 'available' | 'missing';
 
 /**
  * Envanter ve üretim paneli (HTML overlay): slot ızgarası (tıkla-seç, tıkla-taşı), seçili yiyecek için
  * "Ye" ve tarif listesi ("Üret"). Mantık `inventoryView.ts`'te ve `Inventory`/`craft`'ta; bu sınıf yalnızca
- * çizer ve kullanıcı eylemlerini geri çağrılara iletir. Oyun panel açıkken duraklatılır (Game).
+ * çizer ve kullanıcı eylemlerini geri çağrılara iletir. Panel açıkken oyun sürer (Esc duraklatır; Game).
  */
 export class InventoryPanel {
   private readonly root = el('div', 'inv-panel');
@@ -91,7 +108,8 @@ export class InventoryPanel {
     const closers: readonly string[] = [...INPUT.bindings.toggleInventory, 'Escape'];
     if (!closers.includes(event.code) || event.repeat) return;
     event.preventDefault(); // Tab odağı kaydırmasın
-    this.callbacks.onClose();
+    if (event.code === 'Escape' && this.callbacks.onEscape) this.callbacks.onEscape();
+    else this.callbacks.onClose();
   };
 
   constructor(
@@ -312,6 +330,37 @@ export class InventoryPanel {
             : 'Atış sesi ve gürültüsü azalır';
         toggle.addEventListener('click', () => this.callbacks.onToggleSuppressor?.(stack.id));
         buttons.append(toggle);
+      }
+      const scope = this.callbacks.scopeState?.(stack.id) ?? null;
+      if (scope !== null) {
+        const zoomOf = (id: ScopeId): number => RANGED.scopes[id].zoom;
+        if (scope.attached !== null) {
+          const off = el('button', 'inv-eat', `Dürbünü çıkar (${zoomOf(scope.attached)}x)`);
+          off.type = 'button';
+          off.addEventListener('click', () => this.callbacks.onSetScope?.(stack.id, null));
+          buttons.append(off);
+        }
+        for (const id of scope.available) {
+          const on = el('button', 'inv-eat', `${zoomOf(id)}x dürbün tak`);
+          on.type = 'button';
+          on.title =
+            scope.attached !== null
+              ? `Takılı ${zoomOf(scope.attached)}x dürbünle değiştirilir`
+              : 'Nişan alınca (sağ tık) dürbünden bakılır';
+          on.addEventListener('click', () => this.callbacks.onSetScope?.(stack.id, id));
+          buttons.append(on);
+        }
+        if (scope.attached === null && scope.available.length === 0) {
+          const none = el(
+            'button',
+            'inv-eat',
+            scope.builtIn > 0 ? `Dürbün: ${scope.builtIn}x (kendi)` : 'Dürbün yok',
+          );
+          none.type = 'button';
+          none.disabled = true;
+          none.title = `En çok ${scope.max}x dürbün takılır (dürbünler ganimetten çıkar)`;
+          buttons.append(none);
+        }
       }
       const drop = el('button', 'inv-drop', 'At');
       drop.type = 'button';

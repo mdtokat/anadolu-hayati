@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GunshotAudio, shotGain } from '../src/audio/gunshot';
-import { aimCamera } from '../src/combat/RangedSystem';
+import { aimCamera, zoomFovDeg } from '../src/combat/RangedSystem';
 import { pointAlong, tracerPath, tracerSegment } from '../src/combat/tracers';
 import { CAMERA, INPUT, PLAYER, RANGED } from '../src/config';
 import { EventBus } from '../src/core/EventBus';
@@ -22,13 +22,24 @@ describe('aimCamera', () => {
     const half = aimCamera('rifle', 0.5, CAMERA.fov);
     expect(half.fovDeg).toBeCloseTo((CAMERA.fov + RANGED.weapons.rifle.aimFovDeg) / 2, 9);
     expect(half.firstPerson).toBe(true);
+    // Keskin nişancının kendi dürbünü 4x: tan(FOV/2) dörde bölünür.
     const scope = aimCamera('sniper_rifle', 1, CAMERA.fov);
-    expect(scope.fovDeg).toBe(RANGED.weapons.sniper_rifle.aimFovDeg);
-    expect(scope.sensitivity).toBeCloseTo(
-      (RANGED.weapons.sniper_rifle.aimFovDeg / CAMERA.fov) * RANGED.aimSensitivity,
-      9,
+    expect(scope.fovDeg).toBeCloseTo(zoomFovDeg(CAMERA.fov, 4), 9);
+    expect(scope.sensitivity).toBeCloseTo((scope.fovDeg / CAMERA.fov) * RANGED.aimSensitivity, 9);
+    expect(scope.sensitivity).toBeLessThan(0.3);
+  });
+
+  it('takılı dürbün büyütmesi görüş açısını daraltır: 2x > 4x > 8x > 16x', () => {
+    const fovs = [2, 4, 8, 16].map(
+      (zoom) => aimCamera('marksman_rifle', 1, CAMERA.fov, zoom).fovDeg,
     );
-    expect(scope.sensitivity).toBeLessThan(0.25);
+    for (let i = 1; i < fovs.length; i++) expect(fovs[i]).toBeLessThan(fovs[i - 1]!);
+    const tan = (deg: number): number => Math.tan((deg * Math.PI) / 360);
+    expect(tan(fovs[3]!) * 16).toBeCloseTo(tan(CAMERA.fov), 9);
+    // Dürbünsüz (0) gez-arpacık görüş açısı.
+    expect(aimCamera('marksman_rifle', 1, CAMERA.fov, 0).fovDeg).toBe(
+      RANGED.weapons.marksman_rifle.aimFovDeg,
+    );
   });
 });
 

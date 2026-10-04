@@ -266,6 +266,55 @@ describe('RangedSystem', () => {
     expect(ranged.sway).toEqual({ yaw: 0, pitch: 0 });
   });
 
+  it('takılı dürbün: büyütme, dürbün görüntüsü; büyük dürbün daha çok sallanır; sığmayan dürbün takılmaz', () => {
+    const { ranged, weapons } = setup([['marksman_rifle', 1]]);
+    run(ranged, 0.5, input('marksman_rifle', { aiming: true }));
+    expect(ranged.zoom).toBe(0);
+    expect(ranged.scoped).toBe(false);
+    const amplitudeWith = (scope: 'scope_2x' | 'scope_16x'): number => {
+      expect(weapons.setScope('marksman_rifle', scope)).toBe(true);
+      let max = 0;
+      for (let t = 0; t < 2; t += STEP) {
+        ranged.update(STEP, input('marksman_rifle', { aiming: true }));
+        max = Math.max(max, Math.abs(ranged.sway.yaw), Math.abs(ranged.sway.pitch));
+      }
+      return max;
+    };
+    const small = amplitudeWith('scope_2x');
+    expect(ranged.zoom).toBe(2);
+    expect(ranged.scoped).toBe(true);
+    expect(ranged.hudState()?.zoom).toBe(2);
+    const big = amplitudeWith('scope_16x');
+    expect(ranged.zoom).toBe(16);
+    expect(big).toBeGreaterThan(small * 2);
+    // Tabancaya dürbün takılmaz; altıpatlara yalnızca 2x.
+    expect(weapons.setScope('pistol', 'scope_2x')).toBe(true);
+    expect(weapons.setScope('revolver', 'scope')).toBe(false);
+    expect(weapons.setScope('slingshot', 'scope_2x')).toBe(false);
+    // Kayıt: takılı dürbünler gidip gelir.
+    const save = weapons.toSave();
+    expect(save.scopes).toMatchObject({ marksman_rifle: 'scope_16x', pistol: 'scope_2x' });
+    const copy = new WeaponState();
+    copy.loadSave(save);
+    expect(copy.scope('marksman_rifle')).toBe('scope_16x');
+    expect(copy.scope('rifle')).toBeNull();
+  });
+
+  it('seri atışlı silah: atış arası bitince hazır, şarjör boşalınca hazır değil', () => {
+    const { ranged, weapons } = setup([['smg', 1]]);
+    weapons.set('smg', 2);
+    ranged.update(STEP, input('smg'));
+    expect(ranged.readyToFire).toBe(true);
+    const { provider } = targetsFake([]);
+    expect(ranged.fire(pose, { heightAt: flat, targets: provider }).status).toBe('fired');
+    expect(ranged.readyToFire).toBe(false);
+    run(ranged, RANGED.weapons.smg.cooldownSeconds + STEP, input('smg'));
+    expect(ranged.readyToFire).toBe(true);
+    expect(ranged.fire(pose, { heightAt: flat, targets: provider }).status).toBe('fired');
+    run(ranged, 0.2, input('smg'));
+    expect(ranged.readyToFire).toBe(false); // şarjör boş
+  });
+
   it('tam nişanda ve nişan dışında oran sabit kalır (her adımda 1 ↔ 0,85 titremez)', () => {
     const { ranged } = setup([['rifle', 1]]);
     const aimed = input('rifle', { aiming: true });

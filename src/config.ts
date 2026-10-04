@@ -1791,6 +1791,10 @@ export const COMBAT = {
     club: { damage: 14, reach: 2.2, cooldownSeconds: 0.9, energyCost: 4 },
     iron_dagger: { damage: 17, reach: 1.7, cooldownSeconds: 0.5, energyCost: 2 },
     pala: { damage: 32, reach: 2.4, cooldownSeconds: 0.85, energyCost: 4 },
+    // Yeni yakın silahlar: yatağan (hızlı, keskin), savaş baltası (ağır, ağaç da keser), gürz (en ağır, yavaş).
+    yatagan: { damage: 27, reach: 2.2, cooldownSeconds: 0.6, energyCost: 3 },
+    war_axe: { damage: 38, reach: 2.3, cooldownSeconds: 1.1, energyCost: 5 },
+    gurz: { damage: 45, reach: 2.1, cooldownSeconds: 1.35, energyCost: 6 },
   },
   /**
    * Savunma: envanterde bulunan giysinin gelen hasarı azaltma oranı (0–1). Yelekler (`vests`) birbiriyle toplanmaz:
@@ -2825,7 +2829,8 @@ export const FARMING = {
  * `magazine` şarjör, `reloadSeconds` doldurma, `cooldownSeconds` iki atış arası (sürgü/tetik), `range` merminin
  * en çok gideceği yol (oyun m; ötesinde düşer, iz kaybolur), `damage` tane başına hasar (uzaklıkla azalır:
  * `falloff`), `ammo` mühimmat eşyası, `energyCost` atış başına enerji (yay/sapan germe), `recoilDeg` bakışı yukarı
- * iten tepme, `aimFovDeg` nişandaki görüş açısı, `scope` dürbünlü mü (dürbün görüntüsü + salınım), `zeroMeters`
+ * iten tepme, `aimFovDeg` dürbünsüz nişandaki görüş açısı, `scopeZoom` silahın kendi dürbünü (0 = yok; keskin nişancı
+ * 4x), `scopeMax` takılabilen en büyük dürbün (0 = takılmaz; `scopes`), `auto` tetik basılı tutulunca seri atış, `zeroMeters`
  * nişangâhın sıfırlandığı uzaklık (bu uzaklıkta nişangâh tam isabet eder; yakında hafif yüksek vurur).
  * Ölçek notu: dünya yatayda 1:50 olduğundan menziller oyun metresidir (200 oyun m = 10 gerçek km); yerçekimi
  * gerçek değerdedir, dolayısıyla ok/taş 30–60 m'de belirgin kavis çizer, tüfek mermisi 200 m'de ~0,4 m düşer.
@@ -2846,7 +2851,9 @@ export const RANGED = {
       energyCost: 1.5,
       recoilDeg: 0,
       aimFovDeg: 60,
-      scope: false,
+      scopeZoom: 0,
+      scopeMax: 0,
+      auto: false,
       zeroMeters: 15,
     },
     bow: {
@@ -2863,7 +2870,9 @@ export const RANGED = {
       energyCost: 3,
       recoilDeg: 0,
       aimFovDeg: 55,
-      scope: false,
+      scopeZoom: 0,
+      scopeMax: 2,
+      auto: false,
       zeroMeters: 20,
     },
     shotgun: {
@@ -2880,7 +2889,9 @@ export const RANGED = {
       energyCost: 0,
       recoilDeg: 4.5,
       aimFovDeg: 58,
-      scope: false,
+      scopeZoom: 0,
+      scopeMax: 2,
+      auto: false,
       zeroMeters: 20,
     },
     pistol: {
@@ -2897,7 +2908,9 @@ export const RANGED = {
       energyCost: 0,
       recoilDeg: 2,
       aimFovDeg: 58,
-      scope: false,
+      scopeZoom: 0,
+      scopeMax: 2,
+      auto: false,
       zeroMeters: 25,
     },
     rifle: {
@@ -2914,7 +2927,9 @@ export const RANGED = {
       energyCost: 0,
       recoilDeg: 3,
       aimFovDeg: 45,
-      scope: false,
+      scopeZoom: 0,
+      scopeMax: 8,
+      auto: false,
       zeroMeters: 100,
     },
     sniper_rifle: {
@@ -2931,9 +2946,137 @@ export const RANGED = {
       energyCost: 0,
       recoilDeg: 4,
       aimFovDeg: 12,
-      scope: true,
+      scopeZoom: 4,
+      scopeMax: 16,
+      auto: false,
       zeroMeters: 200,
     },
+    // ── Yeni silahlar (kullanıcı talimatı: "silah çeşitlerini arttır") ──
+    revolver: {
+      speed: 330,
+      gravity: 1,
+      spreadDeg: 1.3,
+      pellets: 1,
+      magazine: 6,
+      reloadSeconds: 2.6,
+      cooldownSeconds: 0.55,
+      range: 90,
+      damage: 34,
+      ammo: 'pistol_ammo',
+      energyCost: 0,
+      recoilDeg: 3.5,
+      aimFovDeg: 56,
+      scopeZoom: 0,
+      scopeMax: 2,
+      auto: false,
+      zeroMeters: 25,
+    },
+    smg: {
+      speed: 340,
+      gravity: 1,
+      spreadDeg: 2.6,
+      pellets: 1,
+      magazine: 30,
+      reloadSeconds: 2.1,
+      cooldownSeconds: 0.085,
+      range: 70,
+      damage: 14,
+      ammo: 'pistol_ammo',
+      energyCost: 0,
+      recoilDeg: 0.9,
+      aimFovDeg: 56,
+      scopeZoom: 0,
+      scopeMax: 4,
+      auto: true,
+      zeroMeters: 25,
+    },
+    assault_rifle: {
+      speed: 680,
+      gravity: 1,
+      spreadDeg: 1.5,
+      pellets: 1,
+      magazine: 25,
+      reloadSeconds: 2.5,
+      cooldownSeconds: 0.12,
+      range: 230,
+      damage: 30,
+      ammo: 'rifle_ammo',
+      energyCost: 0,
+      recoilDeg: 1.4,
+      aimFovDeg: 50,
+      scopeZoom: 0,
+      scopeMax: 8,
+      auto: true,
+      zeroMeters: 100,
+    },
+    marksman_rifle: {
+      speed: 780,
+      gravity: 1,
+      spreadDeg: 1,
+      pellets: 1,
+      magazine: 10,
+      reloadSeconds: 2.7,
+      cooldownSeconds: 0.45,
+      range: 400,
+      damage: 58,
+      ammo: 'rifle_ammo',
+      energyCost: 0,
+      recoilDeg: 2.6,
+      aimFovDeg: 45,
+      scopeZoom: 0,
+      scopeMax: 16,
+      auto: false,
+      zeroMeters: 150,
+    },
+    lmg: {
+      speed: 700,
+      gravity: 1,
+      spreadDeg: 2.4,
+      pellets: 1,
+      magazine: 60,
+      reloadSeconds: 5,
+      cooldownSeconds: 0.1,
+      range: 240,
+      damage: 28,
+      ammo: 'rifle_ammo',
+      energyCost: 0,
+      recoilDeg: 1.6,
+      aimFovDeg: 52,
+      scopeZoom: 0,
+      scopeMax: 4,
+      auto: true,
+      zeroMeters: 100,
+    },
+    crossbow: {
+      speed: 95,
+      gravity: 1,
+      spreadDeg: 0.9,
+      pellets: 1,
+      magazine: 1,
+      reloadSeconds: 2.3,
+      cooldownSeconds: 0.2,
+      range: 140,
+      damage: 55,
+      ammo: 'arrow',
+      energyCost: 4,
+      recoilDeg: 0.6,
+      aimFovDeg: 50,
+      scopeZoom: 0,
+      scopeMax: 4,
+      auto: false,
+      zeroMeters: 30,
+    },
+  },
+  /**
+   * Takılabilir dürbünler (kullanıcı talimatı: 2x, 4x, 8x, 16x). `zoom` büyütme (görüş açısı tan(FOV/2)/zoom),
+   * `swayScale` salınım genliği çarpanı (büyük dürbün daha zor tutulur; ekrandaki salınım ayrıca büyütmeyle artar).
+   * Silah `scopeMax`'tan büyük dürbün takılmaz. Bulunma olasılığı büyütme arttıkça azalır (ganimet tabloları).
+   */
+  scopes: {
+    scope_2x: { zoom: 2, swayScale: 0.6 },
+    scope: { zoom: 4, swayScale: 1 },
+    scope_8x: { zoom: 8, swayScale: 1.25 },
+    scope_16x: { zoom: 16, swayScale: 1.6 },
   },
   /** Yerçekimi ivmesi (oyun m/sn²; gerçek değer). */
   gravity: 9.81,
@@ -2969,13 +3112,26 @@ export const RANGED = {
   /** Ateşli silahla bitkinken atış yapılır; yay/sapan için bu enerjinin altında atış yok. */
   minEnergyPrimitive: 1,
   /** Atış gürültüsünün yarıçapı (oyun m; `noise:made`: canlılar kaçar, eşkıyalar duyar). */
-  noiseRadius: { slingshot: 10, bow: 8, shotgun: 140, pistol: 110, rifle: 170, sniper_rifle: 200 },
+  noiseRadius: {
+    slingshot: 10,
+    bow: 8,
+    shotgun: 140,
+    pistol: 110,
+    rifle: 170,
+    sniper_rifle: 200,
+    revolver: 125,
+    smg: 120,
+    assault_rifle: 170,
+    marksman_rifle: 185,
+    lmg: 190,
+    crossbow: 7,
+  },
   /**
    * Susturucu (`items/weaponState.ts`): takılabilen silahlar; takılıyken atış gürültüsü (`noiseRadius`) ve sesi
    * kısılır, mermi biraz yavaşlar (hasar hafif düşer).
    */
   suppressor: {
-    weapons: ['pistol', 'rifle', 'sniper_rifle'],
+    weapons: ['pistol', 'rifle', 'sniper_rifle', 'smg', 'assault_rifle', 'marksman_rifle'],
     noiseFactor: 0.22,
     damageFactor: 0.92,
     /** Ses: kazanç çarpanı, alçak geçiren süzgeç çarpanı (boğuk "püf"), gümleme yok. */
@@ -3011,6 +3167,12 @@ export const RANGED = {
       pistol: { gain: 0.75, decay: 0.28, lowpassHz: 3800, thumpHz: 85, twangHz: 0 },
       rifle: { gain: 0.95, decay: 0.6, lowpassHz: 3000, thumpHz: 60, twangHz: 0 },
       sniper_rifle: { gain: 1, decay: 0.85, lowpassHz: 2600, thumpHz: 48, twangHz: 0 },
+      revolver: { gain: 0.85, decay: 0.35, lowpassHz: 3400, thumpHz: 75, twangHz: 0 },
+      smg: { gain: 0.6, decay: 0.18, lowpassHz: 4000, thumpHz: 90, twangHz: 0 },
+      assault_rifle: { gain: 0.85, decay: 0.32, lowpassHz: 3200, thumpHz: 65, twangHz: 0 },
+      marksman_rifle: { gain: 0.95, decay: 0.65, lowpassHz: 2900, thumpHz: 55, twangHz: 0 },
+      lmg: { gain: 0.9, decay: 0.3, lowpassHz: 3000, thumpHz: 58, twangHz: 0 },
+      crossbow: { gain: 0.4, decay: 0.15, lowpassHz: 1500, thumpHz: 0, twangHz: 110 },
     },
     /** Boş tetik / doldurma bitti tıkırtısı. */
     click: { gain: 0.2, hz: 1800 },
@@ -3108,12 +3270,13 @@ export const BANDITS = {
   alertSeconds: 12,
   lostSeconds: 6,
   /** Silah dağılımı (olasılık ağırlıkları, üyeler); reis keskin nişancı ya da av tüfeği taşır. */
-  weapons: { pala: 3, club: 2, pistol: 2, shotgun: 2, rifle: 1 },
+  weapons: { pala: 3, club: 2, pistol: 2, shotgun: 2, rifle: 1, yatagan: 1, revolver: 1 },
   leaderWeapons: { sniper_rifle: 1, shotgun: 1 },
   /** Yakın dövüş: hasar, menzil (gövde kenarına), hamle süresi ve bekleme (sn). */
   melee: {
     pala: { damage: 12, reach: 1.7, windup: 0.45, cooldown: 1.8 },
     club: { damage: 9, reach: 1.6, windup: 0.5, cooldown: 1.6 },
+    yatagan: { damage: 11, reach: 1.7, windup: 0.38, cooldown: 1.4 },
   },
   /**
    * Menzilli: tercih edilen uzaklık, atış aralığı (sn), ek nişan hatası (derece; hareket ederken ×2). Hasar
@@ -3124,6 +3287,10 @@ export const BANDITS = {
     shotgun: { preferred: 10, interval: 2.4, aimErrorDeg: 2.5 },
     rifle: { preferred: 35, interval: 2.6, aimErrorDeg: 1.6 },
     sniper_rifle: { preferred: 55, interval: 3.6, aimErrorDeg: 0.8 },
+    revolver: { preferred: 18, interval: 1.7, aimErrorDeg: 2.6 },
+    // Seri atışlı: kısa aralıkla tek tek ateşler (nişan hatası büyük; yakın mesafede tehlikeli).
+    smg: { preferred: 14, interval: 0.35, aimErrorDeg: 4.2 },
+    assault_rifle: { preferred: 30, interval: 0.55, aimErrorDeg: 2.8 },
   },
   damageScale: 0.55,
   /** Can: üye ve reis. */
@@ -3197,8 +3364,8 @@ export const GANGS = {
    */
   gangCountWeights: { '1': 4, '2': 4, '3': 2 } as Readonly<Record<string, number>>,
   maxGangs: 3,
-  weapons: { pistol: 4, shotgun: 2, pala: 2, club: 2, rifle: 1 },
-  leaderWeapons: { pistol: 2, shotgun: 2, rifle: 1 },
+  weapons: { pistol: 4, shotgun: 2, pala: 2, club: 2, rifle: 1, smg: 1, revolver: 2, yatagan: 1 },
+  leaderWeapons: { pistol: 2, shotgun: 2, rifle: 1, assault_rifle: 1 },
   /** Çeteler arası görüş menzili (oyun m) ve göz yüksekliği: rakip bu mesafede görüş hattındaysa çatışma başlar. */
   rivalSight: 60,
   seed: 0x6a9c5e,
@@ -3234,6 +3401,11 @@ export const COMBAT_FX = {
     shotgun: { flashSize: 1.1, sparks: 8, sparkSpeed: 10, smoke: 4, smokeSize: 0.95 },
     rifle: { flashSize: 0.8, sparks: 6, sparkSpeed: 9, smoke: 3, smokeSize: 0.7 },
     sniper_rifle: { flashSize: 1.0, sparks: 6, sparkSpeed: 11, smoke: 4, smokeSize: 0.8 },
+    revolver: { flashSize: 0.65, sparks: 5, sparkSpeed: 8, smoke: 3, smokeSize: 0.6 },
+    smg: { flashSize: 0.45, sparks: 3, sparkSpeed: 7, smoke: 1, smokeSize: 0.45 },
+    assault_rifle: { flashSize: 0.7, sparks: 4, sparkSpeed: 9, smoke: 2, smokeSize: 0.6 },
+    marksman_rifle: { flashSize: 0.85, sparks: 6, sparkSpeed: 10, smoke: 3, smokeSize: 0.7 },
+    lmg: { flashSize: 0.75, sparks: 5, sparkSpeed: 9, smoke: 2, smokeSize: 0.65 },
   },
   /**
    * Savurma görünümü (biçime göre): saldırganın önüne `distance`, yayın dönüş aralığı `rot0 → rot1` (rad), boyut
@@ -3648,11 +3820,15 @@ export const BATTLE_ROYALE = {
     richness: { il: 1, ilce: 0.75, koy: 0.4 },
     /** Teçhizat düzeyi → silah (eşkıya silahları; eşik altındaki ilk silah). */
     gearWeapons: [
-      { below: 0.15, weapon: 'club' },
-      { below: 0.3, weapon: 'pala' },
+      { below: 0.12, weapon: 'club' },
+      { below: 0.22, weapon: 'pala' },
+      { below: 0.3, weapon: 'yatagan' },
+      { below: 0.4, weapon: 'revolver' },
       { below: 0.5, weapon: 'pistol' },
+      { below: 0.6, weapon: 'smg' },
       { below: 0.7, weapon: 'shotgun' },
-      { below: 0.9, weapon: 'rifle' },
+      { below: 0.82, weapon: 'assault_rifle' },
+      { below: 0.92, weapon: 'rifle' },
       { below: Infinity, weapon: 'sniper_rifle' },
     ],
   },
@@ -3699,6 +3875,15 @@ export const BATTLE_ROYALE = {
       shotgun: 11,
       rifle: 7,
       sniper_rifle: 2,
+      revolver: 8,
+      smg: 8,
+      assault_rifle: 6,
+      marksman_rifle: 3,
+      lmg: 2,
+      crossbow: 3,
+      yatagan: 6,
+      war_axe: 4,
+      gurz: 3,
     },
     /** Silahla gelen mühimmat çarpanı (`AMMO.lootCount` aralığının katı). */
     weaponAmmoScale: 1.5,
@@ -3715,6 +3900,11 @@ export const BATTLE_ROYALE = {
       { item: 'backpack_medium', chance: 0.035, min: 1, max: 1 },
       { item: 'backpack_large', chance: 0.012, min: 1, max: 1 },
       { item: 'suppressor', chance: 0.03, min: 1, max: 1 },
+      // Dürbünler: büyütme arttıkça nadir (kullanıcı talimatı: "16x'e doğru bulunabilirlik azalsın").
+      { item: 'scope_2x', chance: 0.07, min: 1, max: 1 },
+      { item: 'scope', chance: 0.04, min: 1, max: 1 },
+      { item: 'scope_8x', chance: 0.018, min: 1, max: 1 },
+      { item: 'scope_16x', chance: 0.006, min: 1, max: 1 },
     ],
     /** Yapı türüne göre olasılık çarpanı (listede olmayan 1). */
     kindScale: {
