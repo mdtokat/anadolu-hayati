@@ -106,12 +106,12 @@ describe('alan', () => {
 });
 
 /** Kurulum: il seçimi ya da tüm harita, 100 kişi. */
-function setupFor(provinces: string[] | null, duration: BrSetup['duration'] = 'medium'): BrSetup {
+function setupFor(provinces: string[] | null, shrinkMinutes = 4): BrSetup {
   return {
     ...defaultSetup(),
     area: provinces ? { kind: 'provinces', names: provinces } : { kind: 'world' },
     players: 100,
-    duration,
+    shrinkMinutes,
   };
 }
 
@@ -149,7 +149,7 @@ describe('maç planı (gerçek dünya)', () => {
     expect(total / 60).toBeGreaterThan(55);
     expect(total / 60).toBeLessThan(95);
     // Süre seçimi tüm haritada da etkili (sınır hızı da ölçeklenir).
-    expect(checkPlan(setupFor(null, 'short'), 8).total).toBeLessThan(total * 0.8);
+    expect(checkPlan(setupFor(null, 2), 8).total).toBeLessThan(total * 0.8);
   });
 
   it('aynı tohum aynı plan', () => {

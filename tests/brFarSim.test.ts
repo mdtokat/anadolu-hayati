@@ -37,7 +37,7 @@ const world: FarWorld = {
 
 function setup(count: number, seed: number) {
   const area = new BrArea([SQUARE], ['K'], 8, 0);
-  const plan = planZone(area, createRandom(seed), 'short', (x, z) => world.walkable(x, z));
+  const plan = planZone(area, createRandom(seed), 2, (x, z) => world.walkable(x, z));
   const spawns = planSpawns(area, count, createRandom(seed + 1), world.walkable);
   const match = new BrMatch(Array.from({ length: count }, (_, i) => `Y${i}`));
   const sim = new FarSim(
@@ -92,7 +92,7 @@ describe('uzak kademe simülasyonu', () => {
 
   it('bölge dışında kalan ve kıpırdayamayan NPC bölgeden ölür', () => {
     const area = new BrArea([SQUARE], ['K'], 8, 0);
-    const plan = planZone(area, createRandom(1), 'short', () => true);
+    const plan = planZone(area, createRandom(1), 2, () => true);
     const match = new BrMatch(['Sen', 'A', 'B']);
     const frozen: FarWorld = { walkable: () => false, lootSpots: [] };
     // B bölgenin son dairesinden en uzak köşede, A tam merkezde; ikisi de yürüyemez.

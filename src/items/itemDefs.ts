@@ -703,7 +703,7 @@ export const ITEMS: Readonly<Record<ItemId, ItemDef>> = {
     category: 'tool',
   },
   // Dürbünler: envanterde silah seçiliyken "Dürbün tak" ile takılır (`items/weaponState.ts`, `RANGED.scopes`). Büyütme
-  // arttıkça nadirleşir (ganimet tabloları); yalnızca ganimetten çıkar.
+  // arttıkça nadirleşir (ganimet tabloları); envanterde de üretilebilir (`items/recipes.ts`, istasyonsuz).
   scope_2x: {
     id: 'scope_2x',
     name: 'Dürbün (2x)',

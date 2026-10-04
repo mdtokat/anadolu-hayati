@@ -191,13 +191,17 @@ export const RECIPE_FILTER_LABELS: Readonly<Record<RecipeFilter, string>> = {
   material: 'Malzeme',
 };
 
-/** Silah ve mühimmat sayılan eşyalar (yakın/menzilli silahlar, mermiler, barut; taş balta alettir). */
+/** Silah ve mühimmat sayılan eşyalar (yakın/menzilli silahlar, mermiler, barut, susturucu, dürbünler; taş balta alettir). */
 const WEAPON_OUTPUTS: ReadonlySet<ItemId> = new Set<ItemId>([
   ...(Object.keys(COMBAT.weapons).filter((id) => id !== 'fist' && id !== 'stone_axe') as ItemId[]),
   ...(Object.keys(RANGED.weapons) as ItemId[]),
   ...(Object.keys(AMMO.lootCount) as ItemId[]),
   'gunpowder',
   'suppressor',
+  'scope_2x',
+  'scope',
+  'scope_8x',
+  'scope_16x',
 ]);
 
 /** Gıda zincirinin ara ürünleri (malzeme kategorisinde ama yalnızca yemek yapımına gider). */

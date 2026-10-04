@@ -550,7 +550,7 @@ _(Kullanıcı talimatı: "Tüm modlarda NPC'ler de binalara girebiliyor olsun. N
 - [x] **Canlı paneller:** envanter, sandık ve ganimet paneli açıkken dünya işler (oyuncu durur, girdisi yok sayılır); Esc paneli kapatıp oyunu duraklatır
 - [x] **Dürbünler:** 2x/4x (eski "Dürbün")/8x/16x, envanterden silaha takılır (`scopeMax`), nişanda görüş açısı büyütmeyle daralır, büyük dürbün daha çok sallanır; ganimette büyütme arttıkça nadir
 - [x] **Yeni silahlar:** altıpatlar, hafif makineli, taarruz tüfeği, yarı otomatik tüfek, makineli tüfek, arbalet (seri atış: sol tık basılı), yatağan, savaş baltası, gürz; eşkıya/çete/yarışmacı silahlarına altıpatlar, hafif makineli, taarruz tüfeği, yatağan
-- [x] **Mini harita:** hayatta kalmada üretilen Harita (tezgâh: kabuk + kömür) envanterdeyken, Son Kalan'da her zaman; arazi, su, yol, yapılar, oyuncu oku; maçta güvenli bölge ve sonraki daire
+- [x] **Mini harita:** hayatta kalmada üretilen Harita (tezgâh: kabuk + kömür) envanterdeyken; arazi, su, yol, yapılar, oyuncu oku _(Son Kalan'da mini harita kalktı: aşağıdaki "Son Kalan ayarları")_
 - [x] **NPC'ler binalarda:** eşkıya, sokak çetesi ve yarışmacı kapıdan girer, duvardan geçmez, merdivenle katlara çıkar (`settlements/buildingWalk.ts`); yarışmacılar yollarındaki binalara girip arar
 - [x] **Akıllı hareket:** takılınca/ilerleyemeyince A* yol bulma (`bandits/navigation.ts`), yapışkan sapma, kanattan sarma, ateş altında yana kayma, görüş hattı dışında siper noktası, kayıp hedefi arama
 
@@ -559,6 +559,21 @@ Kabul kriterleri:
 - [x] Dürbün büyütmesi, salınım, kayıt; seri atış _(otomatik: `tests/rangedSystem`, `tests/weaponHud`)_
 - [x] Mini harita görünürlük kuralı ve dönüşüm _(otomatik: `tests/minimap`)_
 - [ ] Gerçek oyunda his: NPC'lerin bina içi kovalamacası, siper/kanat davranışı, 16x dürbün, seri atış dengesi, mini harita okunaklılığı _(elle)_
+
+---
+
+## Son Kalan ayarları ve dürbün tarifleri (kullanıcı talimatı)
+_(Kullanıcı talimatı: "battle royalde harita kaç dk da bir daralacak kullanıcı oyun öncesi belirleyebilsin. Daralan çember mor değil kırmızı olsun ve her kademede götürdüğü can artsın. Battle royalde mini map olmasın sadece büyük harita olsun, M ile açılıp kapansın. Dürbünlerin tamamı envanterde üretilebilsin.")_
+
+- [x] **Daralma aralığı:** kurulum penceresinde "Bölge kaç dakikada bir daralsın" (2–15 dk, varsayılan 4; kaydırıcı + sayı kutusu, tarayıcıda hatırlanır). Her aşama bu kadar sürer (%35 bekleme, kalanı daralma); eski Kısa/Orta/Uzun seçimi kalktı (`BrSetup.shrinkMinutes`; `BATTLE_ROYALE.zone.intervalMinutes/waitShare/maxEdgeSpeed`). Büyük alanda sınırın hızı `maxEdgeSpeed` (6 m/sn) altında kalsın diye daralma seçilenden uzayabilir
+- [x] **Kırmızı bölge, artan hasar:** bölge duvarı, harita çemberi ve "dışarıdayken" satırı kızıl (önce mor); dışarıdaki saniye başı hasar her aşamada artar (0,5 → 1 → 2 → 3,5 → 5,5 → 8 → 12 can/sn); HUD bölge satırı ve yeni bölge bildirimi güncel hasarı yazar
+- [x] **Mini harita yok:** Son Kalan'da yalnızca `M` ile açılıp kapanan büyük harita (iller, şimdiki/sonraki daire, konum); mini harita yalnızca hayatta kalmada, envanterde Harita varken
+- [x] **Dürbün tarifleri:** 2x, 4x, 8x, 16x'in tamamı envanterde (istasyonsuz) üretilir; demir külçe + hurda metal (+ 4x/8x/16x'te giderek artan elektronik parça); silah süzgecinde listelenir
+
+Kabul kriterleri:
+- [x] Daralma aralığı seçilen süreyi verir, hasar her aşamada artar, kurulum hoşgörülü okunur _(otomatik: `tests/brCore`, `tests/brFormat`)_
+- [x] Mini harita Son Kalan'da gizli _(otomatik: `tests/minimap`)_; dürbün tarifleri istasyonsuz üretilir _(otomatik: `tests/scopeRecipes`)_
+- [ ] Gerçek oyunda his: kırmızı duvarın okunaklılığı, aşama hasarı dengesi, farklı aralıklarda maç temposu _(elle; kılavuz bölüm 27)_
 
 ---
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { provinceAdjacency } from '../src/battleRoyale/area';
 import { defaultSetup } from '../src/battleRoyale/kinds';
+import { BATTLE_ROYALE } from '../src/config';
 import type { ZoneState } from '../src/battleRoyale/zone';
 import type { ProvinceShape } from '../src/data/region';
 import {
@@ -42,14 +43,17 @@ describe('Battle Royale metinleri', () => {
     expect(formatClock(84)).toBe('1:24');
     expect(formatClock(5.2)).toBe('0:06');
     expect(formatClock(-3)).toBe('0:00');
-    expect(zoneStatusText(zone({}), 16, 0)).toBe('Bölge 1:24 sonra daralıyor');
-    expect(zoneStatusText(zone({ stage: 'shrink' }), 40, 0)).toBe('Bölge daralıyor 1:00');
+    expect(zoneStatusText(zone({}), 16, 0)).toBe('Bölge 1:24 sonra daralıyor · Dışarısı −1 can/sn');
+    expect(zoneStatusText(zone({ stage: 'shrink' }), 40, 0)).toBe(
+      'Bölge daralıyor 1:00 · Dışarısı −1 can/sn',
+    );
     expect(zoneStatusText(zone({ stage: 'closed', next: null, stageEnds: Infinity }), 1, 0)).toBe(
-      'Bölge kapandı',
+      'Bölge kapandı · Dışarısı −1 can/sn',
     );
     expect(zoneStatusText(zone({}), 16, 342.4)).toBe(
-      'Bölge 1:24 sonra daralıyor · Güvenli bölgeye 342 m',
+      'Bölge 1:24 sonra daralıyor · Dışarısı −1 can/sn · Güvenli bölgeye 342 m',
     );
+    expect(zoneStatusText(zone({ damage: 3.5 }), 16, 0)).toContain('−3,5 can/sn');
     expect(aliveText(23, 2)).toBe('Kalan 23 · Öldürme 2');
   });
 
@@ -82,7 +86,7 @@ describe('Battle Royale metinleri', () => {
     );
     expect(killFeedText(elim({ cause: 'other', killer: null }))).toBe('Ayşe Kaya elendi');
     expect(phaseNoticeText({ phase: 2, shrinking: false })).toBe(
-      'Yeni güvenli bölge belirlendi (3. aşama)',
+      'Yeni güvenli bölge belirlendi (3. aşama) — dışarısı −2 can/sn',
     );
     expect(phaseNoticeText({ phase: 2, shrinking: true })).toBe('Güvenli bölge daralıyor!');
   });
@@ -116,16 +120,18 @@ describe('Battle Royale metinleri', () => {
   });
 
   it('kurulum özeti', () => {
-    expect(setupSummary(defaultSetup())).toBe('Tüm harita · 64 kişi · Orta · Normal');
+    expect(setupSummary(defaultSetup())).toBe(
+      `Tüm harita · 64 kişi · ${BATTLE_ROYALE.zone.intervalMinutes.default} dk'da bir daralır · Normal`,
+    );
     expect(
       setupSummary({
         ...defaultSetup(),
         area: { kind: 'provinces', names: ['Zonguldak', 'Bartın'] },
         players: 24,
-        duration: 'short',
+        shrinkMinutes: 3,
         difficulty: 'hard',
       }),
-    ).toBe('Zonguldak, Bartın · 24 kişi · Kısa · Zor');
+    ).toBe("Zonguldak, Bartın · 24 kişi · 3 dk'da bir daralır · Zor");
   });
 });
 

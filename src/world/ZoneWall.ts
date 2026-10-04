@@ -48,7 +48,7 @@ export class ZoneWall {
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
       uniforms: {
-        uColor: { value: new Color('#b04ad9') },
+        uColor: { value: new Color('#e0301f') },
         uTime: { value: 0 },
         uOpacity: { value: 0.38 },
       },

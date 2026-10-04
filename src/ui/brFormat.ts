@@ -1,6 +1,7 @@
+import { BATTLE_ROYALE } from '../config';
 import type { Adjacency } from '../battleRoyale/area';
 import { addableProvinces, canRemoveProvince } from '../battleRoyale/area';
-import type { BrDifficulty, BrDuration, BrSetup } from '../battleRoyale/kinds';
+import type { BrDifficulty, BrSetup } from '../battleRoyale/kinds';
 import type { BrResult } from '../battleRoyale/match';
 import type { ZoneState } from '../battleRoyale/zone';
 import type { GameEvents } from '../core/events';
@@ -21,6 +22,12 @@ export function formatClock(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** Saniye başı hasar ("0,5", "3,5", "12"; Türkçe ondalık virgülü). */
+export function formatDamage(perSecond: number): string {
+  const rounded = Math.round(perSecond * 10) / 10;
+  return String(rounded).replace('.', ',');
+}
+
 /** Bölge satırı: aşama sayacı ve (dışarıdaysa) güvenli bölgeye uzaklık. */
 export function zoneStatusText(zone: ZoneState, now: number, outsideBy: number): string {
   let text: string;
@@ -28,6 +35,7 @@ export function zoneStatusText(zone: ZoneState, now: number, outsideBy: number):
   else if (zone.stage === 'wait')
     text = `Bölge ${formatClock(zone.stageEnds - now)} sonra daralıyor`;
   else text = `Bölge daralıyor ${formatClock(zone.stageEnds - now)}`;
+  if (zone.damage > 0) text += ` · Dışarısı −${formatDamage(zone.damage)} can/sn`;
   if (outsideBy > 0.5) text += ` · Güvenli bölgeye ${Math.round(outsideBy)} m`;
   return text;
 }
@@ -75,7 +83,7 @@ export function killFeedText(e: GameEvents['br:eliminated']): string {
 export function phaseNoticeText(e: GameEvents['br:phase']): string {
   return e.shrinking
     ? 'Güvenli bölge daralıyor!'
-    : `Yeni güvenli bölge belirlendi (${e.phase + 1}. aşama)`;
+    : `Yeni güvenli bölge belirlendi (${e.phase + 1}. aşama) — dışarısı −${formatDamage(BATTLE_ROYALE.zone.phases[e.phase]?.damage ?? 0)} can/sn`;
 }
 
 /** Sonuç ekranının başlığı ve alt satırları. */
@@ -91,22 +99,16 @@ export function resultLines(r: BrResult): { title: string; lines: Array<[string,
   return { title, lines };
 }
 
-export const DURATION_LABELS: Readonly<Record<BrDuration, string>> = {
-  short: 'Kısa',
-  medium: 'Orta',
-  long: 'Uzun',
-};
-
 export const DIFFICULTY_LABELS: Readonly<Record<BrDifficulty, string>> = {
   easy: 'Kolay',
   normal: 'Normal',
   hard: 'Zor',
 };
 
-/** Kurulum özeti (ör. "Zonguldak, Bartın · 24 kişi · Orta · Normal"). */
+/** Kurulum özeti (ör. "Zonguldak, Bartın · 24 kişi · 4 dk'da bir daralır · Normal"). */
 export function setupSummary(setup: BrSetup): string {
   const area = setup.area.kind === 'world' ? 'Tüm harita' : setup.area.names.join(', ');
-  return `${area} · ${setup.players} kişi · ${DURATION_LABELS[setup.duration]} · ${DIFFICULTY_LABELS[setup.difficulty]}`;
+  return `${area} · ${setup.players} kişi · ${setup.shrinkMinutes} dk'da bir daralır · ${DIFFICULTY_LABELS[setup.difficulty]}`;
 }
 
 /**
