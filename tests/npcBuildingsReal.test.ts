@@ -19,9 +19,10 @@ import { loadBanditWorld, type BanditWorld as RealWorld } from './helpers/bandit
 const DT = 1 / 60;
 let real: RealWorld;
 
+// Gerçek dünya + yerleşim haritası kurulumu CI'da yük altında 30 sn'yi aşabiliyor (banditCamps gibi).
 beforeAll(async () => {
   real = await loadBanditWorld();
-});
+}, 120_000);
 
 function sample(buildings: readonly Building[], count: number): Building[] {
   const pool = buildings.filter((b) => {
