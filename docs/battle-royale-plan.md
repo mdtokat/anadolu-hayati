@@ -1,17 +1,22 @@
-# Battle Royale Modu — Plan (onay bekliyor)
+# Battle Royale Modu — Plan (onaylandı)
 
 > Kullanıcı talimatı: "Oyuna battle royale modu getirelim. Şu an sadece NPC'lerle oynansın. Harita kapsamı ister tüm
 > harita ister il il olacak şekilde, oyuncu sayısını kullanıcı seçsin. Bunu planla, onayladığımda uygulayacağız."
 >
-> Bu belge yalnızca plandır; kod yazılmadı. Onaydan sonra alt görevler (BR.1 … BR.7) sırayla, her biri ayrı commit
-> olarak uygulanır. §8'deki kararlar onayla birlikte netleşir (her birinde önerilen varsayılan yazılı).
+> **Onay (kullanıcı):** "Onaylıyorum, önerilen varsayılanlarla BR.1'den başla. Tüm harita, 1 veya birden fazla il
+> seçilebilsin. 1'den fazla il seçilirken birbiri ile sınır bağlantısı olacak şekilde seçilsin." §8'deki kararların hepsi
+> önerilen varsayılandır; yalnız §8-6 değişti: alan tüm harita ya da **sınır komşuluğuyla bağlı** bir ya da birden çok il.
+> Alt görevler (BR.1 … BR.7) sırayla, her biri ayrı commit olarak uygulanır; ilerleme §9'da.
 
 ## 1. Özet
 
 - Ana menüye yeni giriş: **"Son Kalan (Battle Royale)"**. Hayatta kalma oyunundan ayrı, kayda girmeyen bir **maç**tır.
 - Maç kurulumu (kullanıcı seçer):
-  - **Alan:** *Tüm harita* (16 hedef il) ya da *tek il* (Zonguldak, Bartın, Karabük, Düzce, Bolu, Kastamonu, Çankırı,
-    Sinop, Sakarya, Kocaeli, Bilecik, Samsun, Çorum, Amasya, Ankara, Kırıkkale).
+  - **Alan:** *Tüm harita* (16 hedef il) ya da *bir veya birden çok il* (Zonguldak, Bartın, Karabük, Düzce, Bolu,
+    Kastamonu, Çankırı, Sinop, Sakarya, Kocaeli, Bilecik, Samsun, Çorum, Amasya, Ankara, Kırıkkale). Birden çok il
+    seçilirken seçim **sınır komşuluğuyla bağlı** olmalıdır: ilk ilden sonra yalnız seçime komşu iller eklenebilir,
+    seçimi ikiye bölecek il çıkarılamaz. Komşuluk il çokgenlerinden türetilir (ortak sınır ≥ 5 oyun m ≈ 250 gerçek m;
+    köşe teması sayılmaz).
   - **Oyuncu sayısı:** 2–100 (oyuncu dahil; geri kalanı NPC). Varsayılan: il 24, tüm harita 64.
   - **Maç süresi:** Kısa / Orta / Uzun (bölge daralma takvimini ölçekler).
   - **NPC zorluğu:** Kolay / Normal / Zor (isabet, tepki süresi, cesaret).
@@ -41,10 +46,11 @@
 | Dosya | Görev |
 |---|---|
 | `kinds.ts` | Sözleşme: `BrSetup` (alan, sayı, süre, zorluk, seçenekler), `BrArea`, `BrPhase`, `Contestant` görünümü, sonuç |
-| `area.ts` | Alan tanımı: tüm harita = 16 hedef ilin birleşimi; il = o ilin çokgeni (+ `PILOT.coastBufferM` kıyı tamponu). `contains(x, z)`, kara örneklemesi (deniz/göl dışı, eğim sınırı), çevreleyen daire |
+| `area.ts` | İl komşuluğu (`provinceAdjacency`), bağlı seçim (`isConnectedSelection`, `addableProvinces`, `canRemoveProvince`, `toggleProvince`); alan (`BrArea`): seçili illerin birleşimi 8 m'lik ızgara maskesinde (tarama satırı rasterleme, ilsiz kıyı şeridi `coastBufferM` içindeki en yakın ile), `contains`, rastgele nokta, en küçük çevreleyen daire (dış bükey zarf + Welzl) |
 | `zone.ts` | Güvenli bölge takvimi: aşamalar (bekleme → daralma), her yeni dairenin merkezi bir öncekinin içinde ve **karada / alanın içinde** seçilir; `zoneAt(t)` → merkez, yarıçap, sonraki daire, aşama sayacı, saniye başı hasar. Süreler alanın yarıçapına ve "maç süresi" seçimine göre ölçeklenir |
 | `spawn.ts` | Başlangıç noktaları: alan içinde N nokta, en küçük aralık (alan / N'den türetilir), deniz/su/bina/dik yamaç dışı; seed'li |
-| `match.ts` | `BrMatch`: saat, kalanlar, öldürme listesi (kill feed), sıralama, bitiş koşulu (≤ 1 kalan ya da oyuncu öldü), sonuç |
+| `match.ts` | `BrMatch`: kalanlar, öldürme listesi (kill feed), sıralama, bitiş koşulu (≤ 1 kalan ya da oyuncu öldü), sonuç |
+| `names.ts`, `plan.ts` | Tekrarsız yarışmacı adları; `planMatch(kurulum, tohum, dünya)` → alan + bölge planı + başlangıç noktaları + maç |
 | `farSim.ts` | **Soyut (uzak) simülasyon** — §3.3 |
 | `loot.ts` | BR ganimet tabloları: bina kapları, ganimet sandıkları, NPC'nin "teçhizat düzeyi"nden silah/mermi/zırh üretimi |
 | `crates.ts` | Ganimet sandığı yerleri: yerleşimlerde, köylerde, kamp yerlerinde, yol kenarlarında seed'li; maç başına yeniden zarlanır |
@@ -121,8 +127,9 @@ her yerde koşturmak ne mümkün (arazi, yapı, collider yok) ne de gerekli. Bu 
 
 ### 3.6 Arayüz
 
-- `ui/BrSetupPanel.ts`: alan seçimi (Tüm harita + 16 il; seçili alanın küçük haritası: il çokgenleri, genel bakış
-  arazisinden gölgeli), oyuncu sayısı (kaydırıcı + sayı kutusu, 2–100), süre, zorluk, seçenekler, "Başlat". Son
+- `ui/BrSetupPanel.ts`: alan seçimi (Tüm harita ya da il seçimi; küçük haritada il çokgenleri — tıklayarak seç/çıkar,
+  yalnız seçime komşu iller tıklanabilir, seçimi bölecek il kilitli — ve aynı liste düğmeleri, genel bakış arazisinden
+  gölgeli), oyuncu sayısı (kaydırıcı + sayı kutusu, 2–100), süre, zorluk, seçenekler, "Başlat". Son
   kurulum `localStorage`'da hatırlanır (ayrı anahtar; ayar sürümüne dokunmaz).
 - HUD (`ui/BrHud.ts`, var olan tasarım değişkenleriyle): üst ortada pusulanın altında **kalan oyuncu**, **öldürme**,
   **bölge sayacı** ("Bölge daralıyor 1:24" / "Güvenli bölgeye 340 m"); pusulada güvenli bölge merkezinin yönü; sağ
@@ -190,8 +197,6 @@ başlangıç aralığı, bölge hasarı.
   oyuncusunu aynı listeye eklemeye uygun tutulur ama ağ kodu yazılmaz.
 - Takımlı mod (ikili/dörtlü), araçlar, uçaktan/paraşütle iniş, izleyici (spectate) kamerası, ikmal uçağı. Fikir
   Havuzu'na not düşülür.
-- Birden çok il seçme (ör. "Zonguldak + Bartın") — istenirse BR.1'de alan tanımı çokgen birleşimi olduğundan kolay
-  eklenir (§8-6).
 
 ## 8. Onayda netleşecek kararlar (önerilen varsayılan **kalın**)
 
@@ -202,5 +207,23 @@ başlangıç aralığı, bölge hasarı.
    NPC), NPC camideki oyuncuyu hedef almaz, ama bölge dışında kalan camide de hasar alır; son iki dairenin merkezi cami
    ayak izine düşmez** · camiler BR'de sıradan yapı gibi.
 5. **Yeni sağlık/zırh eşyaları:** **hem BR'de hem (nadir) hayatta kalma modunda** · yalnız BR'de.
-6. **Alan seçimi:** **tüm harita ya da tek il** · birden çok il seçilebilsin.
+6. **Alan seçimi:** ~~tüm harita ya da tek il~~ → **kullanıcı kararı: tüm harita ya da sınır komşuluğuyla bağlı bir veya
+   birden çok il.**
 7. **Mod adı:** **"Son Kalan (Battle Royale)"** · "Battle Royale" · başka bir ad.
+
+## 9. İlerleme
+
+- [x] **BR.1 — saf çekirdek** (`src/battleRoyale/{kinds,area,zone,spawn,match,names,plan}.ts`, `config.ts` →
+  `BATTLE_ROYALE`; testler `tests/brCore` sentetik, `tests/brRegion` gerçek dünya). Ölçüm (100 kişi, tohum 5):
+  - İl komşuluğu gerçek sınırlarla uyuşur (31 komşu çifti; ör. Zonguldak: Bartın, Bolu, Düzce, Karabük; Kocaeli:
+    Bilecik, Sakarya). 16 il tek bağlı parçadır. Hesap 34 ms.
+  - Tüm haritanın alan maskesi 120 ms (45 km² oyun alanı, ilk daire yarıçapı 6,6 km); tek il 4–25 ms.
+  - Maç süresi (bölge tamamen kapanana kadar; kısa / orta / uzun): tek il ≈ 17–19 / 24–28 / 33–39 dk (Ankara en
+    uzun), tüm harita ≈ 40 / 56 / 79 dk (büyük alanda süreyi sınırın en çok hızı belirler; süre çarpanı bu hızı da ölçekler).
+  - 100 kişi en küçük ilde de (Bartın) aralıklı ve karada başlar.
+- [ ] BR.2 — uzak kademe simülasyonu
+- [ ] BR.3 — yakın kademe (yarışmacı üye türü)
+- [ ] BR.4 — ganimet ve yeni eşyalar
+- [ ] BR.5 — `Game` entegrasyonu
+- [ ] BR.6 — arayüz
+- [ ] BR.7 — ölçüm ve belgeler

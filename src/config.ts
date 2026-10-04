@@ -3513,3 +3513,62 @@ export const PROPERTY = {
   /** İç mekâna eşya konurken oyuncunun döşemeyle en çok dikey farkı (oyun m). */
   indoorVerticalReach: 1.5,
 } as const;
+
+/**
+ * Battle Royale — "Son Kalan" (kullanıcı talimatı; plan `docs/battle-royale-plan.md`): oyuncu ve NPC'ler seçilen alanda
+ * (tüm harita ya da sınır komşuluğuyla bağlı bir ya da birden çok il) eli boş başlar, güvenli bölge aşamalarla daralır,
+ * son kalan kazanır. Maç kayda girmez. Saf mantık `src/battleRoyale/`.
+ */
+export const BATTLE_ROYALE = {
+  /** Oyuncu sayısı (oyuncu dahil): aralık ve alan türüne göre varsayılan. */
+  players: { min: 2, max: 100, defaultProvinces: 24, defaultWorld: 64 },
+  area: {
+    /** Alan maskesinin hücresi (oyun m): `contains` ve rastgele nokta seçimi bu ızgarada çalışır. */
+    maskCell: 8,
+    /** İl çokgenleri kıyıdan içeride kaldığından ilsiz kıyı şeridi bu kadar (oyun m) içindeyse en yakın ile sayılır. */
+    coastBufferM: PILOT.coastBufferM,
+    /**
+     * İl komşuluğu: iki ilin sınırı, köşeleri birbirine `tolerance` (oyun m) yakın kenarlardan en az `minSharedLength`
+     * (oyun m; ≈ 250 gerçek m) uzunlukta ortak çizgi taşıyorsa komşudur (köşe teması komşuluk sayılmaz).
+     */
+    adjacency: { tolerance: 0.5, minSharedLength: 5 },
+  },
+  zone: {
+    /**
+     * Güvenli bölge aşamaları (sırayla): `wait` bekleme ve `shrink` daralma süresi (sn; maç süresi çarpanıyla), yeni
+     * dairenin yarıçapı bir öncekinin `radiusFactor` katı (son aşama 0: bölge tamamen kapanır), dışarıda saniye başı
+     * hasar (can), sınırın en hızlı noktasının en çok hızı (oyun m/sn; yürüme 4, koşu 7). Daralma, sınır bu hızı
+     * aşmayacak kadar uzar: büyük alanda (tüm harita) maç kendiliğinden uzar. Ölçülen (100 kişi, orta): il ≈ 24–28 dk,
+     * tüm harita ≈ 56 dk.
+     */
+    phases: [
+      { wait: 120, shrink: 300, radiusFactor: 0.6, damage: 0.4, edgeSpeed: 6 },
+      { wait: 90, shrink: 180, radiusFactor: 0.55, damage: 0.8, edgeSpeed: 4 },
+      { wait: 75, shrink: 150, radiusFactor: 0.5, damage: 1.5, edgeSpeed: 3 },
+      { wait: 60, shrink: 120, radiusFactor: 0.5, damage: 3, edgeSpeed: 2.5 },
+      { wait: 45, shrink: 90, radiusFactor: 0.45, damage: 5, edgeSpeed: 2 },
+      { wait: 40, shrink: 75, radiusFactor: 0.4, damage: 8, edgeSpeed: 1.5 },
+      { wait: 30, shrink: 60, radiusFactor: 0, damage: 12, edgeSpeed: 1.5 },
+    ],
+    /** Maç süresi seçimi: aşama sürelerinin çarpanı (sınır hızı bu çarpana bölünür). */
+    durationScale: { short: 0.7, medium: 1, long: 1.4 },
+    /** Seçili alanın dışında (komşu il, deniz) saniye başı en az hasar (bölge içinde olsa da). */
+    outsideAreaDamage: 1,
+    /** Yeni daire merkezi için deneme sayısı (karada, alanda, uygun noktada). */
+    centerTries: 80,
+  },
+  spawn: {
+    /** Başlangıç noktaları arası hedef uzaklık = `spacingFactor · √(alan / oyuncu)`, [min, max] aralığında (oyun m). */
+    spacingFactor: 0.6,
+    minSpacing: 25,
+    maxSpacing: 600,
+    /** Aralık tutmazsa bu kadar denemeden sonra aralık `relax` katına iner. */
+    attemptsPerRound: 1500,
+    relax: 0.8,
+    rounds: 12,
+  },
+  /** Maç başı geri sayım (sn): hareket serbest, silah kapalı. */
+  countdownSeconds: 3,
+  /** Öldürme listesinde (kill feed) tutulan son olay sayısı. */
+  killFeedSize: 5,
+} as const;
