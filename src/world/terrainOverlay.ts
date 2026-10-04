@@ -21,10 +21,21 @@ export const OVERLAY_CHANNEL = { paved: 0, dirt: 1, water: 2, border: 3 } as con
 export type OverlayChannel = (typeof OVERLAY_CHANNEL)[keyof typeof OVERLAY_CHANNEL];
 
 /**
- * İkinci doku (yol dokusu) kanalları: R anayol, G kent sokağı (uzaklık), B/A anayol boyunca konum evresinin kosinüs ve
- * sinüsü (`128 + 127 · cos/sin`; kesik orta şerit). Evre iki kanaldadır: doğrusal aradeğerleme sarmada bozulmasın.
+ * İkinci doku (yol dokusu) kanalları: R anayol, G kent sokağı (uzaklık), B anayol ekseninden **işaretli yanal konum**
+ * (oyun m, `128 + yan · scale`; orta şerit), A anayol boyu konumun kesik çizgi evresi (üçgen dalga, `255 · |2·kesir − 1|`).
+ *
+ * Orta şerit kenar uzaklığından çizilemez: uzaklık eksende bir sırttır (|yan|), 2 m'lik hücrelerde doğrusal aradeğerleme
+ * sırtı düzleştirir ve eksen hücre merkezinden geçmedikçe ortadaki uzaklık şerit genişliğinden büyük kalır (zemindeki
+ * anayolda orta şerit çoğu yerde hiç görünmüyordu). İşaretli yanal konum eksen boyunca doğrusaldır, aradeğerlemede
+ * bozulmaz. Evre de üçgen dalgadır: sarma yok, eşik (0,5) dalganın doğrusal kesiminde.
  */
-export const ROAD_CHANNEL = { main: 0, street: 1, cos: 2, sin: 3 } as const;
+export const ROAD_CHANNEL = { main: 0, street: 1, lateral: 2, dash: 3 } as const;
+
+/** Kesik çizgi evresi (üçgen dalga, 0..1): `s` yol boyu konum (oyun m). Çizgi dalga 0,5'in altındayken vardır. */
+export function dashWave(s: number, period: number): number {
+  const f = s / period - Math.floor(s / period);
+  return Math.abs(2 * f - 1);
+}
 
 /** Kaplama ızgarası: arazi ızgarasıyla aynı (hücre merkezleri `origin + (c, r) · cell`). */
 export interface OverlayGrid {
@@ -108,10 +119,11 @@ export class OverlayRaster {
   }
 
   /**
-   * Anayol parçası (yol dokusu): R kanalına kenar uzaklığı, B/A kanallarına yol boyu konumun evresi (`s0` parçanın
-   * başındaki yol boyu konum, `period` kesik çizgi dönemi). Hücre en yakın parçanın evresini alır.
+   * Anayol parçası (yol dokusu): R kanalına kenar uzaklığı, B kanalına işaretli yanal konum (yol yönüne göre sağ +),
+   * A kanalına kesik çizgi evresi (`s0` parçanın başındaki yol boyu konum, `period` dönem). Hücre en yakın parçanın
+   * değerlerini alır.
    */
-  segmentPhase(
+  segmentLane(
     ax: number,
     az: number,
     bx: number,
@@ -146,9 +158,10 @@ export class OverlayRaster {
         const v = encodeOverlay(Math.sqrt(d2) - half, this.scale);
         if (v >= (data[i + ROAD_CHANNEL.main] as number)) continue;
         data[i + ROAD_CHANNEL.main] = v;
-        const phase = ((s0 + t * len) / period) * Math.PI * 2;
-        data[i + ROAD_CHANNEL.cos] = Math.round(128 + 127 * Math.cos(phase));
-        data[i + ROAD_CHANNEL.sin] = Math.round(128 + 127 * Math.sin(phase));
+        // Yanal konum: doğrunun sağına (+) uzaklık (uçlarda da doğruya dik bileşen: eksen boyunca sürekli).
+        const lateral = len > 0 ? ((z - az) * dx - (x - ax) * dz) / len : 0;
+        data[i + ROAD_CHANNEL.lateral] = encodeOverlay(lateral, this.scale);
+        data[i + ROAD_CHANNEL.dash] = Math.round(255 * dashWave(s0 + t * len, period));
       }
     }
   }
@@ -312,7 +325,8 @@ export function* buildTerrainOverlaySteps(
 }
 
 /**
- * Yol dokusu: anayollar (R + kesik orta şerit evresi B/A) ve kent sokakları (G). Boş hücre 255 (uzak), evre 128 (sıfır).
+ * Yol dokusu: anayollar (R uzaklık, B yanal konum, A kesik çizgi evresi) ve kent sokakları (G). Boş hücre 255 (uzak),
+ * yanal konum 128 (sıfır). Çizginin `along` alanı varsa evre oradan başlar (köprü/tünel yüzeyiyle aynı evre).
  */
 export function buildRoadOverlay(
   grid: OverlayGrid,
@@ -334,10 +348,7 @@ export function* buildRoadOverlaySteps(
 ): Generator<void, OverlayRaster> {
   const raster = new OverlayRaster(grid, options);
   const data = raster.data;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i + ROAD_CHANNEL.cos] = 128;
-    data[i + ROAD_CHANNEL.sin] = 128;
-  }
+  for (let i = 0; i < data.length; i += 4) data[i + ROAD_CHANNEL.lateral] = 128;
   let work = 0;
   for (const road of roads) {
     work += road.xz.length / 2;
@@ -351,13 +362,13 @@ export function* buildRoadOverlaySteps(
     }
     if (road.cls !== 0) continue;
     const half = roadHalfWidth(road);
-    let s = 0;
+    let s = road.along ?? 0;
     for (let i = 0; i + 3 < road.xz.length; i += 2) {
       const ax = road.xz[i] as number;
       const az = road.xz[i + 1] as number;
       const bx = road.xz[i + 2] as number;
       const bz = road.xz[i + 3] as number;
-      raster.segmentPhase(ax, az, bx, bz, half, s, TERRAIN_OVERLAY.dashPeriod);
+      raster.segmentLane(ax, az, bx, bz, half, s, TERRAIN_OVERLAY.dashPeriod);
       s += Math.hypot(bx - ax, bz - az);
     }
   }

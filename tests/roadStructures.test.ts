@@ -8,6 +8,7 @@ import {
   roadSurfaceColor,
   structureShape,
 } from '../src/world/roadStructureGeometry';
+import { dashWave } from '../src/world/terrainOverlay';
 
 /** x ekseninde 30 m'lik düz bir köprü (noktalar 3 m), güverte 5 m yükseklikte, altta 0–5 m'lik vadi. */
 function bridgePlan(
@@ -39,9 +40,20 @@ describe('köprü şekli', () => {
     const plan = bridgePlan(0);
     const shape = structureShape(plan, plan.spans[0]!);
     const S = ROAD_STRUCTURES;
-    // Beton güverte gri değil, yolun renginde (anayol asfaltı); 10 parça (i0 … i1).
-    const deck = shape.boxes.filter((b) => b.color === roadSurfaceColor(0) && b.solid);
+    // Beton güverte gri değil, yolun renginde (anayol asfaltı); 10 parça (i0 … i1) + iki yaklaşım plakası.
+    const paved = shape.boxes.filter((b) => b.color === roadSurfaceColor(0) && b.solid);
+    expect(paved).toHaveLength(12);
+    const deck = paved.filter((b) => b.x > 6 && b.x < 36);
     expect(deck).toHaveLength(10);
+    // Yaklaşım plakaları ayakların dışında (2–3 ve 11–12. parça değil: 1–2 ve 12–13), güverteyle aynı üst yüzde:
+    // zemindeki yol ile güverte arasında basamak yok.
+    const approach = paved.filter((b) => b.x < 6 || b.x > 36);
+    expect(approach.map((b) => b.x).sort((a, b) => a - b)).toEqual([4.5, 37.5]);
+    for (const b of approach) {
+      expect(b.y + b.hh).toBeCloseTo(5, 3);
+      expect(b.hh * 2).toBeCloseTo(S.deckThickness, 3);
+      expect(b.hw).toBeCloseTo((ROADS.width[0] as number) / 2 + S.approachPad, 3);
+    }
     for (const b of deck) {
       expect(b.y + b.hh).toBeCloseTo(5, 3); // üst yüz yatak seviyesinde
       expect(b.hw).toBeCloseTo((ROADS.width[0] as number) / 2 + (S.widthPad[0] as number), 3);
@@ -118,17 +130,19 @@ describe('köprü şekli', () => {
       );
     };
     expect(tops(0).every((b) => b.color === O.asphalt)).toBe(true);
-    expect(tops(0)).toHaveLength(10);
+    expect(tops(0)).toHaveLength(12); // 10 güverte parçası + iki yaklaşım plakası
     expect(tops(1, 'arch').every((b) => b.color === O.villageAsphalt)).toBe(true);
     expect(tops(2, 'wooden').every((b) => b.color === O.dirt)).toBe(true);
-    // Anayol: iki kenar çizgisi + kesik orta şerit (30 m'de 7 m dönemli, yarısı çizgi).
+    // Anayol: iki kenar çizgisi + kesik orta şerit (yaklaşımlarla 36 m'de 7 m dönemli, yarısı çizgi).
     const beam = structureShape(bridgePlan(0), bridgePlan(0).spans[0]!);
     const marks = beam.boxes.filter((b) => b.y + b.hh > surfaceTop + 1e-4 && b.hh < 0.05);
-    expect(marks.filter((b) => b.color === O.edgeLine)).toHaveLength(20);
+    expect(marks.filter((b) => b.color === O.edgeLine)).toHaveLength(24);
     const dashes = marks.filter((b) => b.color === O.centerLine);
     const dashLength = dashes.reduce((sum, b) => sum + 2 * b.hl, 0);
-    expect(dashLength).toBeGreaterThan(12);
-    expect(dashLength).toBeLessThan(18);
+    expect(dashLength).toBeGreaterThan(15);
+    expect(dashLength).toBeLessThan(21);
+    // Çizgiler arazi kaplamasındaki kesik şeritle aynı evrede: çizgi parçalarının ortası dalganın < 0,5 kesiminde.
+    for (const b of dashes) expect(dashWave(b.x, O.dashPeriod)).toBeLessThan(0.5);
     // Köy yolunda çizgi yok.
     const village = structureShape(bridgePlan(1), bridgePlan(1).spans[0]!);
     expect(village.boxes.some((b) => b.color === O.centerLine || b.color === O.edgeLine)).toBe(

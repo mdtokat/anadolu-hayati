@@ -34,6 +34,8 @@ export interface StructureBox {
   solid: boolean;
   /** Işıklı (tünel lambası): ışıktan bağımsız parlak çizilir. */
   emissive?: boolean;
+  /** Köprü ucundaki istinat (ayak) bloğu: araziye gömülü tasarlanır (gömülü güverte denetimine girmez). */
+  footing?: boolean;
 }
 
 /** Bir yapının kutuları ve sınırları. */
@@ -81,6 +83,40 @@ function segmentAxis(road: PlannedRoad, a: number, b: number) {
   const dy = (road.bed[b] as number) - (road.bed[a] as number);
   const len = Math.hypot(dx, dy, dz) || 1;
   return { fx: dx / len, fy: dy / len, fz: dz / len, len };
+}
+
+/**
+ * Yolun a → b parçasına başka bir yapının (köprü/tünel; aynı yolun öbür yapıları dahil) yol noktası, iki genişliğin
+ * toplamı kadar yakın mı? Yaklaşım plakası kavşakta komşu köprünün güvertesine binmesin diye.
+ */
+function nearOtherSpan(
+  plan: RoadPlan,
+  span: RoadSpan,
+  road: PlannedRoad,
+  a: number,
+  b: number,
+  half: number,
+): boolean {
+  const ax = road.xz[a * 2] as number;
+  const az = road.xz[a * 2 + 1] as number;
+  const dx = (road.xz[b * 2] as number) - ax;
+  const dz = (road.xz[b * 2 + 1] as number) - az;
+  const len2 = dx * dx + dz * dz || 1;
+  const S = ROAD_STRUCTURES;
+  for (const other of plan.spans) {
+    if (other.road === span.road && other.i0 === span.i0 && other.i1 === span.i1) continue;
+    const r = plan.roads[other.road] as PlannedRoad;
+    const reach =
+      half + (ROADS.width[r.cls] as number) / 2 + (S.widthPad[r.cls] as number) + S.tunnelSidePad;
+    for (let i = other.i0; i <= other.i1; i++) {
+      const px = (r.xz[i * 2] as number) - ax;
+      const pz = (r.xz[i * 2 + 1] as number) - az;
+      if (Math.abs(px) > 40 || Math.abs(pz) > 40) continue;
+      const t = Math.max(0, Math.min(1, (px * dx + pz * dz) / len2));
+      if (Math.hypot(px - t * dx, pz - t * dz) < reach) return true;
+    }
+  }
+  return false;
 }
 
 /** Yol tipinin yüzey rengi (arazi kaplamasındaki yolla aynı ton; `TERRAIN_OVERLAY`). */
@@ -240,13 +276,14 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
         const lateral = side * (surfaceHalf - O.edgeLineInset - w);
         pushPart(a, b, 0, 1, lateral, top, w, lift / 2, O.edgeLine);
       }
-      // Kesik orta şerit: dönemin ilk yarısı çizgi.
+      // Kesik orta şerit: dönemin orta yarısı çizgi (arazi kaplamasındaki `dashWave` < 0,5 ile aynı evre: köprü/tünel
+      // yüzeyindeki çizgiler zemindeki yolda kesintisiz sürer).
       const len = segmentAxis(road, a, b).len;
       const s0 = a * road.step;
       const period = O.dashPeriod;
-      for (let k = Math.floor(s0 / period); k * period < s0 + len; k++) {
-        const d0 = Math.max(k * period, s0);
-        const d1 = Math.min(k * period + period / 2, s0 + len);
+      for (let k = Math.floor(s0 / period) - 1; k * period + period / 4 < s0 + len; k++) {
+        const d0 = Math.max(k * period + period / 4, s0);
+        const d1 = Math.min(k * period + (period * 3) / 4, s0 + len);
         if (d1 - d0 < 0.05) continue;
         pushPart(
           a,
@@ -458,6 +495,22 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
     const deckColor = stone ? C.stone : wooden ? C.wood : roadSurfaceColor(road.cls);
     const deckThick = wooden ? 0.25 : stone ? 0.9 : S.deckThickness;
     const surfaceHalf = wooden ? deckHalf * S.woodenTrailShare : half;
+    // Yaklaşım plakası: ayaktan önceki yol parçası boyunca, güverteyle aynı üst yüz ve kalınlıkta, yolun renginde ve
+    // çizgileriyle (tünel ağzı önündeki beton zemin gibi). Zemindeki boyalı yol ile güverte arasında basamak/kesinti
+    // kalmaz: ayak dibindeki zemin köprü koridorunda alçalabilir, güvertenin ön yüzü ve ayak bloğu görünürdü.
+    const last = road.xz.length / 2 - 1;
+    const approachColor = roadSurfaceColor(road.cls);
+    for (const [a, b] of [
+      [i0 - 1, i0],
+      [i1, i1 + 1],
+    ] as const) {
+      if (a < 0 || b > last) continue;
+      if (road.kind[a] !== SPAN_KIND.ground || road.kind[b] !== SPAN_KIND.ground) continue;
+      // Kavşakta başka bir yolun köprüsü/tüneli bu parçaya değiyorsa plaka konmaz (yapılar üst üste binmesin).
+      if (nearOtherSpan(plan, span, road, a, b, half + S.approachPad)) continue;
+      push(a, b, 0, 0, half + S.approachPad, S.deckThickness / 2, approachColor, true);
+      surface(a, b, half);
+    }
     for (let i = i0; i < i1; i++) {
       push(i, i + 1, 0, 0, deckHalf, deckThick / 2, deckColor, true);
       surface(i, i + 1, surfaceHalf);
@@ -574,6 +627,7 @@ export function structureShape(plan: RoadPlan, span: RoadSpan): StructureShape {
         }
       } else {
         level(i, 0, out * 0.6, bottom, bed - deckThick, 0.8, deckHalf + 0.3, pierColor, true);
+        (boxes[boxes.length - 1] as StructureBox).footing = true;
       }
     }
     const every = Math.max(1, Math.round((wooden ? 6 : S.pierSpacing) / road.step));

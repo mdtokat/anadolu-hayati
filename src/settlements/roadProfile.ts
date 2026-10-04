@@ -167,6 +167,22 @@ function limitGrade(p: Float64Array, ds: number, g: number, pinA: number, pinB: 
   p[0] = pinA;
 }
 
+/**
+ * Ardışık noktalar arası farkı `d` ile sınırlar; `fixed` noktalar değişmez (ileri ve geri geçiş). İki sabit nokta
+ * arasındaki fark eğimle kapanamıyorsa sonraki (geri) geçiş kazanır.
+ */
+function rampToFixed(p: Float64Array, d: number, fixed: (i: number) => boolean): void {
+  const n = p.length;
+  for (let i = 1; i < n; i++) {
+    if (fixed(i)) continue;
+    p[i] = Math.min(Math.max(p[i] as number, (p[i - 1] as number) - d), (p[i - 1] as number) + d);
+  }
+  for (let i = n - 2; i >= 0; i--) {
+    if (fixed(i)) continue;
+    p[i] = Math.min(Math.max(p[i] as number, (p[i + 1] as number) - d), (p[i + 1] as number) + d);
+  }
+}
+
 /** Dere yarı genişliği (oyun m) — köprü gereksinimi için. */
 function streamHalf(kind: string): number {
   return ((FRESH_WATER.lineWidth as Record<string, number>)[kind] ?? 0) / 2;
@@ -533,6 +549,14 @@ export function planRoadProfiles(roads: readonly RoadData[], terrain: ProfileTer
       if (!raised) break;
       solve();
     }
+    // Yapı uçlarına yaklaşım rampası: son turda kesin sınırlar (yükseltilmiş ayak, tünel tavanı) eğim sınırından sonra
+    // uygulandığından komşu zemin noktası geride kalabiliyordu (köprü ayağında tek adımda 2 m'ye varan basamak).
+    // Sabit noktalar (uçlar, yapı noktaları, kesin ayaklar) yerinde kalır; zemin noktaları onlardan eğimle uzaklaşır.
+    rampToFixed(
+      p,
+      ds * grade,
+      (i) => i === 0 || i === count - 1 || kind[i] !== SPAN_KIND.ground || hard[i] === 1,
+    );
     for (const span of mySpans) {
       if (span.kind !== SPAN_KIND.bridge) continue;
       const a = p[span.i0] as number;
@@ -704,22 +728,28 @@ export function surfaceRuns(plan: RoadPlan): RoadData[] {
   return runsWhere(plan, (k) => k !== SPAN_KIND.tunnel);
 }
 
-/** `keep` doğru olan noktalardan oluşan kesimler; yapı kesiminin uç (ayak/ağız) noktaları iki yanda da kalır. */
+/**
+ * `keep` doğru olan noktalardan oluşan kesimler; yapı kesiminin uç (ayak/ağız) noktaları iki yanda da kalır. `along`:
+ * kesimin başının yolun başından uzaklığı (kesik orta şerit köprü/tünel yüzeyiyle aynı evrede sürsün).
+ */
 function runsWhere(plan: RoadPlan, keep: (kind: number) => boolean): RoadData[] {
   const out: RoadData[] = [];
   for (const road of plan.roads) {
     let run: number[] = [];
+    let start = 0;
     const flush = () => {
       if (run.length >= 4)
         out.push({
           cls: road.cls,
           ...(road.width !== undefined ? { width: road.width } : {}),
           xz: Float32Array.from(run),
+          ...(start > 0 ? { along: start * road.step } : {}),
         });
       run = [];
     };
     const n = road.xz.length / 2;
     for (let i = 0; i < n; i++) {
+      if (run.length === 0) start = i;
       run.push(road.xz[i * 2] as number, road.xz[i * 2 + 1] as number);
       const next = i + 1 < n ? (road.kind[i + 1] as number) : 0;
       // Atlanan kesim başlıyorsa (sonraki nokta atlanan türde) kesim bu noktada biter.

@@ -256,9 +256,15 @@ function bridgeCeiling(grid: HeightGrid, plan: RoadPlan): Float32Array {
         const z = origin.z + r * cell;
         for (let c = c0; c <= c1; c++) {
           const x = origin.x + c * cell;
-          const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
+          const raw = len2 > 0 ? ((x - ax) * dx + (z - az) * dz) / len2 : 0;
+          const t = Math.max(0, Math.min(1, raw));
           if (Math.hypot(x - (ax + t * dx), z - (az + t * dz)) > half) continue;
-          const u = i + t;
+          // Köprü boyu konum kırpılmamış izdüşümden: ayağın yanındaki hücre bir sonraki parçanın başına (t = 0) en yakın
+          // olsa da ayağa yakın sayılır; ayakların ötesindeki hücre (yaklaşım yolu) koridorda değildir. Önce `i + t` ile
+          // tam açıklıkta sayılıyor ve eğimli köprüde ayağın yatağına kırpılıyordu: yaklaşım yolu ayaktan ~4 m önce
+          // 0,5–0,9 m çukurlaşıyor, güvertenin ön yüzü ve ayak bloğu basamak gibi görünüyordu.
+          const u = i + raw;
+          if (u < span.i0 || u > span.i1) continue;
           const factor = Math.min(1, Math.max(0, Math.min(u - span.i0, span.i1 - u)));
           const limit = bedA + t * (bedB - bedA) - ROADS.bridgeClearance * factor;
           const at = r * width + c;

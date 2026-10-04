@@ -6,6 +6,7 @@ import {
   OVERLAY_CHANNEL,
   OverlayRaster,
   ROAD_CHANNEL,
+  dashWave,
   buildRoadOverlay,
   buildTerrainOverlay,
   type OverlayChannel,
@@ -128,17 +129,36 @@ describe('buildRoadOverlay', () => {
     );
     expect(raster.distanceAt(R.main as OverlayChannel, 0, 20)).toBeGreaterThan(7);
     expect(raster.distanceAt(R.street as OverlayChannel, 0, 20)).toBeGreaterThan(7);
-    // Evre yol boyunca döner: dönemin yarısı uzaklıktaki iki noktada kosinüs işareti değişir.
-    const cosAt = (x: number) => {
+    // Yanal konum: yolun sağında +, solunda − (doğrusal: hücreler arasında aradeğerleme ekseni korur). Yol +X yönünde,
+    // sağ (+) güneyde (+Z). Eksen hücre merkezinden geçmese de ortada |yan| şerit genişliğinin altındadır (kenar
+    // uzaklığından çizilen eski şerit 2 m'lik hücrede eksenden 1 m'ye varan sapma gösteriyordu).
+    const lane = (x: number, z: number) => raster.distanceAt(R.lateral as OverlayChannel, x, z);
+    expect(lane(0, -28)).toBeCloseTo(2, 1);
+    expect(lane(0, -32)).toBeCloseTo(-2, 1);
+    const off = buildRoadOverlay(grid, [{ cls: 0, xz: Float32Array.of(-40, -29, 40, -29) }]);
+    const offLane = off.distanceAt(R.lateral as OverlayChannel, 3, -29);
+    expect(Math.abs(offLane)).toBeLessThan(TERRAIN_OVERLAY.centerLineHalf);
+    expect(off.distanceAt(R.main as OverlayChannel, 3, -29) + ROADS.width[0] / 2).toBeGreaterThan(
+      0.5,
+    );
+    // Kesik çizgi evresi (üçgen dalga): dönemin yarısı çizgi; `along` evreyi kaydırır.
+    const waveAt = (r: typeof raster, x: number) => {
       const c = Math.round((x - grid.origin.x) / grid.cell);
-      const r = Math.round((-30 - grid.origin.z) / grid.cell);
-      return ((raster.data[(r * grid.width + c) * 4 + R.cos] as number) - 128) / 127;
+      const row = Math.round((-30 - grid.origin.z) / grid.cell);
+      return (r.data[(row * grid.width + c) * 4 + R.dash] as number) / 255;
     };
     const period = TERRAIN_OVERLAY.dashPeriod;
+    for (let x = -30; x < 30; x += grid.cell)
+      expect(waveAt(raster, x)).toBeCloseTo(dashWave(x + 40, period), 2);
     let flips = 0;
     for (let x = -30; x < 30; x += grid.cell)
-      if (Math.sign(cosAt(x)) !== Math.sign(cosAt(x + grid.cell))) flips++;
+      if (waveAt(raster, x) < 0.5 !== waveAt(raster, x + grid.cell) < 0.5) flips++;
     expect(flips).toBeGreaterThanOrEqual(Math.floor((60 / period) * 2) - 2);
+    const shifted = buildRoadOverlay(grid, [
+      { cls: 0, xz: Float32Array.of(-40, -30, 40, -30), along: 10 },
+    ]);
+    for (let x = -30; x < 30; x += grid.cell)
+      expect(waveAt(shifted, x)).toBeCloseTo(dashWave(x + 50, period), 2);
   });
 });
 

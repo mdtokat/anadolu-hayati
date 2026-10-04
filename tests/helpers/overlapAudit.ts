@@ -182,7 +182,7 @@ export function auditOverlaps(
     let at = { x: shape.cx, z: shape.cz };
     for (const b of shape.boxes) {
       // Yalnızca ince güverte ve korkuluk kutuları (kemer ayakları/istinat blokları araziye gömülü olacak şekilde tasarlıdır).
-      if (!b.solid || b.hh > 0.35) continue;
+      if (!b.solid || b.footing || b.hh > 0.35) continue;
       const top = b.y + b.hh;
       const ground = heightAt(b.x, b.z);
       if (ground - top > worst) {
